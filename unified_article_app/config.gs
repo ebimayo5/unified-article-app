@@ -1,0 +1,133 @@
+const UA_APP_NAME = '統合版記事作成アプリ';
+
+const UA_ARTICLE_PROVIDER_PROPERTY = 'ARTICLE_PROVIDER';
+const UA_READER_MIND_PROVIDER_PROPERTY = 'READER_MIND_PROVIDER';
+
+const UA_GEMINI_MODELS = [
+  'models/gemini-3.5-flash',
+  'models/gemini-2.5-pro'
+];
+
+const UA_DEFAULT_OPENAI_MODEL = 'gpt-5.2';
+const UA_DEFAULT_CLAUDE_MODEL = 'claude-sonnet-4-5-20250929';
+
+const UA_STATUS_GENERATING = '記事生成中';
+const UA_STATUS_DONE = '記事生成済み';
+const UA_STATUS_STOPPED = '記事生成停止';
+const UA_STATUS_WP_DRAFTED = 'WP下書き済み';
+const UA_STATUS_POSTED = '投稿済み';
+
+const UA_CANDIDATE_STATUS_WRITE = '書く';
+const UA_CANDIDATE_STATUS_SENT = '記事化済み';
+
+const UA_CANDIDATE_COLUMNS = {
+  status: 1,
+  keyword: 2,
+  volume: 3
+};
+
+const UA_READER_MIND_MAX_RESULTS = 6;
+const UA_INTERNAL_LINK_SHEET_NAME = '内部リンク';
+const UA_INTERNAL_LINK_MAX_URLS = 200;
+const UA_INTERNAL_LINK_INTRO_LENGTH = 260;
+const UA_INTERNAL_LINK_MAX_CANDIDATES = 8;
+const UA_COMPETITOR_URL_TEXT_LENGTH = 12000;
+const UA_COMPETITOR_URL_MAX_HEADINGS = 40;
+const UA_EXTERNAL_SOURCE_SHEET_NAME = '外部出典';
+const UA_EXTERNAL_SOURCE_MAX_CANDIDATES = 6;
+
+const UA_APP_TYPES = {
+  drive: {
+    key: 'drive',
+    label: 'DRIVE BASE',
+    articleSheetName: 'DRIVE BASE',
+    candidateSheetName: 'DRIVE BASE_キーワード候補',
+    theme: 'green',
+    inputLabel: 'メインキーワード',
+    useVolume: true,
+    useInternalLinks: true,
+    useExternalSources: true,
+    useWordPress: true,
+    promptType: 'drive'
+  },
+  home: {
+    key: 'home',
+    label: 'たくみパパ',
+    articleSheetName: 'たくみパパ',
+    candidateSheetName: 'たくみパパ_キーワード候補',
+    theme: 'brown',
+    inputLabel: 'メインキーワード',
+    useVolume: true,
+    useInternalLinks: true,
+    useExternalSources: true,
+    useWordPress: true,
+    promptType: 'home'
+  },
+  general: {
+    key: 'general',
+    label: '汎用記事',
+    articleSheetName: '汎用記事',
+    candidateSheetName: '',
+    theme: 'blue',
+    inputLabel: '案件指示書',
+    useVolume: false,
+    useInternalLinks: false,
+    useExternalSources: true,
+    useWordPress: false,
+    promptType: 'general'
+  }
+};
+
+const UA_COLUMNS = {
+  appType: 1,
+  mainInput: 2,
+  volume: 3,
+  affiliateName: 4,
+  affiliateUrl: 5,
+  affiliateNotes: 6,
+  competitorUrl1: 7,
+  competitorUrl2: 8,
+  competitorUrl3: 9,
+  readerMindMemo: 10,
+  status: 11,
+  createdAt: 12,
+  generationModel: 13,
+  body: 14,
+  titleIdeas: 15,
+  tags: 16,
+  metaDescription: 17,
+  permalink: 18,
+  factCheckPoints: 19,
+  wpPostId: 20,
+  wpEditUrl: 21,
+  wpDraftedAt: 22,
+  structureMemo: 23
+};
+
+const UA_ARTICLE_COLUMN_COUNT = UA_COLUMNS.structureMemo;
+
+const UA_HEADERS = [
+  '記事タイプ',
+  'メインキーワード / 案件指示書',
+  '検索ボリューム',
+  'メイン案件名',
+  'メインアフィリエイトURL',
+  '案件注意点 / その他制約事項',
+  '競合URL1',
+  '競合URL2',
+  '競合URL3',
+  '読者心理メモ',
+  '状態',
+  '作成日時',
+  '使用モデル',
+  '本文',
+  'タイトル案',
+  '関連タグ',
+  'メタディスクリプション',
+  'パーマリンク',
+  '要確認ポイント',
+  'WP投稿ID',
+  'WP編集URL',
+  'WP入稿日時',
+  '構成メモ'
+];

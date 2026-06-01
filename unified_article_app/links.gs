@@ -1,0 +1,927 @@
+function uaBuildInternalLinksPrompt_(mainInput, appConfig) {
+  if (!appConfig || !appConfig.useInternalLinks) {
+    return `
+内部リンク:
+この記事タイプでは内部リンク候補を使いません。
+`;
+  }
+
+  const candidates = uaGetInternalLinkCandidates_(mainInput, appConfig);
+
+  if (candidates.length === 0) {
+    return `
+内部リンク:
+内部リンクシートに関連候補がない、または内部リンクシートが未作成です。
+本文内に内部リンクは入れないでください。
+`;
+  }
+
+  const candidateText = candidates.map(function(item, index) {
+    return [
+      (index + 1) + '. サイト: ' + item.site,
+      'URL: ' + item.url,
+      'タイトル: ' + item.title,
+      'メタディスクリプション: ' + item.description,
+      '本文冒頭: ' + item.intro,
+      '使う場面: ' + item.usage,
+      '関連キーワード: ' + item.keywords,
+      '核記事: ' + (item.isCore ? 'はい' : 'いいえ'),
+      '優先度: ' + item.priority
+    ].join('\n');
+  }).join('\n\n');
+
+  return `
+内部リンク:
+以下は、このサイト内の関連記事候補です。
+候補がある場合は、関連性が高いものを本文中に1個以上入れる前提で検討してください。
+ただし、読者の次の悩みにつながらない候補は無理に入れないでください。
+内部リンクは1〜3個まで入れてください。
+同じURLは1回だけ使ってください。
+関連性が薄い候補は使わないでください。
+アンカーテキストは記事タイトルをそのまま使わず、本文になじむ短い自然な文言にしてください。
+リンク形式は <a href='URL'>自然なアンカーテキスト</a> とします。
+内部リンクだけの独立段落を連発せず、読者の次の悩みや補足理解につながる位置に入れてください。
+入れやすい位置は、関連するH2の本文中、比較・注意点の補足、まとめ前の「次に読む内容」です。
+内部リンクは自然に溶け込ませすぎず、読者が別記事へ移動するリンクだと分かる文脈にしてください。
+1記事内の内部リンクのうち少なくとも1つは、「あわせて読みたい」「関連する内容は〜の記事で整理しています」「本文では触れきれない注意点は〜も参考になります」のような補足導線として入れてください。
+ただし、リンクだけの不自然な案内文は避け、本文の悩みや次の確認事項につながる位置に置いてください。
+
+【内部リンク候補】
+${candidateText}
+`;
+}
+
+function uaSetupInternalLinkSheet() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName(UA_INTERNAL_LINK_SHEET_NAME);
+
+  if (!sheet) {
+    sheet = ss.insertSheet(UA_INTERNAL_LINK_SHEET_NAME);
+  }
+
+  sheet.getRange(1, 1, 1, 11).setValues([[
+    'サイト',
+    'URL',
+    'タイトル',
+    'メタディスクリプション',
+    '本文冒頭',
+    '関連キーワード',
+    '核記事',
+    '取得日時',
+    '手動保持',
+    '使う場面',
+    '優先度'
+  ]]);
+  sheet.setFrozenRows(1);
+  sheet.autoResizeColumns(1, 11);
+}
+
+function uaUpdateInternalLinksFromSitemaps() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName(UA_INTERNAL_LINK_SHEET_NAME);
+
+  if (!sheet) {
+    sheet = ss.insertSheet(UA_INTERNAL_LINK_SHEET_NAME);
+  }
+
+  uaSetupInternalLinkSheet();
+
+  const existingMap = uaGetExistingInternalLinkMap_(sheet);
+  const rows = [];
+  const seenUrls = {};
+  const messages = [];
+
+  Object.keys(UA_APP_TYPES).forEach(function(key) {
+    const appConfig = UA_APP_TYPES[key];
+
+    if (!appConfig.useInternalLinks) {
+      return;
+    }
+
+    const sitemapUrl = uaGetInternalLinkSitemapUrl_(appConfig);
+
+    if (!sitemapUrl) {
+      messages.push(appConfig.label + ': サイトマップURL未設定');
+      return;
+    }
+
+    const urls = uaFetchSitemapUrls_(sitemapUrl).slice(0, UA_INTERNAL_LINK_MAX_URLS);
+
+    if (urls.length === 0) {
+      messages.push(appConfig.label + ': URL取得0件');
+      return;
+    }
+
+    let count = 0;
+
+    urls.forEach(function(url) {
+      const oldData = existingMap[url] || {};
+      const info = uaFetchPageInfo_(url);
+
+      if (!info || !info.title) {
+        return;
+      }
+
+      const inferred = uaInferInternalLinkMetadata_(appConfig, url, info);
+
+      seenUrls[url] = true;
+      count++;
+
+      rows.push([
+        appConfig.label,
+        url,
+        info.title || oldData.title || '',
+        info.description || oldData.description || '',
+        info.intro || oldData.intro || '',
+        oldData.keywords || info.keywords || inferred.keywords || '',
+        oldData.isCore ? true : '',
+        new Date(),
+        oldData.isManualKeep ? true : '',
+        oldData.usage || inferred.usage || '',
+        oldData.priority || inferred.priority || ''
+      ]);
+    });
+
+    messages.push(appConfig.label + ': ' + count + '件');
+  });
+
+  Object.keys(existingMap).forEach(function(url) {
+    const oldData = existingMap[url];
+
+    if (!oldData.isManualKeep || seenUrls[url]) {
+      return;
+    }
+
+    rows.push([
+      oldData.site || '',
+      oldData.url || url,
+      oldData.title || '',
+      oldData.description || '',
+      oldData.intro || '',
+      oldData.keywords || '',
+      oldData.isCore ? true : '',
+      oldData.fetchedAt || '',
+      true,
+      oldData.usage || '',
+      oldData.priority || ''
+    ]);
+  });
+
+  if (sheet.getLastRow() > 1) {
+    sheet.getRange(2, 1, sheet.getLastRow() - 1, 11).clearContent();
+  }
+
+  if (rows.length > 0) {
+    sheet.getRange(2, 1, rows.length, 11).setValues(rows);
+  }
+
+  SpreadsheetApp.getUi().alert('内部リンク候補を更新しました。\n' + messages.join('\n') + '\n合計: ' + rows.length + '件');
+}
+
+function uaInferInternalLinkMetadata_(appConfig, url, info) {
+  const appKey = String(appConfig && appConfig.key || '');
+  const text = uaNormalizeForScore_([
+    url,
+    info && info.title,
+    info && info.description,
+    info && info.intro,
+    info && info.keywords
+  ].join(' '));
+
+  const result = {
+    usage: '関連テーマの補足、比較、注意点、次に読む記事として使う',
+    priority: '中',
+    keywords: ''
+  };
+
+  const rules = [];
+
+  function addRule(triggers, usage, priority, keywords) {
+    rules.push({
+      triggers: triggers,
+      usage: usage,
+      priority: priority || '中',
+      keywords: keywords || triggers.join(' ')
+    });
+  }
+
+  addRule(
+    ['後悔', '失敗', 'デメリット', '注意', '不安'],
+    '後悔・失敗・注意点を補足するときに使う',
+    '高',
+    '後悔 失敗 デメリット 注意点 選び方 比較'
+  );
+
+  addRule(
+    ['費用', '料金', '相場', '価格', '工賃', '維持費'],
+    '費用・相場・見積もりの補足として使う',
+    '高',
+    '費用 相場 価格 工賃 維持費 見積もり'
+  );
+
+  if (appKey === 'drive') {
+    addRule(
+      ['洗車', 'コーティング', 'ワックス', '水垢', '油膜', 'ガラス', '車内清掃', '汚れ', '綺麗', 'きれい', '清潔'],
+      '洗車・車内清掃・汚れ対策・清潔感の補足として使う',
+      '高',
+      '洗車 車内清掃 汚れ 綺麗 清潔 コーティング ワックス 水垢 油膜 ガラス'
+    );
+    addRule(
+      ['ナビ', 'テレビ', '地デジ', 'モニター', 'hdmi', 'carplay', 'android', '後付け'],
+      'ナビ・モニター・CarPlay・後付け電装の補足として使う',
+      '高',
+      'ナビ テレビ 地デジ モニター HDMI CarPlay Android Auto 後付け'
+    );
+    addRule(
+      ['エアコン', '冷房', '暖房', 'アイドリング', '車中泊', '仮眠', 'バッテリー', '電源'],
+      'エアコン・車中泊・バッテリー・電源まわりの補足として使う',
+      '高',
+      'エアコン 車中泊 仮眠 バッテリー 電源 アイドリング ポータブル電源'
+    );
+    addRule(
+      ['タイヤ', 'ホイール', '空気圧', 'スタッドレス'],
+      'タイヤ・ホイール・交換時期の補足として使う',
+      '中',
+      'タイヤ ホイール 空気圧 スタッドレス 交換'
+    );
+  }
+
+  if (appKey === 'home') {
+    addRule(
+      ['間取り', '動線', '家事動線', '生活動線', '車いす', 'バリアフリー'],
+      '間取り・生活動線・家族の使いやすさの補足として使う',
+      '高',
+      '間取り 動線 家事動線 生活動線 車いす バリアフリー 通路幅'
+    );
+    addRule(
+      ['キッチン', '洗面', '浴室', '風呂', 'トイレ', '水回り', '排水', 'ぬめり', '掃除'],
+      '水回り・掃除・設備選びの補足として使う',
+      '高',
+      'キッチン 洗面 浴室 トイレ 水回り 排水 ぬめり 掃除'
+    );
+    addRule(
+      ['収納', '片付け', 'クローゼット', 'パントリー', '土間'],
+      '収納計画・片付け・生活用品の置き場を補足するときに使う',
+      '高',
+      '収納 片付け クローゼット パントリー 土間収納 可動棚'
+    );
+    addRule(
+      ['外構', '庭', '駐車場', '玄関', 'アプローチ', '隣家', '境界'],
+      '外構・玄関まわり・隣家との距離感の補足として使う',
+      '中',
+      '外構 庭 駐車場 玄関 アプローチ 隣家 境界'
+    );
+    addRule(
+      ['断熱', '窓', '結露', '換気', 'エアコン', '寒い', '暑い'],
+      '断熱・窓・換気・暑さ寒さ対策の補足として使う',
+      '中',
+      '断熱 窓 結露 換気 エアコン 寒さ 暑さ'
+    );
+  }
+
+  for (let i = 0; i < rules.length; i++) {
+    const rule = rules[i];
+    if (rule.triggers.some(function(trigger) {
+      return text.indexOf(uaNormalizeForScore_(trigger)) !== -1;
+    })) {
+      result.usage = rule.usage;
+      result.priority = rule.priority;
+      result.keywords = rule.keywords;
+      return result;
+    }
+  }
+
+  if (info && info.keywords) {
+    result.keywords = info.keywords;
+  }
+
+  return result;
+}
+
+function uaGetInternalLinkSitemapUrl_(appConfig) {
+  const props = PropertiesService.getScriptProperties();
+  const key = String(appConfig && appConfig.key || '').toUpperCase();
+  return props.getProperty('UA_INTERNAL_LINK_' + key + '_SITEMAP_URL') ||
+    props.getProperty('UA_INTERNAL_LINK_SITEMAP_URL') ||
+    '';
+}
+
+function uaGetExistingInternalLinkMap_(sheet) {
+  const map = {};
+
+  if (!sheet || sheet.getLastRow() < 2) {
+    return map;
+  }
+
+  const values = sheet.getRange(2, 1, sheet.getLastRow() - 1, Math.min(sheet.getLastColumn(), 11)).getValues();
+
+  values.forEach(function(row) {
+    const url = row[1];
+    if (!url) return;
+
+    map[url] = {
+      site: row[0],
+      url: row[1],
+      title: row[2],
+      description: row[3],
+      intro: row[4],
+      keywords: row[5],
+      isCore: row[6] === true || String(row[6]).toUpperCase() === 'TRUE',
+      fetchedAt: row[7],
+      isManualKeep: row[8] === true || String(row[8]).toUpperCase() === 'TRUE',
+      usage: row[9],
+      priority: row[10]
+    };
+  });
+
+  return map;
+}
+
+function uaGetInternalLinkCandidates_(mainInput, appConfig) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(UA_INTERNAL_LINK_SHEET_NAME);
+
+  if (!sheet || sheet.getLastRow() < 2) {
+    return [];
+  }
+
+  const values = sheet.getRange(2, 1, sheet.getLastRow() - 1, Math.min(sheet.getLastColumn(), 11)).getValues();
+
+  return values
+    .map(function(row) {
+      const data = {
+        site: row[0] || '',
+        url: row[1] || '',
+        title: row[2] || '',
+        description: row[3] || '',
+        intro: row[4] || '',
+        keywords: row[5] || '',
+        isCore: row[6] === true || String(row[6]).toUpperCase() === 'TRUE',
+        isManualKeep: row[8] === true || String(row[8]).toUpperCase() === 'TRUE',
+        usage: row[9] || '',
+        priority: row[10] || ''
+      };
+
+      data.score = uaScoreInternalLink_(mainInput, appConfig, data);
+      return data;
+    })
+    .filter(function(item) {
+      return item.url &&
+        item.title &&
+        item.score > 0 &&
+        uaIsSameInternalLinkSite_(item, appConfig);
+    })
+    .sort(function(a, b) {
+      if (b.score !== a.score) return b.score - a.score;
+      if (a.isCore !== b.isCore) return a.isCore ? -1 : 1;
+      if (a.isManualKeep !== b.isManualKeep) return a.isManualKeep ? -1 : 1;
+      return 0;
+    })
+    .slice(0, UA_INTERNAL_LINK_MAX_CANDIDATES);
+}
+
+function uaIsSameInternalLinkSite_(item, appConfig) {
+  const site = uaNormalizeForScore_(item && item.site);
+  const label = uaNormalizeForScore_(appConfig && appConfig.label);
+  const key = uaNormalizeForScore_(appConfig && appConfig.key);
+
+  if (!site || !label) {
+    return true;
+  }
+
+  return site.indexOf(label) !== -1 ||
+    label.indexOf(site) !== -1 ||
+    (key && site.indexOf(key) !== -1);
+}
+
+function uaScoreInternalLink_(mainInput, appConfig, data) {
+  const key = uaNormalizeForScore_(mainInput);
+  const expandedTerms = uaGetInternalLinkExpandedTerms_(mainInput, appConfig);
+  const queryTerms = uaGetInternalLinkQueryTerms_(mainInput);
+  const text = uaNormalizeForScore_([
+    data.url,
+    data.title,
+    data.description,
+    data.intro,
+    data.usage,
+    data.keywords
+  ].join(' '));
+
+  let score = 0;
+
+  if (key && text.indexOf(key) !== -1) score += 6;
+
+  queryTerms.forEach(function(term) {
+    if (text.indexOf(term) !== -1) {
+      score += term.length >= 4 ? 2 : 1;
+    }
+  });
+
+  expandedTerms.forEach(function(term) {
+    if (text.indexOf(term) !== -1) score += 3;
+  });
+
+  if (score === 0) {
+    return 0;
+  }
+
+  if (String(data.priority).indexOf('高') !== -1) score += 2;
+  if (String(data.priority).indexOf('中') !== -1) score += 1;
+  if (data.isCore) score += 3;
+  if (data.isManualKeep) score += 1;
+
+  return score;
+}
+
+function uaGetInternalLinkQueryTerms_(mainInput) {
+  const key = uaNormalizeForScore_(mainInput);
+  const terms = [];
+
+  function add(term) {
+    term = uaNormalizeForScore_(term);
+    if (term && term.length >= 2 && terms.indexOf(term) === -1) {
+      terms.push(term);
+    }
+  }
+
+  key.split(/\s+/).forEach(add);
+
+  return terms;
+}
+
+function uaGetInternalLinkExpandedTerms_(mainInput, appConfig) {
+  const key = uaNormalizeForScore_(mainInput);
+  const appKey = String(appConfig && appConfig.key || '');
+  const terms = [];
+
+  function add(words) {
+    words.forEach(function(word) {
+      const normalized = uaNormalizeForScore_(word);
+      if (normalized && terms.indexOf(normalized) === -1) {
+        terms.push(normalized);
+      }
+    });
+  }
+
+  uaGetInternalLinkTopicFamilies_(appKey).forEach(function(family) {
+    if (family.triggers.some(function(trigger) {
+      return key.indexOf(uaNormalizeForScore_(trigger)) !== -1;
+    })) {
+      add(family.terms);
+    }
+  });
+
+  return terms;
+}
+
+function uaGetInternalLinkTopicFamilies_(appKey) {
+  const commonFamilies = [
+    {
+      triggers: ['後悔', '失敗', 'デメリット', '注意', '不安', '迷う'],
+      terms: ['後悔', '失敗', 'デメリット', '注意点', '選び方', '比較', 'チェック']
+    },
+    {
+      triggers: ['費用', '料金', '相場', '価格', '工賃', '維持費'],
+      terms: ['費用', '料金', '相場', '価格', '工賃', '維持費', '見積もり']
+    },
+    {
+      triggers: ['中古', '買う', '購入', '選び方', '比較'],
+      terms: ['中古', '購入', '選び方', '比較', '注意点', 'チェック']
+    },
+    {
+      triggers: ['安全', '危険', '違法', '車検', '法律', '規制'],
+      terms: ['安全', '危険', '車検', '法律', '規制', '注意点']
+    },
+    {
+      triggers: ['掃除', '汚れ', '汚い', '綺麗', 'きれい', 'キレイ', '清潔', '手入れ', 'メンテ'],
+      terms: ['掃除', '汚れ', '清潔', '手入れ', 'メンテナンス', '洗浄', 'カビ', '臭い', 'におい', '洗車', '車内清掃']
+    }
+  ];
+
+  const driveFamilies = [
+    {
+      triggers: ['洗車', 'コーティング', 'ワックス', '水垢', '油膜', 'ガラス', '車内清掃', '外装', '内装', '綺麗', 'きれい', 'キレイ', '汚い', '汚れ', '清潔', '性格'],
+      terms: ['洗車', 'コーティング', 'ワックス', '水垢', '油膜', 'ガラス', '車内清掃', '外装', '内装', '掃除', '清潔', '手入れ', 'メンテナンス', '臭い', 'におい']
+    },
+    {
+      triggers: ['ナビ', 'テレビ', '地デジ', 'モニター', 'hdmi', 'carplay', 'android', '後付け', '取り付け'],
+      terms: ['ナビ', 'テレビ', '地デジ', 'モニター', 'HDMI', 'CarPlay', 'Android Auto', '後付け', '取り付け']
+    },
+    {
+      triggers: ['エアコン', '冷房', '暖房', 'アイドリング', '車中泊', '仮眠', '休憩', '暑い', '寒い'],
+      terms: ['エアコン', '冷房', '暖房', 'アイドリング', '車中泊', '仮眠', 'ポータブル電源', 'バッテリー']
+    },
+    {
+      triggers: ['バッテリー', '電源', '充電', 'ドラレコ', '電装', 'ヒューズ'],
+      terms: ['バッテリー', '電源', '充電', 'ドライブレコーダー', '電装', 'ヒューズ', '配線']
+    },
+    {
+      triggers: ['タイヤ', 'ホイール', '空気圧', 'スタッドレス', 'インチ'],
+      terms: ['タイヤ', 'ホイール', '空気圧', 'スタッドレス', 'インチ', '交換']
+    }
+  ];
+
+  const homeFamilies = [
+    {
+      triggers: ['間取り', '動線', '生活動線', '家事動線', '車いす', 'バリアフリー'],
+      terms: ['間取り', '動線', '生活動線', '家事動線', '車いす', 'バリアフリー', '通路幅']
+    },
+    {
+      triggers: ['キッチン', '洗面', '風呂', 'トイレ', '水回り', '排水', 'ぬめり', '掃除', '汚れ', 'カビ', '臭い', 'におい'],
+      terms: ['キッチン', '洗面所', '浴室', 'トイレ', '水回り', '排水', 'ぬめり', '掃除', 'カビ', '臭い', 'におい', '手入れ']
+    },
+    {
+      triggers: ['収納', '片付け', 'クローゼット', 'パントリー', '土間'],
+      terms: ['収納', '片付け', 'クローゼット', 'パントリー', '土間収納', '可動棚']
+    },
+    {
+      triggers: ['外構', '庭', '駐車場', '玄関', 'アプローチ', '隣家', '境界'],
+      terms: ['外構', '庭', '駐車場', '玄関', 'アプローチ', '隣家', '境界', '目隠し']
+    },
+    {
+      triggers: ['断熱', '寒い', '暑い', '窓', '結露', '換気', 'エアコン'],
+      terms: ['断熱', '窓', '結露', '換気', 'エアコン', '寒さ', '暑さ']
+    }
+  ];
+
+  if (appKey === 'drive') {
+    return commonFamilies.concat(driveFamilies);
+  }
+
+  if (appKey === 'home') {
+    return commonFamilies.concat(homeFamilies);
+  }
+
+  return commonFamilies;
+}
+
+function uaFetchSitemapUrls_(sitemapUrl) {
+  const res = UrlFetchApp.fetch(sitemapUrl, { muteHttpExceptions: true });
+  const text = res.getContentText();
+  const urls = [];
+  const locMatches = text.match(/<loc>[\s\S]*?<\/loc>/g) || [];
+
+  locMatches.forEach(function(match) {
+    const url = match
+      .replace(/<loc>/, '')
+      .replace(/<\/loc>/, '')
+      .trim();
+
+    if (!url) return;
+
+    if (url.indexOf('wp-sitemap-posts-post') !== -1 || /\.xml(?:\?|$)/.test(url)) {
+      try {
+        urls.push.apply(urls, uaFetchSitemapUrls_(url));
+      } catch (e) {
+        // 子サイトマップが取れない場合はスキップ
+      }
+      return;
+    }
+
+    if (url.indexOf('/wp-sitemap-') === -1) {
+      urls.push(url);
+    }
+  });
+
+  return uaUniqueUrls_(urls);
+}
+
+function uaFetchPageInfo_(url, introLength) {
+  try {
+    const res = UrlFetchApp.fetch(url, {
+      muteHttpExceptions: true,
+      followRedirects: true,
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (compatible; UnifiedArticleApp/1.0; Google Apps Script)'
+      }
+    });
+
+    if (res.getResponseCode() >= 400) return null;
+
+    const html = res.getContentText();
+    const title = uaExtractTitle_(html);
+    const description = uaExtractMetaDescription_(html);
+    const intro = uaExtractBodyIntro_(html, introLength);
+
+    return {
+      title: title,
+      description: description,
+      intro: intro,
+      keywords: uaBuildSimpleKeywords_(title + ' ' + description + ' ' + intro)
+    };
+  } catch (e) {
+    return null;
+  }
+}
+
+function uaFetchCompetitorPageInfo_(url) {
+  try {
+    const res = UrlFetchApp.fetch(url, {
+      muteHttpExceptions: true,
+      followRedirects: true,
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (compatible; UnifiedArticleApp/1.0; Google Apps Script)'
+      }
+    });
+
+    if (res.getResponseCode() >= 400) {
+      return {
+        url: url,
+        fetchStatus: 'HTTP ' + res.getResponseCode(),
+        title: uaBuildUrlHintTitle_(url),
+        description: '',
+        headings: [],
+        bodyText: '',
+        keywords: uaBuildUrlKeywords_(url)
+      };
+    }
+
+    const html = res.getContentText();
+    const title = uaExtractTitle_(html);
+    const description = uaExtractMetaDescription_(html);
+    const headings = uaExtractHeadings_(html).slice(0, UA_COMPETITOR_URL_MAX_HEADINGS);
+    const bodyText = uaExtractBodyIntro_(html, UA_COMPETITOR_URL_TEXT_LENGTH);
+
+    return {
+      url: url,
+      fetchStatus: 'OK',
+      title: title,
+      description: description,
+      headings: headings,
+      bodyText: bodyText,
+      keywords: uaBuildSimpleKeywords_(title + ' ' + description + ' ' + bodyText)
+    };
+  } catch (e) {
+    return {
+      url: url,
+      fetchStatus: '取得失敗',
+      title: uaBuildUrlHintTitle_(url),
+      description: '',
+      headings: [],
+      bodyText: '',
+      keywords: uaBuildUrlKeywords_(url)
+    };
+  }
+}
+
+function uaBuildUrlHintTitle_(url) {
+  const text = uaBuildUrlKeywords_(url);
+  return text ? 'URLヒント: ' + text : '';
+}
+
+function uaBuildUrlKeywords_(url) {
+  let value = String(url || '');
+
+  try {
+    value = decodeURIComponent(value);
+  } catch (e) {
+    // URLデコードできない場合は元のURLを使う
+  }
+
+  return value
+    .replace(/^https?:\/\//i, '')
+    .replace(/[?#].*$/, '')
+    .replace(/[._~=&:%]+/g, ' ')
+    .replace(/[\/\-+]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 160);
+}
+
+function uaExtractTitle_(html) {
+  const ogTitle = html.match(/<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)["'][^>]*>/i);
+  if (ogTitle && ogTitle[1]) return uaCleanText_(uaDecodeHtmlEntities_(ogTitle[1]));
+
+  const title = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+  if (title && title[1]) return uaCleanText_(uaDecodeHtmlEntities_(title[1]));
+
+  return '';
+}
+
+function uaExtractHeadings_(html) {
+  const headings = [];
+  const matches = String(html || '').match(/<h[2-4][^>]*>[\s\S]*?<\/h[2-4]>/gi) || [];
+
+  matches.forEach(function(match) {
+    const levelMatch = match.match(/<h([2-4])/i);
+    const level = levelMatch && levelMatch[1] ? 'H' + levelMatch[1] : 'H';
+    const text = uaCleanText_(uaDecodeHtmlEntities_(uaStripHtml_(match)));
+
+    if (text) {
+      headings.push(level + ': ' + text);
+    }
+  });
+
+  return headings;
+}
+
+function uaExtractMetaDescription_(html) {
+  const desc = html.match(/<meta[^>]+name=["']description["'][^>]+content=["']([^"']+)["'][^>]*>/i);
+  if (desc && desc[1]) return uaCleanText_(uaDecodeHtmlEntities_(desc[1]));
+
+  const descReverse = html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+name=["']description["'][^>]*>/i);
+  if (descReverse && descReverse[1]) return uaCleanText_(uaDecodeHtmlEntities_(descReverse[1]));
+
+  const ogDesc = html.match(/<meta[^>]+property=["']og:description["'][^>]+content=["']([^"']+)["'][^>]*>/i);
+  if (ogDesc && ogDesc[1]) return uaCleanText_(uaDecodeHtmlEntities_(ogDesc[1]));
+
+  return '';
+}
+
+function uaExtractBodyIntro_(html, introLength) {
+  const articleMatch =
+    html.match(/<article[^>]*>([\s\S]*?)<\/article>/i) ||
+    html.match(/<main[^>]*>([\s\S]*?)<\/main>/i) ||
+    html.match(/<div[^>]+class=["'][^"']*(entry-content|post-content|article-content|wp-block-post-content|content-area)[^"']*["'][^>]*>([\s\S]*?)<\/div>/i);
+
+  const contentHtml = articleMatch
+    ? articleMatch[articleMatch.length - 1]
+    : html;
+
+  return uaCleanText_(uaStripHtml_(contentHtml)).slice(0, introLength || UA_INTERNAL_LINK_INTRO_LENGTH);
+}
+
+function uaBuildSimpleKeywords_(text) {
+  const cleaned = uaCleanText_(text);
+  const counts = {};
+
+  cleaned
+    .replace(/[、。・／/｜|（）()【】「」『』［］\[\],.]/g, ' ')
+    .split(/\s+/)
+    .map(function(word) {
+      return word.trim();
+    })
+    .filter(function(word) {
+      return word.length >= 2 && word.length <= 20;
+    })
+    .forEach(function(word) {
+      counts[word] = (counts[word] || 0) + 1;
+    });
+
+  return Object.keys(counts)
+    .sort(function(a, b) {
+      return counts[b] - counts[a];
+    })
+    .slice(0, 10)
+    .join(',');
+}
+
+function uaUniqueUrls_(urls) {
+  const seen = {};
+  const result = [];
+
+  urls.forEach(function(url) {
+    if (!url || seen[url]) return;
+    seen[url] = true;
+    result.push(url);
+  });
+
+  return result;
+}
+
+function uaBuildExternalSourcesPrompt_(mainInput, appConfig) {
+  const candidates = uaGetExternalSourceCandidates_(mainInput, appConfig);
+
+  if (candidates.length === 0) {
+    return `
+外部出典リンク:
+外部出典シートに関連候補がない、または外部出典シートが未作成です。
+ただし、記事内で法規・安全・メーカー仕様・料金・保証・制度・補助金・公的統計など、読者が「本当かな？」と感じやすい説明をする場合は、URLが確実に分かる公式サイト・公的機関・メーカー公式などの外部リンクを本文中に自然に1〜3個入れてください。
+URLが不確かな場合は本文にリンクを入れず、fact_check_points に確認事項として出してください。
+無関係な外部リンクは入れないでください。
+リンク形式は <a href='URL' target='_blank' rel='noopener'>自然な文言</a> とします。
+外部リンクは、読者が公式サイト・公的機関・メーカー情報へ移動するリンクだと分かる文脈で入れてください。
+特に法規、安全、保証、メーカー仕様、価格、対応可否に関わるリンクは、「公式案内」「メーカー公式サイト」「公的機関の情報」など、リンク先の性質が分かる文言にしてください。
+`;
+  }
+
+  const candidateText = candidates.map(function(item, index) {
+    return [
+      (index + 1) + '. ジャンル: ' + item.genre,
+      '出典名: ' + item.name,
+      'URL: ' + item.url,
+      '使う場面: ' + item.usage,
+      '関連キーワード: ' + item.keywords,
+      '優先度: ' + item.priority
+    ].join('\n');
+  }).join('\n\n');
+
+  return `
+外部出典リンク:
+以下は、記事テーマに関連しそうな外部出典候補です。
+候補が本文の内容に合う場合は、候補URLを優先して使ってください。
+ただし、関連性が薄い候補を無理に入れないでください。
+候補だけで足りない場合は、URLが確実に分かる公式サイト・公的機関・メーカー公式など信頼できる外部リンクを補っても構いません。
+URLが不確かな場合は本文にリンクを入れず、fact_check_points に確認事項として出してください。
+
+法規、安全、メーカー仕様、対応商品、施工可否、料金、保証、制度、補助金など、事実確認が必要な説明の近くに入れてください。
+本文中に「出典」「参考」「参照」「情報源」などのラベルは入れないでください。
+外部リンクだけの独立段落は禁止です。
+リンク形式は <a href='URL' target='_blank' rel='noopener'>自然な文言</a> とします。
+外部リンクは、読者が公式サイト・公的機関・メーカー情報へ移動するリンクだと分かる文脈で入れてください。
+特に法規、安全、保証、メーカー仕様、価格、対応可否に関わるリンクは、「公式案内」「メーカー公式サイト」「公的機関の情報」など、リンク先の性質が分かる文言にしてください。
+内部リンクのような「あわせて読みたい」ではなく、「最新情報は公式サイトで確認する」「制度は公的機関の案内を見る」「対応可否はメーカー公式サイトで確認する」という信頼性補強の役割で使ってください。
+
+【外部出典候補】
+${candidateText}
+`;
+}
+
+function uaSetupExternalSourceSheet() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName(UA_EXTERNAL_SOURCE_SHEET_NAME);
+
+  if (!sheet) {
+    sheet = ss.insertSheet(UA_EXTERNAL_SOURCE_SHEET_NAME);
+  }
+
+  sheet.getRange(1, 1, 1, 8).setValues([[
+    'ジャンル',
+    '出典名',
+    'URL',
+    '使う場面',
+    '関連キーワード',
+    '優先度',
+    'URL確認',
+    '確認日時'
+  ]]);
+  sheet.setFrozenRows(1);
+  sheet.autoResizeColumns(1, 8);
+}
+
+function uaGetExternalSourceCandidates_(mainInput, appConfig) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(UA_EXTERNAL_SOURCE_SHEET_NAME);
+
+  if (!sheet || sheet.getLastRow() < 2) {
+    return [];
+  }
+
+  const values = sheet.getRange(2, 1, sheet.getLastRow() - 1, Math.min(sheet.getLastColumn(), 8)).getValues();
+
+  return values
+    .map(function(row) {
+      const data = {
+        genre: row[0] || '',
+        name: row[1] || '',
+        url: row[2] || '',
+        usage: row[3] || '',
+        keywords: row[4] || '',
+        priority: row[5] || '',
+        urlStatus: row[6] || '',
+        checkedAt: row[7] || ''
+      };
+
+      data.score = uaScoreExternalSource_(mainInput, appConfig, data);
+      return data;
+    })
+    .filter(function(item) {
+      const status = String(item.urlStatus || '').trim();
+      return item.name &&
+        item.url &&
+        item.score > 0 &&
+        status !== 'NG' &&
+        status !== '要確認';
+    })
+    .sort(function(a, b) {
+      return b.score - a.score;
+    })
+    .slice(0, UA_EXTERNAL_SOURCE_MAX_CANDIDATES);
+}
+
+function uaScoreExternalSource_(mainInput, appConfig, data) {
+  const key = uaNormalizeForScore_(mainInput);
+  const typeWords = appConfig ? uaNormalizeForScore_(appConfig.label + ' ' + appConfig.key) : '';
+  const text = uaNormalizeForScore_([
+    data.genre,
+    data.name,
+    data.usage,
+    data.keywords
+  ].join(' '));
+
+  let score = 0;
+
+  if (key && text.indexOf(key) !== -1) score += 6;
+  if (typeWords && text.indexOf(typeWords) !== -1) score += 2;
+
+  key.split(/\s+/).filter(function(part) {
+    return part.length >= 2;
+  }).forEach(function(part) {
+    if (text.indexOf(part) !== -1) score += 1;
+  });
+
+  if (String(data.priority).indexOf('高') !== -1) score += 2;
+  if (String(data.priority).indexOf('中') !== -1) score += 1;
+
+  return score;
+}
+
+function uaNormalizeForScore_(text) {
+  return String(text || '')
+    .toLowerCase()
+    .replace(/https?:\/\/[^\s]+/g, ' ')
+    .replace(/[　]/g, ' ')
+    .replace(/[、。・／/｜|（）()【】「」『』［］\[\],.]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}

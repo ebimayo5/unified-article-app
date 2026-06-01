@@ -1,0 +1,10 @@
+# Local / temporary files
+.DS_Store
+Thumbs.db
+*.log
+
+# Apps Script paste-only helpers
+unified_article_app/PASTE_THIS_READER_MIND_ONLY.gs
+
+# clasp local credentials
+.clasprc.json

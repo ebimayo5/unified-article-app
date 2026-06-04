@@ -370,6 +370,8 @@ function uaDriveRakutenProductCandidates_() {
 
 function uaHomeRakutenProductCandidates_() {
   return [
+    { query: '除湿機 コンパクト', keywords: ['カビ', '湿気', '除湿', 'ランドリー', '脱衣所', '洗面所'] },
+    { query: 'サーキュレーター 部屋干し', keywords: ['換気', '部屋干し', 'サーキュレーター', '湿気', 'ランドリー'] },
     { query: 'ランドリーチェスト 防カビ', keywords: ['ランドリー チェスト', 'ランドリーチェスト', 'カビない', '防カビ'] },
     { query: 'ランドリー収納 樹脂 チェスト', keywords: ['ランドリー収納', '脱衣所 収納', '洗面所 収納', '樹脂'] },
     { query: '脱衣所 収納 チェスト', keywords: ['脱衣所', '洗面所', 'チェスト'] },
@@ -383,8 +385,7 @@ function uaHomeRakutenProductCandidates_() {
     { query: '室内物干し', keywords: ['物干し', 'ランドリー', '洗濯'] },
     { query: '見守りカメラ 家庭用', keywords: ['見守り', 'カメラ', '子ども'] },
     { query: 'ベビーゲート 階段', keywords: ['ベビーゲート', '子育て', '階段'] },
-    { query: '車いす スロープ 簡易', keywords: ['車いす', 'スロープ', '段差'] },
-    { query: 'サーキュレーター 部屋干し', keywords: ['換気', '部屋干し', 'サーキュレーター'] }
+    { query: '車いす スロープ 簡易', keywords: ['車いす', 'スロープ', '段差'] }
   ];
 }
 
@@ -497,16 +498,6 @@ function uaShouldInsertRakutenAffiliateBanner_(body, rowData, appConfig) {
     return true;
   }
 
-  const intentText = [
-    rowData && rowData.mainInput,
-    rowData && rowData.readerMindMemo,
-    rowData && rowData.affiliateNotes
-  ].join(' ');
-
-  if (uaLooksLikeNonShoppingArticle_(intentText)) {
-    return false;
-  }
-
   const negativeKeywords = [
     '工賃',
     '法規',
@@ -580,48 +571,6 @@ function uaShouldInsertRakutenAffiliateBanner_(body, rowData, appConfig) {
   }).length;
 
   return negativeCount < 3;
-}
-
-function uaLooksLikeNonShoppingArticle_(text) {
-  const value = String(text || '');
-  const shoppingIntentKeywords = [
-    'おすすめ',
-    '比較',
-    'ランキング',
-    '商品',
-    'グッズ',
-    'アイテム',
-    '用品',
-    '買う',
-    '購入',
-    '選び方',
-    '必要なもの'
-  ];
-  const problemIntentKeywords = [
-    'カビない',
-    'カビ',
-    '湿気',
-    '後悔',
-    'デメリット',
-    '危険',
-    '注意',
-    '故障',
-    '不具合',
-    '費用',
-    '工賃',
-    '保証',
-    '法規',
-    '車検',
-    '違法'
-  ];
-  const hasProblemIntent = problemIntentKeywords.some(function(keyword) {
-    return value.indexOf(keyword) !== -1;
-  });
-  const hasShoppingIntent = shoppingIntentKeywords.some(function(keyword) {
-    return value.indexOf(keyword) !== -1;
-  });
-
-  return hasProblemIntent && !hasShoppingIntent;
 }
 
 function uaNormalizeGeneratedTags_(tagsText, rowData, appConfig) {

@@ -47,7 +47,11 @@ function uaRunArticleFromPanel(data) {
       throw new Error('生成結果に必要な項目がありません。');
     }
 
-    const body = uaFixGeneratedHtml_(resultJson.body);
+    const body = uaApplyRakutenAffiliateBanner_(
+      uaFixGeneratedHtml_(resultJson.body),
+      rowData,
+      appConfig
+    );
     const metaDescription = resultJson.meta_description ||
       resultJson.metaDescription ||
       '';
@@ -106,6 +110,145 @@ function uaCallArticleGenerationJson_(promptText, provider) {
   }
 
   return uaCallGeminiJson_(promptText, 16000, 512);
+}
+
+function uaApplyRakutenAffiliateBanner_(body, rowData, appConfig) {
+  if (!appConfig || appConfig.key === 'general') {
+    return body;
+  }
+
+  const bannerHtml = String(PropertiesService.getScriptProperties().getProperty('UA_RAKUTEN_AFFILIATE_BANNER_HTML') || '').trim();
+
+  if (!bannerHtml) {
+    return body;
+  }
+
+  if (!uaShouldInsertRakutenAffiliateBanner_(body, rowData, appConfig)) {
+    return body;
+  }
+
+  const normalizedBanner = uaNormalizeRakutenAffiliateBanner_(bannerHtml);
+  const block = [
+    '<p>具体的な商品を比較したい場合は、下の楽天バナーから関連アイテムを確認できます。楽天を特別に推す意図ではなく、価格や種類を見比べるための選択肢として使ってください。</p>',
+    normalizedBanner
+  ].join('\n');
+
+  const faqIndex = body.search(/<h2[^>]*>\s*よくある質問\s*<\/h2>/i);
+
+  if (faqIndex > -1) {
+    return body.slice(0, faqIndex) + block + '\n\n' + body.slice(faqIndex);
+  }
+
+  const summaryIndex = body.search(/<h2[^>]*>[\s\S]*?まとめ[\s\S]*?<\/h2>/i);
+
+  if (summaryIndex > -1) {
+    return body.slice(0, summaryIndex) + block + '\n\n' + body.slice(summaryIndex);
+  }
+
+  return body + '\n\n' + block;
+}
+
+function uaNormalizeRakutenAffiliateBanner_(bannerHtml) {
+  return String(bannerHtml || '')
+    .replace(/target="_blank"/g, "target='_blank'")
+    .replace(/rel="([^"]*)"/g, "rel='$1'")
+    .replace(/href="([^"]*)"/g, "href='$1'")
+    .replace(/src="([^"]*)"/g, "src='$1'")
+    .replace(/alt="([^"]*)"/g, "alt='$1'")
+    .replace(/width="([^"]*)"/g, "width='$1'")
+    .replace(/height="([^"]*)"/g, "height='$1'");
+}
+
+function uaShouldInsertRakutenAffiliateBanner_(body, rowData, appConfig) {
+  const text = [
+    rowData && rowData.mainInput,
+    rowData && rowData.readerMindMemo,
+    rowData && rowData.affiliateNotes,
+    body
+  ].join(' ');
+  const notes = String(rowData && rowData.affiliateNotes || '');
+
+  if (notes.indexOf('楽天バナーなし') !== -1 || notes.indexOf('楽天なし') !== -1) {
+    return false;
+  }
+
+  if (notes.indexOf('楽天バナーあり') !== -1 || notes.indexOf('楽天あり') !== -1) {
+    return true;
+  }
+
+  const negativeKeywords = [
+    '工賃',
+    '法規',
+    '法律',
+    '違法',
+    '車検',
+    '保証',
+    '店舗対応',
+    '手続き',
+    '制度',
+    '税金',
+    'ローン',
+    '保険',
+    '売却',
+    '査定'
+  ];
+
+  const positiveKeywords = appConfig && appConfig.key === 'home'
+    ? [
+      '収納',
+      '掃除',
+      '家事',
+      '外構',
+      '防災',
+      '室外機カバー',
+      'センサーライト',
+      'マット',
+      '物干し',
+      '可動棚',
+      '排水口',
+      '換気',
+      'エアコン',
+      '家電',
+      '見守り',
+      'ベビーカー',
+      '車いす'
+    ]
+    : [
+      '洗車',
+      '車内清掃',
+      'カー用品',
+      'コーティング',
+      'タイヤ',
+      'ドラレコ',
+      'ドライブレコーダー',
+      'サンシェード',
+      '車中泊',
+      'ポータブル電源',
+      'バッテリー',
+      'マット',
+      '収納',
+      'クリーナー',
+      '油膜',
+      '水垢',
+      'ワックス',
+      'モニター',
+      'HDMI',
+      'スマホホルダー'
+    ];
+
+  const hasPositive = positiveKeywords.some(function(keyword) {
+    return text.indexOf(keyword) !== -1;
+  });
+
+  if (!hasPositive) {
+    return false;
+  }
+
+  const negativeCount = negativeKeywords.filter(function(keyword) {
+    return text.indexOf(keyword) !== -1;
+  }).length;
+
+  return negativeCount < 3;
 }
 
 function uaNormalizeGeneratedTags_(tagsText, rowData, appConfig) {

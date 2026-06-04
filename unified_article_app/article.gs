@@ -497,6 +497,16 @@ function uaShouldInsertRakutenAffiliateBanner_(body, rowData, appConfig) {
     return true;
   }
 
+  const intentText = [
+    rowData && rowData.mainInput,
+    rowData && rowData.readerMindMemo,
+    rowData && rowData.affiliateNotes
+  ].join(' ');
+
+  if (uaLooksLikeNonShoppingArticle_(intentText)) {
+    return false;
+  }
+
   const negativeKeywords = [
     '工賃',
     '法規',
@@ -570,6 +580,48 @@ function uaShouldInsertRakutenAffiliateBanner_(body, rowData, appConfig) {
   }).length;
 
   return negativeCount < 3;
+}
+
+function uaLooksLikeNonShoppingArticle_(text) {
+  const value = String(text || '');
+  const shoppingIntentKeywords = [
+    'おすすめ',
+    '比較',
+    'ランキング',
+    '商品',
+    'グッズ',
+    'アイテム',
+    '用品',
+    '買う',
+    '購入',
+    '選び方',
+    '必要なもの'
+  ];
+  const problemIntentKeywords = [
+    'カビない',
+    'カビ',
+    '湿気',
+    '後悔',
+    'デメリット',
+    '危険',
+    '注意',
+    '故障',
+    '不具合',
+    '費用',
+    '工賃',
+    '保証',
+    '法規',
+    '車検',
+    '違法'
+  ];
+  const hasProblemIntent = problemIntentKeywords.some(function(keyword) {
+    return value.indexOf(keyword) !== -1;
+  });
+  const hasShoppingIntent = shoppingIntentKeywords.some(function(keyword) {
+    return value.indexOf(keyword) !== -1;
+  });
+
+  return hasProblemIntent && !hasShoppingIntent;
 }
 
 function uaNormalizeGeneratedTags_(tagsText, rowData, appConfig) {

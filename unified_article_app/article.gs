@@ -117,35 +117,194 @@ function uaApplyRakutenAffiliateBanner_(body, rowData, appConfig) {
     return body;
   }
 
-  const bannerHtml = String(PropertiesService.getScriptProperties().getProperty('UA_RAKUTEN_AFFILIATE_BANNER_HTML') || '').trim();
-
-  if (!bannerHtml) {
-    return body;
-  }
-
   if (!uaShouldInsertRakutenAffiliateBanner_(body, rowData, appConfig)) {
     return body;
   }
 
-  const normalizedBanner = uaNormalizeRakutenAffiliateBanner_(bannerHtml);
-  const block = [
-    '<p>具体的な商品を比較したい場合は、下の楽天バナーから関連アイテムを確認できます。楽天を特別に推す意図ではなく、価格や種類を見比べるための選択肢として使ってください。</p>',
-    normalizedBanner
-  ].join('\n');
+  const banner = uaBuildRakutenAffiliateBanner_(body, rowData, appConfig);
+
+  if (!banner) {
+    return body;
+  }
 
   const faqIndex = body.search(/<h2[^>]*>\s*よくある質問\s*<\/h2>/i);
 
   if (faqIndex > -1) {
-    return body.slice(0, faqIndex) + block + '\n\n' + body.slice(faqIndex);
+    return body.slice(0, faqIndex) + banner + '\n\n' + body.slice(faqIndex);
   }
 
   const summaryIndex = body.search(/<h2[^>]*>[\s\S]*?まとめ[\s\S]*?<\/h2>/i);
 
   if (summaryIndex > -1) {
-    return body.slice(0, summaryIndex) + block + '\n\n' + body.slice(summaryIndex);
+    return body.slice(0, summaryIndex) + banner + '\n\n' + body.slice(summaryIndex);
   }
 
-  return body + '\n\n' + block;
+  return body + '\n\n' + banner;
+}
+
+function uaBuildRakutenAffiliateBanner_(body, rowData, appConfig) {
+  const query = uaSelectRakutenProductQuery_(body, rowData, appConfig);
+
+  if (!query) {
+    return '';
+  }
+
+  const item = uaFetchRakutenItem_(query);
+
+  if (item) {
+    return uaBuildRakutenItemBannerHtml_(item, query);
+  }
+
+  const fallbackHtml = String(PropertiesService.getScriptProperties().getProperty('UA_RAKUTEN_AFFILIATE_BANNER_HTML') || '').trim();
+
+  if (!fallbackHtml) {
+    return '';
+  }
+
+  return [
+    '<p>具体的な商品を比較したい場合は、下の楽天バナーから関連アイテムを確認できます。楽天を特別に推す意図ではなく、価格や種類を見比べるための選択肢として使ってください。</p>',
+    uaNormalizeRakutenAffiliateBanner_(fallbackHtml)
+  ].join('\n');
+}
+
+function uaSelectRakutenProductQuery_(body, rowData, appConfig) {
+  const notes = String(rowData && rowData.affiliateNotes || '');
+  const override = notes.match(/楽天商品(?:キーワード|KW)[:：]\s*([^\n\r]+)/);
+
+  if (override && override[1]) {
+    return override[1].trim();
+  }
+
+  const text = [
+    rowData && rowData.mainInput,
+    rowData && rowData.readerMindMemo,
+    body
+  ].join(' ');
+  const candidates = appConfig && appConfig.key === 'home'
+    ? uaHomeRakutenProductCandidates_()
+    : uaDriveRakutenProductCandidates_();
+  let best = null;
+
+  candidates.forEach(function(candidate) {
+    const score = candidate.keywords.reduce(function(total, keyword) {
+      return total + (text.indexOf(keyword) !== -1 ? 1 : 0);
+    }, 0);
+
+    if (score > 0 && (!best || score > best.score)) {
+      best = {
+        query: candidate.query,
+        score: score
+      };
+    }
+  });
+
+  return best ? best.query : '';
+}
+
+function uaDriveRakutenProductCandidates_() {
+  return [
+    { query: 'カーシャンプー 車 洗車', keywords: ['洗車', 'カーシャンプー', '泡洗車'] },
+    { query: 'マイクロファイバークロス 車', keywords: ['マイクロファイバー', '拭き上げ', '車内清掃', '清掃'] },
+    { query: '車 ガラスクリーナー 油膜取り', keywords: ['ガラスクリーナー', '油膜', 'フロントガラス'] },
+    { query: '車 コーティング剤', keywords: ['コーティング', '撥水', '艶'] },
+    { query: 'タイヤワックス 車', keywords: ['タイヤワックス', 'タイヤ', '足元'] },
+    { query: 'ドライブレコーダー 前後', keywords: ['ドラレコ', 'ドライブレコーダー', '駐車監視'] },
+    { query: '車 サンシェード', keywords: ['サンシェード', '日よけ', '暑さ対策'] },
+    { query: 'ポータブル電源 車中泊', keywords: ['ポータブル電源', '車中泊', '電源'] },
+    { query: '車載扇風機 車中泊', keywords: ['車載扇風機', '扇風機', '車内 待機'] },
+    { query: 'スマホホルダー 車', keywords: ['スマホホルダー', 'スマホ', 'ナビアプリ'] },
+    { query: 'HDMI 車載 モニター', keywords: ['HDMI', '後席モニター', 'モニター', 'YouTube'] },
+    { query: '車 収納 ポケット', keywords: ['収納', '車内収納', 'シートバック'] },
+    { query: '車 フロアマット', keywords: ['フロアマット', 'マット', '汚れ防止'] },
+    { query: 'ジャンプスターター 車 バッテリー', keywords: ['バッテリー', 'ジャンプスターター', 'バッテリー上がり'] }
+  ];
+}
+
+function uaHomeRakutenProductCandidates_() {
+  return [
+    { query: '収納ボックス 住宅', keywords: ['収納', '収納ボックス', '片付け'] },
+    { query: '可動棚 収納', keywords: ['可動棚', '棚', '収納'] },
+    { query: '排水口 掃除 ぬめり取り', keywords: ['排水口', 'ぬめり', '掃除'] },
+    { query: '滑り止めマット 玄関 浴室', keywords: ['滑りにくい', '滑り止め', 'マット'] },
+    { query: 'センサーライト 屋外', keywords: ['センサーライト', '外構', '防犯'] },
+    { query: '防災用品 セット 家庭用', keywords: ['防災', '停電', '備え'] },
+    { query: '室外機カバー', keywords: ['室外機カバー', '室外機', '日よけ'] },
+    { query: '室内物干し', keywords: ['物干し', 'ランドリー', '洗濯'] },
+    { query: '見守りカメラ 家庭用', keywords: ['見守り', 'カメラ', '子ども'] },
+    { query: 'ベビーゲート 階段', keywords: ['ベビーゲート', '子育て', '階段'] },
+    { query: '車いす スロープ 簡易', keywords: ['車いす', 'スロープ', '段差'] },
+    { query: 'サーキュレーター 部屋干し', keywords: ['換気', '部屋干し', 'サーキュレーター'] }
+  ];
+}
+
+function uaFetchRakutenItem_(query) {
+  const applicationId = String(PropertiesService.getScriptProperties().getProperty('UA_RAKUTEN_APPLICATION_ID') || '').trim();
+
+  if (!applicationId) {
+    return null;
+  }
+
+  const affiliateId = String(PropertiesService.getScriptProperties().getProperty('UA_RAKUTEN_AFFILIATE_ID') || '').trim();
+  const params = [
+    'format=json',
+    'hits=1',
+    'imageFlag=1',
+    'sort=standard',
+    'applicationId=' + encodeURIComponent(applicationId),
+    'keyword=' + encodeURIComponent(query)
+  ];
+
+  if (affiliateId) {
+    params.push('affiliateId=' + encodeURIComponent(affiliateId));
+  }
+
+  const url = 'https://app.rakuten.co.jp/services/api/IchibaItem/Search/20170706?' + params.join('&');
+
+  try {
+    const res = UrlFetchApp.fetch(url, {
+      method: 'get',
+      muteHttpExceptions: true
+    });
+
+    if (res.getResponseCode() !== 200) {
+      return null;
+    }
+
+    const json = JSON.parse(res.getContentText());
+    const item = json.Items &&
+      json.Items[0] &&
+      json.Items[0].Item;
+
+    if (!item || !item.itemName || !(item.affiliateUrl || item.itemUrl)) {
+      return null;
+    }
+
+    return {
+      name: item.itemName,
+      url: item.affiliateUrl || item.itemUrl,
+      imageUrl: item.mediumImageUrls &&
+        item.mediumImageUrls[0] &&
+        item.mediumImageUrls[0].imageUrl
+    };
+  } catch (e) {
+    return null;
+  }
+}
+
+function uaBuildRakutenItemBannerHtml_(item, query) {
+  const name = uaEscapeHtml_(String(item.name || '').slice(0, 80));
+  const url = uaEscapeHtml_(item.url || '');
+  const imageUrl = uaEscapeHtml_(item.imageUrl || '');
+  const queryText = uaEscapeHtml_(query || '関連アイテム');
+  const imageHtml = imageUrl
+    ? '<p><a href=\'' + url + '\' target=\'_blank\' rel=\'nofollow sponsored\'><img src=\'' + imageUrl + '\' alt=\'' + name + '\' style=\'max-width:100%;height:auto;\'></a></p>'
+    : '';
+
+  return [
+    '<p>具体的な商品を比較したい場合は、下の楽天バナーから「' + queryText + '」の関連アイテムを確認できます。楽天を特別に推す意図ではなく、価格や種類を見比べるための選択肢として使ってください。</p>',
+    imageHtml,
+    '<p><a href=\'' + url + '\' target=\'_blank\' rel=\'nofollow sponsored\'>' + name + '</a></p>'
+  ].filter(Boolean).join('\n');
 }
 
 function uaNormalizeRakutenAffiliateBanner_(bannerHtml) {
@@ -157,6 +316,15 @@ function uaNormalizeRakutenAffiliateBanner_(bannerHtml) {
     .replace(/alt="([^"]*)"/g, "alt='$1'")
     .replace(/width="([^"]*)"/g, "width='$1'")
     .replace(/height="([^"]*)"/g, "height='$1'");
+}
+
+function uaEscapeHtml_(text) {
+  return String(text || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/'/g, '&#39;')
+    .replace(/"/g, '&quot;');
 }
 
 function uaShouldInsertRakutenAffiliateBanner_(body, rowData, appConfig) {

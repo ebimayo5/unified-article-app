@@ -201,6 +201,154 @@ function uaSelectRakutenProductQuery_(body, rowData, appConfig) {
   return best ? best.query : '';
 }
 
+function uaGetRakutenKeywordSuggestionsFromPanel(data) {
+  return uaGetRakutenKeywordSuggestions_(data || {});
+}
+
+function uaGetRakutenKeywordSuggestionsFromWeb(data) {
+  return uaGetRakutenKeywordSuggestions_(data || {});
+}
+
+function uaGetRakutenKeywordSuggestions_(data) {
+  const appConfig = uaGetAppConfigByLabel_(data && data.appType);
+
+  if (!appConfig || appConfig.key === 'general') {
+    return {
+      suggestions: [],
+      message: '汎用記事では楽天バナー自動挿入は使いません。'
+    };
+  }
+
+  const notes = String(data && data.affiliateNotes || '');
+  const override = notes.match(/楽天商品(?:キーワード|KW)[:：]\s*([^\n\r]+)/);
+  const text = [
+    data && data.mainInput,
+    data && data.readerMindMemo,
+    data && data.body,
+    notes
+  ].join(' ');
+  const candidates = appConfig.key === 'home'
+    ? uaHomeRakutenProductCandidates_()
+    : uaDriveRakutenProductCandidates_();
+  const suggestions = [];
+  const seen = {};
+
+  function addSuggestion(query) {
+    query = String(query || '').replace(/\s+/g, ' ').trim();
+    if (!query || seen[query]) return;
+    seen[query] = true;
+    suggestions.push(query);
+  }
+
+  if (override && override[1]) {
+    addSuggestion(override[1]);
+  }
+
+  uaContextualRakutenQueries_(text, appConfig.key).forEach(addSuggestion);
+
+  candidates
+    .map(function(candidate) {
+      const score = candidate.keywords.reduce(function(total, keyword) {
+        return total + (text.indexOf(keyword) !== -1 ? 1 : 0);
+      }, 0);
+
+      return {
+        query: candidate.query,
+        score: score
+      };
+    })
+    .filter(function(item) {
+      return item.score > 0;
+    })
+    .sort(function(a, b) {
+      return b.score - a.score;
+    })
+    .forEach(function(item) {
+      addSuggestion(item.query);
+    });
+
+  uaKeywordBasedRakutenQueries_(data && data.mainInput, appConfig.key).forEach(addSuggestion);
+
+  return {
+    suggestions: suggestions.slice(0, 5),
+    message: suggestions.length > 0
+      ? '商品検索キーワード候補を取得しました。'
+      : '候補を取得できませんでした。案件注意点に「楽天商品キーワード: ...」で手動指定してください。'
+  };
+}
+
+function uaContextualRakutenQueries_(text, appKey) {
+  const value = String(text || '');
+
+  if (appKey === 'home') {
+    if ((value.indexOf('ランドリー') !== -1 || value.indexOf('脱衣') !== -1 || value.indexOf('洗面') !== -1) &&
+      (value.indexOf('チェスト') !== -1 || value.indexOf('収納') !== -1)) {
+      return [
+        'ランドリーチェスト 防カビ',
+        'ランドリー収納 樹脂 チェスト',
+        '脱衣所 収納 チェスト',
+        'ランドリー収納 スリム',
+        'ランドリーチェスト キャスター'
+      ];
+    }
+
+    if (value.indexOf('カビ') !== -1 || value.indexOf('湿気') !== -1 || value.indexOf('除湿') !== -1) {
+      return [
+        '除湿機 コンパクト',
+        'サーキュレーター 部屋干し',
+        '湿度計 室内',
+        '防カビ 収納',
+        'ランドリー収納 防カビ'
+      ];
+    }
+  }
+
+  if (appKey === 'drive') {
+    if (value.indexOf('車内') !== -1 && (value.indexOf('掃除') !== -1 || value.indexOf('清掃') !== -1)) {
+      return [
+        '車内 掃除 グッズ',
+        '車 掃除機 コードレス',
+        '車内クリーナー',
+        'マイクロファイバークロス 車',
+        '車 ガラスクリーナー'
+      ];
+    }
+  }
+
+  return [];
+}
+
+function uaKeywordBasedRakutenQueries_(keyword, appKey) {
+  const value = String(keyword || '')
+    .replace(/[「」『』【】（）()]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (!value) return [];
+
+  const parts = value.split(/\s+/).filter(function(part) {
+    return part.length >= 2 && part.length <= 18;
+  });
+  const compact = parts.join(' ');
+  const result = [];
+
+  if (compact) result.push(compact);
+
+  if (appKey === 'home') {
+    if (compact.indexOf('ランドリー') !== -1 || compact.indexOf('洗面') !== -1 || compact.indexOf('脱衣') !== -1) {
+      result.push(compact + ' 収納');
+      result.push(compact + ' 防カビ');
+    }
+  }
+
+  if (appKey === 'drive') {
+    result.push(compact + ' 車');
+    result.push(compact + ' カー用品');
+  }
+
+  return result;
+}
+
 function uaDriveRakutenProductCandidates_() {
   return [
     { query: 'カーシャンプー 車 洗車', keywords: ['洗車', 'カーシャンプー', '泡洗車'] },
@@ -222,6 +370,9 @@ function uaDriveRakutenProductCandidates_() {
 
 function uaHomeRakutenProductCandidates_() {
   return [
+    { query: 'ランドリーチェスト 防カビ', keywords: ['ランドリー チェスト', 'ランドリーチェスト', 'カビない', '防カビ'] },
+    { query: 'ランドリー収納 樹脂 チェスト', keywords: ['ランドリー収納', '脱衣所 収納', '洗面所 収納', '樹脂'] },
+    { query: '脱衣所 収納 チェスト', keywords: ['脱衣所', '洗面所', 'チェスト'] },
     { query: '収納ボックス 住宅', keywords: ['収納', '収納ボックス', '片付け'] },
     { query: '可動棚 収納', keywords: ['可動棚', '棚', '収納'] },
     { query: '排水口 掃除 ぬめり取り', keywords: ['排水口', 'ぬめり', '掃除'] },

@@ -54,6 +54,9 @@
       .main-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; align-items: start; }
       .url-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
       .actions { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-top: 12px; }
+      .rakuten-grid { display: grid; grid-template-columns: 170px 1fr auto; gap: 8px; align-items: end; }
+      .suggestion-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+      .suggestion-list button { width: auto; padding: 6px 9px; font-size: 12px; }
       .field-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 10px 0 5px; }
       .field-head label { margin: 0; }
       .copy-button { padding: 5px 9px; color: var(--brand-dark); background: #d9f2e5; border-color: #8bcfac; font-size: 12px; }
@@ -157,6 +160,17 @@
             </div>
             <label for="affiliateNotes">案件注意点 / その他制約事項</label>
             <textarea id="affiliateNotes" class="notes-input"></textarea>
+            <label>楽天バナー</label>
+            <div class="rakuten-grid">
+              <select id="rakutenBannerMode" onchange="syncRakutenControlsToNotes()">
+                <option value="auto">自動判定</option>
+                <option value="force">入れる</option>
+                <option value="none">入れない</option>
+              </select>
+              <input id="rakutenProductKeyword" placeholder="例: ランドリーチェスト 防カビ" oninput="syncRakutenControlsToNotes()">
+              <button class="secondary" type="button" onclick="suggestRakutenKeywords(this)">候補取得</button>
+            </div>
+            <div id="rakutenSuggestions" class="suggestion-list"></div>
             <div class="url-grid">
               <div><label for="competitorUrl1">競合URL1</label><input id="competitorUrl1" placeholder="https://..."></div>
               <div><label for="competitorUrl2">競合URL2</label><input id="competitorUrl2" placeholder="https://..."></div>
@@ -270,6 +284,7 @@
         document.getElementById('mainInputLabel').textContent = config && config.inputLabel ? config.inputLabel : 'メインキーワード / 案件指示書';
         updateCandidateVisibility(config);
         updateWpVisibility(config);
+        updateRakutenVisibility(config);
       }
 
       function updateCandidateVisibility(config) {
@@ -284,6 +299,14 @@
         const wpSummaryBlock = document.getElementById('wpSummaryBlock');
         if (wpButton) wpButton.classList.toggle('hidden', isDisabled);
         if (wpSummaryBlock) wpSummaryBlock.classList.toggle('hidden', isDisabled);
+      }
+
+      function updateRakutenVisibility(config) {
+        const isDisabled = config && config.key === 'general';
+        const mode = document.getElementById('rakutenBannerMode');
+        const keyword = document.getElementById('rakutenProductKeyword');
+        if (mode) mode.disabled = isDisabled;
+        if (keyword) keyword.disabled = isDisabled;
       }
 
       function currentConfig() {
@@ -334,6 +357,7 @@
       }
 
       function readForm() {
+        syncRakutenControlsToNotes();
         const data = { appType: document.getElementById('appType').value };
         fields.forEach(function(id) { const el = document.getElementById(id); if (el) data[id] = el.value; });
         return data;
@@ -344,7 +368,78 @@
         if (data.appType) document.getElementById('appType').value = data.appType;
         fields.forEach(function(id) { const el = document.getElementById(id); if (el) el.value = data[id] || ''; });
         applyTheme();
+        parseRakutenControlsFromNotes();
         document.getElementById('subText').textContent = data.mainInput ? data.mainInput : '候補を選ぶと、ここに編集フォームが入ります。';
+      }
+
+      function parseRakutenControlsFromNotes() {
+        const notes = document.getElementById('affiliateNotes').value || '';
+        const mode = document.getElementById('rakutenBannerMode');
+        const keyword = document.getElementById('rakutenProductKeyword');
+        const keywordMatch = notes.match(/楽天商品(?:キーワード|KW)[:：]\s*([^\n\r]+)/);
+
+        if (mode) {
+          mode.value = /楽天バナーなし|楽天なし/.test(notes)
+            ? 'none'
+            : /楽天バナーあり|楽天あり/.test(notes)
+              ? 'force'
+              : 'auto';
+        }
+
+        if (keyword) keyword.value = keywordMatch && keywordMatch[1] ? keywordMatch[1].trim() : '';
+      }
+
+      function syncRakutenControlsToNotes() {
+        const notesEl = document.getElementById('affiliateNotes');
+        const modeEl = document.getElementById('rakutenBannerMode');
+        const keywordEl = document.getElementById('rakutenProductKeyword');
+        if (!notesEl || !modeEl || !keywordEl) return;
+
+        let lines = String(notesEl.value || '').split(/\r?\n/).filter(function(line) {
+          const trimmed = line.trim();
+          return !/^楽天バナー(あり|なし)$/.test(trimmed) &&
+            !/^楽天(あり|なし)$/.test(trimmed) &&
+            !/^楽天商品(?:キーワード|KW)[:：]/.test(trimmed);
+        });
+
+        if (modeEl.value === 'force') lines.push('楽天バナーあり');
+        if (modeEl.value === 'none') lines.push('楽天バナーなし');
+
+        const keyword = keywordEl.value.trim();
+        if (keyword) lines.push('楽天商品キーワード: ' + keyword);
+
+        notesEl.value = lines.join('\n').trim();
+      }
+
+      function suggestRakutenKeywords(button) {
+        syncRakutenControlsToNotes();
+        setBusy('楽天商品キーワード候補を取得中...', button);
+        google.script.run
+          .withSuccessHandler(function(result) {
+            clearBusy();
+            renderRakutenSuggestions(result && result.suggestions ? result.suggestions : []);
+            setProgress('done');
+            setNotice(result && result.message ? result.message : '商品検索キーワード候補を取得しました。', false);
+          })
+          .withFailureHandler(fail)
+          .uaGetRakutenKeywordSuggestionsFromWeb(readForm());
+      }
+
+      function renderRakutenSuggestions(suggestions) {
+        const container = document.getElementById('rakutenSuggestions');
+        container.innerHTML = '';
+        (suggestions || []).forEach(function(query) {
+          const button = document.createElement('button');
+          button.type = 'button';
+          button.className = 'neutral';
+          button.textContent = query;
+          button.onclick = function() {
+            document.getElementById('rakutenProductKeyword').value = query;
+            syncRakutenControlsToNotes();
+            setNotice('楽天商品キーワードに反映しました。', false);
+          };
+          container.appendChild(button);
+        });
       }
 
       function saveArticle(button) {

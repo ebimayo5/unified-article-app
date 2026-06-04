@@ -156,6 +156,7 @@ DRIVE BASE、たくみパパ、汎用記事の保存列は共通。
 - `ARTICLE_PROVIDER`
 - `READER_MIND_PROVIDER`
 - `UA_RAKUTEN_APPLICATION_ID`
+- `UA_RAKUTEN_ACCESS_KEY`
 - `UA_RAKUTEN_AFFILIATE_ID`
 - `UA_RAKUTEN_AFFILIATE_BANNER_HTML`
 
@@ -382,7 +383,9 @@ DRIVE BASE:
 - 整備士専門学校、整備工場研修、大型トラック運転経験を自然に使う
 - 商品提案は売り込みではなく、選ぶときのポイントとして入れる
 - 洗車、車内清掃、コーティング、タイヤ、電装品、車中泊用品では、必要に応じて商品カテゴリを提案する
-- `UA_RAKUTEN_APPLICATION_ID` が設定されている場合、本文生成後に記事内容から商品カテゴリを自動選定し、楽天市場商品検索APIで取得した商品を楽天アフィリエイトバナーとして自動挿入する
+- 2026年5月13日以降の楽天Web Service仕様に合わせ、楽天市場商品検索APIは `UA_RAKUTEN_APPLICATION_ID` と `UA_RAKUTEN_ACCESS_KEY` の両方がある場合だけ使う
+- 楽天Web Service側でアプリケーションID、アクセスキー、アプリケーションURLを再設定した値を使う
+- 上記2つが設定されている場合、本文生成後に記事内容から商品カテゴリを自動選定し、楽天市場商品検索APIで取得した商品を楽天アフィリエイトバナーとして自動挿入する
 - `UA_RAKUTEN_AFFILIATE_ID` が設定されている場合は、楽天APIのアフィリエイトURLを使う
 - `UA_RAKUTEN_AFFILIATE_BANNER_HTML` はAPI未設定または取得失敗時の固定バナー fallback として使う
 - 楽天バナーは「楽天がおすすめ」ではなく、関連商品カテゴリを比較するための購入先候補として扱う
@@ -400,7 +403,9 @@ DRIVE BASE:
 - 家を建てた経験者のようには書かない
 - 設備、掃除、収納、家事、外構、防災、子育て、車いす動線では、暮らしの負担を減らす商品カテゴリや設備カテゴリを提案してよい
 - 売り込みではなく、暮らしの選択肢として扱う
-- `UA_RAKUTEN_APPLICATION_ID` が設定されている場合、本文生成後に記事内容から商品カテゴリを自動選定し、楽天市場商品検索APIで取得した商品を楽天アフィリエイトバナーとして自動挿入する
+- 2026年5月13日以降の楽天Web Service仕様に合わせ、楽天市場商品検索APIは `UA_RAKUTEN_APPLICATION_ID` と `UA_RAKUTEN_ACCESS_KEY` の両方がある場合だけ使う
+- 楽天Web Service側でアプリケーションID、アクセスキー、アプリケーションURLを再設定した値を使う
+- 上記2つが設定されている場合、本文生成後に記事内容から商品カテゴリを自動選定し、楽天市場商品検索APIで取得した商品を楽天アフィリエイトバナーとして自動挿入する
 - `UA_RAKUTEN_AFFILIATE_ID` が設定されている場合は、楽天APIのアフィリエイトURLを使う
 - `UA_RAKUTEN_AFFILIATE_BANNER_HTML` はAPI未設定または取得失敗時の固定バナー fallback として使う
 - 楽天バナーは「楽天がおすすめ」ではなく、暮らしの負担を減らす道具や定番アイテムを比較するための購入先候補として扱う

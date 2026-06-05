@@ -96,6 +96,183 @@ function uaRunArticleFromWeb(data) {
   return uaRunArticleFromPanel(data || {});
 }
 
+function uaTestRakutenDecisionForActiveRow() {
+  const result = uaTestRakutenForActiveRow_(false);
+  SpreadsheetApp.getUi().alert(result.message);
+}
+
+function uaTestRakutenFetchForActiveRow() {
+  const result = uaTestRakutenForActiveRow_(true);
+  SpreadsheetApp.getUi().alert(result.message);
+}
+
+function uaAddRakutenBannerToActiveRow() {
+  const result = uaAddRakutenBannerToActiveRow_();
+  SpreadsheetApp.getUi().alert(result.message);
+}
+
+function uaTestRakutenForActiveRow_(shouldFetch) {
+  const context = uaGetRakutenActiveRowContext_();
+  UA_LAST_RAKUTEN_STATUS = '';
+
+  const shouldInsert = uaShouldInsertRakutenAffiliateBanner_(context.body, context.rowData, context.appConfig);
+  const query = shouldInsert
+    ? uaSelectRakutenProductQuery_(context.body, context.rowData, context.appConfig)
+    : '';
+  let item = null;
+
+  if (shouldFetch && shouldInsert && query) {
+    item = uaFetchRakutenItem_(query);
+  }
+
+  const reason = UA_LAST_RAKUTEN_STATUS || (shouldInsert ? '楽天バナー挿入対象です。' : '楽天バナー挿入対象外です。');
+  const lines = [
+    '楽天テスト結果',
+    '判定: ' + (shouldInsert ? '入れる' : '入れない'),
+    '検索キーワード: ' + (query || '未選定'),
+    '楽天API: ' + (shouldFetch ? '実行' : '未実行'),
+    '理由: ' + reason
+  ];
+
+  if (shouldFetch) {
+    lines.push('商品取得: ' + (item ? 'OK' : 'NG'));
+    if (item) {
+      lines.push('商品名: ' + item.name);
+    }
+  }
+
+  uaAppendFactCheckPoint_(context.sheet, context.row, '・楽天テスト｜' + lines.slice(1).join(' / '));
+
+  return {
+    shouldInsert: shouldInsert,
+    query: query,
+    item: item,
+    message: lines.join('\n')
+  };
+}
+
+function uaAddRakutenBannerToActiveRow_() {
+  const context = uaGetRakutenActiveRowContext_();
+
+  if (!context.body) {
+    throw new Error('本文が空です。先に本文を生成してください。');
+  }
+
+  if (uaHasRakutenBanner_(context.body)) {
+    throw new Error('本文内に楽天バナーらしきリンクがすでにあります。重複を避けるため追加しません。');
+  }
+
+  UA_LAST_RAKUTEN_STATUS = '';
+
+  if (!uaShouldInsertRakutenAffiliateBanner_(context.body, context.rowData, context.appConfig)) {
+    const reason = UA_LAST_RAKUTEN_STATUS || '楽天バナー挿入対象外です。';
+    uaAppendFactCheckPoint_(context.sheet, context.row, '・楽天バナー後入れ未実行｜' + reason);
+    return {
+      message: '楽天バナーは追加しませんでした。\n理由: ' + reason
+    };
+  }
+
+  const block = uaBuildRakutenFollowupBlock_(context.body, context.rowData, context.appConfig);
+
+  if (!block) {
+    const reason = UA_LAST_RAKUTEN_STATUS || '楽天バナーを作成できませんでした。';
+    uaAppendFactCheckPoint_(context.sheet, context.row, '・楽天バナー後入れ失敗｜' + reason);
+    return {
+      message: '楽天バナーを追加できませんでした。\n理由: ' + reason
+    };
+  }
+
+  const nextBody = uaInsertRakutenBlockIntoBody_(context.body, block);
+  context.sheet.getRange(context.row, UA_COLUMNS.body).setValue(nextBody);
+  uaAppendFactCheckPoint_(context.sheet, context.row, '・楽天バナー後入れ｜既存本文に小リライトとして追加済み');
+
+  return {
+    message: '楽天バナーを本文へ追加しました。\n本文生成APIは使っていません。'
+  };
+}
+
+function uaGetRakutenActiveRowContext_() {
+  const sheet = SpreadsheetApp.getActiveSheet();
+  const row = sheet.getActiveCell().getRow();
+
+  if (row === 1) {
+    throw new Error('記事データの行を選択してください。1行目は見出しです。');
+  }
+
+  const rowData = uaBuildRowData_(sheet, row);
+  const appConfig = uaGetAppConfigByLabel_(rowData.appType);
+
+  if (!appConfig) {
+    throw new Error('記事タイプを取得できません。A列で DRIVE BASE、たくみパパ、汎用記事 のいずれかを選んでください。');
+  }
+
+  if (appConfig.key === 'general') {
+    throw new Error('汎用記事では楽天バナー自動挿入は使いません。');
+  }
+
+  return {
+    sheet: sheet,
+    row: row,
+    rowData: rowData,
+    appConfig: appConfig,
+    body: String(rowData.body || '')
+  };
+}
+
+function uaBuildRakutenFollowupBlock_(body, rowData, appConfig) {
+  const query = uaSelectRakutenProductQuery_(body, rowData, appConfig);
+
+  if (!query) {
+    UA_LAST_RAKUTEN_STATUS = '商品検索キーワードを選定できませんでした。';
+    return '';
+  }
+
+  const banner = uaBuildRakutenAffiliateBanner_(body, rowData, appConfig);
+
+  if (!banner) {
+    return '';
+  }
+
+  return [
+    '<h2>関連アイテムも選択肢に入れる</h2>',
+    '<p>本文の対策を読んで「実際に何を用意すればいいか」まで考えたい場合は、関連アイテムを見比べておくと判断しやすくなります。</p>',
+    banner
+  ].join('\n');
+}
+
+function uaInsertRakutenBlockIntoBody_(body, block) {
+  const faqIndex = body.search(/<h2[^>]*>\s*よくある質問\s*<\/h2>/i);
+
+  if (faqIndex > -1) {
+    return body.slice(0, faqIndex) + block + '\n\n' + body.slice(faqIndex);
+  }
+
+  const summaryIndex = body.search(/<h2[^>]*>[\s\S]*?まとめ[\s\S]*?<\/h2>/i);
+
+  if (summaryIndex > -1) {
+    return body.slice(0, summaryIndex) + block + '\n\n' + body.slice(summaryIndex);
+  }
+
+  return body + '\n\n' + block;
+}
+
+function uaHasRakutenBanner_(body) {
+  const text = String(body || '');
+  return text.indexOf('openapi.rakuten') !== -1 ||
+    text.indexOf('hb.afl.rakuten') !== -1 ||
+    text.indexOf('rakuten.co.jp') !== -1 ||
+    text.indexOf('rel=\'nofollow sponsored\'') !== -1 && text.indexOf('楽天') !== -1;
+}
+
+function uaAppendFactCheckPoint_(sheet, row, line) {
+  const current = String(sheet.getRange(row, UA_COLUMNS.factCheckPoints).getValue() || '').trim();
+  const next = !current || current === '特になし'
+    ? line
+    : current + '\n' + line;
+
+  uaSetFactCheckPointsWithLinks_(sheet, row, next);
+}
+
 function uaAppendRakutenStatusToFactCheck_(factCheckPoints) {
   const status = String(UA_LAST_RAKUTEN_STATUS || '').trim();
   const value = String(factCheckPoints || '').trim();

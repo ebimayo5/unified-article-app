@@ -138,7 +138,6 @@ function uaApplyRakutenAffiliateBanner_(body, rowData, appConfig) {
   }
 
   if (!uaShouldInsertRakutenAffiliateBanner_(body, rowData, appConfig)) {
-    UA_LAST_RAKUTEN_STATUS = '';
     return body;
   }
 
@@ -529,6 +528,7 @@ function uaShouldInsertRakutenAffiliateBanner_(body, rowData, appConfig) {
   const notes = String(rowData && rowData.affiliateNotes || '');
 
   if (notes.indexOf('楽天バナーなし') !== -1 || notes.indexOf('楽天なし') !== -1) {
+    UA_LAST_RAKUTEN_STATUS = 'パネルまたは案件注意点で楽天バナーなしが指定されています';
     return false;
   }
 
@@ -601,6 +601,7 @@ function uaShouldInsertRakutenAffiliateBanner_(body, rowData, appConfig) {
   });
 
   if (!hasPositive) {
+    UA_LAST_RAKUTEN_STATUS = '自動判定で関連商品キーワード不足。楽天バナーあり、または楽天商品キーワードを手動指定してください';
     return false;
   }
 
@@ -608,7 +609,12 @@ function uaShouldInsertRakutenAffiliateBanner_(body, rowData, appConfig) {
     return text.indexOf(keyword) !== -1;
   }).length;
 
-  return negativeCount < 3;
+  if (negativeCount >= 3) {
+    UA_LAST_RAKUTEN_STATUS = '自動判定で除外語が多いため未挿入（工賃・法規・保証などの商品購入が主解決ではない可能性）';
+    return false;
+  }
+
+  return true;
 }
 
 function uaNormalizeGeneratedTags_(tagsText, rowData, appConfig) {

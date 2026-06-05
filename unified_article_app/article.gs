@@ -595,8 +595,9 @@ function uaFetchRakutenItem_(query) {
     const res = UrlFetchApp.fetch(url, {
       method: 'get',
       headers: {
-        Referer: refererUrl,
-        Origin: uaGetOriginFromUrl_(refererUrl)
+        referer: refererUrl,
+        origin: uaGetOriginFromUrl_(refererUrl),
+        accessKey: accessKey
       },
       muteHttpExceptions: true
     });
@@ -605,7 +606,8 @@ function uaFetchRakutenItem_(query) {
     const responseText = res.getContentText();
 
     if (statusCode !== 200) {
-      UA_LAST_RAKUTEN_STATUS = '楽天API HTTP ' + statusCode + ': ' + String(responseText || '').slice(0, 120);
+      UA_LAST_RAKUTEN_STATUS = '楽天API HTTP ' + statusCode + ': ' + String(responseText || '').slice(0, 120) +
+        ' / Referer=' + refererUrl;
       return null;
     }
 

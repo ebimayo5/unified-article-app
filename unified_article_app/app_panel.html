@@ -421,6 +421,7 @@
         <button class="primary" onclick="saveRow(this)">保存</button>
         <button class="secondary" onclick="runReaderMind(this)">読者心理メモを取得</button>
         <button class="primary" onclick="runArticle(this)">記事を書く</button>
+        <button class="secondary" onclick="addRakutenBanner(this)">楽天バナーを本文へ追加</button>
         <button class="neutral" onclick="markPosted(this)">投稿済みにする</button>
       </div>
 
@@ -746,6 +747,21 @@
           })
           .withFailureHandler(fail)
           .uaRunArticleFromPanel(readForm());
+      }
+
+      function addRakutenBanner(button) {
+        syncRakutenControlsToNotes();
+        setBusy('楽天バナーを本文へ追加中...', button);
+        google.script.run
+          .withSuccessHandler(function(data) {
+            clearBusy();
+            fillForm(data);
+            showTab('body');
+            setProgress('done');
+            setNotice(data && data.message ? data.message : '楽天バナーを本文へ追加しました。', false);
+          })
+          .withFailureHandler(fail)
+          .uaAddRakutenBannerFromPanel(readForm());
       }
 
       function markPosted(button) {

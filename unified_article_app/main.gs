@@ -15,8 +15,6 @@ function onOpen() {
     .addItem('外部出典シートを作る', 'uaSetupExternalSourceSheet')
     .addItem('WordPress接続テスト', 'uaTestWordPressConnections')
     .addSeparator()
-    .addItem('楽天判定テスト（APIなし）', 'uaTestRakutenDecisionForActiveRow')
-    .addItem('楽天取得テスト（1回）', 'uaTestRakutenFetchForActiveRow')
     .addItem('楽天バナーを本文へ追加', 'uaAddRakutenBannerToActiveRow')
     .addSeparator()
     .addItem('本文生成をGeminiに切替', 'uaSetArticleProviderGemini')

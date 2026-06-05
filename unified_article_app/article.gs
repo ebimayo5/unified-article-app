@@ -96,64 +96,32 @@ function uaRunArticleFromWeb(data) {
   return uaRunArticleFromPanel(data || {});
 }
 
-function uaTestRakutenDecisionForActiveRow() {
-  const result = uaTestRakutenForActiveRow_(false);
-  SpreadsheetApp.getUi().alert(result.message);
-}
-
-function uaTestRakutenFetchForActiveRow() {
-  const result = uaTestRakutenForActiveRow_(true);
-  SpreadsheetApp.getUi().alert(result.message);
-}
-
 function uaAddRakutenBannerToActiveRow() {
   const result = uaAddRakutenBannerToActiveRow_();
   SpreadsheetApp.getUi().alert(result.message);
 }
 
-function uaTestRakutenForActiveRow_(shouldFetch) {
-  const context = uaGetRakutenActiveRowContext_();
-  UA_LAST_RAKUTEN_STATUS = '';
+function uaAddRakutenBannerFromPanel(data) {
+  uaSaveActiveRowData(data || {});
+  return uaAddRakutenBannerForData_(data || {});
+}
 
-  const shouldInsert = uaShouldInsertRakutenAffiliateBanner_(context.body, context.rowData, context.appConfig);
-  const query = shouldInsert
-    ? uaSelectRakutenProductQuery_(context.body, context.rowData, context.appConfig)
-    : '';
-  let item = null;
-
-  if (shouldFetch && shouldInsert && query) {
-    item = uaFetchRakutenItem_(query);
-  }
-
-  const reason = UA_LAST_RAKUTEN_STATUS || (shouldInsert ? '楽天バナー挿入対象です。' : '楽天バナー挿入対象外です。');
-  const lines = [
-    '楽天テスト結果',
-    '判定: ' + (shouldInsert ? '入れる' : '入れない'),
-    '検索キーワード: ' + (query || '未選定'),
-    '楽天API: ' + (shouldFetch ? '実行' : '未実行'),
-    '理由: ' + reason
-  ];
-
-  if (shouldFetch) {
-    lines.push('商品取得: ' + (item ? 'OK' : 'NG'));
-    if (item) {
-      lines.push('商品名: ' + item.name);
-    }
-  }
-
-  uaAppendFactCheckPoint_(context.sheet, context.row, '・楽天テスト｜' + lines.slice(1).join(' / '));
-
-  return {
-    shouldInsert: shouldInsert,
-    query: query,
-    item: item,
-    message: lines.join('\n')
-  };
+function uaAddRakutenBannerFromWeb(data) {
+  uaSaveActiveRowData(data || {});
+  return uaAddRakutenBannerForData_(data || {});
 }
 
 function uaAddRakutenBannerToActiveRow_() {
-  const context = uaGetRakutenActiveRowContext_();
+  return uaAddRakutenBannerForContext_(uaGetRakutenActiveRowContext_());
+}
 
+function uaAddRakutenBannerForData_(data) {
+  const sheet = uaGetSheetForData_(data || {});
+  const row = Number(data && data.row) || sheet.getActiveCell().getRow();
+  return uaAddRakutenBannerForContext_(uaGetRakutenRowContext_(sheet, row));
+}
+
+function uaAddRakutenBannerForContext_(context) {
   if (!context.body) {
     throw new Error('本文が空です。先に本文を生成してください。');
   }
@@ -186,15 +154,18 @@ function uaAddRakutenBannerToActiveRow_() {
   context.sheet.getRange(context.row, UA_COLUMNS.body).setValue(nextBody);
   uaAppendFactCheckPoint_(context.sheet, context.row, '・楽天バナー後入れ｜既存本文に小リライトとして追加済み');
 
-  return {
-    message: '楽天バナーを本文へ追加しました。\n本文生成APIは使っていません。'
-  };
+  const nextData = uaBuildRowData_(context.sheet, context.row);
+  nextData.message = '楽天バナーを本文へ追加しました。本文生成APIは使っていません。';
+  return nextData;
 }
 
 function uaGetRakutenActiveRowContext_() {
   const sheet = SpreadsheetApp.getActiveSheet();
   const row = sheet.getActiveCell().getRow();
+  return uaGetRakutenRowContext_(sheet, row);
+}
 
+function uaGetRakutenRowContext_(sheet, row) {
   if (row === 1) {
     throw new Error('記事データの行を選択してください。1行目は見出しです。');
   }

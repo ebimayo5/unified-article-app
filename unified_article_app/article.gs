@@ -1,3 +1,5 @@
+let UA_LAST_RAKUTEN_STATUS = '';
+
 function uaRunArticleFromPanel(data) {
   uaSaveActiveRowData(data || {});
 
@@ -59,9 +61,10 @@ function uaRunArticleFromPanel(data) {
       resultJson.slug ||
       '';
     const tags = uaNormalizeGeneratedTags_(resultJson.tags || '', rowData, appConfig);
-    const factCheckPoints = resultJson.fact_check_points ||
+    const factCheckPointsBase = resultJson.fact_check_points ||
       resultJson.factCheckPoints ||
       '特になし';
+    const factCheckPoints = uaAppendRakutenStatusToFactCheck_(factCheckPointsBase);
     const structureMemo = resultJson.structure_memo ||
       resultJson.structureMemo ||
       '';
@@ -93,6 +96,21 @@ function uaRunArticleFromWeb(data) {
   return uaRunArticleFromPanel(data || {});
 }
 
+function uaAppendRakutenStatusToFactCheck_(factCheckPoints) {
+  const status = String(UA_LAST_RAKUTEN_STATUS || '').trim();
+  const value = String(factCheckPoints || '').trim();
+
+  if (!status || status === '挿入済み') {
+    return value || '特になし';
+  }
+
+  if (!value || value === '特になし') {
+    return '・楽天バナー未挿入｜' + status;
+  }
+
+  return value + '\n・楽天バナー未挿入｜' + status;
+}
+
 function uaSetGeneratedMeta_(sheet, row, status, provider, model) {
   sheet.getRange(row, UA_COLUMNS.status).setValue(status);
   sheet.getRange(row, UA_COLUMNS.createdAt).setValue(new Date());
@@ -113,11 +131,14 @@ function uaCallArticleGenerationJson_(promptText, provider) {
 }
 
 function uaApplyRakutenAffiliateBanner_(body, rowData, appConfig) {
+  UA_LAST_RAKUTEN_STATUS = '';
+
   if (!appConfig || appConfig.key === 'general') {
     return body;
   }
 
   if (!uaShouldInsertRakutenAffiliateBanner_(body, rowData, appConfig)) {
+    UA_LAST_RAKUTEN_STATUS = '';
     return body;
   }
 
@@ -126,6 +147,8 @@ function uaApplyRakutenAffiliateBanner_(body, rowData, appConfig) {
   if (!banner) {
     return body;
   }
+
+  UA_LAST_RAKUTEN_STATUS = '挿入済み';
 
   const faqIndex = body.search(/<h2[^>]*>\s*よくある質問\s*<\/h2>/i);
 
@@ -146,6 +169,7 @@ function uaBuildRakutenAffiliateBanner_(body, rowData, appConfig) {
   const query = uaSelectRakutenProductQuery_(body, rowData, appConfig);
 
   if (!query) {
+    UA_LAST_RAKUTEN_STATUS = '商品検索キーワードを選定できませんでした';
     return '';
   }
 
@@ -158,6 +182,9 @@ function uaBuildRakutenAffiliateBanner_(body, rowData, appConfig) {
   const fallbackHtml = String(PropertiesService.getScriptProperties().getProperty('UA_RAKUTEN_AFFILIATE_BANNER_HTML') || '').trim();
 
   if (!fallbackHtml) {
+    if (!UA_LAST_RAKUTEN_STATUS) {
+      UA_LAST_RAKUTEN_STATUS = '楽天APIで商品を取得できず、固定バナーfallbackも未設定です。検索キーワード: ' + query;
+    }
     return '';
   }
 
@@ -394,6 +421,7 @@ function uaFetchRakutenItem_(query) {
   const accessKey = String(PropertiesService.getScriptProperties().getProperty('UA_RAKUTEN_ACCESS_KEY') || '').trim();
 
   if (!applicationId || !accessKey) {
+    UA_LAST_RAKUTEN_STATUS = '楽天APIキー不足（UA_RAKUTEN_APPLICATION_ID / UA_RAKUTEN_ACCESS_KEY）';
     return null;
   }
 
@@ -421,16 +449,21 @@ function uaFetchRakutenItem_(query) {
       muteHttpExceptions: true
     });
 
-    if (res.getResponseCode() !== 200) {
+    const statusCode = res.getResponseCode();
+    const responseText = res.getContentText();
+
+    if (statusCode !== 200) {
+      UA_LAST_RAKUTEN_STATUS = '楽天API HTTP ' + statusCode + ': ' + String(responseText || '').slice(0, 120);
       return null;
     }
 
-    const json = JSON.parse(res.getContentText());
+    const json = JSON.parse(responseText);
     const items = json.items || json.Items || [];
     const firstItem = items[0];
     const item = firstItem && (firstItem.item || firstItem.Item || firstItem);
 
     if (!item || !item.itemName || !(item.affiliateUrl || item.itemUrl)) {
+      UA_LAST_RAKUTEN_STATUS = '楽天APIの商品取得0件またはURL不足。検索キーワード: ' + query;
       return null;
     }
 
@@ -445,6 +478,7 @@ function uaFetchRakutenItem_(query) {
         : mediumImage && mediumImage.imageUrl
     };
   } catch (e) {
+    UA_LAST_RAKUTEN_STATUS = '楽天API取得エラー: ' + e.toString();
     return null;
   }
 }

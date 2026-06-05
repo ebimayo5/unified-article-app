@@ -573,6 +573,7 @@ function uaFetchRakutenItem_(query) {
   }
 
   const affiliateId = String(PropertiesService.getScriptProperties().getProperty('UA_RAKUTEN_AFFILIATE_ID') || '').trim();
+  const refererUrl = uaGetRakutenRefererUrl_();
   const params = [
     'format=json',
     'formatVersion=2',
@@ -593,6 +594,10 @@ function uaFetchRakutenItem_(query) {
   try {
     const res = UrlFetchApp.fetch(url, {
       method: 'get',
+      headers: {
+        Referer: refererUrl,
+        Origin: uaGetOriginFromUrl_(refererUrl)
+      },
       muteHttpExceptions: true
     });
 
@@ -628,6 +633,20 @@ function uaFetchRakutenItem_(query) {
     UA_LAST_RAKUTEN_STATUS = '楽天API取得エラー: ' + e.toString();
     return null;
   }
+}
+
+function uaGetRakutenRefererUrl_() {
+  const props = PropertiesService.getScriptProperties();
+  return String(
+    props.getProperty('UA_RAKUTEN_REFERER_URL') ||
+    props.getProperty('UA_RAKUTEN_APPLICATION_URL') ||
+    'https://script.google.com/'
+  ).trim();
+}
+
+function uaGetOriginFromUrl_(url) {
+  const match = String(url || '').match(/^https?:\/\/[^/]+/i);
+  return match ? match[0] : 'https://script.google.com';
 }
 
 function uaBuildRakutenItemBannerHtml_(item, query) {

@@ -387,6 +387,7 @@ DRIVE BASE:
 - 洗車、車内清掃、コーティング、タイヤ、電装品、車中泊用品では、必要に応じて商品カテゴリを提案する
 - 2026年5月13日以降の楽天Web Service仕様に合わせ、楽天市場商品検索APIは `UA_RAKUTEN_APPLICATION_ID` と `UA_RAKUTEN_ACCESS_KEY` の両方がある場合だけ使う
 - 楽天Web Service側でアプリケーションID、アクセスキー、アプリケーションURLを再設定した値を使う
+- GASから楽天APIへ送る場合、`Referer` / `Origin` ヘッダーが必要になるため、スクリプトプロパティ `UA_RAKUTEN_REFERER_URL` または `UA_RAKUTEN_APPLICATION_URL` を楽天側で許可したWebサイトURLと合わせる
 - 上記2つが設定されている場合、本文生成後に記事内容から商品カテゴリを自動選定し、楽天市場商品検索APIで取得した商品を楽天アフィリエイトバナーとして自動挿入する
 - `UA_RAKUTEN_AFFILIATE_ID` が設定されている場合は、楽天APIのアフィリエイトURLを使う
 - `UA_RAKUTEN_AFFILIATE_BANNER_HTML` はAPI未設定または取得失敗時の固定バナー fallback として使う
@@ -412,6 +413,7 @@ DRIVE BASE:
 - 売り込みではなく、暮らしの選択肢として扱う
 - 2026年5月13日以降の楽天Web Service仕様に合わせ、楽天市場商品検索APIは `UA_RAKUTEN_APPLICATION_ID` と `UA_RAKUTEN_ACCESS_KEY` の両方がある場合だけ使う
 - 楽天Web Service側でアプリケーションID、アクセスキー、アプリケーションURLを再設定した値を使う
+- GASから楽天APIへ送る場合、`Referer` / `Origin` ヘッダーが必要になるため、スクリプトプロパティ `UA_RAKUTEN_REFERER_URL` または `UA_RAKUTEN_APPLICATION_URL` を楽天側で許可したWebサイトURLと合わせる
 - 上記2つが設定されている場合、本文生成後に記事内容から商品カテゴリを自動選定し、楽天市場商品検索APIで取得した商品を楽天アフィリエイトバナーとして自動挿入する
 - `UA_RAKUTEN_AFFILIATE_ID` が設定されている場合は、楽天APIのアフィリエイトURLを使う
 - `UA_RAKUTEN_AFFILIATE_BANNER_HTML` はAPI未設定または取得失敗時の固定バナー fallback として使う

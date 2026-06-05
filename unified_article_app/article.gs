@@ -400,6 +400,7 @@ function uaFetchRakutenItem_(query) {
   const affiliateId = String(PropertiesService.getScriptProperties().getProperty('UA_RAKUTEN_AFFILIATE_ID') || '').trim();
   const params = [
     'format=json',
+    'formatVersion=2',
     'hits=1',
     'imageFlag=1',
     'sort=standard',
@@ -425,20 +426,23 @@ function uaFetchRakutenItem_(query) {
     }
 
     const json = JSON.parse(res.getContentText());
-    const item = json.Items &&
-      json.Items[0] &&
-      json.Items[0].Item;
+    const items = json.items || json.Items || [];
+    const firstItem = items[0];
+    const item = firstItem && (firstItem.item || firstItem.Item || firstItem);
 
     if (!item || !item.itemName || !(item.affiliateUrl || item.itemUrl)) {
       return null;
     }
 
+    const mediumImage = item.mediumImageUrls &&
+      item.mediumImageUrls[0];
+
     return {
       name: item.itemName,
       url: item.affiliateUrl || item.itemUrl,
-      imageUrl: item.mediumImageUrls &&
-        item.mediumImageUrls[0] &&
-        item.mediumImageUrls[0].imageUrl
+      imageUrl: typeof mediumImage === 'string'
+        ? mediumImage
+        : mediumImage && mediumImage.imageUrl
     };
   } catch (e) {
     return null;

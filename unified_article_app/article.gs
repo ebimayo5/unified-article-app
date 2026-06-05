@@ -657,13 +657,20 @@ function uaBuildRakutenItemBannerHtml_(item, query) {
   const imageUrl = uaEscapeHtml_(item.imageUrl || '');
   const queryText = uaEscapeHtml_(query || '関連アイテム');
   const imageHtml = imageUrl
-    ? '<p><a href=\'' + url + '\' target=\'_blank\' rel=\'nofollow sponsored\'><img src=\'' + imageUrl + '\' alt=\'' + name + '\' style=\'max-width:100%;height:auto;\'></a></p>'
+    ? '<a href=\'' + url + '\' target=\'_blank\' rel=\'nofollow sponsored\' style=\'display:block;max-width:180px;flex:0 0 180px;\'><img src=\'' + imageUrl + '\' alt=\'' + name + '\' style=\'display:block;max-width:100%;height:auto;border:0;\'></a>'
     : '';
 
   return [
     '<p>具体的な商品を比較したい場合は、下の楽天バナーから「' + queryText + '」の関連アイテムを確認できます。楽天を特別に推す意図ではなく、価格や種類を見比べるための選択肢として使ってください。</p>',
+    '<!-- wp:html -->',
+    '<div style=\'border:1px solid #d7dde3;border-radius:8px;padding:14px;margin:16px 0;display:flex;gap:14px;align-items:center;max-width:720px;\'>',
     imageHtml,
-    '<p><a href=\'' + url + '\' target=\'_blank\' rel=\'nofollow sponsored\'>' + name + '</a></p>'
+    '<div style=\'min-width:0;\'>',
+    '<p style=\'margin:0 0 8px;font-weight:700;\'>関連アイテムを楽天で確認</p>',
+    '<p style=\'margin:0;font-size:14px;line-height:1.7;\'><a href=\'' + url + '\' target=\'_blank\' rel=\'nofollow sponsored\'>' + name + '</a></p>',
+    '</div>',
+    '</div>',
+    '<!-- /wp:html -->'
   ].filter(Boolean).join('\n');
 }
 

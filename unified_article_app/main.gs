@@ -16,6 +16,8 @@ function onOpen() {
     .addItem('WordPress接続テスト', 'uaTestWordPressConnections')
     .addSeparator()
     .addItem('楽天バナーを本文へ追加', 'uaAddRakutenBannerToActiveRow')
+    .addItem('内部リンクを本文へ追加', 'uaAddInternalLinkToActiveRow')
+    .addItem('外部リンクを本文へ追加', 'uaAddExternalSourceLinkToActiveRow')
     .addSeparator()
     .addItem('本文生成をGeminiに切替', 'uaSetArticleProviderGemini')
     .addItem('本文生成をOpenAIに切替', 'uaSetArticleProviderOpenAi')

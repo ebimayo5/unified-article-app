@@ -918,6 +918,241 @@ function uaScoreExternalSource_(mainInput, appConfig, data) {
   return score;
 }
 
+function uaAddInternalLinkToActiveRow() {
+  const result = uaAddInternalLinkToActiveRow_();
+  SpreadsheetApp.getUi().alert(result && result.message ? result.message : '内部リンクを本文へ追加しました。');
+}
+
+function uaAddExternalSourceLinkToActiveRow() {
+  const result = uaAddExternalSourceLinkToActiveRow_();
+  SpreadsheetApp.getUi().alert(result && result.message ? result.message : '外部リンクを本文へ追加しました。');
+}
+
+function uaAddInternalLinkFromPanel(data) {
+  uaSaveActiveRowData(data || {});
+  return uaAddInternalLinkForData_(data || {});
+}
+
+function uaAddExternalSourceLinkFromPanel(data) {
+  uaSaveActiveRowData(data || {});
+  return uaAddExternalSourceLinkForData_(data || {});
+}
+
+function uaAddInternalLinkFromWeb(data) {
+  uaSaveActiveRowData(data || {});
+  return uaAddInternalLinkForData_(data || {});
+}
+
+function uaAddExternalSourceLinkFromWeb(data) {
+  uaSaveActiveRowData(data || {});
+  return uaAddExternalSourceLinkForData_(data || {});
+}
+
+function uaAddInternalLinkToActiveRow_() {
+  const sheet = uaGetRequiredSheet_();
+  const row = sheet.getActiveCell().getRow();
+  return uaAddInternalLinkForContext_(sheet, row);
+}
+
+function uaAddExternalSourceLinkToActiveRow_() {
+  const sheet = uaGetRequiredSheet_();
+  const row = sheet.getActiveCell().getRow();
+  return uaAddExternalSourceLinkForContext_(sheet, row);
+}
+
+function uaAddInternalLinkForData_(data) {
+  const sheet = uaGetSheetForData_(data || {});
+  const row = Number(data && data.row) || sheet.getActiveCell().getRow();
+  return uaAddInternalLinkForContext_(sheet, row);
+}
+
+function uaAddExternalSourceLinkForData_(data) {
+  const sheet = uaGetSheetForData_(data || {});
+  const row = Number(data && data.row) || sheet.getActiveCell().getRow();
+  return uaAddExternalSourceLinkForContext_(sheet, row);
+}
+
+function uaAddInternalLinkForContext_(sheet, row) {
+  if (row === 1) {
+    throw new Error('記事データの行を選択してください。');
+  }
+
+  const rowData = uaBuildRowData_(sheet, row);
+  const appConfig = uaGetAppConfigByLabel_(rowData.appType);
+
+  if (!appConfig || !appConfig.useInternalLinks) {
+    throw new Error('この記事タイプでは内部リンク後入れは使いません。');
+  }
+
+  const body = String(rowData.body || '').trim();
+
+  if (!body) {
+    throw new Error('本文が空です。先に本文生成をしてください。');
+  }
+
+  const candidate = uaPickInternalLinkForBody_(rowData, appConfig, body);
+
+  if (!candidate) {
+    uaAppendLinkPostInsertFact_(sheet, row, '・内部リンク後入れ未実行｜関連候補なし');
+    return {
+      message: '内部リンクを追加しませんでした。\n理由: 関連候補がありません。'
+    };
+  }
+
+  if (body.indexOf(candidate.url) !== -1) {
+    uaAppendLinkPostInsertFact_(sheet, row, '・内部リンク後入れ未実行｜本文内に同じURLあり');
+    return {
+      message: '内部リンクを追加しませんでした。\n理由: 本文内に同じURLがすでにあります。'
+    };
+  }
+
+  const block = uaBuildInternalLinkPostInsertBlock_(candidate);
+  const nextBody = uaInsertLinkBlockIntoBody_(body, block);
+  sheet.getRange(row, UA_COLUMNS.body).setValue(nextBody);
+  uaAppendLinkPostInsertFact_(sheet, row, '・内部リンク後入れ｜' + candidate.url);
+
+  const nextData = uaBuildRowData_(sheet, row);
+  nextData.message = '内部リンクを本文へ追加しました。';
+  return nextData;
+}
+
+function uaAddExternalSourceLinkForContext_(sheet, row) {
+  if (row === 1) {
+    throw new Error('記事データの行を選択してください。');
+  }
+
+  const rowData = uaBuildRowData_(sheet, row);
+  const appConfig = uaGetAppConfigByLabel_(rowData.appType);
+  const body = String(rowData.body || '').trim();
+
+  if (!body) {
+    throw new Error('本文が空です。先に本文生成をしてください。');
+  }
+
+  const candidate = uaPickExternalSourceForBody_(rowData, appConfig, body);
+
+  if (!candidate) {
+    uaAppendLinkPostInsertFact_(sheet, row, '・外部リンク後入れ未実行｜関連候補なし');
+    return {
+      message: '外部リンクを追加しませんでした。\n理由: 関連候補がありません。'
+    };
+  }
+
+  if (body.indexOf(candidate.url) !== -1) {
+    uaAppendLinkPostInsertFact_(sheet, row, '・外部リンク後入れ未実行｜本文内に同じURLあり');
+    return {
+      message: '外部リンクを追加しませんでした。\n理由: 本文内に同じURLがすでにあります。'
+    };
+  }
+
+  const block = uaBuildExternalSourcePostInsertBlock_(candidate);
+  const nextBody = uaInsertLinkBlockIntoBody_(body, block);
+  sheet.getRange(row, UA_COLUMNS.body).setValue(nextBody);
+  uaAppendLinkPostInsertFact_(sheet, row, '・外部リンク後入れ｜' + candidate.url);
+
+  const nextData = uaBuildRowData_(sheet, row);
+  nextData.message = '外部リンクを本文へ追加しました。';
+  return nextData;
+}
+
+function uaPickInternalLinkForBody_(rowData, appConfig, body) {
+  const candidates = uaGetInternalLinkCandidates_([
+    rowData && rowData.mainInput,
+    rowData && rowData.readerMindMemo,
+    body
+  ].join(' '), appConfig);
+
+  for (let i = 0; i < candidates.length; i++) {
+    if (String(body || '').indexOf(candidates[i].url) === -1) {
+      return candidates[i];
+    }
+  }
+
+  return null;
+}
+
+function uaPickExternalSourceForBody_(rowData, appConfig, body) {
+  const candidates = uaGetExternalSourceCandidates_([
+    rowData && rowData.mainInput,
+    rowData && rowData.readerMindMemo,
+    body
+  ].join(' '), appConfig);
+
+  for (let i = 0; i < candidates.length; i++) {
+    if (String(body || '').indexOf(candidates[i].url) === -1) {
+      return candidates[i];
+    }
+  }
+
+  return null;
+}
+
+function uaBuildInternalLinkPostInsertBlock_(candidate) {
+  const url = uaEscapeLinkHtml_(candidate.url);
+  const title = uaEscapeLinkHtml_(candidate.title || '関連記事');
+  const usage = uaEscapeLinkHtml_(candidate.usage || '本文では触れきれない補足内容');
+  const anchor = uaBuildShortAnchorText_(candidate.title || '関連記事');
+
+  return [
+    '<p>あわせて確認したい内容として、' + usage + 'は<a href=\'' + url + '\'>' + anchor + '</a>でも整理しています。</p>'
+  ].join('\n');
+}
+
+function uaBuildExternalSourcePostInsertBlock_(candidate) {
+  const url = uaEscapeLinkHtml_(candidate.url);
+  const name = uaEscapeLinkHtml_(candidate.name || '公式情報');
+  const usage = uaEscapeLinkHtml_(candidate.usage || '最新情報や公式条件');
+
+  return [
+    '<p>' + usage + 'は、<a href=\'' + url + '\' target=\'_blank\' rel=\'noopener\'>' + name + '</a>でも確認できます。記事内の判断材料とあわせて、最新条件は公式情報で確認しておくと安心です。</p>'
+  ].join('\n');
+}
+
+function uaInsertLinkBlockIntoBody_(body, block) {
+  const text = String(body || '');
+  const markers = [
+    /<h2[^>]*>よくある質問<\/h2>/i,
+    /<h2[^>]*>まとめ[\s\S]*?<\/h2>/i
+  ];
+
+  for (let i = 0; i < markers.length; i++) {
+    const match = text.match(markers[i]);
+    if (match && typeof match.index === 'number') {
+      return text.slice(0, match.index).trim() + '\n\n' + block + '\n\n' + text.slice(match.index).trim();
+    }
+  }
+
+  return text.trim() + '\n\n' + block;
+}
+
+function uaAppendLinkPostInsertFact_(sheet, row, line) {
+  const range = sheet.getRange(row, UA_COLUMNS.factCheckPoints);
+  const current = String(range.getValue() || '').trim();
+  const value = String(line || '').trim();
+  const next = !current || current === '特になし'
+    ? value
+    : current + '\n' + value;
+
+  uaSetFactCheckPointsWithLinks_(sheet, row, next);
+}
+
+function uaBuildShortAnchorText_(title) {
+  return uaEscapeLinkHtml_(String(title || '関連記事')
+    .replace(/[「」『』【】]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 24) || '関連記事');
+}
+
+function uaEscapeLinkHtml_(text) {
+  return String(text || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/'/g, '&#39;')
+    .replace(/"/g, '&quot;');
+}
+
 function uaNormalizeForScore_(text) {
   return String(text || '')
     .toLowerCase()

@@ -422,6 +422,8 @@
         <button class="secondary" onclick="runReaderMind(this)">読者心理メモを取得</button>
         <button class="primary" onclick="runArticle(this)">記事を書く</button>
         <button class="secondary" onclick="addRakutenBanner(this)">楽天バナーを本文へ追加</button>
+        <button class="secondary" onclick="addInternalLink(this)">内部リンクを本文へ追加</button>
+        <button class="secondary" onclick="addExternalLink(this)">外部リンクを本文へ追加</button>
         <button class="neutral" onclick="markPosted(this)">投稿済みにする</button>
       </div>
 
@@ -762,6 +764,36 @@
           })
           .withFailureHandler(fail)
           .uaAddRakutenBannerFromPanel(readForm());
+      }
+
+      function addInternalLink(button) {
+        syncRakutenControlsToNotes();
+        setBusy('内部リンクを本文へ追加中...', button);
+        google.script.run
+          .withSuccessHandler(function(data) {
+            clearBusy();
+            fillForm(data);
+            showTab('body');
+            setProgress('done');
+            setNotice(data && data.message ? data.message : '内部リンクを本文へ追加しました。', false);
+          })
+          .withFailureHandler(fail)
+          .uaAddInternalLinkFromPanel(readForm());
+      }
+
+      function addExternalLink(button) {
+        syncRakutenControlsToNotes();
+        setBusy('外部リンクを本文へ追加中...', button);
+        google.script.run
+          .withSuccessHandler(function(data) {
+            clearBusy();
+            fillForm(data);
+            showTab('body');
+            setProgress('done');
+            setNotice(data && data.message ? data.message : '外部リンクを本文へ追加しました。', false);
+          })
+          .withFailureHandler(fail)
+          .uaAddExternalSourceLinkFromPanel(readForm());
       }
 
       function markPosted(button) {

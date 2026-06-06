@@ -189,6 +189,8 @@
             <button class="secondary" onclick="runReaderMind(this)">読者心理メモを取得</button>
             <button class="primary" onclick="runArticle(this)">本文生成</button>
             <button class="secondary" onclick="addRakutenBanner(this)">楽天バナーを本文へ追加</button>
+            <button class="secondary" onclick="addInternalLink(this)">内部リンクを本文へ追加</button>
+            <button class="secondary" onclick="addExternalLink(this)">外部リンクを本文へ追加</button>
             <button class="neutral" onclick="saveArticle(this)">保存</button>
             <button id="wpDraftButton" class="secondary" onclick="createWpDraft(this)">WP下書き作成</button>
           </div>
@@ -488,6 +490,30 @@
           setProgress('done');
           setNotice(data.message || '楽天バナーを本文へ追加しました。', false);
         }).withFailureHandler(fail).uaAddRakutenBannerFromWeb(readForm());
+      }
+
+      function addInternalLink(button) {
+        syncRakutenControlsToNotes();
+        setBusy('内部リンクを本文へ追加中...', button);
+        google.script.run.withSuccessHandler(function(data) {
+          clearBusy();
+          fillForm(data);
+          showTab('body');
+          setProgress('done');
+          setNotice(data.message || '内部リンクを本文へ追加しました。', false);
+        }).withFailureHandler(fail).uaAddInternalLinkFromWeb(readForm());
+      }
+
+      function addExternalLink(button) {
+        syncRakutenControlsToNotes();
+        setBusy('外部リンクを本文へ追加中...', button);
+        google.script.run.withSuccessHandler(function(data) {
+          clearBusy();
+          fillForm(data);
+          showTab('body');
+          setProgress('done');
+          setNotice(data.message || '外部リンクを本文へ追加しました。', false);
+        }).withFailureHandler(fail).uaAddExternalSourceLinkFromWeb(readForm());
       }
 
       function markPosted(button) {

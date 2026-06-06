@@ -150,7 +150,7 @@ function uaAddRakutenBannerForContext_(context) {
     };
   }
 
-  const nextBody = uaInsertRakutenBlockIntoBody_(context.body, block);
+  const nextBody = uaInsertRakutenBlockIntoBody_(context.body, block, context.rowData, context.appConfig);
   context.sheet.getRange(context.row, UA_COLUMNS.body).setValue(nextBody);
   uaAppendFactCheckPoint_(context.sheet, context.row, '・楽天バナー後入れ｜既存本文に小リライトとして追加済み');
 
@@ -211,7 +211,13 @@ function uaBuildRakutenFollowupBlock_(body, rowData, appConfig) {
   ].join('\n');
 }
 
-function uaInsertRakutenBlockIntoBody_(body, block) {
+function uaInsertRakutenBlockIntoBody_(body, block, rowData, appConfig) {
+  const contextualIndex = uaFindRakutenContextualInsertIndex_(body, rowData, appConfig);
+
+  if (contextualIndex > 0) {
+    return body.slice(0, contextualIndex).trim() + '\n\n' + block + '\n\n' + body.slice(contextualIndex).trim();
+  }
+
   const faqIndex = body.search(/<h2[^>]*>\s*よくある質問\s*<\/h2>/i);
 
   if (faqIndex > -1) {
@@ -225,6 +231,85 @@ function uaInsertRakutenBlockIntoBody_(body, block) {
   }
 
   return body + '\n\n' + block;
+}
+
+function uaFindRakutenContextualInsertIndex_(body, rowData, appConfig) {
+  const text = String(body || '');
+  const query = uaSelectRakutenProductQuery_(text, rowData, appConfig);
+  const sections = uaExtractRakutenH2Sections_(text);
+  const terms = uaBuildRakutenInsertTerms_(query);
+  let best = null;
+
+  if (!query || sections.length === 0 || terms.length === 0) {
+    return -1;
+  }
+
+  sections.forEach(function(section) {
+    const normalized = uaNormalizeForScore_(section.text);
+    let score = 0;
+
+    terms.forEach(function(term) {
+      if (normalized.indexOf(term) !== -1) {
+        score += term.length >= 4 ? 3 : 1;
+      }
+    });
+
+    if (/よくある質問|まとめ/i.test(section.headingText)) {
+      score -= 4;
+    }
+
+    if (score > 0 && (!best || score > best.score)) {
+      best = {
+        score: score,
+        insertIndex: section.endIndex
+      };
+    }
+  });
+
+  return best ? best.insertIndex : -1;
+}
+
+function uaExtractRakutenH2Sections_(body) {
+  const text = String(body || '');
+  const matches = [];
+  const pattern = /<h2[^>]*>[\s\S]*?<\/h2>/gi;
+  let match;
+
+  while ((match = pattern.exec(text)) !== null) {
+    matches.push({
+      startIndex: match.index,
+      headingText: uaCleanText_(uaStripHtml_(match[0]))
+    });
+  }
+
+  return matches.map(function(item, index) {
+    const next = matches[index + 1];
+    const endIndex = next ? next.startIndex : text.length;
+
+    return {
+      startIndex: item.startIndex,
+      endIndex: endIndex,
+      headingText: item.headingText,
+      text: text.slice(item.startIndex, endIndex)
+    };
+  });
+}
+
+function uaBuildRakutenInsertTerms_(query) {
+  const terms = [];
+
+  function add(term) {
+    term = uaNormalizeForScore_(term);
+    if (term && term.length >= 2 && terms.indexOf(term) === -1) {
+      terms.push(term);
+    }
+  }
+
+  String(query || '')
+    .split(/\s+/)
+    .forEach(add);
+
+  return terms.slice(0, 20);
 }
 
 function uaHasRakutenBanner_(body) {

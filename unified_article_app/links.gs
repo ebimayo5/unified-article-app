@@ -1007,7 +1007,7 @@ function uaAddInternalLinkForContext_(sheet, row) {
   }
 
   const block = uaBuildInternalLinkPostInsertBlock_(candidate);
-  const nextBody = uaInsertLinkBlockIntoBody_(body, block);
+  const nextBody = uaInsertLinkBlockIntoBody_(body, block, candidate);
   sheet.getRange(row, UA_COLUMNS.body).setValue(nextBody);
   uaAppendLinkPostInsertFact_(sheet, row, '・内部リンク後入れ｜' + candidate.url);
 
@@ -1046,7 +1046,7 @@ function uaAddExternalSourceLinkForContext_(sheet, row) {
   }
 
   const block = uaBuildExternalSourcePostInsertBlock_(candidate);
-  const nextBody = uaInsertLinkBlockIntoBody_(body, block);
+  const nextBody = uaInsertLinkBlockIntoBody_(body, block, candidate);
   sheet.getRange(row, UA_COLUMNS.body).setValue(nextBody);
   uaAppendLinkPostInsertFact_(sheet, row, '・外部リンク後入れ｜' + candidate.url);
 
@@ -1108,8 +1108,14 @@ function uaBuildExternalSourcePostInsertBlock_(candidate) {
   ].join('\n');
 }
 
-function uaInsertLinkBlockIntoBody_(body, block) {
+function uaInsertLinkBlockIntoBody_(body, block, candidate) {
   const text = String(body || '');
+  const contextualIndex = uaFindContextualLinkInsertIndex_(text, candidate);
+
+  if (contextualIndex > 0) {
+    return text.slice(0, contextualIndex).trim() + '\n\n' + block + '\n\n' + text.slice(contextualIndex).trim();
+  }
+
   const markers = [
     /<h2[^>]*>よくある質問<\/h2>/i,
     /<h2[^>]*>まとめ[\s\S]*?<\/h2>/i
@@ -1123,6 +1129,90 @@ function uaInsertLinkBlockIntoBody_(body, block) {
   }
 
   return text.trim() + '\n\n' + block;
+}
+
+function uaFindContextualLinkInsertIndex_(body, candidate) {
+  const text = String(body || '');
+  const sections = uaExtractH2SectionsForInsert_(text);
+  const terms = uaBuildLinkCandidateTerms_(candidate);
+  let best = null;
+
+  if (sections.length === 0 || terms.length === 0) {
+    return -1;
+  }
+
+  sections.forEach(function(section) {
+    const normalized = uaNormalizeForScore_(section.text);
+    let score = 0;
+
+    terms.forEach(function(term) {
+      if (normalized.indexOf(term) !== -1) {
+        score += term.length >= 4 ? 3 : 1;
+      }
+    });
+
+    if (/よくある質問|まとめ/i.test(section.headingText)) {
+      score -= 4;
+    }
+
+    if (score > 0 && (!best || score > best.score)) {
+      best = {
+        score: score,
+        insertIndex: section.endIndex
+      };
+    }
+  });
+
+  return best ? best.insertIndex : -1;
+}
+
+function uaExtractH2SectionsForInsert_(body) {
+  const text = String(body || '');
+  const matches = [];
+  const pattern = /<h2[^>]*>[\s\S]*?<\/h2>/gi;
+  let match;
+
+  while ((match = pattern.exec(text)) !== null) {
+    matches.push({
+      startIndex: match.index,
+      headingEndIndex: pattern.lastIndex,
+      headingHtml: match[0],
+      headingText: uaCleanText_(uaStripHtml_(match[0]))
+    });
+  }
+
+  return matches.map(function(item, index) {
+    const next = matches[index + 1];
+    const endIndex = next ? next.startIndex : text.length;
+
+    return {
+      startIndex: item.startIndex,
+      endIndex: endIndex,
+      headingText: item.headingText,
+      text: text.slice(item.startIndex, endIndex)
+    };
+  });
+}
+
+function uaBuildLinkCandidateTerms_(candidate) {
+  const source = [
+    candidate && candidate.title,
+    candidate && candidate.name,
+    candidate && candidate.usage,
+    candidate && candidate.keywords,
+    candidate && candidate.genre
+  ].join(' ');
+  const terms = [];
+
+  uaNormalizeForScore_(source)
+    .split(/\s+/)
+    .forEach(function(term) {
+      if (term.length >= 2 && terms.indexOf(term) === -1) {
+        terms.push(term);
+      }
+    });
+
+  return terms.slice(0, 20);
 }
 
 function uaAppendLinkPostInsertFact_(sheet, row, line) {

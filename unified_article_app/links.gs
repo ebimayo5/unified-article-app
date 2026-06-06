@@ -398,32 +398,38 @@ function uaScoreInternalLink_(mainInput, appConfig, data) {
   const key = uaNormalizeForScore_(mainInput);
   const expandedTerms = uaGetInternalLinkExpandedTerms_(mainInput, appConfig);
   const queryTerms = uaGetInternalLinkQueryTerms_(mainInput);
-  const text = uaNormalizeForScore_([
+  const mainText = uaNormalizeForScore_([
     data.url,
     data.title,
     data.description,
     data.intro,
-    data.usage,
     data.keywords
   ].join(' '));
+  const usageText = uaNormalizeForScore_(data.usage);
 
   let score = 0;
 
-  if (key && text.indexOf(key) !== -1) score += 6;
+  if (key && mainText.indexOf(key) !== -1) score += 6;
 
   queryTerms.forEach(function(term) {
-    if (text.indexOf(term) !== -1) {
+    if (mainText.indexOf(term) !== -1) {
       score += term.length >= 4 ? 2 : 1;
     }
   });
 
   expandedTerms.forEach(function(term) {
-    if (text.indexOf(term) !== -1) score += 3;
+    if (mainText.indexOf(term) !== -1) score += 3;
   });
 
   if (score === 0) {
     return 0;
   }
+
+  queryTerms.forEach(function(term) {
+    if (usageText.indexOf(term) !== -1) {
+      score += 0.5;
+    }
+  });
 
   if (String(data.priority).indexOf('高') !== -1) score += 2;
   if (String(data.priority).indexOf('中') !== -1) score += 1;
@@ -1108,6 +1114,24 @@ function uaBuildExternalSourcePostInsertBlock_(candidate) {
   ].join('\n');
 }
 
+function uaBuildInternalLinkPostInsertBlock_(candidate) {
+  const url = uaEscapeLinkHtml_(candidate.url);
+  const anchor = uaBuildShortAnchorText_(candidate.title || '関連記事');
+
+  return [
+    '<p>この内容に近い補足は、<a href=\'' + url + '\'>' + anchor + '</a>でも詳しく整理しています。</p>'
+  ].join('\n');
+}
+
+function uaBuildExternalSourcePostInsertBlock_(candidate) {
+  const url = uaEscapeLinkHtml_(candidate.url);
+  const name = uaEscapeLinkHtml_(candidate.name || '公式情報');
+
+  return [
+    '<p>最新の条件や公式の案内は、<a href=\'' + url + '\' target=\'_blank\' rel=\'noopener\'>' + name + '</a>でも確認できます。</p>'
+  ].join('\n');
+}
+
 function uaInsertLinkBlockIntoBody_(body, block, candidate) {
   const text = String(body || '');
   const contextualIndex = uaFindContextualLinkInsertIndex_(text, candidate);
@@ -1203,10 +1227,28 @@ function uaBuildLinkCandidateTerms_(candidate) {
     candidate && candidate.genre
   ].join(' ');
   const terms = [];
+  const genericTerms = [
+    '後悔',
+    '失敗',
+    '注意',
+    '注意点',
+    '補足',
+    '比較',
+    '費用',
+    '相場',
+    '見積もり',
+    '関連',
+    'テーマ',
+    '使う',
+    '場面',
+    '内容',
+    '記事'
+  ];
 
   uaNormalizeForScore_(source)
     .split(/\s+/)
     .forEach(function(term) {
+      if (genericTerms.indexOf(term) !== -1) return;
       if (term.length >= 2 && terms.indexOf(term) === -1) {
         terms.push(term);
       }

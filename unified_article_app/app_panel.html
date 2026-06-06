@@ -156,6 +156,33 @@
         margin: 12px 0;
       }
 
+      .action-groups {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 10px;
+        margin: 12px 0;
+      }
+
+      .action-group {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 10px;
+        background: #fbfdfc;
+      }
+
+      .action-label {
+        display: block;
+        margin-bottom: 7px;
+        color: var(--brand-dark);
+        font-size: 12px;
+        font-weight: 800;
+      }
+
+      .action-group .actions {
+        grid-template-columns: 1fr;
+        margin: 0;
+      }
+
       button {
         width: 100%;
         border: 1px solid transparent;
@@ -173,14 +200,14 @@
 
       button.secondary {
         color: var(--brand-dark);
-        background: var(--soft);
-        border-color: #b8ded6;
+        background: #e4f4ef;
+        border-color: #95cfc2;
       }
 
       button.neutral {
-        color: var(--text);
-        background: #fff;
-        border-color: var(--line);
+        color: var(--brand-dark);
+        background: #f3faf7;
+        border-color: #badbd2;
       }
 
       button:disabled {
@@ -293,6 +320,12 @@
         --brand: #2563eb;
         --brand-dark: #1746a2;
         --soft: #e5f1fb;
+      }
+
+      @media (max-width: 980px) {
+        .action-groups {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
       }
 
       @keyframes pulseStatus {
@@ -415,16 +448,36 @@
         </div>
       </div>
 
-      <div class="actions">
-        <button class="neutral" onclick="openCandidateSheet(this)">候補シートを開く</button>
-        <button class="secondary" onclick="loadSelectedRow(this)">選択行を反映</button>
-        <button class="primary" onclick="saveRow(this)">保存</button>
-        <button class="secondary" onclick="runReaderMind(this)">読者心理メモを取得</button>
-        <button class="primary" onclick="runArticle(this)">記事を書く</button>
-        <button class="secondary" onclick="addRakutenBanner(this)">楽天バナーを本文へ追加</button>
-        <button class="secondary" onclick="addInternalLink(this)">内部リンクを本文へ追加</button>
-        <button class="secondary" onclick="addExternalLink(this)">外部リンクを本文へ追加</button>
-        <button class="neutral" onclick="markPosted(this)">投稿済みにする</button>
+      <div class="action-groups">
+        <div class="action-group">
+          <span class="action-label">候補・保存</span>
+          <div class="actions">
+            <button class="neutral" onclick="openCandidateSheet(this)">候補シートを開く</button>
+            <button class="secondary" onclick="loadSelectedRow(this)">選択行を反映</button>
+            <button class="neutral" onclick="saveRow(this)">今すぐ保存</button>
+          </div>
+        </div>
+        <div class="action-group">
+          <span class="action-label">生成</span>
+          <div class="actions">
+            <button class="secondary" onclick="runReaderMind(this)">読者心理メモを取得</button>
+            <button class="primary" onclick="runArticle(this)">記事を書く</button>
+          </div>
+        </div>
+        <div class="action-group">
+          <span class="action-label">本文へ後入れ</span>
+          <div class="actions">
+            <button class="secondary" onclick="addRakutenBanner(this)">楽天バナーを追加</button>
+            <button class="secondary" onclick="addInternalLink(this)">内部リンクを追加</button>
+            <button class="secondary" onclick="addExternalLink(this)">外部リンクを追加</button>
+          </div>
+        </div>
+        <div class="action-group">
+          <span class="action-label">公開後</span>
+          <div class="actions">
+            <button class="neutral" onclick="markPosted(this)">投稿済みにする</button>
+          </div>
+        </div>
       </div>
 
       <div class="section">
@@ -498,8 +551,13 @@
       let readerMindProviders = [];
       let activeButton = null;
       let activeButtonText = '';
+      let autoSaveTimer = null;
+      let autoSavePending = false;
+      let autoSaveInFlight = false;
+      let isFillingForm = false;
 
       function init() {
+        bindAutoSaveControls();
         google.script.run
           .withSuccessHandler(function(options) {
             options = options || {};
@@ -553,6 +611,7 @@
       }
 
       function fillForm(data) {
+        isFillingForm = true;
         fields.forEach(function(id) {
           const el = document.getElementById(id);
           if (!el) return;
@@ -561,6 +620,51 @@
         applyTheme();
         parseRakutenControlsFromNotes();
         setNotice('選択行を読み込みました。', false);
+        isFillingForm = false;
+      }
+
+      function bindAutoSaveControls() {
+        document.querySelectorAll('input, textarea, select').forEach(function(el) {
+          if (!el.id) return;
+          if (el.id === 'articleProvider' || el.id === 'readerMindProvider') return;
+          el.addEventListener('input', scheduleAutoSave);
+          el.addEventListener('change', scheduleAutoSave);
+        });
+      }
+
+      function scheduleAutoSave() {
+        if (isFillingForm) return;
+        const rowEl = document.getElementById('row');
+        if (!rowEl || !rowEl.value || Number(rowEl.value) <= 1) return;
+        autoSavePending = true;
+        window.clearTimeout(autoSaveTimer);
+        autoSaveTimer = window.setTimeout(runAutoSave, 900);
+      }
+
+      function runAutoSave() {
+        if (!autoSavePending || autoSaveInFlight) return;
+        if (activeButton) {
+          autoSaveTimer = window.setTimeout(runAutoSave, 1200);
+          return;
+        }
+
+        autoSavePending = false;
+        autoSaveInFlight = true;
+        setNotice('自動保存中...', false);
+        google.script.run
+          .withSuccessHandler(function(data) {
+            autoSaveInFlight = false;
+            if (data) fillForm(data);
+            setProgress('done');
+            setNotice('自動保存しました。', false);
+            if (autoSavePending) scheduleAutoSave();
+          })
+          .withFailureHandler(function(error) {
+            autoSaveInFlight = false;
+            setProgress('error');
+            setNotice('自動保存に失敗しました: ' + (error && error.message ? error.message : error), true);
+          })
+          .uaSaveActiveRowData(readForm());
       }
 
       function applyTheme() {
@@ -644,6 +748,7 @@
             document.getElementById('rakutenProductKeyword').value = query;
             syncRakutenControlsToNotes();
             setNotice('楽天商品キーワードに反映しました。', false);
+            scheduleAutoSave();
           };
           container.appendChild(button);
         });
@@ -892,6 +997,7 @@
         if (activeButton) activeButton.textContent = activeButtonText;
         activeButton = null;
         activeButtonText = '';
+        if (autoSavePending) scheduleAutoSave();
       }
 
       function fail(error) {

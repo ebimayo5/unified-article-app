@@ -40,8 +40,8 @@
       button { border: 1px solid transparent; border-radius: 7px; padding: 9px 12px; font: inherit; font-weight: 800; cursor: pointer; }
       button:disabled { opacity: 0.58; cursor: default; }
       .primary { color: #fff; background: var(--brand); }
-      .secondary { color: var(--brand-dark); background: var(--soft-strong); border-color: #9bd8bf; }
-      .neutral { color: var(--brand-dark); background: #d9f2e5; border-color: #8bcfac; }
+      .secondary { color: var(--brand-dark); background: #e4f4ef; border-color: #95cfc2; }
+      .neutral { color: var(--brand-dark); background: #f3faf7; border-color: #badbd2; }
       .danger { color: #fff; background: var(--danger); }
       .card { margin-bottom: 12px; padding: 14px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04); }
       .status { min-width: 270px; padding: 10px 12px; border: 1px solid #c9e4dd; border-radius: 7px; background: var(--soft); color: var(--brand-dark); font-size: 15px; font-weight: 800; }
@@ -54,6 +54,10 @@
       .main-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; align-items: start; }
       .url-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
       .actions { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-top: 12px; }
+      .action-groups { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
+      .action-group { border: 1px solid var(--line); border-radius: 8px; padding: 10px; background: #fbfdfc; }
+      .action-label { display: block; margin-bottom: 7px; color: var(--brand-dark); font-size: 12px; font-weight: 800; }
+      .action-group .actions { grid-template-columns: 1fr; margin: 0; }
       .rakuten-grid { display: grid; grid-template-columns: 170px 1fr auto; gap: 8px; align-items: end; }
       .suggestion-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
       .suggestion-list button { width: auto; padding: 6px 9px; font-size: 12px; }
@@ -86,6 +90,7 @@
         .sidebar { position: static; min-height: auto; border-right: 0; border-bottom: 1px solid var(--line); }
         .candidate-list { max-height: 360px; }
         .actions { grid-template-columns: 1fr 1fr; }
+        .action-groups { grid-template-columns: 1fr; }
         .main-grid, .url-grid { grid-template-columns: 1fr; }
       }
     </style>
@@ -185,17 +190,30 @@
             <button class="copy-button" type="button" onclick="copyField('readerMindMemo', '読者心理メモ')">コピー</button>
           </div>
           <textarea id="readerMindMemo"></textarea>
-          <div class="actions">
-            <button class="secondary" onclick="runReaderMind(this)">読者心理メモを取得</button>
-            <button class="primary" onclick="runArticle(this)">本文生成</button>
-            <button class="secondary" onclick="addRakutenBanner(this)">楽天バナーを本文へ追加</button>
-            <button class="secondary" onclick="addInternalLink(this)">内部リンクを本文へ追加</button>
-            <button class="secondary" onclick="addExternalLink(this)">外部リンクを本文へ追加</button>
-            <button class="neutral" onclick="saveArticle(this)">保存</button>
-            <button id="wpDraftButton" class="secondary" onclick="createWpDraft(this)">WP下書き作成</button>
-          </div>
-          <div class="actions" style="grid-template-columns:1fr; margin-top:8px;">
-            <button class="neutral" onclick="markPosted(this)">投稿済みにする</button>
+          <div class="action-groups">
+            <div class="action-group">
+              <span class="action-label">保存・生成</span>
+              <div class="actions">
+                <button class="neutral" onclick="saveArticle(this)">今すぐ保存</button>
+                <button class="secondary" onclick="runReaderMind(this)">読者心理メモを取得</button>
+                <button class="primary" onclick="runArticle(this)">本文生成</button>
+              </div>
+            </div>
+            <div class="action-group">
+              <span class="action-label">本文へ後入れ</span>
+              <div class="actions">
+                <button class="secondary" onclick="addRakutenBanner(this)">楽天バナーを追加</button>
+                <button class="secondary" onclick="addInternalLink(this)">内部リンクを追加</button>
+                <button class="secondary" onclick="addExternalLink(this)">外部リンクを追加</button>
+              </div>
+            </div>
+            <div class="action-group">
+              <span class="action-label">公開</span>
+              <div class="actions">
+                <button id="wpDraftButton" class="secondary" onclick="createWpDraft(this)">WP下書き作成</button>
+                <button class="neutral" onclick="markPosted(this)">投稿済みにする</button>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -247,8 +265,13 @@
       let readerMindProviders = [];
       let activeButton = null;
       let activeButtonText = '';
+      let autoSaveTimer = null;
+      let autoSavePending = false;
+      let autoSaveInFlight = false;
+      let isFillingForm = false;
 
       function init() {
+        bindAutoSaveControls();
         setBusy('アプリを読み込み中...');
         google.script.run.withSuccessHandler(function(data) {
           clearBusy();
@@ -277,6 +300,50 @@
       }
 
       function onAppTypeChange() { applyTheme(); }
+
+      function bindAutoSaveControls() {
+        document.querySelectorAll('input, textarea, select').forEach(function(el) {
+          if (!el.id) return;
+          if (el.id === 'candidateRow' || el.id === 'articleProvider' || el.id === 'readerMindProvider') return;
+          el.addEventListener('input', scheduleAutoSave);
+          el.addEventListener('change', scheduleAutoSave);
+        });
+      }
+
+      function scheduleAutoSave() {
+        if (isFillingForm) return;
+        const rowEl = document.getElementById('row');
+        if (!rowEl || !rowEl.value || Number(rowEl.value) <= 1) return;
+        autoSavePending = true;
+        window.clearTimeout(autoSaveTimer);
+        autoSaveTimer = window.setTimeout(runAutoSave, 900);
+      }
+
+      function runAutoSave() {
+        if (!autoSavePending || autoSaveInFlight) return;
+        if (activeButton) {
+          autoSaveTimer = window.setTimeout(runAutoSave, 1200);
+          return;
+        }
+
+        autoSavePending = false;
+        autoSaveInFlight = true;
+        setNotice('自動保存中...', false);
+        google.script.run
+          .withSuccessHandler(function(data) {
+            autoSaveInFlight = false;
+            if (data) fillForm(data);
+            setProgress('done');
+            setNotice('自動保存しました。', false);
+            if (autoSavePending) scheduleAutoSave();
+          })
+          .withFailureHandler(function(error) {
+            autoSaveInFlight = false;
+            setProgress('error');
+            setNotice('自動保存に失敗しました: ' + (error && error.message ? error.message : error), true);
+          })
+          .uaSaveActiveRowData(readForm());
+      }
 
       function applyTheme() {
         const config = currentConfig();
@@ -367,12 +434,14 @@
       }
 
       function fillForm(data) {
+        isFillingForm = true;
         data = data || {};
         if (data.appType) document.getElementById('appType').value = data.appType;
         fields.forEach(function(id) { const el = document.getElementById(id); if (el) el.value = data[id] || ''; });
         applyTheme();
         parseRakutenControlsFromNotes();
         document.getElementById('subText').textContent = data.mainInput ? data.mainInput : '候補を選ぶと、ここに編集フォームが入ります。';
+        isFillingForm = false;
       }
 
       function parseRakutenControlsFromNotes() {
@@ -440,6 +509,7 @@
             document.getElementById('rakutenProductKeyword').value = query;
             syncRakutenControlsToNotes();
             setNotice('楽天商品キーワードに反映しました。', false);
+            scheduleAutoSave();
           };
           container.appendChild(button);
         });
@@ -594,6 +664,7 @@
         if (activeButton) activeButton.textContent = activeButtonText;
         activeButton = null;
         activeButtonText = '';
+        if (autoSavePending) scheduleAutoSave();
       }
 
       function setProgress(state) {

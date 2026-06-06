@@ -405,8 +405,17 @@ function uaBuildRakutenAffiliateBanner_(body, rowData, appConfig) {
     return '';
   }
 
-  const desiredCount = uaDecideRakutenItemCount_(body, rowData, appConfig, query);
-  const items = uaFetchRakutenItems_(query, desiredCount);
+  const categoryQueries = uaSelectRakutenCategoryQueries_(body, rowData, appConfig, query);
+  let items = [];
+
+  if (categoryQueries.length >= 2) {
+    items = uaFetchRakutenItemsByQueries_(categoryQueries, 3);
+  }
+
+  if (items.length === 0) {
+    const desiredCount = uaDecideRakutenItemCount_(body, rowData, appConfig, query);
+    items = uaFetchRakutenItems_(query, desiredCount);
+  }
 
   if (items.length > 0) {
     return uaBuildRakutenItemBannerHtml_(items, query);
@@ -634,6 +643,101 @@ function uaContextualRakutenQueries_(text, appKey) {
   }
 
   return [];
+}
+
+function uaSelectRakutenCategoryQueries_(body, rowData, appConfig, primaryQuery) {
+  const appKey = appConfig && appConfig.key;
+  const text = [
+    rowData && rowData.mainInput,
+    rowData && rowData.readerMindMemo,
+    rowData && rowData.affiliateNotes,
+    body
+  ].join(' ');
+  const queries = [];
+  const seen = {};
+
+  function add(query) {
+    query = String(query || '').replace(/\s+/g, ' ').trim();
+    if (!query || seen[query]) return;
+    seen[query] = true;
+    queries.push(query);
+  }
+
+  function hasAny(words) {
+    return words.some(function(word) {
+      return text.indexOf(word) !== -1;
+    });
+  }
+
+  if (appKey === 'drive') {
+    if (hasAny(['ディテールブラシ', '細かい部分に使えるブラシ', '段差・隙間', 'スポイラー下面', '隙間の砂'])) {
+      add('ディテールブラシ 車 洗車');
+    }
+
+    if (hasAny(['マイクロファイバークロス', '厚手', '薄手', '拭き上げクロス', '吸水クロス'])) {
+      add('マイクロファイバークロス 車 洗車');
+    }
+
+    if (hasAny(['ガラス撥水剤', 'ガラスクリーナー', '油膜取り', 'リアガラス', '撥水'])) {
+      add('車 ガラス撥水剤 油膜取り');
+    }
+
+    if (hasAny(['クイックディテーラー', '軽い汚れ', '時短'])) {
+      add('クイックディテーラー 車');
+    }
+
+    if (hasAny(['カーシャンプー', '泡洗車', '洗車シャンプー'])) {
+      add('カーシャンプー 車 洗車');
+    }
+  }
+
+  if (appKey === 'home') {
+    if (hasAny(['除湿機', '除湿器', '湿気対策', '衣類乾燥'])) {
+      add('除湿機 コンパクト');
+    }
+
+    if (hasAny(['サーキュレーター', '空気を回す', '送風'])) {
+      add('サーキュレーター 部屋干し');
+    }
+
+    if (hasAny(['湿度計', '湿度を見る', '湿度管理'])) {
+      add('湿度計 室内');
+    }
+
+    if (hasAny(['収納ボックス', '収納ケース', 'チェスト', 'ランドリーチェスト'])) {
+      add('ランドリーチェスト 防カビ');
+    }
+
+    if (hasAny(['防カビ', 'カビ対策', '除湿剤'])) {
+      add('防カビ 収納用品');
+    }
+  }
+
+  if (queries.length === 0 && primaryQuery) {
+    add(primaryQuery);
+  }
+
+  return queries.slice(0, 3);
+}
+
+function uaFetchRakutenItemsByQueries_(queries, maxItems) {
+  const results = [];
+  const seenUrls = {};
+  const limit = Math.max(1, Math.min(3, Number(maxItems) || 3));
+
+  (queries || []).forEach(function(query) {
+    if (results.length >= limit) return;
+
+    const items = uaFetchRakutenItems_(query, 1);
+    items.forEach(function(item) {
+      if (results.length >= limit) return;
+      if (!item || !item.url || seenUrls[item.url]) return;
+      seenUrls[item.url] = true;
+      results.push(item);
+    });
+  });
+
+  return results;
 }
 
 function uaKeywordBasedRakutenQueries_(keyword, appKey) {

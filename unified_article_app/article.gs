@@ -405,10 +405,11 @@ function uaBuildRakutenAffiliateBanner_(body, rowData, appConfig) {
     return '';
   }
 
-  const item = uaFetchRakutenItem_(query);
+  const desiredCount = uaDecideRakutenItemCount_(body, rowData, appConfig, query);
+  const items = uaFetchRakutenItems_(query, desiredCount);
 
-  if (item) {
-    return uaBuildRakutenItemBannerHtml_(item, query);
+  if (items.length > 0) {
+    return uaBuildRakutenItemBannerHtml_(items, query);
   }
 
   const fallbackHtml = String(PropertiesService.getScriptProperties().getProperty('UA_RAKUTEN_AFFILIATE_BANNER_HTML') || '').trim();
@@ -706,21 +707,75 @@ function uaHomeRakutenProductCandidates_() {
   ];
 }
 
-function uaFetchRakutenItem_(query) {
+function uaDecideRakutenItemCount_(body, rowData, appConfig, query) {
+  const text = [
+    rowData && rowData.mainInput,
+    rowData && rowData.readerMindMemo,
+    rowData && rowData.affiliateNotes,
+    query,
+    body
+  ].join(' ');
+  const compareWords = [
+    '比較',
+    '選び方',
+    '定番',
+    '候補',
+    '用意',
+    'アイテム',
+    'グッズ',
+    '商品',
+    '買う',
+    '購入',
+    '揃える',
+    '使い分け',
+    '初心者向け',
+    '価格を抑えたい',
+    '仕上がり重視',
+    '時短'
+  ];
+  const supportWords = [
+    '対策',
+    '予防',
+    '便利',
+    'あると',
+    '減らす',
+    '防ぐ',
+    '掃除',
+    '洗車',
+    '収納',
+    '湿気',
+    'カビ',
+    '車中泊',
+    '防災'
+  ];
+
+  if (compareWords.some(function(word) { return text.indexOf(word) !== -1; })) {
+    return 3;
+  }
+
+  if (supportWords.some(function(word) { return text.indexOf(word) !== -1; })) {
+    return 2;
+  }
+
+  return 1;
+}
+
+function uaFetchRakutenItems_(query, maxItems) {
   const applicationId = String(PropertiesService.getScriptProperties().getProperty('UA_RAKUTEN_APPLICATION_ID') || '').trim();
   const accessKey = String(PropertiesService.getScriptProperties().getProperty('UA_RAKUTEN_ACCESS_KEY') || '').trim();
 
   if (!applicationId || !accessKey) {
     UA_LAST_RAKUTEN_STATUS = '楽天APIキー不足（UA_RAKUTEN_APPLICATION_ID / UA_RAKUTEN_ACCESS_KEY）';
-    return null;
+    return [];
   }
 
   const affiliateId = String(PropertiesService.getScriptProperties().getProperty('UA_RAKUTEN_AFFILIATE_ID') || '').trim();
   const refererUrl = uaGetRakutenRefererUrl_();
+  const hits = Math.max(1, Math.min(3, Number(maxItems) || 1));
   const params = [
     'format=json',
     'formatVersion=2',
-    'hits=1',
+    'hits=' + hits,
     'imageFlag=1',
     'sort=standard',
     'applicationId=' + encodeURIComponent(applicationId),
@@ -751,17 +806,50 @@ function uaFetchRakutenItem_(query) {
     if (statusCode !== 200) {
       UA_LAST_RAKUTEN_STATUS = '楽天API HTTP ' + statusCode + ': ' + String(responseText || '').slice(0, 120) +
         ' / Referer=' + refererUrl;
-      return null;
+      return [];
     }
 
     const json = JSON.parse(responseText);
+    const responseItems = json.items || json.Items || [];
+    const results = [];
+    const seenUrls = {};
+
+    responseItems.forEach(function(rawItem) {
+      if (results.length >= hits) return;
+
+      const currentItem = rawItem && (rawItem.item || rawItem.Item || rawItem);
+      if (!currentItem || !currentItem.itemName || !(currentItem.affiliateUrl || currentItem.itemUrl)) return;
+
+      const currentUrl = currentItem.affiliateUrl || currentItem.itemUrl;
+      if (seenUrls[currentUrl]) return;
+      seenUrls[currentUrl] = true;
+
+      const currentMediumImage = currentItem.mediumImageUrls &&
+        currentItem.mediumImageUrls[0];
+
+      results.push({
+        name: currentItem.itemName,
+        url: currentUrl,
+        imageUrl: typeof currentMediumImage === 'string'
+          ? currentMediumImage
+          : currentMediumImage && currentMediumImage.imageUrl
+      });
+    });
+
+    if (results.length === 0) {
+      UA_LAST_RAKUTEN_STATUS = '讌ｽ螟ｩAPI縺ｮ蝠・刀蜿門ｾ・莉ｶ縺ｾ縺溘・URL荳崎ｶｳ縲よ､懃ｴ｢繧ｭ繝ｼ繝ｯ繝ｼ繝・ ' + query;
+      return [];
+    }
+
+    return results;
+
     const items = json.items || json.Items || [];
     const firstItem = items[0];
     const item = firstItem && (firstItem.item || firstItem.Item || firstItem);
 
     if (!item || !item.itemName || !(item.affiliateUrl || item.itemUrl)) {
       UA_LAST_RAKUTEN_STATUS = '楽天APIの商品取得0件またはURL不足。検索キーワード: ' + query;
-      return null;
+      return [];
     }
 
     const mediumImage = item.mediumImageUrls &&
@@ -776,7 +864,7 @@ function uaFetchRakutenItem_(query) {
     };
   } catch (e) {
     UA_LAST_RAKUTEN_STATUS = '楽天API取得エラー: ' + e.toString();
-    return null;
+    return [];
   }
 }
 
@@ -794,7 +882,7 @@ function uaGetOriginFromUrl_(url) {
   return match ? match[0] : 'https://script.google.com';
 }
 
-function uaBuildRakutenItemBannerHtml_(item, query) {
+function uaBuildRakutenSingleItemBannerHtml_(item, query) {
   const name = uaEscapeHtml_(String(item.name || '').slice(0, 80));
   const url = uaEscapeHtml_(item.url || '');
   const imageUrl = uaEscapeHtml_(item.imageUrl || '');
@@ -812,6 +900,45 @@ function uaBuildRakutenItemBannerHtml_(item, query) {
     '<p style=\'margin:0 0 8px;font-weight:700;\'>関連アイテムを楽天で確認</p>',
     '<p style=\'margin:0;font-size:14px;line-height:1.7;\'><a href=\'' + url + '\' target=\'_blank\' rel=\'nofollow sponsored\'>' + name + '</a></p>',
     '</div>',
+    '</div>',
+    '<!-- /wp:html -->'
+  ].filter(Boolean).join('\n');
+}
+
+function uaBuildRakutenItemBannerHtml_(items, query) {
+  items = (items || []).slice(0, 3);
+
+  if (items.length === 0) {
+    return '';
+  }
+
+  const queryText = uaEscapeHtml_(query || '関連アイテム');
+  const itemHtml = items.map(function(item) {
+    const name = uaEscapeHtml_(String(item.name || '').slice(0, 80));
+    const url = uaEscapeHtml_(item.url || '');
+    const imageUrl = uaEscapeHtml_(item.imageUrl || '');
+    const imageHtml = imageUrl
+      ? '<a href=\'' + url + '\' target=\'_blank\' rel=\'nofollow sponsored\' style=\'display:block;width:92px;flex:0 0 92px;background:#fff;border:1px solid #eef1f4;border-radius:6px;padding:5px;\'><img src=\'' + imageUrl + '\' alt=\'' + name + '\' style=\'display:block;max-width:100%;height:auto;border:0;background:#fff;\'></a>'
+      : '';
+
+    return [
+      '<div style=\'display:flex;gap:12px;align-items:center;padding:10px 0;border-top:1px solid #edf1f4;\'>',
+      imageHtml,
+      '<p style=\'margin:0;font-size:14px;line-height:1.7;\'><a href=\'' + url + '\' target=\'_blank\' rel=\'nofollow sponsored\'>' + name + '</a></p>',
+      '</div>'
+    ].filter(Boolean).join('');
+  }).join('');
+
+  const leadText = items.length > 1
+    ? '<p>具体的な商品を比較したい場合は、下の楽天バナーから「' + queryText + '」の関連アイテムをいくつか確認できます。楽天を特別に推す意図ではなく、価格や種類を見比べるための選択肢として使ってください。</p>'
+    : '<p>具体的な商品を確認したい場合は、下の楽天バナーから「' + queryText + '」の関連アイテムを確認できます。楽天を特別に推す意図ではなく、価格や種類を見比べるための選択肢として使ってください。</p>';
+
+  return [
+    leadText,
+    '<!-- wp:html -->',
+    '<div style=\'background:#fff;border:1px solid #d7dde3;border-radius:8px;padding:14px;margin:16px 0;max-width:760px;box-sizing:border-box;\'>',
+    '<p style=\'margin:0 0 8px;font-weight:700;\'>関連アイテムを楽天で確認</p>',
+    itemHtml,
     '</div>',
     '<!-- /wp:html -->'
   ].filter(Boolean).join('\n');

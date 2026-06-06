@@ -354,6 +354,12 @@ function uaSelectRakutenProductQuery_(body, rowData, appConfig) {
     rowData && rowData.readerMindMemo,
     body
   ].join(' ');
+  const prioritizedQueries = uaPrioritizedRakutenQueriesFromBody_(text, appConfig && appConfig.key);
+
+  if (prioritizedQueries.length > 0) {
+    return prioritizedQueries[0];
+  }
+
   const candidates = appConfig && appConfig.key === 'home'
     ? uaHomeRakutenProductCandidates_()
     : uaDriveRakutenProductCandidates_();
@@ -418,6 +424,7 @@ function uaGetRakutenKeywordSuggestions_(data) {
     addSuggestion(override[1]);
   }
 
+  uaPrioritizedRakutenQueriesFromBody_(text, appConfig.key).forEach(addSuggestion);
   uaContextualRakutenQueries_(text, appConfig.key).forEach(addSuggestion);
 
   candidates
@@ -449,6 +456,57 @@ function uaGetRakutenKeywordSuggestions_(data) {
       ? '商品検索キーワード候補を取得しました。'
       : '候補を取得できませんでした。案件注意点に「楽天商品キーワード: ...」で手動指定してください。'
   };
+}
+
+function uaPrioritizedRakutenQueriesFromBody_(text, appKey) {
+  const value = String(text || '');
+  const result = [];
+  const seen = {};
+
+  function add(query) {
+    query = String(query || '').replace(/\s+/g, ' ').trim();
+    if (!query || seen[query]) return;
+    seen[query] = true;
+    result.push(query);
+  }
+
+  if (appKey === 'drive') {
+    [
+      { query: 'ディテールブラシ 車 洗車', words: ['ディテールブラシ', '細かい部分に使えるブラシ', '隙間の砂'] },
+      { query: 'クイックディテーラー 車', words: ['クイックディテーラー', '軽い汚れの時短'] },
+      { query: 'マイクロファイバークロス 車 洗車', words: ['マイクロファイバークロス', '薄手のクロス', '厚手のクロス', '拭き上げクロス'] },
+      { query: 'カーシャンプー 車 洗車', words: ['カーシャンプー', '泡洗車'] },
+      { query: '水垢取り 車', words: ['水垢取り', '水垢を減らす', '水垢対策'] },
+      { query: '車 ガラスクリーナー 油膜取り', words: ['ガラスクリーナー', '油膜取り'] },
+      { query: '車 コーティング剤', words: ['コーティング剤', '撥水剤'] },
+      { query: 'タイヤワックス 車', words: ['タイヤワックス'] },
+      { query: '車 サンシェード', words: ['サンシェード', '日よけ'] },
+      { query: 'ポータブル電源 車中泊', words: ['ポータブル電源', '車中泊 電源'] },
+      { query: '車載扇風機 車中泊', words: ['車載扇風機', '扇風機 車内'] },
+      { query: 'ジャンプスターター 車 バッテリー', words: ['ジャンプスターター', 'バッテリー上がり'] },
+      { query: 'スマホホルダー 車', words: ['スマホホルダー'] }
+    ].forEach(function(item) {
+      if (item.words.some(function(word) { return value.indexOf(word) !== -1; })) add(item.query);
+    });
+  }
+
+  if (appKey === 'home') {
+    [
+      { query: '除湿機 コンパクト', words: ['除湿機', '除湿器'] },
+      { query: 'サーキュレーター 部屋干し', words: ['サーキュレーター', '部屋干し'] },
+      { query: '湿度計 室内', words: ['湿度計'] },
+      { query: '防カビ 収納用品', words: ['防カビ 収納', 'カビ対策 収納'] },
+      { query: 'ランドリーチェスト 防カビ', words: ['ランドリーチェスト', '洗面所 チェスト'] },
+      { query: '収納ボックス 家庭用', words: ['収納ボックス', '収納ケース'] },
+      { query: '滑り止めマット 浴室', words: ['滑り止めマット', '滑り止め'] },
+      { query: 'センサーライト 屋外', words: ['センサーライト'] },
+      { query: '室外機カバー', words: ['室外機カバー', '室外機 日よけ'] }
+    ].forEach(function(item) {
+      if (item.words.some(function(word) { return value.indexOf(word) !== -1; })) add(item.query);
+    });
+  }
+
+  return result.slice(0, 5);
 }
 
 function uaContextualRakutenQueries_(text, appKey) {

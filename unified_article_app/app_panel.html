@@ -371,7 +371,7 @@
           </div>
 
           <label for="appType">記事タイプ</label>
-          <select id="appType" onchange="applyTheme()"></select>
+          <select id="appType" onchange="onAppTypeChange()"></select>
 
           <label id="mainInputLabel" for="mainInput">メインキーワード / 案件指示書</label>
           <textarea id="mainInput"></textarea>
@@ -555,6 +555,7 @@
       let autoSavePending = false;
       let autoSaveInFlight = false;
       let isFillingForm = false;
+      let loadedAppType = '';
 
       function init() {
         bindAutoSaveControls();
@@ -619,6 +620,7 @@
         });
         applyTheme();
         parseRakutenControlsFromNotes();
+        loadedAppType = data && data.appType ? data.appType : '';
         setNotice('選択行を読み込みました。', false);
         isFillingForm = false;
       }
@@ -626,16 +628,39 @@
       function bindAutoSaveControls() {
         document.querySelectorAll('input, textarea, select').forEach(function(el) {
           if (!el.id) return;
-          if (el.id === 'articleProvider' || el.id === 'readerMindProvider') return;
+          if (el.id === 'appType' || el.id === 'articleProvider' || el.id === 'readerMindProvider') return;
           el.addEventListener('input', scheduleAutoSave);
           el.addEventListener('change', scheduleAutoSave);
         });
+      }
+
+      function onAppTypeChange() {
+        applyTheme();
+        if (loadedAppType && document.getElementById('appType').value !== loadedAppType) {
+          clearLoadedArticleForm();
+          setNotice('サイトを切り替えました。候補シートから行を反映してください。', false);
+        }
+      }
+
+      function clearLoadedArticleForm() {
+        isFillingForm = true;
+        fields.forEach(function(id) {
+          if (id === 'appType') return;
+          const el = document.getElementById(id);
+          if (el) el.value = '';
+        });
+        loadedAppType = '';
+        document.getElementById('rakutenBannerMode').value = 'auto';
+        document.getElementById('rakutenProductKeyword').value = '';
+        document.getElementById('rakutenSuggestions').innerHTML = '';
+        isFillingForm = false;
       }
 
       function scheduleAutoSave() {
         if (isFillingForm) return;
         const rowEl = document.getElementById('row');
         if (!rowEl || !rowEl.value || Number(rowEl.value) <= 1) return;
+        if (loadedAppType && document.getElementById('appType').value !== loadedAppType) return;
         autoSavePending = true;
         window.clearTimeout(autoSaveTimer);
         autoSaveTimer = window.setTimeout(runAutoSave, 900);
@@ -651,10 +676,11 @@
         autoSavePending = false;
         autoSaveInFlight = true;
         setNotice('自動保存中...', false);
+        const payload = readForm();
+        if (loadedAppType) payload.appType = loadedAppType;
         google.script.run
           .withSuccessHandler(function(data) {
             autoSaveInFlight = false;
-            if (data) fillForm(data);
             setProgress('done');
             setNotice('自動保存しました。', false);
             if (autoSavePending) scheduleAutoSave();
@@ -664,7 +690,7 @@
             setProgress('error');
             setNotice('自動保存に失敗しました: ' + (error && error.message ? error.message : error), true);
           })
-          .uaSaveActiveRowData(readForm());
+          .uaSaveActiveRowData(payload);
       }
 
       function applyTheme() {

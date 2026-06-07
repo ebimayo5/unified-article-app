@@ -408,8 +408,8 @@ function uaBuildRakutenAffiliateBanner_(body, rowData, appConfig) {
   const categoryQueries = uaSelectRakutenCategoryQueries_(body, rowData, appConfig, query);
   let items = [];
 
-  if (categoryQueries.length >= 2) {
-    items = uaFetchRakutenItemsByQueries_(categoryQueries, 3);
+  if (categoryQueries.length > 0) {
+    items = uaFetchRakutenItemsByQueries_(categoryQueries, Math.min(3, categoryQueries.length));
   }
 
   if (items.length === 0) {
@@ -418,7 +418,8 @@ function uaBuildRakutenAffiliateBanner_(body, rowData, appConfig) {
   }
 
   if (items.length > 0) {
-    return uaBuildRakutenItemBannerHtml_(items, query);
+    const bannerLabel = categoryQueries.length >= 2 ? '' : query;
+    return uaBuildRakutenItemBannerHtml_(items, bannerLabel);
   }
 
   const fallbackHtml = String(PropertiesService.getScriptProperties().getProperty('UA_RAKUTEN_AFFILIATE_BANNER_HTML') || '').trim();
@@ -575,6 +576,10 @@ function uaPrioritizedRakutenQueriesFromBody_(text, appKey) {
       { query: '車 ガラスクリーナー 油膜取り', words: ['ガラスクリーナー', '油膜取り'] },
       { query: '車 コーティング剤', words: ['コーティング剤', '撥水剤'] },
       { query: 'タイヤワックス 車', words: ['タイヤワックス'] },
+      { query: 'レーダー探知機 GPS 車', words: ['レーダー探知機', 'GPSレーダー', '速度アラーム', '速度管理'] },
+      { query: 'ドライブレコーダー 前後', words: ['ドライブレコーダー', 'ドラレコ', '駐車監視'] },
+      { query: '車 シートクッション 腰', words: ['シートクッション', '腰の支え', '腰痛', '運転の疲れ', '疲労対策'] },
+      { query: '運転用 サングラス 偏光', words: ['サングラス', '偏光サングラス', '目の疲れ', '視認性'] },
       { query: '車 サンシェード', words: ['サンシェード', '日よけ'] },
       { query: 'ポータブル電源 車中泊', words: ['ポータブル電源', '車中泊 電源'] },
       { query: '車載扇風機 車中泊', words: ['車載扇風機', '扇風機 車内'] },
@@ -689,6 +694,22 @@ function uaSelectRakutenCategoryQueries_(body, rowData, appConfig, primaryQuery)
     if (hasAny(['カーシャンプー', '泡洗車', '洗車シャンプー'])) {
       add('カーシャンプー 車 洗車');
     }
+
+    if (hasAny(['レーダー探知機', 'GPSレーダー', '速度アラーム', '速度管理'])) {
+      add('レーダー探知機 GPS 車');
+    }
+
+    if (hasAny(['ドライブレコーダー', 'ドラレコ', '駐車監視'])) {
+      add('ドライブレコーダー 前後');
+    }
+
+    if (hasAny(['シートクッション', '腰の支え', '腰痛', '運転の疲れ', '疲労対策'])) {
+      add('車 シートクッション 腰');
+    }
+
+    if (hasAny(['サングラス', '偏光サングラス', '目の疲れ', '視認性'])) {
+      add('運転用 サングラス 偏光');
+    }
   }
 
   if (appKey === 'home') {
@@ -711,10 +732,6 @@ function uaSelectRakutenCategoryQueries_(body, rowData, appConfig, primaryQuery)
     if (hasAny(['防カビ', 'カビ対策', '除湿剤'])) {
       add('防カビ 収納用品');
     }
-  }
-
-  if (queries.length === 0 && primaryQuery) {
-    add(primaryQuery);
   }
 
   return queries.slice(0, 3);
@@ -778,7 +795,10 @@ function uaDriveRakutenProductCandidates_() {
     { query: '車 ガラスクリーナー 油膜取り', keywords: ['ガラスクリーナー', '油膜', 'フロントガラス'] },
     { query: '車 コーティング剤', keywords: ['コーティング', '撥水', '艶'] },
     { query: 'タイヤワックス 車', keywords: ['タイヤワックス', 'タイヤ', '足元'] },
+    { query: 'レーダー探知機 GPS 車', keywords: ['レーダー探知機', 'GPSレーダー', '速度管理', '速度アラーム'] },
     { query: 'ドライブレコーダー 前後', keywords: ['ドラレコ', 'ドライブレコーダー', '駐車監視'] },
+    { query: '車 シートクッション 腰', keywords: ['シートクッション', '腰', '疲労対策', '運転 疲れ'] },
+    { query: '運転用 サングラス 偏光', keywords: ['サングラス', '偏光サングラス', '目の疲れ', '視認性'] },
     { query: '車 サンシェード', keywords: ['サンシェード', '日よけ', '暑さ対策'] },
     { query: 'ポータブル電源 車中泊', keywords: ['ポータブル電源', '車中泊', '電源'] },
     { query: '車載扇風機 車中泊', keywords: ['車載扇風機', '扇風機', '車内 待機'] },
@@ -990,7 +1010,7 @@ function uaBuildRakutenSingleItemBannerHtml_(item, query) {
   const name = uaEscapeHtml_(String(item.name || '').slice(0, 80));
   const url = uaEscapeHtml_(item.url || '');
   const imageUrl = uaEscapeHtml_(item.imageUrl || '');
-  const queryText = uaEscapeHtml_(query || '関連アイテム');
+  const queryText = uaEscapeHtml_(query || '');
   const imageHtml = imageUrl
     ? '<a href=\'' + url + '\' target=\'_blank\' rel=\'nofollow sponsored\' style=\'display:block;width:120px;flex:0 0 120px;background:#fff;border:1px solid #eef1f4;border-radius:6px;padding:6px;\'><img src=\'' + imageUrl + '\' alt=\'' + name + '\' style=\'display:block;max-width:100%;height:auto;border:0;background:#fff;\'></a>'
     : '';
@@ -1033,9 +1053,13 @@ function uaBuildRakutenItemBannerHtml_(items, query) {
     ].filter(Boolean).join('');
   }).join('');
 
-  const leadText = items.length > 1
-    ? '<p>具体的な商品を比較したい場合は、下の楽天バナーから「' + queryText + '」の関連アイテムをいくつか確認できます。楽天を特別に推す意図ではなく、価格や種類を見比べるための選択肢として使ってください。</p>'
-    : '<p>具体的な商品を確認したい場合は、下の楽天バナーから「' + queryText + '」の関連アイテムを確認できます。楽天を特別に推す意図ではなく、価格や種類を見比べるための選択肢として使ってください。</p>';
+  const leadText = queryText
+    ? (items.length > 1
+      ? '<p>具体的な商品を比較したい場合は、下の楽天バナーから「' + queryText + '」の関連アイテムをいくつか確認できます。楽天を特別に推す意図ではなく、価格や種類を見比べるための選択肢として使ってください。</p>'
+      : '<p>具体的な商品を確認したい場合は、下の楽天バナーから「' + queryText + '」の関連アイテムを確認できます。楽天を特別に推す意図ではなく、価格や種類を見比べるための選択肢として使ってください。</p>')
+    : (items.length > 1
+      ? '<p>具体的な商品を比較したい場合は、下の楽天バナーから本文で触れた関連アイテムをいくつか確認できます。楽天を特別に推す意図ではなく、価格や種類を見比べるための選択肢として使ってください。</p>'
+      : '<p>具体的な商品を確認したい場合は、下の楽天バナーから本文で触れた関連アイテムを確認できます。楽天を特別に推す意図ではなく、価格や種類を見比べるための選択肢として使ってください。</p>');
 
   return [
     leadText,

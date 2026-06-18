@@ -50,6 +50,12 @@
       .progress { height: 7px; margin-top: 8px; border-radius: 999px; overflow: hidden; background: #dfe7e5; }
       .progress-bar { width: 0%; height: 100%; border-radius: 999px; background: var(--brand); transition: width 0.25s ease; }
       .progress-bar.loading { width: 38%; animation: progressMove 1.2s ease-in-out infinite; }
+      .modal-backdrop { position: fixed; inset: 0; z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 18px; background: rgba(15, 23, 42, 0.42); }
+      .modal { width: min(560px, 100%); border: 1px solid #b8ded6; border-radius: 10px; background: #fff; box-shadow: 0 18px 45px rgba(15, 23, 42, 0.22); padding: 18px; }
+      .modal-title { margin: 0 0 8px; color: var(--brand-dark); font-size: 18px; font-weight: 800; }
+      .modal-text { margin: 0 0 12px; color: var(--text); line-height: 1.65; }
+      .modal-path { width: 100%; min-height: 54px; margin: 8px 0 12px; font-family: Consolas, "Courier New", monospace; font-size: 12px; }
+      .modal-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
       .row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
       .main-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; align-items: start; }
       .url-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
@@ -257,6 +263,18 @@
           </div>
         </div>
       </main>
+    </div>
+
+    <div id="trefaiDialog" class="modal-backdrop hidden">
+      <div class="modal">
+        <p class="modal-title">トレファイを1回だけ起動</p>
+        <p class="modal-text">記事構成の依頼を作成しました。下のファイルを開くと、上位URL取得と構成メモ作成が進みます。処理後は自動で終了します。</p>
+        <textarea id="trefaiRunPath" class="modal-path" readonly>C:\Users\ebima\Documents\Codex\2026-06-14\files-mentioned-by-the-user-codex\outputs\keyword_research_app\dist\ArticleBridge_1回だけ実行.bat</textarea>
+        <div class="modal-actions">
+          <button class="secondary" type="button" onclick="copyTrefaiRunPath()">パスをコピー</button>
+          <button class="primary" type="button" onclick="closeTrefaiDialog()">閉じる</button>
+        </div>
+      </div>
     </div>
 
     <script>
@@ -607,6 +625,7 @@
       function startTrefaiPolling(data) {
         stopTrefaiPolling();
         trefaiPollCount = 0;
+        showTrefaiDialog();
         setNotice('トレファイで上位URL取得中です。完了したらこの画面に自動反映します。黒い画面は閉じずにお待ちください。', false);
         document.getElementById('notice').className = 'status working';
         setProgress('loading');
@@ -650,6 +669,29 @@
           stopTrefaiPolling();
           fail(error);
         }).uaGetArticleRowForWeb(appType, row);
+      }
+
+      function showTrefaiDialog() {
+        const dialog = document.getElementById('trefaiDialog');
+        if (dialog) dialog.classList.remove('hidden');
+      }
+
+      function closeTrefaiDialog() {
+        const dialog = document.getElementById('trefaiDialog');
+        if (dialog) dialog.classList.add('hidden');
+      }
+
+      function copyTrefaiRunPath() {
+        const field = document.getElementById('trefaiRunPath');
+        if (!field) return;
+        field.focus();
+        field.select();
+        try {
+          document.execCommand('copy');
+          setNotice('トレファイ起動ファイルのパスをコピーしました。エクスプローラーかWin+Rに貼り付けて実行できます。', false);
+        } catch (e) {
+          setNotice('コピーできませんでした。パスを選択して手動コピーしてください。', true);
+        }
       }
 
       function addRakutenBanner(button) {

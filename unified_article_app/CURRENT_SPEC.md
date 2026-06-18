@@ -188,6 +188,20 @@ DRIVE BASE、たくみパパ、汎用記事の保存列は共通。
 
 `KeywordTreasureFinder.exe` のようなローカルアプリ側で Selenium + Chrome/ChromeDriver を使って検索結果を取得する場合は、Apps ScriptのWebアプリへPOSTして結果を取り込める。
 
+現在は、記事作成システム側からトレファイへ依頼するキュー方式を正とする。GASはローカルPCのEXEやChromeを直接起動できないため、ローカルPC側で `article_bridge.py` を起動し、Webアプリのキューを定期確認する。
+
+記事構成作成の流れ:
+
+1. 記事作成パネルで対象行を読み込む
+2. 「記事構成作成」を押す
+3. `UA_TREFAI_BRIDGE_ENABLED=true` かつ競合URL欄が3件未満なら、`トレファイ連携` シートへ依頼を登録する
+4. ローカルPCの `article_bridge.py` が `get_trefai_job` で依頼を取得する
+5. トレファイ既存の `SearchCrawler` で、記事キーワードの上位URLを取得する
+6. `complete_trefai_job` で上位URLをApps Scriptへ返す
+7. Apps Scriptが競合URL欄へ保存し、読者心理メモと競合URLをもとに構成メモを作成する
+
+この方式では、トレファイ本体のGUI/EXEの動きは変更しない。記事作成システム連携は別ファイル `article_bridge.py` で行う。
+
 POST先:
 
 - 統合版Apps ScriptのWebアプリURL
@@ -195,6 +209,37 @@ POST先:
 必要なスクリプトプロパティ:
 
 - `UA_LOCAL_IMPORT_TOKEN`: ローカルアプリからの取り込み用トークン
+- `UA_TREFAI_BRIDGE_ENABLED`: `true` のとき、記事構成作成でトレファイ連携キューを使う
+
+キュー取得JSON例:
+
+```json
+{
+  "action": "get_trefai_job",
+  "token": "UA_LOCAL_IMPORT_TOKENに設定した値"
+}
+```
+
+完了JSON例:
+
+```json
+{
+  "action": "complete_trefai_job",
+  "token": "UA_LOCAL_IMPORT_TOKENに設定した値",
+  "jobId": "キューから受け取ったjobId",
+  "appType": "DRIVE BASE",
+  "row": 12,
+  "keyword": "カーナビ テレビ 見れない",
+  "competitorUrls": [
+    "https://example.com/a",
+    "https://example.com/b",
+    "https://example.com/c"
+  ],
+  "status": "done"
+}
+```
+
+トレファイ側から直接取り込む旧方式も残す。これは手動・別アプリ連携用の互換口として扱う。
 
 JSON例:
 

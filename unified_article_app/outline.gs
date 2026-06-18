@@ -1,5 +1,23 @@
 const UA_STRUCTURE_COMPETITOR_SEARCH_MAX_RESULTS = 5;
 const UA_STRUCTURE_COMPETITOR_ANALYSIS_MAX_PAGES = 5;
+const UA_TREFAI_QUEUE_SHEET_NAME = 'トレファイ連携';
+const UA_TREFAI_QUEUE_COLUMNS = {
+  jobId: 1,
+  status: 2,
+  createdAt: 3,
+  updatedAt: 4,
+  appType: 5,
+  sheetName: 6,
+  row: 7,
+  keyword: 8,
+  readerMindMemo: 9,
+  message: 10,
+  resultJson: 11
+};
+const UA_TREFAI_STATUS_PENDING = 'pending';
+const UA_TREFAI_STATUS_RUNNING = 'running';
+const UA_TREFAI_STATUS_DONE = 'done';
+const UA_TREFAI_STATUS_ERROR = 'error';
 
 function uaRunArticleStructureFromPanel(data) {
   return uaRunArticleStructureForData_(data || {});
@@ -34,12 +52,27 @@ function uaRunArticleStructureForData_(data) {
   const provider = uaGetArticleProvider_();
   uaAssertArticleProviderReady_(provider);
 
+  if (uaShouldUseTrefaiBridge_(rowData, data)) {
+    const job = uaCreateTrefaiStructureJob_(sheet, row, rowData, appConfig);
+    const nextData = uaBuildRowData_(sheet, row);
+    nextData.message = 'トレファイへ上位URL取得を依頼しました。PC側ブリッジが処理すると構成メモまで作成されます。jobId: ' + job.jobId;
+    return nextData;
+  }
+
+  return uaGenerateArticleStructureForRow_(sheet, row, appConfig, provider, {});
+}
+
+function uaGenerateArticleStructureForRow_(sheet, row, appConfig, provider, options) {
+  let rowData = uaBuildRowData_(sheet, row);
+  const readyProvider = provider || uaGetArticleProvider_();
+  uaAssertArticleProviderReady_(readyProvider);
+
   const competitorPages = uaFetchStructureCompetitorPages_(rowData, appConfig);
   uaSaveAutoCompetitorUrls_(sheet, row, rowData, competitorPages);
   rowData = uaBuildRowData_(sheet, row);
 
   const promptText = uaBuildArticleStructurePrompt_(rowData, appConfig, competitorPages);
-  const result = uaCallArticleStructureJson_(promptText, provider);
+  const result = uaCallArticleStructureJson_(promptText, readyProvider);
   const resultJson = result && result.data;
 
   if (!resultJson || !resultJson.structure_memo || !resultJson.article_outline) {
@@ -50,12 +83,293 @@ function uaRunArticleStructureForData_(data) {
 
   sheet.getRange(row, UA_COLUMNS.structureMemo).setValue(structureMemo);
   sheet.getRange(row, UA_COLUMNS.createdAt).setValue(new Date());
-  sheet.getRange(row, UA_COLUMNS.generationModel).setValue(uaFormatModelLabel_(provider, result && result.model));
+  sheet.getRange(row, UA_COLUMNS.generationModel).setValue(uaFormatModelLabel_(readyProvider, result && result.model));
   SpreadsheetApp.flush();
 
   const nextData = uaBuildRowData_(sheet, row);
-  nextData.message = '記事構成を作成しました。競合取得件数: ' + competitorPages.length;
+  nextData.message = (options && options.messagePrefix ? options.messagePrefix : '記事構成を作成しました。') + '競合取得件数: ' + competitorPages.length;
   return nextData;
+}
+
+function uaShouldUseTrefaiBridge_(rowData, data) {
+  if (data && data.forceGasSearch) return false;
+  if (!uaIsTrefaiBridgeEnabled_()) return false;
+
+  const currentUrls = [
+    rowData.competitorUrl1,
+    rowData.competitorUrl2,
+    rowData.competitorUrl3
+  ].map(function(url) {
+    return String(url || '').trim();
+  }).filter(Boolean);
+
+  return currentUrls.length < 3;
+}
+
+function uaIsTrefaiBridgeEnabled_() {
+  const value = String(PropertiesService.getScriptProperties().getProperty('UA_TREFAI_BRIDGE_ENABLED') || '').trim().toLowerCase();
+  return value === 'true' || value === '1' || value === 'on';
+}
+
+function uaCreateTrefaiStructureJob_(sheet, row, rowData, appConfig) {
+  const queueSheet = uaEnsureTrefaiQueueSheet_();
+  const keyword = String(rowData.mainInput || '').trim();
+  const appType = String(appConfig.label || rowData.appType || '').trim();
+  const existing = uaFindOpenTrefaiJob_(queueSheet, appType, row, keyword);
+
+  if (existing) {
+    return existing;
+  }
+
+  const now = new Date();
+  const jobId = Utilities.getUuid();
+  queueSheet.appendRow([
+    jobId,
+    UA_TREFAI_STATUS_PENDING,
+    now,
+    now,
+    appType,
+    sheet.getName(),
+    row,
+    keyword,
+    String(rowData.readerMindMemo || '').trim(),
+    '',
+    ''
+  ]);
+  SpreadsheetApp.flush();
+
+  return {
+    jobId: jobId,
+    status: UA_TREFAI_STATUS_PENDING,
+    row: row,
+    appType: appType,
+    keyword: keyword
+  };
+}
+
+function uaFindOpenTrefaiJob_(queueSheet, appType, row, keyword) {
+  const lastRow = queueSheet.getLastRow();
+  if (lastRow < 2) return null;
+
+  const values = queueSheet.getRange(2, 1, lastRow - 1, UA_TREFAI_QUEUE_COLUMNS.resultJson).getValues();
+  for (let index = values.length - 1; index >= 0; index--) {
+    const item = values[index];
+    const status = String(item[UA_TREFAI_QUEUE_COLUMNS.status - 1] || '').trim();
+    const itemAppType = String(item[UA_TREFAI_QUEUE_COLUMNS.appType - 1] || '').trim();
+    const itemRow = Number(item[UA_TREFAI_QUEUE_COLUMNS.row - 1] || 0);
+    const itemKeyword = String(item[UA_TREFAI_QUEUE_COLUMNS.keyword - 1] || '').trim();
+
+    if (
+      (status === UA_TREFAI_STATUS_PENDING || status === UA_TREFAI_STATUS_RUNNING) &&
+      itemAppType === appType &&
+      itemRow === row &&
+      itemKeyword === keyword
+    ) {
+      return {
+        jobId: String(item[UA_TREFAI_QUEUE_COLUMNS.jobId - 1] || '').trim(),
+        status: status,
+        row: itemRow,
+        appType: itemAppType,
+        keyword: itemKeyword
+      };
+    }
+  }
+
+  return null;
+}
+
+function uaEnsureTrefaiQueueSheet_() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName(UA_TREFAI_QUEUE_SHEET_NAME);
+
+  if (!sheet) {
+    sheet = ss.insertSheet(UA_TREFAI_QUEUE_SHEET_NAME);
+    sheet.hideSheet();
+  }
+
+  const headers = [
+    'jobId',
+    'status',
+    'createdAt',
+    'updatedAt',
+    'appType',
+    'sheetName',
+    'row',
+    'keyword',
+    'readerMindMemo',
+    'message',
+    'resultJson'
+  ];
+
+  const currentHeaders = sheet.getRange(1, 1, 1, headers.length).getValues()[0];
+  if (currentHeaders.join('\t') !== headers.join('\t')) {
+    sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+    sheet.setFrozenRows(1);
+  }
+
+  return sheet;
+}
+
+function uaGetNextTrefaiStructureJob_(payload) {
+  uaAssertLocalBridgeToken_(payload);
+
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+
+  try {
+    const sheet = uaEnsureTrefaiQueueSheet_();
+    const lastRow = sheet.getLastRow();
+    if (lastRow < 2) {
+      return {
+        ok: true,
+        job: null,
+        message: '待機中のトレファイ依頼はありません。'
+      };
+    }
+
+    const values = sheet.getRange(2, 1, lastRow - 1, UA_TREFAI_QUEUE_COLUMNS.resultJson).getValues();
+    for (let index = 0; index < values.length; index++) {
+      const item = values[index];
+      const status = String(item[UA_TREFAI_QUEUE_COLUMNS.status - 1] || '').trim();
+      if (status !== UA_TREFAI_STATUS_PENDING) continue;
+
+      const rowNumber = index + 2;
+      sheet.getRange(rowNumber, UA_TREFAI_QUEUE_COLUMNS.status).setValue(UA_TREFAI_STATUS_RUNNING);
+      sheet.getRange(rowNumber, UA_TREFAI_QUEUE_COLUMNS.updatedAt).setValue(new Date());
+      SpreadsheetApp.flush();
+
+      return {
+        ok: true,
+        job: {
+          jobId: String(item[UA_TREFAI_QUEUE_COLUMNS.jobId - 1] || '').trim(),
+          appType: String(item[UA_TREFAI_QUEUE_COLUMNS.appType - 1] || '').trim(),
+          sheetName: String(item[UA_TREFAI_QUEUE_COLUMNS.sheetName - 1] || '').trim(),
+          row: Number(item[UA_TREFAI_QUEUE_COLUMNS.row - 1] || 0),
+          keyword: String(item[UA_TREFAI_QUEUE_COLUMNS.keyword - 1] || '').trim(),
+          readerMindMemo: String(item[UA_TREFAI_QUEUE_COLUMNS.readerMindMemo - 1] || '').trim()
+        }
+      };
+    }
+
+    return {
+      ok: true,
+      job: null,
+      message: '待機中のトレファイ依頼はありません。'
+    };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function uaCompleteTrefaiStructureJob_(payload) {
+  uaAssertLocalBridgeToken_(payload);
+
+  const jobId = String(payload && payload.jobId || '').trim();
+  if (!jobId) {
+    throw new Error('jobId がありません。');
+  }
+
+  const queueSheet = uaEnsureTrefaiQueueSheet_();
+  const queueRow = uaFindTrefaiJobRowById_(queueSheet, jobId);
+  if (!queueRow) {
+    throw new Error('トレファイ依頼が見つかりません: ' + jobId);
+  }
+
+  const status = String(payload && payload.status || UA_TREFAI_STATUS_DONE).trim();
+  const resultJson = JSON.stringify(payload || {});
+  queueSheet.getRange(queueRow, UA_TREFAI_QUEUE_COLUMNS.updatedAt).setValue(new Date());
+  queueSheet.getRange(queueRow, UA_TREFAI_QUEUE_COLUMNS.resultJson).setValue(resultJson);
+
+  if (status === UA_TREFAI_STATUS_ERROR || payload.error) {
+    queueSheet.getRange(queueRow, UA_TREFAI_QUEUE_COLUMNS.status).setValue(UA_TREFAI_STATUS_ERROR);
+    queueSheet.getRange(queueRow, UA_TREFAI_QUEUE_COLUMNS.message).setValue(String(payload.error || payload.message || 'トレファイ取得に失敗しました。'));
+    SpreadsheetApp.flush();
+    return {
+      ok: false,
+      jobId: jobId,
+      message: 'トレファイ取得エラーを記録しました。'
+    };
+  }
+
+  const appConfig = uaGetAppConfigByLabel_(payload && payload.appType);
+  if (!appConfig || !appConfig.articleSheetName) {
+    throw new Error('appType は DRIVE BASE、たくみパパ、汎用記事 のいずれかを指定してください。');
+  }
+
+  const articleSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(appConfig.articleSheetName);
+  if (!articleSheet) {
+    throw new Error('「' + appConfig.articleSheetName + '」シートが見つかりません。');
+  }
+
+  const row = Number(payload && payload.row || 0);
+  if (!row || row < 2) {
+    throw new Error('記事行 row が不正です。');
+  }
+
+  const urls = uaNormalizeTrefaiUrls_(payload && (payload.competitorUrls || payload.urls));
+  uaSaveTrefaiUrlsToArticleRow_(articleSheet, row, urls);
+
+  const provider = uaGetArticleProvider_();
+  const data = uaGenerateArticleStructureForRow_(articleSheet, row, appConfig, provider, {
+    messagePrefix: 'トレファイURLを使って記事構成を作成しました。'
+  });
+
+  queueSheet.getRange(queueRow, UA_TREFAI_QUEUE_COLUMNS.status).setValue(UA_TREFAI_STATUS_DONE);
+  queueSheet.getRange(queueRow, UA_TREFAI_QUEUE_COLUMNS.message).setValue('記事構成作成まで完了しました。');
+  SpreadsheetApp.flush();
+
+  return {
+    ok: true,
+    jobId: jobId,
+    row: row,
+    appType: appConfig.label,
+    savedUrls: urls,
+    message: data.message
+  };
+}
+
+function uaFindTrefaiJobRowById_(queueSheet, jobId) {
+  const lastRow = queueSheet.getLastRow();
+  if (lastRow < 2) return 0;
+
+  const values = queueSheet.getRange(2, UA_TREFAI_QUEUE_COLUMNS.jobId, lastRow - 1, 1).getValues();
+  for (let index = 0; index < values.length; index++) {
+    if (String(values[index][0] || '').trim() === jobId) {
+      return index + 2;
+    }
+  }
+
+  return 0;
+}
+
+function uaNormalizeTrefaiUrls_(urls) {
+  if (!Array.isArray(urls)) return [];
+
+  const results = [];
+  urls.forEach(function(url) {
+    const value = String(url || '').trim();
+    if (!uaIsUsefulCompetitorUrl_(value)) return;
+    if (results.indexOf(value) !== -1) return;
+    results.push(value);
+  });
+
+  return results.slice(0, 3);
+}
+
+function uaSaveTrefaiUrlsToArticleRow_(sheet, row, urls) {
+  const currentUrls = sheet.getRange(row, UA_COLUMNS.competitorUrl1, 1, 3).getValues()[0].map(function(url) {
+    return String(url || '').trim();
+  });
+  const nextUrls = currentUrls.slice();
+
+  urls.forEach(function(url) {
+    if (nextUrls.indexOf(url) !== -1) return;
+    const emptyIndex = nextUrls.findIndex(function(value) { return !value; });
+    if (emptyIndex === -1) return;
+    nextUrls[emptyIndex] = url;
+  });
+
+  sheet.getRange(row, UA_COLUMNS.competitorUrl1, 1, 3).setValues([nextUrls]);
 }
 
 function uaAssertArticleProviderReady_(provider) {
@@ -94,7 +408,9 @@ function uaFetchStructureCompetitorPages_(rowData, appConfig) {
   }).filter(Boolean);
 
   const query = uaBuildReaderMindSearchQuery_(rowData.mainInput, appConfig);
-  const searchUrls = uaFetchSearchResultUrls_(query, UA_STRUCTURE_COMPETITOR_SEARCH_MAX_RESULTS);
+  const searchUrls = manualUrls.length >= 3
+    ? []
+    : uaFetchSearchResultUrls_(query, UA_STRUCTURE_COMPETITOR_SEARCH_MAX_RESULTS);
   const urls = [];
 
   manualUrls.concat(searchUrls).forEach(function(url) {

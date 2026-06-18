@@ -19,6 +19,14 @@ function doPost(e) {
       return uaJsonResponse_(uaImportCompetitorAnalysisFromLocal_(payload));
     }
 
+    if (payload.action === 'get_trefai_job') {
+      return uaJsonResponse_(uaGetNextTrefaiStructureJob_(payload));
+    }
+
+    if (payload.action === 'complete_trefai_job') {
+      return uaJsonResponse_(uaCompleteTrefaiStructureJob_(payload));
+    }
+
     return uaJsonResponse_({
       ok: false,
       error: '未対応のactionです。'
@@ -38,16 +46,7 @@ function uaJsonResponse_(value) {
 }
 
 function uaImportCompetitorAnalysisFromLocal_(payload) {
-  const expectedToken = String(PropertiesService.getScriptProperties().getProperty('UA_LOCAL_IMPORT_TOKEN') || '').trim();
-  const token = String(payload && payload.token || '').trim();
-
-  if (!expectedToken) {
-    throw new Error('UA_LOCAL_IMPORT_TOKEN が未設定です。ローカル連携用トークンをスクリプトプロパティに設定してください。');
-  }
-
-  if (token !== expectedToken) {
-    throw new Error('ローカル連携トークンが一致しません。');
-  }
+  uaAssertLocalBridgeToken_(payload);
 
   const appConfig = uaGetAppConfigByLabel_(payload && payload.appType);
   if (!appConfig || !appConfig.articleSheetName) {
@@ -94,6 +93,19 @@ function uaImportCompetitorAnalysisFromLocal_(payload) {
     savedUrls: nextUrls.filter(Boolean),
     message: 'ローカル競合分析を取り込みました。'
   };
+}
+
+function uaAssertLocalBridgeToken_(payload) {
+  const expectedToken = String(PropertiesService.getScriptProperties().getProperty('UA_LOCAL_IMPORT_TOKEN') || '').trim();
+  const token = String(payload && payload.token || '').trim();
+
+  if (!expectedToken) {
+    throw new Error('UA_LOCAL_IMPORT_TOKEN が未設定です。ローカル連携用トークンをスクリプトプロパティに設定してください。');
+  }
+
+  if (token !== expectedToken) {
+    throw new Error('ローカル連携トークンが一致しません。');
+  }
 }
 
 function uaResolveArticleRowForLocalImport_(sheet, appConfig, payload) {

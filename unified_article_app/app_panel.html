@@ -557,6 +557,8 @@
       let autoSaveInFlight = false;
       let isFillingForm = false;
       let loadedAppType = '';
+      let trefaiPollTimer = null;
+      let trefaiPollCount = 0;
 
       function init() {
         bindAutoSaveControls();
@@ -885,6 +887,7 @@
 
       function runArticleStructure(button) {
         syncRakutenControlsToNotes();
+        stopTrefaiPolling();
         setBusy('記事構成を作成中... 読者心理と競合分析を整理しています', button);
         const slowTimer = setTimeout(function() {
           setNotice('記事構成作成に時間がかかっています。原因候補は、検索結果ページの取得遅延・競合ページの取得失敗・AI側の混雑です。このまま待つか、時間を置いてリトライしてください。', true);
@@ -898,12 +901,65 @@
             showTab('check');
             setProgress('done');
             setNotice(data && data.message ? data.message : '記事構成を作成しました。', false);
+            if (isTrefaiQueuedMessage(data && data.message)) {
+              startTrefaiPolling(data);
+            }
           })
           .withFailureHandler(function(error) {
             clearTimeout(slowTimer);
             fail(error);
           })
           .uaRunArticleStructureFromPanel(readForm());
+      }
+
+      function isTrefaiQueuedMessage(message) {
+        return String(message || '').indexOf('トレファイへ上位URL取得を依頼しました') !== -1;
+      }
+
+      function startTrefaiPolling(data) {
+        stopTrefaiPolling();
+        trefaiPollCount = 0;
+        setNotice('トレファイで上位URL取得中です。完了したらこの画面に自動反映します。黒い画面は閉じずにお待ちください。', false);
+        trefaiPollTimer = setInterval(function() {
+          trefaiPollCount++;
+          refreshCurrentArticleAfterTrefai(data);
+          if (trefaiPollCount >= 20) {
+            stopTrefaiPolling();
+            setNotice('トレファイ完了待ちが長引いています。ArticleBridge.exe の黒い画面にエラーが出ていないか確認してください。', true);
+          }
+        }, 10000);
+      }
+
+      function stopTrefaiPolling() {
+        if (trefaiPollTimer) {
+          clearInterval(trefaiPollTimer);
+          trefaiPollTimer = null;
+        }
+      }
+
+      function refreshCurrentArticleAfterTrefai(originalData) {
+        const appType = (originalData && originalData.appType) || document.getElementById('appType').value;
+        const row = (originalData && originalData.row) || document.getElementById('row').value;
+        if (!appType || !row) return;
+
+        google.script.run
+          .withSuccessHandler(function(nextData) {
+            fillForm(nextData);
+            showTab('check');
+
+            if (String(nextData && nextData.structureMemo || '').trim()) {
+              stopTrefaiPolling();
+              setProgress('done');
+              setNotice('トレファイURLを使った構成メモを反映しました。', false);
+            } else {
+              setNotice('トレファイ処理待ちです。完了したら自動反映します。', false);
+            }
+          })
+          .withFailureHandler(function(error) {
+            stopTrefaiPolling();
+            fail(error);
+          })
+          .uaGetArticleRowForWeb(appType, row);
       }
 
       function addRakutenBanner(button) {

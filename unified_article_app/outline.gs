@@ -1,5 +1,6 @@
-const UA_STRUCTURE_COMPETITOR_SEARCH_MAX_RESULTS = 5;
-const UA_STRUCTURE_COMPETITOR_ANALYSIS_MAX_PAGES = 5;
+const UA_STRUCTURE_COMPETITOR_SEARCH_MAX_RESULTS = 10;
+const UA_STRUCTURE_COMPETITOR_ANALYSIS_MAX_PAGES = 10;
+const UA_STRUCTURE_COMPETITOR_DISPLAY_MAX_URLS = 3;
 const UA_TREFAI_QUEUE_SHEET_NAME = 'トレファイ連携';
 const UA_TREFAI_QUEUE_COLUMNS = {
   jobId: 1,
@@ -67,7 +68,7 @@ function uaGenerateArticleStructureForRow_(sheet, row, appConfig, provider, opti
   const readyProvider = provider || uaGetArticleProvider_();
   uaAssertArticleProviderReady_(readyProvider);
 
-  const competitorPages = uaFetchStructureCompetitorPages_(rowData, appConfig);
+  const competitorPages = uaFetchStructureCompetitorPages_(rowData, appConfig, options && options.competitorUrls);
   uaSaveAutoCompetitorUrls_(sheet, row, rowData, competitorPages);
   rowData = uaBuildRowData_(sheet, row);
 
@@ -311,7 +312,8 @@ function uaCompleteTrefaiStructureJob_(payload) {
 
   const provider = uaGetArticleProvider_();
   const data = uaGenerateArticleStructureForRow_(articleSheet, row, appConfig, provider, {
-    messagePrefix: 'トレファイURLを使って記事構成を作成しました。'
+    messagePrefix: 'トレファイURLを使って記事構成を作成しました。',
+    competitorUrls: urls
   });
 
   queueSheet.getRange(queueRow, UA_TREFAI_QUEUE_COLUMNS.status).setValue(UA_TREFAI_STATUS_DONE);
@@ -353,11 +355,11 @@ function uaNormalizeTrefaiUrls_(urls) {
     results.push(value);
   });
 
-  return results.slice(0, 3);
+  return results.slice(0, UA_STRUCTURE_COMPETITOR_ANALYSIS_MAX_PAGES);
 }
 
 function uaSaveTrefaiUrlsToArticleRow_(sheet, row, urls) {
-  const currentUrls = sheet.getRange(row, UA_COLUMNS.competitorUrl1, 1, 3).getValues()[0].map(function(url) {
+  const currentUrls = sheet.getRange(row, UA_COLUMNS.competitorUrl1, 1, UA_STRUCTURE_COMPETITOR_DISPLAY_MAX_URLS).getValues()[0].map(function(url) {
     return String(url || '').trim();
   });
   const nextUrls = currentUrls.slice();
@@ -369,7 +371,7 @@ function uaSaveTrefaiUrlsToArticleRow_(sheet, row, urls) {
     nextUrls[emptyIndex] = url;
   });
 
-  sheet.getRange(row, UA_COLUMNS.competitorUrl1, 1, 3).setValues([nextUrls]);
+  sheet.getRange(row, UA_COLUMNS.competitorUrl1, 1, UA_STRUCTURE_COMPETITOR_DISPLAY_MAX_URLS).setValues([nextUrls]);
 }
 
 function uaAssertArticleProviderReady_(provider) {
@@ -398,7 +400,7 @@ function uaCallArticleStructureJson_(promptText, provider) {
   return uaCallGeminiJson_(promptText, 9000, 512);
 }
 
-function uaFetchStructureCompetitorPages_(rowData, appConfig) {
+function uaFetchStructureCompetitorPages_(rowData, appConfig, preferredUrls) {
   const manualUrls = [
     rowData.competitorUrl1,
     rowData.competitorUrl2,
@@ -407,13 +409,16 @@ function uaFetchStructureCompetitorPages_(rowData, appConfig) {
     return String(url || '').trim();
   }).filter(Boolean);
 
+  const normalizedPreferredUrls = uaNormalizeTrefaiUrls_(preferredUrls || []);
   const query = uaBuildReaderMindSearchQuery_(rowData.mainInput, appConfig);
-  const searchUrls = manualUrls.length >= 3
+  const searchUrls = normalizedPreferredUrls.length
     ? []
-    : uaFetchSearchResultUrls_(query, UA_STRUCTURE_COMPETITOR_SEARCH_MAX_RESULTS);
+    : manualUrls.length >= UA_STRUCTURE_COMPETITOR_DISPLAY_MAX_URLS
+      ? []
+      : uaFetchSearchResultUrls_(query, UA_STRUCTURE_COMPETITOR_SEARCH_MAX_RESULTS);
   const urls = [];
 
-  manualUrls.concat(searchUrls).forEach(function(url) {
+  normalizedPreferredUrls.concat(manualUrls).concat(searchUrls).forEach(function(url) {
     if (!url || urls.indexOf(url) !== -1) return;
     urls.push(url);
   });
@@ -449,7 +454,7 @@ function uaSaveAutoCompetitorUrls_(sheet, row, rowData, pages) {
     }
   }
 
-  sheet.getRange(row, UA_COLUMNS.competitorUrl1, 1, 3).setValues([nextUrls]);
+  sheet.getRange(row, UA_COLUMNS.competitorUrl1, 1, UA_STRUCTURE_COMPETITOR_DISPLAY_MAX_URLS).setValues([nextUrls]);
 }
 
 function uaFetchSearchResultUrls_(query, maxCount) {

@@ -1,4 +1,4 @@
-function doGet() {
+﻿function doGet() {
   return HtmlService
     .createHtmlOutputFromFile('ua_web_app')
     .setTitle(UA_APP_NAME)
@@ -11,6 +11,158 @@ function uaGetWebAppBootData() {
   return options;
 }
 
+function doPost(e) {
+  try {
+    const payload = JSON.parse(e && e.postData && e.postData.contents || '{}');
+
+    if (payload.action === 'import_competitor_analysis') {
+      return uaJsonResponse_(uaImportCompetitorAnalysisFromLocal_(payload));
+    }
+
+    return uaJsonResponse_({
+      ok: false,
+      error: '未対応のactionです。'
+    });
+  } catch (error) {
+    return uaJsonResponse_({
+      ok: false,
+      error: String(error && error.message ? error.message : error)
+    });
+  }
+}
+
+function uaJsonResponse_(value) {
+  return ContentService
+    .createTextOutput(JSON.stringify(value))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
+function uaImportCompetitorAnalysisFromLocal_(payload) {
+  const expectedToken = String(PropertiesService.getScriptProperties().getProperty('UA_LOCAL_IMPORT_TOKEN') || '').trim();
+  const token = String(payload && payload.token || '').trim();
+
+  if (!expectedToken) {
+    throw new Error('UA_LOCAL_IMPORT_TOKEN が未設定です。ローカル連携用トークンをスクリプトプロパティに設定してください。');
+  }
+
+  if (token !== expectedToken) {
+    throw new Error('ローカル連携トークンが一致しません。');
+  }
+
+  const appConfig = uaGetAppConfigByLabel_(payload && payload.appType);
+  if (!appConfig || !appConfig.articleSheetName) {
+    throw new Error('appType は DRIVE BASE、たくみパパ、汎用記事 のいずれかを指定してください。');
+  }
+
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(appConfig.articleSheetName);
+  if (!sheet) {
+    throw new Error('「' + appConfig.articleSheetName + '」シートが見つかりません。');
+  }
+
+  const row = uaResolveArticleRowForLocalImport_(sheet, appConfig, payload);
+  const urls = uaNormalizeLocalImportUrls_(payload && (payload.competitorUrls || payload.urls));
+  const currentUrls = sheet.getRange(row, UA_COLUMNS.competitorUrl1, 1, 3).getValues()[0];
+  const nextUrls = currentUrls.map(function(url) {
+    return String(url || '').trim();
+  });
+
+  urls.forEach(function(url) {
+    const emptyIndex = nextUrls.findIndex(function(value) { return !value; });
+    if (emptyIndex === -1 || nextUrls.indexOf(url) !== -1) return;
+    nextUrls[emptyIndex] = url;
+  });
+
+  sheet.getRange(row, UA_COLUMNS.competitorUrl1, 1, 3).setValues([nextUrls]);
+
+  const localMemo = uaBuildLocalImportStructureMemo_(payload);
+  if (localMemo) {
+    const currentMemo = String(sheet.getRange(row, UA_COLUMNS.structureMemo).getValue() || '').trim();
+    sheet.getRange(row, UA_COLUMNS.structureMemo).setValue([currentMemo, localMemo].filter(Boolean).join('\n\n'));
+  }
+
+  if (payload.readerMindMemo) {
+    sheet.getRange(row, UA_COLUMNS.readerMindMemo).setValue(String(payload.readerMindMemo || '').trim());
+  }
+
+  sheet.getRange(row, UA_COLUMNS.createdAt).setValue(new Date());
+  SpreadsheetApp.flush();
+
+  return {
+    ok: true,
+    row: row,
+    appType: appConfig.label,
+    savedUrls: nextUrls.filter(Boolean),
+    message: 'ローカル競合分析を取り込みました。'
+  };
+}
+
+function uaResolveArticleRowForLocalImport_(sheet, appConfig, payload) {
+  const row = Number(payload && payload.row || 0);
+  if (row > 1) return row;
+
+  const keyword = String(payload && (payload.keyword || payload.mainInput) || '').trim();
+  if (!keyword) {
+    throw new Error('row または keyword を指定してください。');
+  }
+
+  const lastRow = sheet.getLastRow();
+  if (lastRow >= 2) {
+    const values = sheet.getRange(2, 1, lastRow - 1, UA_COLUMNS.mainInput).getDisplayValues();
+
+    for (let index = values.length - 1; index >= 0; index--) {
+      const rowAppType = String(values[index][UA_COLUMNS.appType - 1] || '').trim();
+      const rowKeyword = String(values[index][UA_COLUMNS.mainInput - 1] || '').trim();
+
+      if (rowAppType === appConfig.label && rowKeyword === keyword) {
+        return index + 2;
+      }
+    }
+  }
+
+  const nextRow = uaFindNextArticleRow_(sheet);
+  const values = new Array(UA_ARTICLE_COLUMN_COUNT).fill('');
+  values[UA_COLUMNS.appType - 1] = appConfig.label;
+  values[UA_COLUMNS.mainInput - 1] = keyword;
+  sheet.getRange(nextRow, 1, 1, UA_ARTICLE_COLUMN_COUNT).setValues([values]);
+
+  return nextRow;
+}
+
+function uaNormalizeLocalImportUrls_(urls) {
+  if (!Array.isArray(urls)) return [];
+
+  const results = [];
+  urls.forEach(function(url) {
+    const value = String(url || '').trim();
+    if (!/^https?:\/\//i.test(value)) return;
+    if (results.indexOf(value) !== -1) return;
+    results.push(value);
+  });
+
+  return results.slice(0, 3);
+}
+
+function uaBuildLocalImportStructureMemo_(payload) {
+  const parts = [];
+  const competitorMemo = String(payload && payload.competitorAnalysisMemo || '').trim();
+  const structureMemo = String(payload && payload.structureMemo || '').trim();
+  const articleOutline = String(payload && payload.articleOutline || '').trim();
+
+  if (competitorMemo) {
+    parts.push('【ローカルSelenium競合分析メモ】\n' + competitorMemo);
+  }
+
+  if (structureMemo) {
+    parts.push('【ローカル構成メモ】\n' + structureMemo);
+  }
+
+  if (articleOutline) {
+    parts.push('【ローカル本文手前の記事構成】\n' + articleOutline);
+  }
+
+  return parts.join('\n\n').trim();
+}
+
 function uaListCandidatesForWeb(appTypeLabel, query) {
   const appConfig = uaGetAppConfigByLabel_(appTypeLabel);
 
@@ -20,7 +172,7 @@ function uaListCandidatesForWeb(appTypeLabel, query) {
 
   const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(appConfig.candidateSheetName);
 
-  if (!sheet || !sheet.getLastRow || sheet.getLastRow() < 2) {
+  if (!sheet || sheet.getLastRow() < 2) {
     return [];
   }
 

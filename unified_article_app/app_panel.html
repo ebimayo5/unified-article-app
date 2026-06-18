@@ -461,6 +461,7 @@
           <span class="action-label">生成</span>
           <div class="actions">
             <button class="secondary" onclick="runReaderMind(this)">読者心理メモを取得</button>
+            <button class="secondary" onclick="runArticleStructure(this)">記事構成作成</button>
             <button class="primary" onclick="runArticle(this)">記事を書く</button>
           </div>
         </div>
@@ -880,6 +881,29 @@
           })
           .withFailureHandler(fail)
           .uaRunArticleFromPanel(readForm());
+      }
+
+      function runArticleStructure(button) {
+        syncRakutenControlsToNotes();
+        setBusy('記事構成を作成中... 読者心理と競合分析を整理しています', button);
+        const slowTimer = setTimeout(function() {
+          setNotice('記事構成作成に時間がかかっています。原因候補は、検索結果ページの取得遅延・競合ページの取得失敗・AI側の混雑です。このまま待つか、時間を置いてリトライしてください。', true);
+        }, 60000);
+
+        google.script.run
+          .withSuccessHandler(function(data) {
+            clearTimeout(slowTimer);
+            clearBusy();
+            fillForm(data);
+            showTab('check');
+            setProgress('done');
+            setNotice(data && data.message ? data.message : '記事構成を作成しました。', false);
+          })
+          .withFailureHandler(function(error) {
+            clearTimeout(slowTimer);
+            fail(error);
+          })
+          .uaRunArticleStructureFromPanel(readForm());
       }
 
       function addRakutenBanner(button) {

@@ -5,17 +5,18 @@ function uaBuildArticlePrompt_(rowData, appConfig) {
   const externalSourcesPrompt = uaBuildExternalSourcesPrompt_(rowData.mainInput, appConfig);
   const affiliatePrompt = uaBuildAffiliatePrompt_(rowData);
   const competitorPrompt = uaBuildCompetitorPrompt_(rowData);
+  const preparedStructurePrompt = uaBuildPreparedStructurePrompt_(rowData);
   const readerMindMemo = String(rowData.readerMindMemo || '').trim();
 
   if (appConfig.key === 'home') {
-    return uaBuildHomeArticlePrompt_(rowData, affiliatePrompt, competitorPrompt, internalLinksPrompt, externalSourcesPrompt, readerMindMemo);
+    return uaBuildHomeArticlePrompt_(rowData, affiliatePrompt, competitorPrompt, preparedStructurePrompt, internalLinksPrompt, externalSourcesPrompt, readerMindMemo);
   }
 
   if (appConfig.key === 'general') {
-    return uaBuildGeneralArticlePrompt_(rowData, affiliatePrompt, competitorPrompt, externalSourcesPrompt, readerMindMemo);
+    return uaBuildGeneralArticlePrompt_(rowData, affiliatePrompt, competitorPrompt, preparedStructurePrompt, externalSourcesPrompt, readerMindMemo);
   }
 
-  return uaBuildDriveArticlePrompt_(rowData, affiliatePrompt, competitorPrompt, internalLinksPrompt, externalSourcesPrompt, readerMindMemo);
+  return uaBuildDriveArticlePrompt_(rowData, affiliatePrompt, competitorPrompt, preparedStructurePrompt, internalLinksPrompt, externalSourcesPrompt, readerMindMemo);
 }
 
 function uaBuildAffiliatePrompt_(rowData) {
@@ -130,6 +131,23 @@ function uaBuildReaderMindUsageRules_() {
 `;
 }
 
+function uaBuildPreparedStructurePrompt_(rowData) {
+  const memo = String(rowData && rowData.structureMemo || '').trim();
+
+  if (!memo) {
+    return '事前構成メモは未作成です。読者心理メモと競合・参考URLから本文構成を作ってください。';
+  }
+
+  return [
+    '事前構成メモ（記事構成作成ボタンで作成済み）:',
+    memo,
+    '',
+    '本文生成では、上記の事前構成メモを優先して使ってください。',
+    'ただし、本文生成時に取得した外部出典、内部リンク、案件条件、安全・法規・保証の制約と矛盾する場合は、事実確認と安全側の表現を優先してください。',
+    '事前構成メモを本文にそのまま貼らず、自然なH2/H3構成と本文に再構成してください。'
+  ].join('\n');
+}
+
 function uaBuildArticlePlanningOrderRules_() {
   return `
 記事構成を作る順序:
@@ -222,7 +240,7 @@ function uaCommonOutputRules_() {
 `;
 }
 
-function uaBuildDriveArticlePrompt_(rowData, affiliatePrompt, competitorPrompt, internalLinksPrompt, externalSourcesPrompt, readerMindMemo) {
+function uaBuildDriveArticlePrompt_(rowData, affiliatePrompt, competitorPrompt, preparedStructurePrompt, internalLinksPrompt, externalSourcesPrompt, readerMindMemo) {
   return `
 あなたは「DRIVE BASE」の記事を書く車メディアの編集者です。
 車の整備・用品・カスタム・運転の悩みについて、検索読者が自分で判断できる記事を書いてください。
@@ -246,6 +264,8 @@ ${uaBuildReaderMindUsageRules_()}
 ${uaBuildArticlePlanningOrderRules_()}
 
 ${competitorPrompt}
+
+${preparedStructurePrompt}
 
 ${internalLinksPrompt}
 
@@ -276,7 +296,7 @@ ${uaCommonOutputRules_()}
 `;
 }
 
-function uaBuildHomeArticlePrompt_(rowData, affiliatePrompt, competitorPrompt, internalLinksPrompt, externalSourcesPrompt, readerMindMemo) {
+function uaBuildHomeArticlePrompt_(rowData, affiliatePrompt, competitorPrompt, preparedStructurePrompt, internalLinksPrompt, externalSourcesPrompt, readerMindMemo) {
   return `
 あなたは「たくみパパ」として、家づくりについて発信する生活者目線の書き手です。
 専門家ではなく、これから家づくりを考える人と一緒に考える温度で書いてください。
@@ -304,6 +324,8 @@ ${uaBuildArticlePlanningOrderRules_()}
 
 ${competitorPrompt}
 
+${preparedStructurePrompt}
+
 ${internalLinksPrompt}
 
 ${externalSourcesPrompt}
@@ -330,7 +352,7 @@ ${uaCommonOutputRules_()}
 `;
 }
 
-function uaBuildGeneralArticlePrompt_(rowData, affiliatePrompt, competitorPrompt, externalSourcesPrompt, readerMindMemo) {
+function uaBuildGeneralArticlePrompt_(rowData, affiliatePrompt, competitorPrompt, preparedStructurePrompt, externalSourcesPrompt, readerMindMemo) {
   return `
 あなたは汎用記事のSEOライターです。
 案件指示書を最優先にして、検索読者の悩みに答える記事を書いてください。
@@ -349,6 +371,8 @@ ${uaBuildReaderMindUsageRules_()}
 ${uaBuildArticlePlanningOrderRules_()}
 
 ${competitorPrompt}
+
+${preparedStructurePrompt}
 
 ${externalSourcesPrompt}
 

@@ -920,11 +920,14 @@
         stopTrefaiPolling();
         trefaiPollCount = 0;
         setNotice('トレファイで上位URL取得中です。完了したらこの画面に自動反映します。黒い画面は閉じずにお待ちください。', false);
+        document.getElementById('notice').className = 'status working';
+        setProgress('loading');
         trefaiPollTimer = setInterval(function() {
           trefaiPollCount++;
           refreshCurrentArticleAfterTrefai(data);
           if (trefaiPollCount >= 20) {
             stopTrefaiPolling();
+            setProgress('error');
             setNotice('トレファイ完了待ちが長引いています。ArticleBridge.exe の黒い画面にエラーが出ていないか確認してください。', true);
           }
         }, 10000);
@@ -947,14 +950,16 @@
             fillForm(nextData);
             showTab('check');
 
-            if (String(nextData && nextData.structureMemo || '').trim()) {
-              stopTrefaiPolling();
-              setProgress('done');
-              setNotice('トレファイURLを使った構成メモを反映しました。', false);
-            } else {
-              setNotice('トレファイ処理待ちです。完了したら自動反映します。', false);
-            }
-          })
+          if (String(nextData && nextData.structureMemo || '').trim()) {
+            stopTrefaiPolling();
+            setProgress('done');
+            setNotice('トレファイURLを使った構成メモを反映しました。', false);
+          } else {
+            setNotice('トレファイ処理待ちです。完了したら自動反映します。', false);
+            document.getElementById('notice').className = 'status working';
+            setProgress('loading');
+          }
+        })
           .withFailureHandler(function(error) {
             stopTrefaiPolling();
             fail(error);

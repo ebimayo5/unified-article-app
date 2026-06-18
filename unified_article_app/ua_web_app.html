@@ -268,11 +268,12 @@
     <div id="trefaiDialog" class="modal-backdrop hidden">
       <div class="modal">
         <p class="modal-title">トレファイを1回だけ起動</p>
-        <p class="modal-text">記事構成の依頼を作成しました。下のファイルを開くと、上位URL取得と構成メモ作成が進みます。処理後は自動で終了します。</p>
-        <textarea id="trefaiRunPath" class="modal-path" readonly>C:\Users\ebima\Documents\Codex\2026-06-14\files-mentioned-by-the-user-codex\outputs\keyword_research_app\dist\ArticleBridge_1回だけ実行.bat</textarea>
+        <p class="modal-text">記事構成の依頼を作成しました。トレファイを起動しますか？処理後は自動で終了します。</p>
+        <textarea id="trefaiRunPath" class="modal-path hidden" readonly>C:\Users\ebima\Documents\Codex\2026-06-14\files-mentioned-by-the-user-codex\outputs\keyword_research_app\dist\ArticleBridge_1回だけ実行.bat</textarea>
         <div class="modal-actions">
-          <button class="secondary" type="button" onclick="copyTrefaiRunPath()">パスをコピー</button>
-          <button class="primary" type="button" onclick="closeTrefaiDialog()">閉じる</button>
+          <button class="secondary" type="button" onclick="copyTrefaiRunPath()">うまく開かない時はパスをコピー</button>
+          <button class="neutral" type="button" onclick="closeTrefaiDialog()">あとで</button>
+          <button class="primary" type="button" onclick="launchTrefaiOnce()">トレファイを起動</button>
         </div>
       </div>
     </div>
@@ -679,6 +680,14 @@
       function closeTrefaiDialog() {
         const dialog = document.getElementById('trefaiDialog');
         if (dialog) dialog.classList.add('hidden');
+      }
+
+      function launchTrefaiOnce() {
+        window.location.href = 'articlebridge://run';
+        closeTrefaiDialog();
+        setNotice('トレファイを1回だけ起動しました。ブラウザの確認が出たら許可してください。完了後に自動反映します。', false);
+        document.getElementById('notice').className = 'status working';
+        setProgress('loading');
       }
 
       function copyTrefaiRunPath() {

@@ -212,7 +212,7 @@
                 <button class="secondary" onclick="addRakutenBanner(this)">楽天バナーを追加</button>
                 <button class="secondary" onclick="addInternalLink(this)">内部リンクを追加</button>
                 <button class="secondary" onclick="addExternalLink(this)">外部リンクを追加</button>
-                <button class="secondary" onclick="sendToOpalImageGenerator(this)">Opalで1枚ずつ画像生成</button>
+                <button class="secondary" onclick="sendToOpalImageGenerator(this)">ChatGPTへ画像生成</button>
                 <button class="secondary" onclick="addWpImages(this)">画像URLをWPへ追加</button>
               </div>
             </div>
@@ -668,13 +668,13 @@
           setNotice('タイトル候補または本文がありません。本文生成後に実行してください。', true);
           return;
         }
-        setBusy('ローカルOpal画像生成へ送信中...', button);
+        setBusy('ChatGPTへ画像生成リクエストを送信中...', button);
         try {
           const baseUrl = await findLocalOpalBaseUrl();
           if (!baseUrl) {
             clearBusy();
             setProgress('error');
-            setNotice('Opal画像生成アプリが起動していません。デスクトップの「Opal画像生成」を起動してから、もう一度押してください。', true);
+            setNotice('ChatGPT画像生成フォームが起動していません。起動用ショートカットからフォームを開いてから、もう一度押してください。', true);
             return;
           }
           const res = await fetch(baseUrl + '/api/send', {
@@ -686,15 +686,15 @@
           clearBusy();
           if (!result || !result.ok) {
             setProgress('error');
-            setNotice(result && result.message ? result.message : 'Opalへの送信に失敗しました。', true);
+            setNotice(result && result.message ? result.message : 'ChatGPTへの画像生成リクエスト送信に失敗しました。', true);
             return;
           }
           setProgress('done');
-          setNotice(result.message || 'Opalへ送信しました。', false);
+          setNotice(result.message || 'ChatGPTへ画像生成リクエストを送信しました。', false);
         } catch (e) {
           clearBusy();
           setProgress('error');
-          setNotice('Opal送信でエラーが出ました: ' + (e && e.message ? e.message : e), true);
+          setNotice('ChatGPT画像生成送信でエラーが出ました: ' + (e && e.message ? e.message : e), true);
         }
       }
 

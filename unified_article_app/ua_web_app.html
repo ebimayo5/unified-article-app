@@ -281,6 +281,19 @@
       </div>
     </div>
 
+    <div id="imageGeneratorDialog" class="modal-backdrop hidden">
+      <div class="modal">
+        <p class="modal-title">ChatGPT画像生成フォームを起動</p>
+        <p class="modal-text">ローカルの画像生成フォームが起動していません。下のボタンで起動してから、もう一度「ChatGPTへ画像生成」を押してください。ブラウザに確認が出たら許可してください。</p>
+        <textarea id="imageGeneratorRunPath" class="modal-path hidden" readonly>C:\Users\ebima\Documents\Codex\2026-04-24\const-gemini-api-key-aizasyadbkxfjgjo3kmu8o5pf8wh-5f2wfj3x0o\opal_image_automator\dist\OpalSingleImageFormAutomator.exe</textarea>
+        <div class="modal-actions">
+          <button class="secondary" type="button" onclick="copyImageGeneratorRunPath()">うまく開かない時はパスをコピー</button>
+          <button class="neutral" type="button" onclick="closeImageGeneratorDialog()">あとで</button>
+          <button class="primary" type="button" onclick="launchImageGenerator()">画像生成フォームを起動</button>
+        </div>
+      </div>
+    </div>
+
     <script>
       const fields = ['row','mainInput','volume','affiliateName','affiliateUrl','affiliateNotes','competitorUrl1','competitorUrl2','competitorUrl3','readerMindMemo','status','generationModel','body','titleIdeas','tags','metaDescription','permalink','factCheckPoints','structureMemo','wpPostId','wpEditUrl','wpDraftedAt'];
       let appConfigs = [];
@@ -675,6 +688,7 @@
             clearBusy();
             setProgress('error');
             setNotice('ChatGPT画像生成フォームが起動していません。起動用ショートカットからフォームを開いてから、もう一度押してください。', true);
+            showImageGeneratorDialog();
             return;
           }
           const res = await fetch(baseUrl + '/api/send', {
@@ -782,6 +796,35 @@
       function closeTrefaiDialog() {
         const dialog = document.getElementById('trefaiDialog');
         if (dialog) dialog.classList.add('hidden');
+      }
+
+      function showImageGeneratorDialog() {
+        const dialog = document.getElementById('imageGeneratorDialog');
+        if (dialog) dialog.classList.remove('hidden');
+      }
+
+      function closeImageGeneratorDialog() {
+        const dialog = document.getElementById('imageGeneratorDialog');
+        if (dialog) dialog.classList.add('hidden');
+      }
+
+      function launchImageGenerator() {
+        window.location.href = 'chatgptimage://run';
+        closeImageGeneratorDialog();
+        setNotice('ChatGPT画像生成フォームを起動しました。ブラウザの確認が出たら許可してください。起動後にもう一度「ChatGPTへ画像生成」を押してください。', false);
+      }
+
+      function copyImageGeneratorRunPath() {
+        const field = document.getElementById('imageGeneratorRunPath');
+        if (!field) return;
+        field.focus();
+        field.select();
+        try {
+          document.execCommand('copy');
+          setNotice('画像生成フォームのEXEパスをコピーしました。エクスプローラーやWin+Rに貼り付けて実行できます。', false);
+        } catch (e) {
+          setNotice('コピーできませんでした。パスを選択して手動コピーしてください。', true);
+        }
       }
 
       function launchTrefaiOnce() {

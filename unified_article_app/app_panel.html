@@ -519,6 +519,8 @@
             <button class="secondary" onclick="addRakutenBanner(this)">楽天バナーを追加</button>
             <button class="secondary" onclick="addInternalLink(this)">内部リンクを追加</button>
             <button class="secondary" onclick="addExternalLink(this)">外部リンクを追加</button>
+            <button class="secondary" onclick="sendToOpalImageGenerator(this)">Opalで1枚ずつ画像生成</button>
+            <button class="secondary" onclick="addWpImages(this)">画像URLをWPへ追加</button>
           </div>
         </div>
         <div class="action-group">
@@ -574,6 +576,7 @@
           <div class="field-head">
             <label for="structureMemo">構成メモ</label>
             <button class="copy-button" type="button" onclick="copyField('structureMemo', '構成メモ')">コピー</button>
+            <button class="copy-button" type="button" onclick="appendImageUrlTemplate()">画像URLひな形</button>
           </div>
           <textarea id="structureMemo" class="body-preview structure-preview"></textarea>
 
@@ -946,6 +949,105 @@
           .uaRunArticleFromPanel(readForm());
       }
 
+
+      function pickFirstTitleIdea() {
+        const text = document.getElementById('titleIdeas').value || '';
+        return text.split(/\s*[\/／]\s*|\n/)[0].trim();
+      }
+
+      function extractH2HeadingsFromBody() {
+        const body = document.getElementById('body').value || '';
+        const headings = [];
+        const seen = {};
+        const regex = /<h2\b[^>]*>([\s\S]*?)<\/h2>/gi;
+        let match;
+        while ((match = regex.exec(body)) !== null) {
+          const heading = String(match[1] || '')
+            .replace(/<[^>]+>/g, '')
+            .replace(/&nbsp;/g, ' ')
+            .replace(/&amp;/g, '&')
+            .replace(/\s+/g, ' ')
+            .trim();
+          if (!heading || seen[heading]) continue;
+          if (/よくある質問|FAQ|まとめ/.test(heading)) continue;
+          seen[heading] = true;
+          headings.push(heading);
+          if (headings.length >= 5) break;
+        }
+        return headings;
+      }
+
+      function appendImageUrlTemplate() {
+        const field = document.getElementById('structureMemo');
+        if (!field) return;
+        const current = field.value || '';
+        if (/【画像URLメモ】/.test(current)) {
+          setNotice('構成メモには、すでに画像URLメモがあります。', false);
+          return;
+        }
+        const headings = extractH2HeadingsFromBody();
+        const lines = [
+          '【画像URLメモ】',
+          'アイキャッチ: https://'
+        ];
+        headings.forEach(function(heading) {
+          lines.push('H2: ' + heading + ' | https://');
+        });
+        field.value = [current.trim(), lines.join('\n')].filter(Boolean).join('\n\n');
+        setNotice('画像URLメモのひな形を構成メモに追加しました。', false);
+      }
+
+      async function findLocalOpalBaseUrl() {
+        for (let port = 8765; port <= 8799; port++) {
+          const baseUrl = 'http://127.0.0.1:' + port;
+          try {
+            const res = await fetch(baseUrl + '/health', { method: 'GET', cache: 'no-store' });
+            if (res.ok) return baseUrl;
+          } catch (e) {
+            // Try next local port.
+          }
+        }
+        return '';
+      }
+
+      async function sendToOpalImageGenerator(button) {
+        const data = readForm();
+        const title = pickFirstTitleIdea() || data.mainInput || '';
+        const body = data.body || '';
+        if (!title && !body) {
+          setNotice('タイトル候補または本文がありません。本文生成後に実行してください。', true);
+          return;
+        }
+        setBusy('ローカルOpal画像生成へ送信中...', button);
+        try {
+          const baseUrl = await findLocalOpalBaseUrl();
+          if (!baseUrl) {
+            clearBusy();
+            setProgress('error');
+            setNotice('Opal画像生成アプリが起動していません。デスクトップの「Opal画像生成」を起動してから、もう一度押してください。', true);
+            return;
+          }
+          const res = await fetch(baseUrl + '/api/send', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title: title, body: body, style: '' })
+          });
+          const result = await res.json();
+          clearBusy();
+          if (!result || !result.ok) {
+            setProgress('error');
+            setNotice(result && result.message ? result.message : 'Opalへの送信に失敗しました。', true);
+            return;
+          }
+          setProgress('done');
+          setNotice(result.message || 'Opalへ送信しました。', false);
+        } catch (e) {
+          clearBusy();
+          setProgress('error');
+          setNotice('Opal送信でエラーが出ました: ' + (e && e.message ? e.message : e), true);
+        }
+      }
+
       function runArticleStructure(button) {
         syncRakutenControlsToNotes();
         stopTrefaiPolling();
@@ -1103,6 +1205,22 @@
           })
           .withFailureHandler(fail)
           .uaAddExternalSourceLinkFromPanel(readForm());
+      }
+
+
+      function addWpImages(button) {
+        syncRakutenControlsToNotes();
+        setBusy('画像URLをWordPressへ追加中...', button);
+        google.script.run
+          .withSuccessHandler(function(data) {
+            clearBusy();
+            fillForm(data);
+            showTab('body');
+            setProgress('done');
+            setNotice(data.message || '画像をWordPressへ追加しました。', false);
+          })
+          .withFailureHandler(fail)
+          .uaAddWpImagesFromPanel(readForm());
       }
 
       function markPosted(button) {

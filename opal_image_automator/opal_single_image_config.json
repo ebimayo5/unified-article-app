@@ -1,5 +1,7 @@
 {
+  "target_tool": "whisk",
   "opal_url": "https://opal.google/edit/1x59-WBuo5-AIygPJMIXq-A8-QogKaA3w",
+  "whisk_url": "https://labs.google/fx/tools/whisk",
   "chrome_profile_dir": "chrome_profile",
   "wait_seconds": 50
 }

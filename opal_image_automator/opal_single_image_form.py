@@ -22,16 +22,20 @@ from selenium.webdriver.support.ui import WebDriverWait
 
 
 HOST = "127.0.0.1"
-APP_VERSION = "2026-06-20-single-001"
+APP_VERSION = "2026-06-20-single-002"
 ROOT = Path(__file__).resolve().parent
 CONFIG_PATH = ROOT / "opal_single_image_config.json"
 STYLE_PATH = ROOT / "style_instruction.txt"
+
 DEFAULT_OPAL_URL = "https://opal.google/edit/1x59-WBuo5-AIygPJMIXq-A8-QogKaA3w"
+DEFAULT_WHISK_URL = "https://labs.google/fx/tools/whisk"
 
 
 @dataclass
 class AppConfig:
+    target_tool: str = "opal"
     opal_url: str = DEFAULT_OPAL_URL
+    whisk_url: str = DEFAULT_WHISK_URL
     chrome_profile_dir: str = str(ROOT / "chrome_profile")
     wait_seconds: int = 50
 
@@ -43,20 +47,29 @@ class AppConfig:
             data = json.loads(CONFIG_PATH.read_text(encoding="utf-8-sig"))
         except Exception:
             return cls()
+
         profile_dir = str(data.get("chrome_profile_dir") or cls.chrome_profile_dir)
         if not Path(profile_dir).is_absolute():
             profile_dir = str(ROOT / profile_dir)
+
         return cls(
-            opal_url=str(data.get("opal_url") or DEFAULT_OPAL_URL),
+            target_tool=str(data.get("target_tool") or data.get("targetTool") or "opal"),
+            opal_url=str(data.get("opal_url") or data.get("target_url") or DEFAULT_OPAL_URL),
+            whisk_url=str(data.get("whisk_url") or DEFAULT_WHISK_URL),
             chrome_profile_dir=profile_dir,
             wait_seconds=int(data.get("wait_seconds") or 50),
         )
+
+    def target_url(self) -> str:
+        return self.whisk_url if self.target_tool == "whisk" else self.opal_url
 
     def save(self) -> None:
         CONFIG_PATH.write_text(
             json.dumps(
                 {
+                    "target_tool": self.target_tool,
                     "opal_url": self.opal_url,
+                    "whisk_url": self.whisk_url,
                     "chrome_profile_dir": self.chrome_profile_dir,
                     "wait_seconds": self.wait_seconds,
                 },
@@ -146,30 +159,44 @@ def find_free_port(start: int = 8765, end: int = 8799) -> int:
     raise RuntimeError("空いているローカルポートが見つかりません。")
 
 
-def build_single_prompt(title: str, body: str, style: str, image_type: str) -> str:
+def normalize_text(value: str, limit: int) -> str:
+    text = " ".join((value or "").replace("\r", "\n").split())
+    return text[:limit]
+
+
+def build_single_prompt(title: str, body: str, style: str, image_type: str, target_tool: str) -> str:
     image_type = (image_type or "EYECATCH").strip() or "EYECATCH"
     style = (style or "").strip()
     title = (title or "").strip()
     body = (body or "").strip()
 
+    body_limit = 2400 if target_tool == "whisk" else 7000
+    tool_note = (
+        "Whisk向け: 長文記事をそのまま絵にせず、主題・場面・読者の理解ポイントを1つのビジュアルに要約する。"
+        if target_tool == "whisk"
+        else "Opal向け: 1枚だけ生成する。複数枚、候補一覧、同じ構図の量産は禁止。"
+    )
+
     return "\n".join(
         [
-            "ブログ用画像を1枚だけ生成してください。",
+            "ブログ記事用の画像を1枚だけ生成してください。",
             "複数枚生成、候補一覧、同じ構図の量産は禁止です。",
+            tool_note,
             "",
             f"画像タイプ: {image_type}",
             f"記事タイトル: {title or '未指定'}",
             "",
-            "本文:",
-            body[:7000] or "本文未指定",
+            "本文要約材料:",
+            normalize_text(body, body_limit) or "本文未指定",
             "",
             "画像ルール:",
-            "- 横長16:9。",
-            "- WordPress記事内で使いやすい、明るく見やすい図解/イラスト寄り。",
-            "- 文字を入れる場合は短い日本語だけ。長文は入れない。",
-            "- アイキャッチなら記事全体の価値が一目で伝わる構図にする。",
-            "- H2画像なら対象見出しの理解を助ける図解にする。",
-            "- 画像内に小さく画像タイプのラベルを入れる。例: EYECATCH / H2-01。",
+            "- 横長16:9",
+            "- WordPress記事内で使いやすい、明るく見やすい図解/イラスト寄り",
+            "- 文字を入れる場合は短い日本語だけ。細かい文章は入れない",
+            "- アイキャッチなら記事全体の価値が一目で伝わる構図",
+            "- H2画像なら対象見出しの理解を助ける構図",
+            "- 写実よりも、情報が伝わる整理されたビジュアルを優先",
+            "- 画像内に小さく画像タイプのラベルを入れる場合は右下に控えめにする",
             "",
             "画風指定:",
             style or "ミニマルで読みやすいブログ図解。淡い背景、余白多め、落ち着いた配色。",
@@ -177,7 +204,19 @@ def build_single_prompt(title: str, body: str, style: str, image_type: str) -> s
     ).strip()
 
 
-def _lower_text(driver: webdriver.Chrome) -> str:
+def launch_chrome(profile_dir: Path) -> webdriver.Chrome:
+    profile_dir.mkdir(parents=True, exist_ok=True)
+    options = Options()
+    options.add_argument(f"--user-data-dir={profile_dir}")
+    options.add_argument("--profile-directory=Default")
+    options.add_argument("--start-maximized")
+    options.add_argument("--disable-blink-features=AutomationControlled")
+    options.add_experimental_option("excludeSwitches", ["enable-automation"])
+    options.add_experimental_option("useAutomationExtension", False)
+    return webdriver.Chrome(options=options)
+
+
+def body_text(driver: webdriver.Chrome) -> str:
     try:
         return driver.find_element(By.TAG_NAME, "body").text.lower()
     except Exception:
@@ -200,20 +239,6 @@ def click_by_text(driver: webdriver.Chrome, labels: list[str]) -> bool:
         except Exception:
             continue
     return False
-
-
-def click_bottom_send(driver: webdriver.Chrome) -> bool:
-    try:
-        driver.switch_to.default_content()
-        driver.maximize_window()
-        time.sleep(0.3)
-        rect = driver.get_window_rect()
-        x = int(rect["x"] + rect["width"] * 0.81)
-        y = int(rect["y"] + rect["height"] * 0.89)
-        win_click(x, y)
-        return True
-    except Exception:
-        return False
 
 
 def win_click(x: int, y: int) -> None:
@@ -243,28 +268,40 @@ def win_ctrl_v() -> None:
     user32.keybd_event(0x11, 0, keyup, None)
 
 
-def paste_prompt_by_screen_position(driver: webdriver.Chrome, prompt: str) -> bool:
+def click_bottom_send(driver: webdriver.Chrome) -> bool:
     try:
-        set_windows_clipboard(prompt)
         driver.switch_to.default_content()
         driver.maximize_window()
-        time.sleep(0.4)
-        rect = driver.get_window_rect()
-        x = int(rect["x"] + rect["width"] * 0.50)
-        y = int(rect["y"] + rect["height"] * 0.88)
-        win_click(x, y)
         time.sleep(0.3)
-        win_ctrl_v()
-        time.sleep(0.8)
+        rect = driver.get_window_rect()
+        x = int(rect["x"] + rect["width"] * 0.81)
+        y = int(rect["y"] + rect["height"] * 0.89)
+        win_click(x, y)
         return True
     except Exception:
         return False
 
 
-def click_start_if_needed(driver: webdriver.Chrome, wait_seconds: int) -> None:
+def click_center_input(driver: webdriver.Chrome) -> bool:
+    try:
+        driver.switch_to.default_content()
+        driver.maximize_window()
+        time.sleep(0.3)
+        rect = driver.get_window_rect()
+        x = int(rect["x"] + rect["width"] * 0.50)
+        y = int(rect["y"] + rect["height"] * 0.82)
+        win_click(x, y)
+        return True
+    except Exception:
+        return False
+
+
+def click_start_if_needed(driver: webdriver.Chrome, target_tool: str, wait_seconds: int) -> None:
+    if target_tool != "opal":
+        return
     deadline = time.time() + wait_seconds
     while time.time() < deadline:
-        text = _lower_text(driver)
+        text = body_text(driver)
         if "type or upload your response" in text or "response" in text:
             return
         if click_by_text(driver, ["App"]):
@@ -279,6 +316,7 @@ def find_prompt_input(driver: webdriver.Chrome):
     selectors = [
         "textarea[name='request']",
         "textarea[placeholder*='response']",
+        "textarea[placeholder*='prompt']",
         "textarea",
         "[contenteditable='true']",
         "input[type='text']",
@@ -308,8 +346,14 @@ def paste_prompt(driver: webdriver.Chrome, prompt: str, wait_seconds: int) -> bo
             except Exception:
                 pass
         time.sleep(0.8)
+
     set_windows_clipboard(prompt)
-    return paste_prompt_by_screen_position(driver, prompt)
+    if click_center_input(driver):
+        time.sleep(0.3)
+        win_ctrl_v()
+        time.sleep(0.8)
+        return True
+    return False
 
 
 def send_prompt(driver: webdriver.Chrome) -> bool:
@@ -317,6 +361,9 @@ def send_prompt(driver: webdriver.Chrome) -> bool:
         "button[title='Submit']",
         "button[aria-label='Submit']",
         "button[type='submit']",
+        "button[aria-label*='Send']",
+        "button[aria-label*='送信']",
+        "button[aria-label*='Generate']",
     ]
     for selector in selectors:
         for element in driver.find_elements(By.CSS_SELECTOR, selector):
@@ -326,7 +373,7 @@ def send_prompt(driver: webdriver.Chrome) -> bool:
                     return True
             except Exception:
                 continue
-    if click_by_text(driver, ["send", "送信", "Submit", "Run", "生成"]):
+    if click_by_text(driver, ["send", "submit", "run", "generate", "create", "送信", "生成"]):
         return True
     try:
         ActionChains(driver).key_down(Keys.CONTROL).send_keys(Keys.ENTER).key_up(Keys.CONTROL).perform()
@@ -337,28 +384,19 @@ def send_prompt(driver: webdriver.Chrome) -> bool:
     return click_bottom_send(driver)
 
 
-def run_single_opal(title: str, body: str, style: str, image_type: str, log) -> None:
+def run_single_image(title: str, body: str, style: str, image_type: str, log) -> None:
     config = AppConfig.load()
-    profile_dir = Path(config.chrome_profile_dir)
-    profile_dir.mkdir(parents=True, exist_ok=True)
-
-    prompt = build_single_prompt(title, body, style, image_type)
+    target_tool = config.target_tool if config.target_tool in ("opal", "whisk") else "opal"
+    target_url = config.target_url()
+    prompt = build_single_prompt(title, body, style, image_type, target_tool)
     set_windows_clipboard(prompt)
 
-    options = Options()
-    options.add_argument(f"--user-data-dir={profile_dir}")
-    options.add_argument("--profile-directory=Default")
-    options.add_argument("--start-maximized")
-    options.add_argument("--disable-blink-features=AutomationControlled")
-    options.add_experimental_option("excludeSwitches", ["enable-automation"])
-    options.add_experimental_option("useAutomationExtension", False)
-
     log("Chromeを起動します。")
-    driver = webdriver.Chrome(options=options)
+    driver = launch_chrome(Path(config.chrome_profile_dir))
     wait = WebDriverWait(driver, config.wait_seconds)
 
-    log(f"Opalを開きます: {config.opal_url}")
-    driver.get(config.opal_url)
+    log(f"{'Whisk' if target_tool == 'whisk' else 'Opal'}を開きます: {target_url}")
+    driver.get(target_url)
     wait.until(lambda d: d.execute_script("return document.readyState") in ("interactive", "complete"))
     time.sleep(2.0)
 
@@ -366,21 +404,23 @@ def run_single_opal(title: str, body: str, style: str, image_type: str, log) -> 
         log("Googleログイン画面です。ログイン後、もう一度送信してください。")
         return
 
-    click_start_if_needed(driver, config.wait_seconds)
-    pasted = paste_prompt(driver, prompt, 12)
+    click_start_if_needed(driver, target_tool, config.wait_seconds)
+    pasted = paste_prompt(driver, prompt, 14)
     if not pasted:
-        log("入力欄に自動貼り付けできませんでした。プロンプトはクリップボードに入っています。")
+        log("入力欄へ自動貼り付けできませんでした。プロンプトはクリップボードに入っています。")
         return
 
     if send_prompt(driver):
-        log("1枚生成用プロンプトをOpalへ送信しました。生成結果はOpal画面で確認してください。")
+        log("1枚生成用プロンプトを送信しました。生成結果はブラウザ画面で確認してください。")
     else:
-        log("送信ボタンを押せませんでした。プロンプトは貼り付け済みです。Opal画面で送信してください。")
+        log("送信ボタンを押せませんでした。プロンプトは貼り付け済みです。画面上で送信してください。")
 
 
 def render_page(message: str = "", details: str = "", port: int | None = None) -> bytes:
     config = AppConfig.load()
     style_value = html.escape(read_style())
+    opal_checked = "checked" if config.target_tool != "whisk" else ""
+    whisk_checked = "checked" if config.target_tool == "whisk" else ""
     message_html = f"<div class='notice'>{html.escape(message)}</div>" if message else ""
     details_html = f"<div class='details'>{html.escape(details).replace(chr(10), '<br>')}</div>" if details else ""
     return f"""<!doctype html>
@@ -388,7 +428,7 @@ def render_page(message: str = "", details: str = "", port: int | None = None) -
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Opal 1枚画像生成</title>
+<title>ブログ画像 1枚生成</title>
 <style>
 body {{ margin:0; background:#eef6f1; color:#14251d; font-family:"Yu Gothic UI","Meiryo",sans-serif; }}
 .wrap {{ max-width:1040px; margin:0 auto; padding:24px; }}
@@ -400,6 +440,9 @@ input, textarea, select {{ width:100%; box-sizing:border-box; border:1px solid #
 textarea {{ min-height:250px; resize:vertical; line-height:1.65; }}
 textarea.style {{ min-height:110px; }}
 .grid {{ display:grid; grid-template-columns:1fr 220px; gap:14px; }}
+.tools {{ display:flex; gap:12px; flex-wrap:wrap; margin-top:8px; }}
+.tool {{ display:flex; gap:8px; align-items:center; border:1px solid #cfe0d7; border-radius:999px; padding:9px 14px; background:#f7fbf8; }}
+.tool input {{ width:auto; }}
 button {{ border:0; border-radius:999px; background:#16834f; color:#fff; font-weight:700; padding:13px 26px; cursor:pointer; font-size:16px; }}
 button:hover {{ background:#0f6f41; }}
 .hint, .version {{ color:#6b8278; font-size:13px; }}
@@ -409,15 +452,24 @@ button:hover {{ background:#0f6f41; }}
 </head>
 <body>
 <div class="wrap">
-  <h1>Opal 1枚画像生成</h1>
-  <div class="sub">タイトル・本文・画風を入れて、Opalに1枚だけ画像生成を依頼します。</div>
+  <h1>ブログ画像 1枚生成</h1>
+  <div class="sub">タイトル・本文・画風を入れて、画像生成ツールへ1枚分だけ送ります。</div>
   <div class="version">version: {APP_VERSION}{' / port: ' + str(port) if port else ''}</div>
   <div class="panel">
     {message_html}
     {details_html}
-    <form method="post" action="/send" onsubmit="document.getElementById('send').disabled=true;document.getElementById('send').textContent='Opalへ送信中...';">
+    <form method="post" action="/send" onsubmit="document.getElementById('send').disabled=true;document.getElementById('send').textContent='送信中...';">
+      <label>送信先</label>
+      <div class="tools">
+        <label class="tool"><input type="radio" name="target_tool" value="opal" {opal_checked}>Opal</label>
+        <label class="tool"><input type="radio" name="target_tool" value="whisk" {whisk_checked}>Whisk</label>
+      </div>
+
       <label for="opal_url">Opal URL</label>
       <input id="opal_url" name="opal_url" value="{html.escape(config.opal_url)}">
+
+      <label for="whisk_url">Whisk URL</label>
+      <input id="whisk_url" name="whisk_url" value="{html.escape(config.whisk_url)}">
 
       <div class="grid">
         <div>
@@ -437,13 +489,13 @@ button:hover {{ background:#0f6f41; }}
       </div>
 
       <label for="body">本文</label>
-      <textarea id="body" name="body" placeholder="WordPress本文を貼り付け"></textarea>
+      <textarea id="body" name="body" placeholder="WordPress本文や対象H2周辺を貼り付け"></textarea>
 
       <label for="style">画風指定</label>
       <textarea id="style" name="style" class="style">{style_value}</textarea>
 
-      <p class="hint">このアプリは1回の送信で1枚分のプロンプトだけをOpalへ渡します。複数H2の自動連続生成はしません。</p>
-      <button id="send" type="submit">Opalへ送る</button>
+      <p class="hint">Whiskは画像リミックス寄りのツールなので、本文は短めに要約して送ります。Opalは接続未完了だと送信後に止まる場合があります。</p>
+      <button id="send" type="submit">画像生成ツールへ送る</button>
     </form>
   </div>
 </div>
@@ -503,24 +555,31 @@ class Handler(BaseHTTPRequestHandler):
         body = str(values.get("body") or "").strip()
         style = str(values.get("style") or "").strip() or read_style()
         image_type = str(values.get("imageType") or values.get("image_type") or "EYECATCH").strip() or "EYECATCH"
+        target_tool = str(values.get("targetTool") or values.get("target_tool") or "").strip().lower()
         opal_url = str(values.get("opal_url") or "").strip()
+        whisk_url = str(values.get("whisk_url") or "").strip()
 
         if not title and not body:
             return {"ok": False, "message": "タイトルか本文を入力してください。"}
 
         if style:
             write_style(style)
+
         config = AppConfig.load()
+        if target_tool in ("opal", "whisk"):
+            config.target_tool = target_tool
         if opal_url:
             config.opal_url = opal_url
-            config.save()
+        if whisk_url:
+            config.whisk_url = whisk_url
+        config.save()
 
         def worker() -> None:
             def log(message: str) -> None:
                 print(message, flush=True)
 
             try:
-                run_single_opal(title, body, style, image_type, log)
+                run_single_image(title, body, style, image_type, log)
             except WebDriverException as exc:
                 print(f"ブラウザ操作で失敗しました: {exc.__class__.__name__}", flush=True)
             except Exception as exc:
@@ -529,7 +588,7 @@ class Handler(BaseHTTPRequestHandler):
         threading.Thread(target=worker, daemon=True).start()
         return {
             "ok": True,
-            "message": "Opalへ1枚生成リクエストを送りました。Chromeで生成結果を確認してください。",
+            "message": "1枚生成リクエストを送りました。Chromeで生成結果を確認してください。",
             "version": APP_VERSION,
             "mode": "single",
         }
@@ -559,7 +618,7 @@ def main() -> int:
     Handler.server_port = port
     server = ThreadingHTTPServer((HOST, port), Handler)
     url = f"http://{HOST}:{port}/"
-    print(f"Opal 1枚画像生成フォームを開きます: {url}", flush=True)
+    print(f"ブログ画像 1枚生成フォームを開きます: {url}", flush=True)
     print("この黒い画面はフォーム用サーバーです。作業が終わったら閉じて大丈夫です。", flush=True)
     webbrowser.open_new(url)
     try:

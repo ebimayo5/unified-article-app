@@ -668,37 +668,77 @@
           .trim();
       }
 
+      function isImageTargetHeading(heading) {
+        const text = String(heading || '').trim();
+        if (!text) return false;
+        if (/よくある質問|FAQ|まとめ|結論|導入|この記事のポイント/.test(text)) return false;
+        return true;
+      }
+
+      function rankImageSection(heading, text) {
+        const source = String(heading || '') + ' ' + String(text || '');
+        let score = 0;
+        if (/比較|違い|手順|流れ|原因|対策|理由|判断|基準|選び方|費用|料金|工賃|注意|チェック|ポイント|メリット|デメリット/.test(source)) score += 5;
+        if (/表|一覧|3つ|4つ|5つ|7つ|ステップ|パターン|ケース/.test(source)) score += 3;
+        if (/安全|保証|法規|車検|失敗|後悔|リスク/.test(source)) score += 2;
+        return score;
+      }
+
       function buildImageGenerationItems(title, body) {
         const items = [];
-        const baseTitle = title || '繝悶Ο繧ｰ逕ｻ蜒・;
+        const baseTitle = title || 'ブログ記事';
         const bodyText = stripHtmlForImagePrompt(body);
         items.push({
           title: baseTitle,
-          body: bodyText.slice(0, 5000),
+          body: [
+            '画像タイプ: EYECATCH',
+            '記事全体を代表するアイキャッチ。本文画像とは構図を変える。',
+            bodyText.slice(0, 5000)
+          ].join('\n'),
           imageType: 'EYECATCH'
         });
 
-        const matches = [];
+        const sections = [];
         const h2Re = /<h2[^>]*>([\s\S]*?)<\/h2>/gi;
         let match;
         while ((match = h2Re.exec(String(body || ''))) !== null) {
           const heading = stripHtmlForImagePrompt(match[1]);
-          if (!heading) continue;
-          if (/繧医￥縺ゅｋ雉ｪ蝠楯FAQ|縺ｾ縺ｨ繧・i.test(heading)) continue;
-          matches.push({ heading: heading, index: match.index });
+          if (!isImageTargetHeading(heading)) continue;
+          sections.push({ heading: heading, index: match.index });
         }
 
-        for (let i = 0; i < matches.length && items.length < 6; i++) {
-          const current = matches[i];
-          const next = matches[i + 1];
-          const chunk = String(body || '').slice(current.index, next ? next.index : undefined);
+        const candidates = sections.map(function(section, index) {
+          const next = sections[index + 1];
+          const chunk = String(body || '').slice(section.index, next ? next.index : undefined);
           const chunkText = stripHtmlForImagePrompt(chunk);
+          return {
+            heading: section.heading,
+            text: chunkText,
+            score: rankImageSection(section.heading, chunkText),
+            order: index
+          };
+        }).filter(function(item) {
+          return item.text.length >= 80;
+        });
+
+        candidates.sort(function(a, b) {
+          if (b.score !== a.score) return b.score - a.score;
+          return a.order - b.order;
+        });
+
+        candidates.slice(0, 5).forEach(function(item, index) {
           items.push({
-            title: baseTitle + '・・ + current.heading,
-            body: (current.heading + '\n' + chunkText).slice(0, 3500),
-            imageType: 'H2-' + String(items.length).padStart(2, '0')
+            title: baseTitle + '｜' + item.heading,
+            body: [
+              '画像タイプ: H2-' + String(index + 1).padStart(2, '0'),
+              '対象H2: ' + item.heading,
+              'この記事内の他画像と同じ構図は禁止。アイキャッチとも構図を変える。',
+              '本文理解を補助する図解・比較・手順・判断軸の画像にする。',
+              item.text.slice(0, 3500)
+            ].join('\n'),
+            imageType: 'H2-' + String(index + 1).padStart(2, '0')
           });
-        }
+        });
         return items;
       }
 
@@ -707,16 +747,16 @@
         const title = pickFirstTitleIdea() || data.mainInput || '';
         const body = data.body || '';
         if (!title && !body) {
-          setNotice('繧ｿ繧､繝医Ν蛟呵｣懊∪縺溘・譛ｬ譁・′縺ゅｊ縺ｾ縺帙ｓ縲よ悽譁・函謌仙ｾ後↓螳溯｡後＠縺ｦ縺上□縺輔＞縲・, true);
+          setNotice('タイトル候補または本文がありません。本文生成後に実行してください。', true);
           return;
         }
-        setBusy('繝ｭ繝ｼ繧ｫ繝ｫ逕ｻ蜒冗函謌舌ヤ繝ｼ繝ｫ縺ｸ騾∽ｿ｡荳ｭ...', button);
+        setBusy('ChatGPTへ画像生成リクエストを送信中...', button);
         try {
           const baseUrl = await findLocalOpalBaseUrl();
           if (!baseUrl) {
             clearBusy();
             setProgress('error');
-            setNotice('逕ｻ蜒冗函謌舌い繝励Μ縺瑚ｵｷ蜍輔＠縺ｦ縺・∪縺帙ｓ縲ゅョ繧ｹ繧ｯ繝医ャ繝励・縲薫pal 1譫夂判蜒冗函謌舌阪ｒ襍ｷ蜍輔＠縺ｦ縺九ｉ縲√ｂ縺・ｸ蠎ｦ謚ｼ縺励※縺上□縺輔＞縲・, true);
+            setNotice('ローカル画像生成アプリが起動していません。デスクトップの「ChatGPT画像生成フォーム」を起動してから、もう一度押してください。', true);
             return;
           }
           const items = buildImageGenerationItems(title, body);
@@ -735,15 +775,15 @@
           clearBusy();
           if (!result || !result.ok) {
             setProgress('error');
-            setNotice(result && result.message ? result.message : '逕ｻ蜒冗函謌舌ヤ繝ｼ繝ｫ縺ｸ縺ｮ騾∽ｿ｡縺ｫ螟ｱ謨励＠縺ｾ縺励◆縲・, true);
+            setNotice(result && result.message ? result.message : 'ChatGPTへの画像生成リクエスト送信に失敗しました。', true);
             return;
           }
           setProgress('done');
-          setNotice(result.message || '逕ｻ蜒冗函謌舌ヤ繝ｼ繝ｫ縺ｸ騾∽ｿ｡縺励∪縺励◆縲・, false);
+          setNotice(result.message || ('ChatGPTへ' + items.length + '件の画像生成リクエストを送りました。'), false);
         } catch (e) {
           clearBusy();
           setProgress('error');
-          setNotice('逕ｻ蜒冗函謌舌ヤ繝ｼ繝ｫ騾∽ｿ｡縺ｧ繧ｨ繝ｩ繝ｼ縺悟・縺ｾ縺励◆: ' + (e && e.message ? e.message : e), true);
+          setNotice('ChatGPT画像生成送信でエラーが出ました: ' + (e && e.message ? e.message : e), true);
         }
       }
 

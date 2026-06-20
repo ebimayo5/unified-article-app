@@ -7,76 +7,53 @@ import socket
 import threading
 import time
 import webbrowser
-from dataclasses import dataclass
+from dataclasses import dataclass, asdict
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs
 
 from selenium import webdriver
 from selenium.common.exceptions import WebDriverException
+from selenium.webdriver import ActionChains
 from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support.ui import WebDriverWait
 
 
+APP_VERSION = "2026-06-20-single-006"
 HOST = "127.0.0.1"
-APP_VERSION = "2026-06-20-single-005"
-ROOT = Path(__file__).resolve().parent
-CONFIG_PATH = ROOT / "opal_single_image_config.json"
-STYLE_PATH = ROOT / "style_instruction.txt"
-
-DEFAULT_CHATGPT_URL = "https://chatgpt.com/"
+BASE_DIR = Path(__file__).resolve().parent
+CONFIG_PATH = BASE_DIR / "opal_single_image_config.json"
+STYLE_PATH = BASE_DIR / "opal_single_image_style.txt"
 
 
 @dataclass
 class AppConfig:
     target_tool: str = "chatgpt"
-    chatgpt_url: str = DEFAULT_CHATGPT_URL
-    chrome_profile_dir: str = str(ROOT / "chrome_profile")
+    chatgpt_url: str = "https://chatgpt.com/"
+    chrome_profile_dir: str = "chrome_profile"
     wait_seconds: int = 50
     batch_pause_seconds: int = 12
 
     @classmethod
     def load(cls) -> "AppConfig":
-        if not CONFIG_PATH.exists():
-            return cls()
-        try:
-            data = json.loads(CONFIG_PATH.read_text(encoding="utf-8-sig"))
-        except Exception:
-            return cls()
-
-        profile_dir = str(data.get("chrome_profile_dir") or cls.chrome_profile_dir)
-        if not Path(profile_dir).is_absolute():
-            profile_dir = str(ROOT / profile_dir)
-
-        return cls(
-            target_tool="chatgpt",
-            chatgpt_url=str(data.get("chatgpt_url") or DEFAULT_CHATGPT_URL),
-            chrome_profile_dir=profile_dir,
-            wait_seconds=int(data.get("wait_seconds") or 50),
-            batch_pause_seconds=int(data.get("batch_pause_seconds") or 12),
-        )
-
-    def target_url(self) -> str:
-        return self.chatgpt_url
+        if CONFIG_PATH.exists():
+            try:
+                data = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
+                return cls(**{**asdict(cls()), **data})
+            except Exception:
+                pass
+        return cls()
 
     def save(self) -> None:
         CONFIG_PATH.write_text(
-            json.dumps(
-                {
-                    "target_tool": self.target_tool,
-                    "chatgpt_url": self.chatgpt_url,
-                    "chrome_profile_dir": self.chrome_profile_dir,
-                    "wait_seconds": self.wait_seconds,
-                    "batch_pause_seconds": self.batch_pause_seconds,
-                },
-                ensure_ascii=False,
-                indent=2,
-            ),
+            json.dumps(asdict(self), ensure_ascii=False, indent=2),
             encoding="utf-8",
         )
+
+    def target_url(self) -> str:
+        return self.chatgpt_url or "https://chatgpt.com/"
 
 
 def read_style() -> str:
@@ -163,39 +140,49 @@ def normalize_text(value: str, limit: int) -> str:
     return text[:limit]
 
 
-def build_single_prompt(title: str, body: str, style: str, image_type: str, target_tool: str) -> str:
+def build_single_prompt(title: str, body: str, style: str, image_type: str, target_tool: str = "chatgpt") -> str:
     image_type = (image_type or "EYECATCH").strip() or "EYECATCH"
     style = (style or "").strip()
     title = (title or "").strip()
     body = (body or "").strip()
 
-    body_limit = 7000
-    tool_note = "ChatGPT向け: この記事用の画像を生成する。説明文だけで終わらず、必ず画像生成まで進める。"
+    default_style = (
+        "明るく読みやすいブログ用の図解イラスト。余白を広めに取り、情報を整理した構図。"
+        "グリーンと白を基調に、アクセントカラーを少し使う。文字は必要最小限。"
+    )
+    if image_type.upper() == "EYECATCH":
+        image_role = "記事全体を代表するアイキャッチ画像。読者がクリックしたくなる印象を重視する。"
+    else:
+        image_role = "対象H2の理解を助ける本文中の図解画像。比較、手順、原因と対策、判断基準を見やすく整理する。"
 
     return "\n".join(
         [
-            "ブログ記事用の画像を1枚だけ生成してください。",
-            "複数枚生成、候補一覧、同じ構図の量産は禁止です。",
-            tool_note,
+            "以下の記事内容をもとに、ブログ記事用の画像を1枚だけ生成してください。",
+            "説明文だけで終わらず、必ず画像生成まで進めてください。",
+            "複数案を並べた一覧画像は禁止です。1枚の完成画像として生成してください。",
+            "同じ記事内の他画像と同じ構図は禁止です。画像タイプごとに構図、モチーフ、情報整理の見せ方を変えてください。",
             "",
             f"画像タイプ: {image_type}",
+            f"画像の役割: {image_role}",
             f"記事タイトル: {title or '未指定'}",
             "",
-            "本文要約材料:",
-            normalize_text(body, body_limit) or "本文未指定",
+            "本文・対象セクション:",
+            normalize_text(body, 7000) or "本文未指定",
             "",
-            "画像ルール:",
+            "生成ルール:",
             "- 横長16:9",
-            "- WordPress記事内で使いやすい、明るく見やすい図解/イラスト寄り",
-            "- 文字を入れる場合は短い日本語だけ。細かい文章は入れない",
-            "- 比較・手順・原因対策・判断基準は、文章ではなく図解として理解できる構図にする",
-            "- アイキャッチなら記事全体の価値が一目で伝わる構図",
-            "- H2画像なら対象見出しの理解を助ける構図",
-            "- 写実よりも、情報が伝わる整理されたビジュアルを優先",
-            "- 画像内に小さく画像タイプのラベルを入れる場合は右下に控えめにする",
+            "- WordPress記事で使いやすい、明るく読みやすい図解・イラスト調",
+            "- 写実写真ではなく、情報が伝わる整理されたビジュアルを優先",
+            "- 画像内テキストは短い日本語だけ。細かい文章や長文は入れない",
+            "- 人物を描く場合は自然な一般人風にし、実在人物や有名人にしない",
+            "- ロゴ、企業名、ブランド名、実在商品のパッケージを正確に描かない",
+            "- 余白を十分に取り、スマホでも意味が伝わる構図にする",
+            "- 比較・手順・原因と対策・判断基準は、文章ではなく図解として理解できる構図にする",
+            "- EYECATCHは記事全体の価値が一目で伝わる構図にする",
+            "- H2画像は対象見出しの論点だけに絞り、アイキャッチとは別構図にする",
             "",
             "画風指定:",
-            style or "ミニマルで読みやすいブログ図解。淡い背景、余白多め、落ち着いた配色。",
+            style or default_style,
         ]
     ).strip()
 
@@ -237,82 +224,13 @@ def click_by_text(driver: webdriver.Chrome, labels: list[str]) -> bool:
     return False
 
 
-def win_click(x: int, y: int) -> None:
-    user32 = ctypes.windll.user32
-    user32.SetCursorPos.argtypes = [ctypes.c_int, ctypes.c_int]
-    user32.SetCursorPos.restype = ctypes.c_bool
-    user32.mouse_event.argtypes = [ctypes.c_uint, ctypes.c_uint, ctypes.c_uint, ctypes.c_uint, ctypes.c_void_p]
-    user32.mouse_event.restype = None
-    user32.SetCursorPos(int(x), int(y))
-    time.sleep(0.1)
-    user32.mouse_event(0x0002, 0, 0, 0, None)
-    time.sleep(0.05)
-    user32.mouse_event(0x0004, 0, 0, 0, None)
-
-
-def win_ctrl_v() -> None:
-    user32 = ctypes.windll.user32
-    user32.keybd_event.argtypes = [ctypes.c_ubyte, ctypes.c_ubyte, ctypes.c_uint, ctypes.c_void_p]
-    user32.keybd_event.restype = None
-    keyup = 0x0002
-    user32.keybd_event(0x11, 0, 0, None)
-    time.sleep(0.05)
-    user32.keybd_event(0x56, 0, 0, None)
-    time.sleep(0.05)
-    user32.keybd_event(0x56, 0, keyup, None)
-    time.sleep(0.05)
-    user32.keybd_event(0x11, 0, keyup, None)
-
-
-def click_bottom_send(driver: webdriver.Chrome) -> bool:
-    try:
-        driver.switch_to.default_content()
-        driver.maximize_window()
-        time.sleep(0.3)
-        rect = driver.get_window_rect()
-        x = int(rect["x"] + rect["width"] * 0.81)
-        y = int(rect["y"] + rect["height"] * 0.89)
-        win_click(x, y)
-        return True
-    except Exception:
-        return False
-
-
-def click_center_input(driver: webdriver.Chrome) -> bool:
-    try:
-        driver.switch_to.default_content()
-        driver.maximize_window()
-        time.sleep(0.3)
-        rect = driver.get_window_rect()
-        x = int(rect["x"] + rect["width"] * 0.50)
-        y = int(rect["y"] + rect["height"] * 0.82)
-        win_click(x, y)
-        return True
-    except Exception:
-        return False
-
-
-def click_start_if_needed(driver: webdriver.Chrome, target_tool: str, wait_seconds: int) -> None:
-    return
-    deadline = time.time() + wait_seconds
-    while time.time() < deadline:
-        text = body_text(driver)
-        if "type or upload your response" in text or "response" in text:
-            return
-        if click_by_text(driver, ["App"]):
-            time.sleep(1.0)
-        if click_by_text(driver, ["Start", "開始"]):
-            time.sleep(2.0)
-        else:
-            time.sleep(0.8)
-
-
 def find_prompt_input(driver: webdriver.Chrome):
     selectors = [
         "textarea[data-testid='prompt-textarea']",
         "[data-testid='prompt-textarea']",
         "#prompt-textarea",
         "textarea[name='request']",
+        "textarea[placeholder*='message']",
         "textarea[placeholder*='response']",
         "textarea[placeholder*='prompt']",
         "textarea",
@@ -331,6 +249,7 @@ def find_prompt_input(driver: webdriver.Chrome):
 
 def paste_prompt(driver: webdriver.Chrome, prompt: str, wait_seconds: int) -> bool:
     deadline = time.time() + wait_seconds
+    last_error = None
     while time.time() < deadline:
         element = find_prompt_input(driver)
         if element:
@@ -339,18 +258,17 @@ def paste_prompt(driver: webdriver.Chrome, prompt: str, wait_seconds: int) -> bo
                 time.sleep(0.2)
                 set_windows_clipboard(prompt)
                 ActionChains(driver).key_down(Keys.CONTROL).send_keys("v").key_up(Keys.CONTROL).perform()
-                time.sleep(0.5)
+                time.sleep(0.6)
                 return True
-            except Exception:
-                pass
+            except Exception as exc:
+                last_error = exc
         time.sleep(0.8)
-
-    set_windows_clipboard(prompt)
-    if click_center_input(driver):
-        time.sleep(0.3)
-        win_ctrl_v()
-        time.sleep(0.8)
-        return True
+    try:
+        set_windows_clipboard(prompt)
+    except Exception as exc:
+        last_error = exc
+    if last_error:
+        print(f"貼り付け準備で失敗しました: {last_error}", flush=True)
     return False
 
 
@@ -374,194 +292,65 @@ def send_prompt(driver: webdriver.Chrome) -> bool:
                     return True
             except Exception:
                 continue
-    if click_by_text(driver, ["send", "submit", "run", "generate", "create", "送信", "生成", "送る"]):
+    if click_by_text(driver, ["send", "submit", "run", "generate", "create", "送信", "生成", "作成"]):
         return True
     try:
         ActionChains(driver).key_down(Keys.CONTROL).send_keys(Keys.ENTER).key_up(Keys.CONTROL).perform()
         time.sleep(0.5)
         return True
     except Exception:
-        pass
-    return click_bottom_send(driver)
+        return False
 
 
-def open_target_tool(config: AppConfig, target_tool: str, log) -> webdriver.Chrome:
+def open_target_tool(config: AppConfig, log) -> webdriver.Chrome:
     target_url = config.target_url()
-
     log("Chromeを起動します。")
-    driver = launch_chrome(Path(config.chrome_profile_dir))
+    driver = launch_chrome(BASE_DIR / config.chrome_profile_dir)
     wait = WebDriverWait(driver, config.wait_seconds)
 
-    tool_label = "ChatGPT"
-    log(f"{tool_label}を開きます: {target_url}")
+    log(f"ChatGPTを開きます: {target_url}")
     driver.get(target_url)
     wait.until(lambda d: d.execute_script("return document.readyState") in ("interactive", "complete"))
     time.sleep(2.0)
 
-    if "accounts.google" in driver.current_url or "signin" in driver.current_url:
-        log("Googleログイン画面です。ログイン後、もう一度送信してください。")
-        return driver
-
-    click_start_if_needed(driver, target_tool, config.wait_seconds)
+    if "accounts.google" in driver.current_url or "signin" in driver.current_url or "auth" in driver.current_url:
+        log("ログイン画面です。Chrome側でログイン後、もう一度パネルから送信してください。")
     return driver
 
 
 def send_one_image_prompt(driver: webdriver.Chrome, prompt: str, log) -> bool:
-    pasted = paste_prompt(driver, prompt, 14)
-    if not pasted:
-        log("入力欄へ自動貼り付けできませんでした。プロンプトはクリップボードに入っています。")
+    if not paste_prompt(driver, prompt, 16):
+        log("ChatGPTの入力欄へ自動貼り付けできませんでした。プロンプトはクリップボードに入っています。")
         return False
-
     if send_prompt(driver):
-        log("1枚生成用プロンプトを送信しました。生成結果はブラウザ画面で確認してください。")
+        log("画像生成プロンプトを送信しました。生成結果はChrome画面で確認してください。")
         return True
-
-    log("送信ボタンを押せませんでした。プロンプトは貼り付け済みです。画面上で送信してください。")
+    log("送信ボタンを押せませんでした。プロンプトは貼り付け済みです。Chrome画面で送信してください。")
     return False
 
 
-def run_single_image(title: str, body: str, style: str, image_type: str, log) -> None:
+def run_single_image(title: str, body: str, style: str, image_type: str, log) -> bool:
     config = AppConfig.load()
-    target_tool = "chatgpt"
-    prompt = build_single_prompt(title, body, style, image_type, target_tool)
-    set_windows_clipboard(prompt)
-
-    driver = open_target_tool(config, target_tool, log)
-    if "accounts.google" in driver.current_url or "signin" in driver.current_url:
-        return
-    send_one_image_prompt(driver, prompt, log)
+    driver = open_target_tool(config, log)
+    prompt = build_single_prompt(title, body, style, image_type, config.target_tool)
+    return send_one_image_prompt(driver, prompt, log)
 
 
-def run_image_batch(items: list[dict], style: str, log) -> None:
+def run_image_batch(items: list[dict], style: str, log) -> int:
     config = AppConfig.load()
-    target_tool = "chatgpt"
-    driver = open_target_tool(config, target_tool, log)
-    if "accounts.google" in driver.current_url or "signin" in driver.current_url:
-        return
-
-    total = len(items)
+    driver = open_target_tool(config, log)
+    sent = 0
     for index, item in enumerate(items, start=1):
-        title = str(item.get("title") or "").strip()
-        body = str(item.get("body") or "").strip()
-        image_type = str(item.get("imageType") or item.get("image_type") or f"IMAGE-{index:02d}").strip()
-        prompt = build_single_prompt(title, body, style, image_type, target_tool)
-        set_windows_clipboard(prompt)
-        log(f"{index}/{total} 枚目を送信します: {image_type}")
-        if not send_one_image_prompt(driver, prompt, log):
-            log("ここで送信が止まりました。残りは未送信です。")
-            return
-        if index < total:
-            time.sleep(max(4, config.batch_pause_seconds))
-    log(f"{total}件の画像生成リクエストを順番に送信しました。")
-
-
-class Handler(BaseHTTPRequestHandler):
-    server_port = 0
-
-    def cors(self) -> None:
-        self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type")
-
-    def do_OPTIONS(self) -> None:
-        self.send_response(204)
-        self.cors()
-        self.end_headers()
-
-    def do_GET(self) -> None:
-        if self.path.startswith("/health"):
-            self.send_json({"ok": True, "version": APP_VERSION, "mode": "single"})
-            return
-        self.respond(render_page(port=self.server_port))
-
-    def do_POST(self) -> None:
-        if self.path == "/api/send":
-            self.handle_api_send()
-            return
-        if self.path != "/send":
-            self.send_error(404)
-            return
-        values = self.read_form()
-        result = self.queue_send(values)
-        self.respond(render_page(result["message"], result.get("details", ""), port=self.server_port))
-
-    def read_form(self) -> dict:
-        length = int(self.headers.get("Content-Length") or 0)
-        raw = self.rfile.read(length).decode("utf-8", errors="replace")
-        values = parse_qs(raw)
-        return {key: (values.get(key) or [""])[0].strip() for key in values}
-
-    def handle_api_send(self) -> None:
-        length = int(self.headers.get("Content-Length") or 0)
-        raw = self.rfile.read(length).decode("utf-8", errors="replace")
-        try:
-            values = json.loads(raw or "{}")
-        except Exception:
-            self.send_json({"ok": False, "message": "JSONを読めませんでした。"})
-            return
-        result = self.queue_send(values)
-        self.send_json(result)
-
-    def queue_send(self, values: dict) -> dict:
-        title = str(values.get("title") or "").strip()
-        body = str(values.get("body") or "").strip()
-        style = str(values.get("style") or "").strip() or read_style()
-        image_type = str(values.get("imageType") or values.get("image_type") or "EYECATCH").strip() or "EYECATCH"
-        items = values.get("items") if isinstance(values.get("items"), list) else []
-        chatgpt_url = str(values.get("chatgpt_url") or "").strip()
-
-        if not items and not title and not body:
-            return {"ok": False, "message": "タイトルか本文を入力してください。"}
-
-        if style:
-            write_style(style)
-
-        config = AppConfig.load()
-        config.target_tool = "chatgpt"
-        if chatgpt_url:
-            config.chatgpt_url = chatgpt_url
-        config.save()
-
-        def worker() -> None:
-            def log(message: str) -> None:
-                print(message, flush=True)
-
-            try:
-                if items:
-                    run_image_batch(items, style, log)
-                else:
-                    run_single_image(title, body, style, image_type, log)
-            except WebDriverException as exc:
-                print(f"ブラウザ操作で失敗しました: {exc.__class__.__name__}", flush=True)
-            except Exception as exc:
-                print(f"処理に失敗しました: {exc}", flush=True)
-
-        threading.Thread(target=worker, daemon=True).start()
-        return {
-            "ok": True,
-            "message": (str(len(items)) + "件の画像生成リクエストを順番に送ります。Chromeで生成結果を確認してください。") if items else "1枚生成リクエストを送りました。Chromeで生成結果を確認してください。",
-            "version": APP_VERSION,
-            "mode": "single",
-        }
-
-    def respond(self, body: bytes) -> None:
-        self.send_response(200)
-        self.send_header("Content-Type", "text/html; charset=utf-8")
-        self.cors()
-        self.end_headers()
-        self.wfile.write(body)
-
-    def send_json(self, data: dict) -> None:
-        body = json.dumps(data, ensure_ascii=False).encode("utf-8")
-        self.send_response(200)
-        self.send_header("Content-Type", "application/json; charset=utf-8")
-        self.send_header("Content-Length", str(len(body)))
-        self.cors()
-        self.end_headers()
-        self.wfile.write(body)
-
-    def log_message(self, format: str, *args) -> None:
-        return
+        title = str(item.get("title") or "")
+        body = str(item.get("body") or "")
+        image_type = str(item.get("imageType") or item.get("image_type") or f"H2-{index:02d}")
+        prompt = build_single_prompt(title, body, style, image_type, config.target_tool)
+        log(f"{index}/{len(items)}件目を送信します: {image_type}")
+        if send_one_image_prompt(driver, prompt, log):
+            sent += 1
+        time.sleep(max(3, int(config.batch_pause_seconds or 12)))
+    log(f"送信完了: {sent}/{len(items)}件")
+    return sent
 
 
 def render_page(message: str = "", details: str = "", port: int | None = None) -> bytes:
@@ -631,7 +420,7 @@ button:hover {{ background:#0f6f41; }}
       <label for="style">画風指定</label>
       <textarea id="style" name="style" class="style">{style_value}</textarea>
 
-      <p class="hint">ChatGPTのWeb版へ送ります。初回だけ専用Chromeでログインが必要になることがあります。</p>
+      <p class="hint">ChatGPT Webへ送ります。初回だけ専用Chromeでログインが必要になることがあります。</p>
       <button id="send" type="submit">ChatGPTへ画像生成</button>
     </form>
   </div>
@@ -640,12 +429,132 @@ button:hover {{ background:#0f6f41; }}
 </html>""".encode("utf-8")
 
 
+class Handler(BaseHTTPRequestHandler):
+    server_port: int | None = None
+
+    def cors(self) -> None:
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+
+    def do_OPTIONS(self) -> None:
+        self.send_response(204)
+        self.cors()
+        self.end_headers()
+
+    def do_GET(self) -> None:
+        if self.path.startswith("/health"):
+            self.send_json({"ok": True, "version": APP_VERSION, "tool": "chatgpt"})
+            return
+        self.respond(render_page(port=self.server_port))
+
+    def do_POST(self) -> None:
+        if self.path.startswith("/api/send"):
+            self.handle_api_send()
+            return
+        if self.path.startswith("/send"):
+            self.handle_form_send()
+            return
+        self.send_json({"ok": False, "message": "未対応のパスです。"})
+
+    def read_post_body(self) -> bytes:
+        length = int(self.headers.get("Content-Length", "0") or "0")
+        return self.rfile.read(length)
+
+    def parse_form(self) -> dict[str, str]:
+        raw = self.read_post_body().decode("utf-8", errors="replace")
+        parsed = parse_qs(raw, keep_blank_values=True)
+        return {key: (values[0] if values else "") for key, values in parsed.items()}
+
+    def queue_send(self, values: dict) -> dict:
+        title = str(values.get("title") or "").strip()
+        body = str(values.get("body") or "").strip()
+        style = str(values.get("style") or "").strip()
+        image_type = str(values.get("image_type") or values.get("imageType") or "EYECATCH").strip()
+        items = values.get("items") if isinstance(values.get("items"), list) else []
+        chatgpt_url = str(values.get("chatgpt_url") or "").strip()
+
+        if not items and not title and not body:
+            return {"ok": False, "message": "タイトルまたは本文を入力してください。"}
+
+        if style:
+            write_style(style)
+
+        config = AppConfig.load()
+        config.target_tool = "chatgpt"
+        if chatgpt_url:
+            config.chatgpt_url = chatgpt_url
+        config.save()
+
+        def worker() -> None:
+            def log(message: str) -> None:
+                print(message, flush=True)
+
+            try:
+                if items:
+                    run_image_batch(items, style, log)
+                else:
+                    run_single_image(title, body, style, image_type, log)
+            except WebDriverException as exc:
+                print(f"ブラウザ操作で失敗しました: {exc.__class__.__name__}", flush=True)
+            except Exception as exc:
+                print(f"処理に失敗しました: {exc}", flush=True)
+
+        threading.Thread(target=worker, daemon=True).start()
+        count = len(items) if items else 1
+        return {
+            "ok": True,
+            "message": f"{count}件の画像生成リクエストを順番に送ります。Chromeで生成結果を確認してください。",
+            "version": APP_VERSION,
+            "mode": "single",
+        }
+
+    def handle_api_send(self) -> None:
+        try:
+            values = json.loads(self.read_post_body().decode("utf-8"))
+        except Exception as exc:
+            self.send_json({"ok": False, "message": f"JSONを読めませんでした: {exc}"})
+            return
+        self.send_json(self.queue_send(values))
+
+    def handle_form_send(self) -> None:
+        values = self.parse_form()
+        result = self.queue_send(values)
+        self.respond(
+            render_page(
+                message=str(result.get("message") or ""),
+                details="" if result.get("ok") else "入力内容を確認してください。",
+                port=self.server_port,
+            )
+        )
+
+    def respond(self, body: bytes) -> None:
+        self.send_response(200)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.cors()
+        self.end_headers()
+        self.wfile.write(body)
+
+    def send_json(self, data: dict) -> None:
+        body = json.dumps(data, ensure_ascii=False).encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.cors()
+        self.end_headers()
+        self.wfile.write(body)
+
+    def log_message(self, format: str, *args) -> None:
+        return
+
+
 def main() -> int:
     port = find_free_port()
     Handler.server_port = port
     server = ThreadingHTTPServer((HOST, port), Handler)
     url = f"http://{HOST}:{port}/"
-    print(f"ブログ画像 1枚生成フォームを開きます: {url}", flush=True)
+    print(f"ChatGPT画像生成フォームを開きます: {url}", flush=True)
     print("この黒い画面はフォーム用サーバーです。作業が終わったら閉じて大丈夫です。", flush=True)
     webbrowser.open_new(url)
     try:

@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html>
   <head>
     <base target="_top">
@@ -104,32 +104,32 @@
   <body>
     <div id="app" class="app">
       <aside class="sidebar">
-        <h1>記事作成アプリ</h1>
+        <h1>險倅ｺ倶ｽ懈・繧｢繝励Μ</h1>
         <div class="card">
-          <label for="appType">サイト / 記事タイプ</label>
+          <label for="appType">繧ｵ繧､繝・/ 險倅ｺ九ち繧､繝・/label>
           <select id="appType" onchange="onAppTypeChange()"></select>
 
           <div id="candidateControls">
             <div class="actions" style="grid-template-columns:1fr; margin-top:10px;">
-              <button class="primary" type="button" onclick="openCandidateSheet(this)">候補シートをスプシで開く</button>
-              <button class="secondary" type="button" onclick="createFromActiveCandidate(this)">スプシの選択行を反映</button>
+              <button class="primary" type="button" onclick="openCandidateSheet(this)">蛟呵｣懊す繝ｼ繝医ｒ繧ｹ繝励す縺ｧ髢九￥</button>
+              <button class="secondary" type="button" onclick="createFromActiveCandidate(this)">繧ｹ繝励す縺ｮ驕ｸ謚櫁｡後ｒ蜿肴丐</button>
             </div>
-            <label for="candidateRow">候補シートの行番号で反映</label>
+            <label for="candidateRow">蛟呵｣懊す繝ｼ繝医・陦檎分蜿ｷ縺ｧ蜿肴丐</label>
             <div class="row">
-              <input id="candidateRow" placeholder="例: 25">
-              <button class="neutral" type="button" onclick="createFromCandidateRow(this)">行番号を反映</button>
+              <input id="candidateRow" placeholder="萓・ 25">
+              <button class="neutral" type="button" onclick="createFromCandidateRow(this)">陦檎分蜿ｷ繧貞渚譏</button>
             </div>
           </div>
 
-          <button class="secondary" type="button" style="width:100%; margin-top:10px;" onclick="createBlankArticle(this)">新規記事行を作る</button>
+          <button class="secondary" type="button" style="width:100%; margin-top:10px;" onclick="createBlankArticle(this)">譁ｰ隕剰ｨ倅ｺ玖｡後ｒ菴懊ｋ</button>
 
           <div class="row">
             <div>
-              <label for="articleProvider">本文API</label>
+              <label for="articleProvider">譛ｬ譁②PI</label>
               <select id="articleProvider" onchange="saveProviders()"></select>
             </div>
             <div>
-              <label for="readerMindProvider">心理API</label>
+              <label for="readerMindProvider">蠢・炊API</label>
               <select id="readerMindProvider" onchange="saveProviders()"></select>
             </div>
           </div>
@@ -139,88 +139,88 @@
       <main class="main">
         <div class="topbar">
           <div>
-            <h1>記事編集</h1>
-            <div id="subText" class="muted">候補を選ぶと、ここに編集フォームが入ります。</div>
+            <h1>險倅ｺ狗ｷｨ髮・/h1>
+            <div id="subText" class="muted">蛟呵｣懊ｒ驕ｸ縺ｶ縺ｨ縲√％縺薙↓邱ｨ髮・ヵ繧ｩ繝ｼ繝縺悟・繧翫∪縺吶・/div>
           </div>
           <div>
-            <div id="notice" class="status">読み込み中...</div>
+            <div id="notice" class="status">隱ｭ縺ｿ霎ｼ縺ｿ荳ｭ...</div>
             <div class="progress"><div id="progressBar" class="progress-bar"></div></div>
           </div>
         </div>
 
         <div class="main-grid">
           <div class="card">
-            <h2>基本情報</h2>
+            <h2>蝓ｺ譛ｬ諠・ｱ</h2>
             <div class="row">
-              <div><label for="row">記事行</label><input id="row" readonly></div>
-              <div><label for="status">状態</label><input id="status"></div>
+              <div><label for="row">險倅ｺ玖｡・/label><input id="row" readonly></div>
+              <div><label for="status">迥ｶ諷・/label><input id="status"></div>
             </div>
-            <label id="mainInputLabel" for="mainInput">メインキーワード / 案件指示書</label>
+            <label id="mainInputLabel" for="mainInput">繝｡繧､繝ｳ繧ｭ繝ｼ繝ｯ繝ｼ繝・/ 譯井ｻｶ謖・､ｺ譖ｸ</label>
             <textarea id="mainInput" class="main-input"></textarea>
             <div class="row">
-              <div><label for="volume">検索ボリューム</label><input id="volume"></div>
-              <div><label for="generationModel">使用モデル</label><input id="generationModel" readonly></div>
+              <div><label for="volume">讀懃ｴ｢繝懊Μ繝･繝ｼ繝</label><input id="volume"></div>
+              <div><label for="generationModel">菴ｿ逕ｨ繝｢繝・Ν</label><input id="generationModel" readonly></div>
             </div>
           </div>
 
           <div class="card">
-            <h2>案件・競合</h2>
+            <h2>譯井ｻｶ繝ｻ遶ｶ蜷・/h2>
             <div class="row">
-              <div><label for="affiliateName">メイン案件名</label><input id="affiliateName"></div>
-              <div><label for="affiliateUrl">メインアフィリエイトURL</label><input id="affiliateUrl" placeholder="https://..."></div>
+              <div><label for="affiliateName">繝｡繧､繝ｳ譯井ｻｶ蜷・/label><input id="affiliateName"></div>
+              <div><label for="affiliateUrl">繝｡繧､繝ｳ繧｢繝輔ぅ繝ｪ繧ｨ繧､繝・RL</label><input id="affiliateUrl" placeholder="https://..."></div>
             </div>
-            <label for="affiliateNotes">案件注意点 / その他制約事項</label>
+            <label for="affiliateNotes">譯井ｻｶ豕ｨ諢冗せ / 縺昴・莉門宛邏・ｺ矩・/label>
             <textarea id="affiliateNotes" class="notes-input"></textarea>
-            <label>楽天バナー</label>
+            <label>讌ｽ螟ｩ繝舌リ繝ｼ</label>
             <div class="rakuten-grid">
               <select id="rakutenBannerMode" onchange="syncRakutenControlsToNotes()">
-                <option value="auto">自動判定</option>
-                <option value="force">入れる</option>
-                <option value="none">入れない</option>
+                <option value="auto">閾ｪ蜍募愛螳・/option>
+                <option value="force">蜈･繧後ｋ</option>
+                <option value="none">蜈･繧後↑縺・/option>
               </select>
-              <input id="rakutenProductKeyword" placeholder="例: ランドリーチェスト 防カビ" oninput="syncRakutenControlsToNotes()">
-              <button class="secondary" type="button" onclick="suggestRakutenKeywords(this)">候補取得</button>
+              <input id="rakutenProductKeyword" placeholder="萓・ 繝ｩ繝ｳ繝峨Μ繝ｼ繝√ぉ繧ｹ繝・髦ｲ繧ｫ繝・ oninput="syncRakutenControlsToNotes()">
+              <button class="secondary" type="button" onclick="suggestRakutenKeywords(this)">蛟呵｣懷叙蠕・/button>
             </div>
             <div id="rakutenSuggestions" class="suggestion-list"></div>
             <div class="url-grid">
-              <div><label for="competitorUrl1">競合URL1</label><input id="competitorUrl1" placeholder="https://..."></div>
-              <div><label for="competitorUrl2">競合URL2</label><input id="competitorUrl2" placeholder="https://..."></div>
-              <div><label for="competitorUrl3">競合URL3</label><input id="competitorUrl3" placeholder="https://..."></div>
+              <div><label for="competitorUrl1">遶ｶ蜷・RL1</label><input id="competitorUrl1" placeholder="https://..."></div>
+              <div><label for="competitorUrl2">遶ｶ蜷・RL2</label><input id="competitorUrl2" placeholder="https://..."></div>
+              <div><label for="competitorUrl3">遶ｶ蜷・RL3</label><input id="competitorUrl3" placeholder="https://..."></div>
             </div>
           </div>
         </div>
 
         <div class="card">
           <div class="field-head">
-            <h2>読者心理メモ</h2>
-            <button class="copy-button" type="button" onclick="copyField('readerMindMemo', '読者心理メモ')">コピー</button>
+            <h2>隱ｭ閠・ｿ・炊繝｡繝｢</h2>
+            <button class="copy-button" type="button" onclick="copyField('readerMindMemo', '隱ｭ閠・ｿ・炊繝｡繝｢')">繧ｳ繝斐・</button>
           </div>
           <textarea id="readerMindMemo"></textarea>
           <div class="action-groups">
             <div class="action-group">
-              <span class="action-label">保存・生成</span>
+              <span class="action-label">菫晏ｭ倥・逕滓・</span>
               <div class="actions">
-                <button class="neutral" onclick="saveArticle(this)">今すぐ保存</button>
-                <button class="secondary" onclick="runReaderMind(this)">読者心理メモを取得</button>
-                <button class="secondary" onclick="runArticleStructure(this)">記事構成作成</button>
-                <button class="primary" onclick="runArticle(this)">本文生成</button>
+                <button class="neutral" onclick="saveArticle(this)">莉翫☆縺蝉ｿ晏ｭ・/button>
+                <button class="secondary" onclick="runReaderMind(this)">隱ｭ閠・ｿ・炊繝｡繝｢繧貞叙蠕・/button>
+                <button class="secondary" onclick="runArticleStructure(this)">險倅ｺ区ｧ区・菴懈・</button>
+                <button class="primary" onclick="runArticle(this)">譛ｬ譁・函謌・/button>
               </div>
             </div>
             <div class="action-group">
-              <span class="action-label">本文へ後入れ</span>
+              <span class="action-label">譛ｬ譁・∈蠕悟・繧・/span>
               <div class="actions">
-                <button class="secondary" onclick="addRakutenBanner(this)">楽天バナーを追加</button>
-                <button class="secondary" onclick="addInternalLink(this)">内部リンクを追加</button>
-                <button class="secondary" onclick="addExternalLink(this)">外部リンクを追加</button>
-                <button class="secondary" onclick="sendToOpalImageGenerator(this)">画像生成ツールへ送信</button>
-                <button class="secondary" onclick="addWpImages(this)">画像URLをWPへ追加</button>
+                <button class="secondary" onclick="addRakutenBanner(this)">讌ｽ螟ｩ繝舌リ繝ｼ繧定ｿｽ蜉</button>
+                <button class="secondary" onclick="addInternalLink(this)">蜀・Κ繝ｪ繝ｳ繧ｯ繧定ｿｽ蜉</button>
+                <button class="secondary" onclick="addExternalLink(this)">螟夜Κ繝ｪ繝ｳ繧ｯ繧定ｿｽ蜉</button>
+                <button class="secondary" onclick="sendToOpalImageGenerator(this)">ChatGPTへ画像生成</button>
+                <button class="secondary" onclick="addWpImages(this)">逕ｻ蜒酋RL繧淡P縺ｸ霑ｽ蜉</button>
               </div>
             </div>
             <div class="action-group">
-              <span class="action-label">公開</span>
+              <span class="action-label">蜈ｬ髢・/span>
               <div class="actions">
-                <button id="wpDraftButton" class="secondary" onclick="createWpDraft(this)">WP下書き作成</button>
-                <button class="neutral" onclick="markPosted(this)">投稿済みにする</button>
+                <button id="wpDraftButton" class="secondary" onclick="createWpDraft(this)">WP荳区嶌縺堺ｽ懈・</button>
+                <button class="neutral" onclick="markPosted(this)">謚慕ｨｿ貂医∩縺ｫ縺吶ｋ</button>
               </div>
             </div>
           </div>
@@ -228,40 +228,40 @@
 
         <div class="card">
           <div class="tabs">
-            <button id="tabSummary" class="tab active" onclick="showTab('summary')">概要</button>
-            <button id="tabBody" class="tab" onclick="showTab('body')">本文</button>
-            <button id="tabCheck" class="tab" onclick="showTab('check')">確認</button>
+            <button id="tabSummary" class="tab active" onclick="showTab('summary')">讎りｦ・/button>
+            <button id="tabBody" class="tab" onclick="showTab('body')">譛ｬ譁・/button>
+            <button id="tabCheck" class="tab" onclick="showTab('check')">遒ｺ隱・/button>
           </div>
 
           <div id="panelSummary">
-            <div class="field-head"><label for="titleIdeas">タイトル案</label><button class="copy-button" type="button" onclick="copyField('titleIdeas', 'タイトル案')">コピー</button></div>
+            <div class="field-head"><label for="titleIdeas">繧ｿ繧､繝医Ν譯・/label><button class="copy-button" type="button" onclick="copyField('titleIdeas', '繧ｿ繧､繝医Ν譯・)">繧ｳ繝斐・</button></div>
             <textarea id="titleIdeas"></textarea>
-            <div class="field-head"><label for="metaDescription">メタディスクリプション</label><button class="copy-button" type="button" onclick="copyField('metaDescription', 'メタディスクリプション')">コピー</button></div>
+            <div class="field-head"><label for="metaDescription">繝｡繧ｿ繝・ぅ繧ｹ繧ｯ繝ｪ繝励す繝ｧ繝ｳ</label><button class="copy-button" type="button" onclick="copyField('metaDescription', '繝｡繧ｿ繝・ぅ繧ｹ繧ｯ繝ｪ繝励す繝ｧ繝ｳ')">繧ｳ繝斐・</button></div>
             <textarea id="metaDescription"></textarea>
-            <div class="field-head"><label for="permalink">パーマリンク</label><button class="copy-button" type="button" onclick="copyField('permalink', 'パーマリンク')">コピー</button></div>
+            <div class="field-head"><label for="permalink">繝代・繝槭Μ繝ｳ繧ｯ</label><button class="copy-button" type="button" onclick="copyField('permalink', '繝代・繝槭Μ繝ｳ繧ｯ')">繧ｳ繝斐・</button></div>
             <input id="permalink">
-            <div class="field-head"><label for="tags">関連タグ</label><button class="copy-button" type="button" onclick="copyField('tags', '関連タグ')">コピー</button></div>
+            <div class="field-head"><label for="tags">髢｢騾｣繧ｿ繧ｰ</label><button class="copy-button" type="button" onclick="copyField('tags', '髢｢騾｣繧ｿ繧ｰ')">繧ｳ繝斐・</button></div>
             <textarea id="tags" class="small-textarea"></textarea>
             <div id="wpSummaryBlock">
               <div class="row">
-                <div><label for="wpPostId">WP投稿ID</label><input id="wpPostId" readonly></div>
-                <div><label for="wpDraftedAt">WP入稿日時</label><input id="wpDraftedAt" readonly></div>
+                <div><label for="wpPostId">WP謚慕ｨｿID</label><input id="wpPostId" readonly></div>
+                <div><label for="wpDraftedAt">WP蜈･遞ｿ譌･譎・/label><input id="wpDraftedAt" readonly></div>
               </div>
-              <div class="field-head"><label for="wpEditUrl">WP編集URL</label><button class="copy-button" type="button" onclick="copyField('wpEditUrl', 'WP編集URL')">コピー</button></div>
+              <div class="field-head"><label for="wpEditUrl">WP邱ｨ髮・RL</label><button class="copy-button" type="button" onclick="copyField('wpEditUrl', 'WP邱ｨ髮・RL')">繧ｳ繝斐・</button></div>
               <input id="wpEditUrl" readonly>
             </div>
           </div>
 
           <div id="panelBody" class="hidden">
-            <div class="field-head"><label for="body">本文</label><button class="copy-button" type="button" onclick="copyField('body', '本文')">コピー</button></div>
+            <div class="field-head"><label for="body">譛ｬ譁・/label><button class="copy-button" type="button" onclick="copyField('body', '譛ｬ譁・)">繧ｳ繝斐・</button></div>
             <textarea id="body" class="body-preview"></textarea>
           </div>
 
           <div id="panelCheck" class="hidden">
-            <div class="field-head"><label for="factCheckPoints">要確認ポイント</label><button class="copy-button" type="button" onclick="copyField('factCheckPoints', '要確認ポイント')">コピー</button></div>
+            <div class="field-head"><label for="factCheckPoints">隕∫｢ｺ隱阪・繧､繝ｳ繝・/label><button class="copy-button" type="button" onclick="copyField('factCheckPoints', '隕∫｢ｺ隱阪・繧､繝ｳ繝・)">繧ｳ繝斐・</button></div>
             <textarea id="factCheckPoints" class="body-preview check-preview"></textarea>
-            <div class="field-head"><label for="structureMemo">構成メモ</label><button class="copy-button" type="button" onclick="copyField('structureMemo', '構成メモ')">コピー</button></div>
-            <button class="copy-button" type="button" onclick="appendImageUrlTemplate()">画像URLひな形</button>
+            <div class="field-head"><label for="structureMemo">讒区・繝｡繝｢</label><button class="copy-button" type="button" onclick="copyField('structureMemo', '讒区・繝｡繝｢')">繧ｳ繝斐・</button></div>
+            <button class="copy-button" type="button" onclick="appendImageUrlTemplate()">逕ｻ蜒酋RL縺ｲ縺ｪ蠖｢</button>
             <textarea id="structureMemo" class="body-preview structure-preview"></textarea>
           </div>
         </div>
@@ -270,13 +270,13 @@
 
     <div id="trefaiDialog" class="modal-backdrop hidden">
       <div class="modal">
-        <p class="modal-title">トレファイを1回だけ起動</p>
-        <p class="modal-text">記事構成の依頼を作成しました。トレファイを起動しますか？処理後は自動で終了します。</p>
-        <textarea id="trefaiRunPath" class="modal-path hidden" readonly>C:\Users\ebima\Documents\Codex\2026-06-14\files-mentioned-by-the-user-codex\outputs\keyword_research_app\dist\ArticleBridge_1回だけ実行.bat</textarea>
+        <p class="modal-title">繝医Ξ繝輔ぃ繧､繧・蝗槭□縺題ｵｷ蜍・/p>
+        <p class="modal-text">險倅ｺ区ｧ区・縺ｮ萓晞ｼ繧剃ｽ懈・縺励∪縺励◆縲ゅヨ繝ｬ繝輔ぃ繧､繧定ｵｷ蜍輔＠縺ｾ縺吶°・溷・逅・ｾ後・閾ｪ蜍輔〒邨ゆｺ・＠縺ｾ縺吶・/p>
+        <textarea id="trefaiRunPath" class="modal-path hidden" readonly>C:\Users\ebima\Documents\Codex\2026-06-14\files-mentioned-by-the-user-codex\outputs\keyword_research_app\dist\ArticleBridge_1蝗槭□縺大ｮ溯｡・bat</textarea>
         <div class="modal-actions">
-          <button class="secondary" type="button" onclick="copyTrefaiRunPath()">うまく開かない時はパスをコピー</button>
-          <button class="neutral" type="button" onclick="closeTrefaiDialog()">あとで</button>
-          <button class="primary" type="button" onclick="launchTrefaiOnce()">トレファイを起動</button>
+          <button class="secondary" type="button" onclick="copyTrefaiRunPath()">縺・∪縺城幕縺九↑縺・凾縺ｯ繝代せ繧偵さ繝斐・</button>
+          <button class="neutral" type="button" onclick="closeTrefaiDialog()">縺ゅ→縺ｧ</button>
+          <button class="primary" type="button" onclick="launchTrefaiOnce()">繝医Ξ繝輔ぃ繧､繧定ｵｷ蜍・/button>
         </div>
       </div>
     </div>
@@ -298,7 +298,7 @@
 
       function init() {
         bindAutoSaveControls();
-        setBusy('アプリを読み込み中...');
+        setBusy('繧｢繝励Μ繧定ｪｭ縺ｿ霎ｼ縺ｿ荳ｭ...');
         google.script.run.withSuccessHandler(function(data) {
           clearBusy();
           appConfigs = data.appConfigs || [];
@@ -309,7 +309,7 @@
           fillSelect('readerMindProvider', readerMindProviders, data.selectedReaderMindProvider || 'gemini');
           applyTheme();
           setProgress('done');
-          setNotice('候補シートを開くか、行番号で記事行を呼び出してください。', false);
+          setNotice('蛟呵｣懊す繝ｼ繝医ｒ髢九￥縺九∬｡檎分蜿ｷ縺ｧ險倅ｺ玖｡後ｒ蜻ｼ縺ｳ蜃ｺ縺励※縺上□縺輔＞縲・, false);
         }).withFailureHandler(fail).uaGetWebAppBootData();
       }
 
@@ -329,7 +329,7 @@
         applyTheme();
         if (loadedAppType && document.getElementById('appType').value !== loadedAppType) {
           clearLoadedArticleForm();
-          setNotice('サイトを切り替えました。候補シートから行を反映してください。', false);
+          setNotice('繧ｵ繧､繝医ｒ蛻・ｊ譖ｿ縺医∪縺励◆縲ょ呵｣懊す繝ｼ繝医°繧芽｡後ｒ蜿肴丐縺励※縺上□縺輔＞縲・, false);
         }
       }
 
@@ -343,7 +343,7 @@
         document.getElementById('rakutenBannerMode').value = 'auto';
         document.getElementById('rakutenProductKeyword').value = '';
         document.getElementById('rakutenSuggestions').innerHTML = '';
-        document.getElementById('subText').textContent = '候補を選ぶと、ここに編集フォームが入ります。';
+        document.getElementById('subText').textContent = '蛟呵｣懊ｒ驕ｸ縺ｶ縺ｨ縲√％縺薙↓邱ｨ髮・ヵ繧ｩ繝ｼ繝縺悟・繧翫∪縺吶・;
         isFillingForm = false;
       }
 
@@ -375,20 +375,20 @@
 
         autoSavePending = false;
         autoSaveInFlight = true;
-        setNotice('自動保存中...', false);
+        setNotice('閾ｪ蜍穂ｿ晏ｭ倅ｸｭ...', false);
         const payload = readForm();
         if (loadedAppType) payload.appType = loadedAppType;
         google.script.run
           .withSuccessHandler(function(data) {
             autoSaveInFlight = false;
             setProgress('done');
-            setNotice('自動保存しました。', false);
+            setNotice('閾ｪ蜍穂ｿ晏ｭ倥＠縺ｾ縺励◆縲・, false);
             if (autoSavePending) scheduleAutoSave();
           })
           .withFailureHandler(function(error) {
             autoSaveInFlight = false;
             setProgress('error');
-            setNotice('自動保存に失敗しました: ' + (error && error.message ? error.message : error), true);
+            setNotice('閾ｪ蜍穂ｿ晏ｭ倥↓螟ｱ謨励＠縺ｾ縺励◆: ' + (error && error.message ? error.message : error), true);
           })
           .uaSaveActiveRowData(payload);
       }
@@ -399,7 +399,7 @@
         app.classList.remove('theme-brown', 'theme-blue');
         if (config && config.theme === 'brown') app.classList.add('theme-brown');
         if (config && config.theme === 'blue') app.classList.add('theme-blue');
-        document.getElementById('mainInputLabel').textContent = config && config.inputLabel ? config.inputLabel : 'メインキーワード / 案件指示書';
+        document.getElementById('mainInputLabel').textContent = config && config.inputLabel ? config.inputLabel : '繝｡繧､繝ｳ繧ｭ繝ｼ繝ｯ繝ｼ繝・/ 譯井ｻｶ謖・､ｺ譖ｸ';
         updateCandidateVisibility(config);
         updateWpVisibility(config);
         updateRakutenVisibility(config);
@@ -433,44 +433,44 @@
       }
 
       function openCandidateSheet(button) {
-        setBusy('候補シートを開いています...', button);
+        setBusy('蛟呵｣懊す繝ｼ繝医ｒ髢九＞縺ｦ縺・∪縺・..', button);
         google.script.run.withSuccessHandler(function(result) {
           clearBusy();
           setProgress('done');
           if (result && result.url) window.open(result.url, '_blank');
-          setNotice(result && result.message ? result.message : '候補シートを開きました。', false);
+          setNotice(result && result.message ? result.message : '蛟呵｣懊す繝ｼ繝医ｒ髢九″縺ｾ縺励◆縲・, false);
         }).withFailureHandler(fail).uaGetCandidateSheetUrlForWeb(document.getElementById('appType').value);
       }
 
       function createFromActiveCandidate(button) {
-        setBusy('スプシの選択行を反映中...', button);
+        setBusy('繧ｹ繝励す縺ｮ驕ｸ謚櫁｡後ｒ蜿肴丐荳ｭ...', button);
         google.script.run.withSuccessHandler(function(data) {
           clearBusy();
           fillForm(data);
           setProgress('done');
-          setNotice(data && data.message ? data.message : 'スプシの選択行を反映しました。', false);
+          setNotice(data && data.message ? data.message : '繧ｹ繝励す縺ｮ驕ｸ謚櫁｡後ｒ蜿肴丐縺励∪縺励◆縲・, false);
         }).withFailureHandler(fail).uaCreateArticleFromActiveCandidateForWeb(document.getElementById('appType').value);
       }
 
       function createFromCandidateRow(button) {
         const row = Number(document.getElementById('candidateRow').value);
-        if (!row || row <= 1) { setNotice('候補シートの行番号を入力してください。', true); return; }
-        setBusy('行番号から反映中...', button);
+        if (!row || row <= 1) { setNotice('蛟呵｣懊す繝ｼ繝医・陦檎分蜿ｷ繧貞・蜉帙＠縺ｦ縺上□縺輔＞縲・, true); return; }
+        setBusy('陦檎分蜿ｷ縺九ｉ蜿肴丐荳ｭ...', button);
         google.script.run.withSuccessHandler(function(data) {
           clearBusy();
           fillForm(data);
           setProgress('done');
-          setNotice(data && data.message ? data.message : '行番号から反映しました。', false);
+          setNotice(data && data.message ? data.message : '陦檎分蜿ｷ縺九ｉ蜿肴丐縺励∪縺励◆縲・, false);
         }).withFailureHandler(fail).uaCreateArticleFromCandidateForWeb(document.getElementById('appType').value, row);
       }
 
       function createBlankArticle(button) {
-        setBusy('新規記事行を作成中...', button);
+        setBusy('譁ｰ隕剰ｨ倅ｺ玖｡後ｒ菴懈・荳ｭ...', button);
         google.script.run.withSuccessHandler(function(data) {
           clearBusy();
           fillForm(data);
           setProgress('done');
-          setNotice(data && data.message ? data.message : '新規記事行を作成しました。', false);
+          setNotice(data && data.message ? data.message : '譁ｰ隕剰ｨ倅ｺ玖｡後ｒ菴懈・縺励∪縺励◆縲・, false);
         }).withFailureHandler(fail).uaCreateBlankArticleForWeb(document.getElementById('appType').value);
       }
 
@@ -489,7 +489,7 @@
         applyTheme();
         parseRakutenControlsFromNotes();
         loadedAppType = data && data.appType ? data.appType : '';
-        document.getElementById('subText').textContent = data.mainInput ? data.mainInput : '候補を選ぶと、ここに編集フォームが入ります。';
+        document.getElementById('subText').textContent = data.mainInput ? data.mainInput : '蛟呵｣懊ｒ驕ｸ縺ｶ縺ｨ縲√％縺薙↓邱ｨ髮・ヵ繧ｩ繝ｼ繝縺悟・繧翫∪縺吶・;
         isFillingForm = false;
       }
 
@@ -497,12 +497,12 @@
         const notes = document.getElementById('affiliateNotes').value || '';
         const mode = document.getElementById('rakutenBannerMode');
         const keyword = document.getElementById('rakutenProductKeyword');
-        const keywordMatch = notes.match(/楽天商品(?:キーワード|KW)[:：]\s*([^\n\r]+)/);
+        const keywordMatch = notes.match(/讌ｽ螟ｩ蝠・刀(?:繧ｭ繝ｼ繝ｯ繝ｼ繝榎KW)[:・咯\s*([^\n\r]+)/);
 
         if (mode) {
-          mode.value = /楽天バナーなし|楽天なし/.test(notes)
+          mode.value = /讌ｽ螟ｩ繝舌リ繝ｼ縺ｪ縺慾讌ｽ螟ｩ縺ｪ縺・.test(notes)
             ? 'none'
-            : /楽天バナーあり|楽天あり/.test(notes)
+            : /讌ｽ螟ｩ繝舌リ繝ｼ縺ゅｊ|讌ｽ螟ｩ縺ゅｊ/.test(notes)
               ? 'force'
               : 'auto';
         }
@@ -518,29 +518,29 @@
 
         let lines = String(notesEl.value || '').split(/\r?\n/).filter(function(line) {
           const trimmed = line.trim();
-          return !/^楽天バナー(あり|なし)$/.test(trimmed) &&
-            !/^楽天(あり|なし)$/.test(trimmed) &&
-            !/^楽天商品(?:キーワード|KW)[:：]/.test(trimmed);
+          return !/^讌ｽ螟ｩ繝舌リ繝ｼ(縺ゅｊ|縺ｪ縺・$/.test(trimmed) &&
+            !/^讌ｽ螟ｩ(縺ゅｊ|縺ｪ縺・$/.test(trimmed) &&
+            !/^讌ｽ螟ｩ蝠・刀(?:繧ｭ繝ｼ繝ｯ繝ｼ繝榎KW)[:・咯/.test(trimmed);
         });
 
-        if (modeEl.value === 'force') lines.push('楽天バナーあり');
-        if (modeEl.value === 'none') lines.push('楽天バナーなし');
+        if (modeEl.value === 'force') lines.push('讌ｽ螟ｩ繝舌リ繝ｼ縺ゅｊ');
+        if (modeEl.value === 'none') lines.push('讌ｽ螟ｩ繝舌リ繝ｼ縺ｪ縺・);
 
         const keyword = keywordEl.value.trim();
-        if (keyword) lines.push('楽天商品キーワード: ' + keyword);
+        if (keyword) lines.push('讌ｽ螟ｩ蝠・刀繧ｭ繝ｼ繝ｯ繝ｼ繝・ ' + keyword);
 
         notesEl.value = lines.join('\n').trim();
       }
 
       function suggestRakutenKeywords(button) {
         syncRakutenControlsToNotes();
-        setBusy('楽天商品キーワード候補を取得中...', button);
+        setBusy('讌ｽ螟ｩ蝠・刀繧ｭ繝ｼ繝ｯ繝ｼ繝牙呵｣懊ｒ蜿門ｾ嶺ｸｭ...', button);
         google.script.run
           .withSuccessHandler(function(result) {
             clearBusy();
             renderRakutenSuggestions(result && result.suggestions ? result.suggestions : []);
             setProgress('done');
-            setNotice(result && result.message ? result.message : '商品検索キーワード候補を取得しました。', false);
+            setNotice(result && result.message ? result.message : '蝠・刀讀懃ｴ｢繧ｭ繝ｼ繝ｯ繝ｼ繝牙呵｣懊ｒ蜿門ｾ励＠縺ｾ縺励◆縲・, false);
           })
           .withFailureHandler(fail)
           .uaGetRakutenKeywordSuggestionsFromWeb(readForm());
@@ -557,7 +557,7 @@
           button.onclick = function() {
             document.getElementById('rakutenProductKeyword').value = query;
             syncRakutenControlsToNotes();
-            setNotice('楽天商品キーワードに反映しました。', false);
+            setNotice('讌ｽ螟ｩ蝠・刀繧ｭ繝ｼ繝ｯ繝ｼ繝峨↓蜿肴丐縺励∪縺励◆縲・, false);
             scheduleAutoSave();
           };
           container.appendChild(button);
@@ -565,44 +565,44 @@
       }
 
       function saveArticle(button) {
-        setBusy('保存中...', button);
+        setBusy('菫晏ｭ倅ｸｭ...', button);
         google.script.run.withSuccessHandler(function(data) {
           clearBusy();
           fillForm(data);
           setProgress('done');
-          setNotice('保存しました。', false);
+          setNotice('菫晏ｭ倥＠縺ｾ縺励◆縲・, false);
         }).withFailureHandler(fail).uaSaveActiveRowData(readForm());
       }
 
       function runReaderMind(button) {
-        setBusy('読者心理メモを取得中...', button);
+        setBusy('隱ｭ閠・ｿ・炊繝｡繝｢繧貞叙蠕嶺ｸｭ...', button);
         const slowTimer = setTimeout(function() {
-          setNotice('読者心理メモの取得に時間がかかっています。原因候補は、Q&Aサイト側の混雑・一時的なブロック・検索結果ページの応答遅延・AI側の混雑です。このまま待つか、時間を置いてページを再読み込みしてからリトライしてください。', true);
+          setNotice('隱ｭ閠・ｿ・炊繝｡繝｢縺ｮ蜿門ｾ励↓譎る俣縺後°縺九▲縺ｦ縺・∪縺吶ょ次蝗蛟呵｣懊・縲＿&A繧ｵ繧､繝亥・縺ｮ豺ｷ髮代・荳譎ら噪縺ｪ繝悶Ο繝・け繝ｻ讀懃ｴ｢邨先棡繝壹・繧ｸ縺ｮ蠢懃ｭ秘≦蟒ｶ繝ｻAI蛛ｴ縺ｮ豺ｷ髮代〒縺吶ゅ％縺ｮ縺ｾ縺ｾ蠕・▽縺九∵凾髢薙ｒ鄂ｮ縺・※繝壹・繧ｸ繧貞・隱ｭ縺ｿ霎ｼ縺ｿ縺励※縺九ｉ繝ｪ繝医Λ繧､縺励※縺上□縺輔＞縲・, true);
         }, 60000);
         google.script.run.withSuccessHandler(function(data) {
           clearTimeout(slowTimer);
           clearBusy();
           fillForm(data);
           setProgress('done');
-          setNotice(data.message || '読者心理メモを作成しました。', false);
+          setNotice(data.message || '隱ｭ閠・ｿ・炊繝｡繝｢繧剃ｽ懈・縺励∪縺励◆縲・, false);
         }).withFailureHandler(function(error) { clearTimeout(slowTimer); fail(error); }).uaRunReaderMindMemoFromWeb(readForm());
       }
 
       function runArticle(button) {
-        setBusy('本文生成中... 少し時間がかかります', button);
+        setBusy('譛ｬ譁・函謌蝉ｸｭ... 蟆代＠譎る俣縺後°縺九ｊ縺ｾ縺・, button);
         google.script.run.withSuccessHandler(function(data) {
           clearBusy();
           fillForm(data);
           showTab('body');
           setProgress('done');
-          setNotice(data.message || '本文生成が完了しました。', false);
+          setNotice(data.message || '譛ｬ譁・函謌舌′螳御ｺ・＠縺ｾ縺励◆縲・, false);
         }).withFailureHandler(fail).uaRunArticleFromWeb(readForm());
       }
 
 
       function pickFirstTitleIdea() {
         const text = document.getElementById('titleIdeas').value || '';
-        return text.split(/\s*[\/／]\s*|\n/)[0].trim();
+        return text.split(/\s*[\/・従\s*|\n/)[0].trim();
       }
 
       function extractH2HeadingsFromBody() {
@@ -619,7 +619,7 @@
             .replace(/\s+/g, ' ')
             .trim();
           if (!heading || seen[heading]) continue;
-          if (/よくある質問|FAQ|まとめ/.test(heading)) continue;
+          if (/繧医￥縺ゅｋ雉ｪ蝠楯FAQ|縺ｾ縺ｨ繧・.test(heading)) continue;
           seen[heading] = true;
           headings.push(heading);
           if (headings.length >= 5) break;
@@ -631,20 +631,20 @@
         const field = document.getElementById('structureMemo');
         if (!field) return;
         const current = field.value || '';
-        if (/【画像URLメモ】/.test(current)) {
-          setNotice('構成メモには、すでに画像URLメモがあります。', false);
+        if (/縲千判蜒酋RL繝｡繝｢縲・.test(current)) {
+          setNotice('讒区・繝｡繝｢縺ｫ縺ｯ縲√☆縺ｧ縺ｫ逕ｻ蜒酋RL繝｡繝｢縺後≠繧翫∪縺吶・, false);
           return;
         }
         const headings = extractH2HeadingsFromBody();
         const lines = [
-          '【画像URLメモ】',
-          'アイキャッチ: https://'
+          '縲千判蜒酋RL繝｡繝｢縲・,
+          '繧｢繧､繧ｭ繝｣繝・メ: https://'
         ];
         headings.forEach(function(heading) {
           lines.push('H2: ' + heading + ' | https://');
         });
         field.value = [current.trim(), lines.join('\n')].filter(Boolean).join('\n\n');
-        setNotice('画像URLメモのひな形を構成メモに追加しました。', false);
+        setNotice('逕ｻ蜒酋RL繝｡繝｢縺ｮ縺ｲ縺ｪ蠖｢繧呈ｧ区・繝｡繝｢縺ｫ霑ｽ蜉縺励∪縺励◆縲・, false);
       }
 
       async function findLocalOpalBaseUrl() {
@@ -660,50 +660,99 @@
         return '';
       }
 
+      function stripHtmlForImagePrompt(html) {
+        const box = document.createElement('div');
+        box.innerHTML = String(html || '');
+        return (box.textContent || box.innerText || '')
+          .replace(/\s+/g, ' ')
+          .trim();
+      }
+
+      function buildImageGenerationItems(title, body) {
+        const items = [];
+        const baseTitle = title || '繝悶Ο繧ｰ逕ｻ蜒・;
+        const bodyText = stripHtmlForImagePrompt(body);
+        items.push({
+          title: baseTitle,
+          body: bodyText.slice(0, 5000),
+          imageType: 'EYECATCH'
+        });
+
+        const matches = [];
+        const h2Re = /<h2[^>]*>([\s\S]*?)<\/h2>/gi;
+        let match;
+        while ((match = h2Re.exec(String(body || ''))) !== null) {
+          const heading = stripHtmlForImagePrompt(match[1]);
+          if (!heading) continue;
+          if (/繧医￥縺ゅｋ雉ｪ蝠楯FAQ|縺ｾ縺ｨ繧・i.test(heading)) continue;
+          matches.push({ heading: heading, index: match.index });
+        }
+
+        for (let i = 0; i < matches.length && items.length < 6; i++) {
+          const current = matches[i];
+          const next = matches[i + 1];
+          const chunk = String(body || '').slice(current.index, next ? next.index : undefined);
+          const chunkText = stripHtmlForImagePrompt(chunk);
+          items.push({
+            title: baseTitle + '・・ + current.heading,
+            body: (current.heading + '\n' + chunkText).slice(0, 3500),
+            imageType: 'H2-' + String(items.length).padStart(2, '0')
+          });
+        }
+        return items;
+      }
+
       async function sendToOpalImageGenerator(button) {
         const data = readForm();
         const title = pickFirstTitleIdea() || data.mainInput || '';
         const body = data.body || '';
         if (!title && !body) {
-          setNotice('タイトル候補または本文がありません。本文生成後に実行してください。', true);
+          setNotice('繧ｿ繧､繝医Ν蛟呵｣懊∪縺溘・譛ｬ譁・′縺ゅｊ縺ｾ縺帙ｓ縲よ悽譁・函謌仙ｾ後↓螳溯｡後＠縺ｦ縺上□縺輔＞縲・, true);
           return;
         }
-        setBusy('ローカル画像生成ツールへ送信中...', button);
+        setBusy('繝ｭ繝ｼ繧ｫ繝ｫ逕ｻ蜒冗函謌舌ヤ繝ｼ繝ｫ縺ｸ騾∽ｿ｡荳ｭ...', button);
         try {
           const baseUrl = await findLocalOpalBaseUrl();
           if (!baseUrl) {
             clearBusy();
             setProgress('error');
-            setNotice('画像生成アプリが起動していません。デスクトップの「Opal 1枚画像生成」を起動してから、もう一度押してください。', true);
+            setNotice('逕ｻ蜒冗函謌舌い繝励Μ縺瑚ｵｷ蜍輔＠縺ｦ縺・∪縺帙ｓ縲ゅョ繧ｹ繧ｯ繝医ャ繝励・縲薫pal 1譫夂判蜒冗函謌舌阪ｒ襍ｷ蜍輔＠縺ｦ縺九ｉ縲√ｂ縺・ｸ蠎ｦ謚ｼ縺励※縺上□縺輔＞縲・, true);
             return;
           }
+          const items = buildImageGenerationItems(title, body);
           const res = await fetch(baseUrl + '/api/send', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ title: title, body: body, style: '' })
+            body: JSON.stringify({
+              targetTool: 'chatgpt',
+              title: title,
+              body: body,
+              style: '',
+              items: items
+            })
           });
           const result = await res.json();
           clearBusy();
           if (!result || !result.ok) {
             setProgress('error');
-            setNotice(result && result.message ? result.message : '画像生成ツールへの送信に失敗しました。', true);
+            setNotice(result && result.message ? result.message : '逕ｻ蜒冗函謌舌ヤ繝ｼ繝ｫ縺ｸ縺ｮ騾∽ｿ｡縺ｫ螟ｱ謨励＠縺ｾ縺励◆縲・, true);
             return;
           }
           setProgress('done');
-          setNotice(result.message || '画像生成ツールへ送信しました。', false);
+          setNotice(result.message || '逕ｻ蜒冗函謌舌ヤ繝ｼ繝ｫ縺ｸ騾∽ｿ｡縺励∪縺励◆縲・, false);
         } catch (e) {
           clearBusy();
           setProgress('error');
-          setNotice('画像生成ツール送信でエラーが出ました: ' + (e && e.message ? e.message : e), true);
+          setNotice('逕ｻ蜒冗函謌舌ヤ繝ｼ繝ｫ騾∽ｿ｡縺ｧ繧ｨ繝ｩ繝ｼ縺悟・縺ｾ縺励◆: ' + (e && e.message ? e.message : e), true);
         }
       }
 
       function runArticleStructure(button) {
         syncRakutenControlsToNotes();
         stopTrefaiPolling();
-        setBusy('記事構成を作成中... 読者心理と競合分析を整理しています', button);
+        setBusy('險倅ｺ区ｧ区・繧剃ｽ懈・荳ｭ... 隱ｭ閠・ｿ・炊縺ｨ遶ｶ蜷亥・譫舌ｒ謨ｴ逅・＠縺ｦ縺・∪縺・, button);
         const slowTimer = setTimeout(function() {
-          setNotice('記事構成作成に時間がかかっています。原因候補は、検索結果ページの取得遅延・競合ページの取得失敗・AI側の混雑です。このまま待つか、時間を置いてリトライしてください。', true);
+          setNotice('險倅ｺ区ｧ区・菴懈・縺ｫ譎る俣縺後°縺九▲縺ｦ縺・∪縺吶ょ次蝗蛟呵｣懊・縲∵､懃ｴ｢邨先棡繝壹・繧ｸ縺ｮ蜿門ｾ鈴≦蟒ｶ繝ｻ遶ｶ蜷医・繝ｼ繧ｸ縺ｮ蜿門ｾ怜､ｱ謨励・AI蛛ｴ縺ｮ豺ｷ髮代〒縺吶ゅ％縺ｮ縺ｾ縺ｾ蠕・▽縺九∵凾髢薙ｒ鄂ｮ縺・※繝ｪ繝医Λ繧､縺励※縺上□縺輔＞縲・, true);
         }, 60000);
         google.script.run.withSuccessHandler(function(data) {
           clearTimeout(slowTimer);
@@ -711,7 +760,7 @@
           fillForm(data);
           showTab('check');
           setProgress('done');
-          setNotice(data.message || '記事構成を作成しました。', false);
+          setNotice(data.message || '險倅ｺ区ｧ区・繧剃ｽ懈・縺励∪縺励◆縲・, false);
           if (isTrefaiQueuedMessage(data && data.message)) {
             startTrefaiPolling(data);
           }
@@ -722,14 +771,14 @@
       }
 
       function isTrefaiQueuedMessage(message) {
-        return String(message || '').indexOf('トレファイへ上位URL取得を依頼しました') !== -1;
+        return String(message || '').indexOf('繝医Ξ繝輔ぃ繧､縺ｸ荳贋ｽ攻RL蜿門ｾ励ｒ萓晞ｼ縺励∪縺励◆') !== -1;
       }
 
       function startTrefaiPolling(data) {
         stopTrefaiPolling();
         trefaiPollCount = 0;
         showTrefaiDialog();
-        setNotice('トレファイで上位URL取得中です。完了したらこの画面に自動反映します。黒い画面は閉じずにお待ちください。', false);
+        setNotice('繝医Ξ繝輔ぃ繧､縺ｧ荳贋ｽ攻RL蜿門ｾ嶺ｸｭ縺ｧ縺吶ょｮ御ｺ・＠縺溘ｉ縺薙・逕ｻ髱｢縺ｫ閾ｪ蜍募渚譏縺励∪縺吶るｻ偵＞逕ｻ髱｢縺ｯ髢峨§縺壹↓縺雁ｾ・■縺上□縺輔＞縲・, false);
         document.getElementById('notice').className = 'status working';
         setProgress('loading');
         trefaiPollTimer = setInterval(function() {
@@ -738,7 +787,7 @@
           if (trefaiPollCount >= 20) {
             stopTrefaiPolling();
             setProgress('error');
-            setNotice('トレファイ完了待ちが長引いています。ArticleBridge.exe の黒い画面にエラーが出ていないか確認してください。', true);
+            setNotice('繝医Ξ繝輔ぃ繧､螳御ｺ・ｾ・■縺碁聞蠑輔＞縺ｦ縺・∪縺吶・rticleBridge.exe 縺ｮ鮟偵＞逕ｻ髱｢縺ｫ繧ｨ繝ｩ繝ｼ縺悟・縺ｦ縺・↑縺・°遒ｺ隱阪＠縺ｦ縺上□縺輔＞縲・, true);
           }
         }, 10000);
       }
@@ -762,9 +811,9 @@
           if (String(nextData && nextData.structureMemo || '').trim()) {
             stopTrefaiPolling();
             setProgress('done');
-            setNotice('トレファイURLを使った構成メモを反映しました。', false);
+            setNotice('繝医Ξ繝輔ぃ繧､URL繧剃ｽｿ縺｣縺滓ｧ区・繝｡繝｢繧貞渚譏縺励∪縺励◆縲・, false);
           } else {
-            setNotice('トレファイ処理待ちです。完了したら自動反映します。', false);
+            setNotice('繝医Ξ繝輔ぃ繧､蜃ｦ逅・ｾ・■縺ｧ縺吶ょｮ御ｺ・＠縺溘ｉ閾ｪ蜍募渚譏縺励∪縺吶・, false);
             document.getElementById('notice').className = 'status working';
             setProgress('loading');
           }
@@ -787,7 +836,7 @@
       function launchTrefaiOnce() {
         window.location.href = 'articlebridge://run';
         closeTrefaiDialog();
-        setNotice('トレファイを1回だけ起動しました。ブラウザの確認が出たら許可してください。完了後に自動反映します。', false);
+        setNotice('繝医Ξ繝輔ぃ繧､繧・蝗槭□縺題ｵｷ蜍輔＠縺ｾ縺励◆縲ゅヶ繝ｩ繧ｦ繧ｶ縺ｮ遒ｺ隱阪′蜃ｺ縺溘ｉ險ｱ蜿ｯ縺励※縺上□縺輔＞縲ょｮ御ｺ・ｾ後↓閾ｪ蜍募渚譏縺励∪縺吶・, false);
         document.getElementById('notice').className = 'status working';
         setProgress('loading');
       }
@@ -799,87 +848,87 @@
         field.select();
         try {
           document.execCommand('copy');
-          setNotice('トレファイ起動ファイルのパスをコピーしました。エクスプローラーかWin+Rに貼り付けて実行できます。', false);
+          setNotice('繝医Ξ繝輔ぃ繧､襍ｷ蜍輔ヵ繧｡繧､繝ｫ縺ｮ繝代せ繧偵さ繝斐・縺励∪縺励◆縲ゅお繧ｯ繧ｹ繝励Ο繝ｼ繝ｩ繝ｼ縺妓in+R縺ｫ雋ｼ繧贋ｻ倥￠縺ｦ螳溯｡後〒縺阪∪縺吶・, false);
         } catch (e) {
-          setNotice('コピーできませんでした。パスを選択して手動コピーしてください。', true);
+          setNotice('繧ｳ繝斐・縺ｧ縺阪∪縺帙ｓ縺ｧ縺励◆縲ゅヱ繧ｹ繧帝∈謚槭＠縺ｦ謇句虚繧ｳ繝斐・縺励※縺上□縺輔＞縲・, true);
         }
       }
 
       function addRakutenBanner(button) {
         syncRakutenControlsToNotes();
-        setBusy('楽天バナーを本文へ追加中...', button);
+        setBusy('讌ｽ螟ｩ繝舌リ繝ｼ繧呈悽譁・∈霑ｽ蜉荳ｭ...', button);
         google.script.run.withSuccessHandler(function(data) {
           clearBusy();
           fillForm(data);
           showTab('body');
           setProgress('done');
-          setNotice(data.message || '楽天バナーを本文へ追加しました。', false);
+          setNotice(data.message || '讌ｽ螟ｩ繝舌リ繝ｼ繧呈悽譁・∈霑ｽ蜉縺励∪縺励◆縲・, false);
         }).withFailureHandler(fail).uaAddRakutenBannerFromWeb(readForm());
       }
 
       function addInternalLink(button) {
         syncRakutenControlsToNotes();
-        setBusy('内部リンクを本文へ追加中...', button);
+        setBusy('蜀・Κ繝ｪ繝ｳ繧ｯ繧呈悽譁・∈霑ｽ蜉荳ｭ...', button);
         google.script.run.withSuccessHandler(function(data) {
           clearBusy();
           fillForm(data);
           showTab('body');
           setProgress('done');
-          setNotice(data.message || '内部リンクを本文へ追加しました。', false);
+          setNotice(data.message || '蜀・Κ繝ｪ繝ｳ繧ｯ繧呈悽譁・∈霑ｽ蜉縺励∪縺励◆縲・, false);
         }).withFailureHandler(fail).uaAddInternalLinkFromWeb(readForm());
       }
 
       function addExternalLink(button) {
         syncRakutenControlsToNotes();
-        setBusy('外部リンクを本文へ追加中...', button);
+        setBusy('螟夜Κ繝ｪ繝ｳ繧ｯ繧呈悽譁・∈霑ｽ蜉荳ｭ...', button);
         google.script.run.withSuccessHandler(function(data) {
           clearBusy();
           fillForm(data);
           showTab('body');
           setProgress('done');
-          setNotice(data.message || '外部リンクを本文へ追加しました。', false);
+          setNotice(data.message || '螟夜Κ繝ｪ繝ｳ繧ｯ繧呈悽譁・∈霑ｽ蜉縺励∪縺励◆縲・, false);
         }).withFailureHandler(fail).uaAddExternalSourceLinkFromWeb(readForm());
       }
 
 
       function addWpImages(button) {
         syncRakutenControlsToNotes();
-        setBusy('画像URLをWordPressへ追加中...', button);
+        setBusy('逕ｻ蜒酋RL繧淡ordPress縺ｸ霑ｽ蜉荳ｭ...', button);
         google.script.run.withSuccessHandler(function(data) {
           clearBusy();
           fillForm(data);
           showTab('body');
           setProgress('done');
-          setNotice(data.message || '画像をWordPressへ追加しました。', false);
+          setNotice(data.message || '逕ｻ蜒上ｒWordPress縺ｸ霑ｽ蜉縺励∪縺励◆縲・, false);
         }).withFailureHandler(fail).uaAddWpImagesFromWeb(readForm());
       }
 
       function markPosted(button) {
-        setBusy('投稿済みに更新中...', button);
+        setBusy('謚慕ｨｿ貂医∩縺ｫ譖ｴ譁ｰ荳ｭ...', button);
         google.script.run.withSuccessHandler(function(data) {
           clearBusy();
           fillForm(data);
           setProgress('done');
-          setNotice(data.message || '投稿済みにしました。', false);
+          setNotice(data.message || '謚慕ｨｿ貂医∩縺ｫ縺励∪縺励◆縲・, false);
         }).withFailureHandler(fail).uaMarkArticlePostedFromWeb(readForm());
       }
 
       function createWpDraft(button) {
-        setBusy('WordPress下書き作成中...', button);
+        setBusy('WordPress荳区嶌縺堺ｽ懈・荳ｭ...', button);
         google.script.run.withSuccessHandler(function(data) {
           clearBusy();
           fillForm(data);
           setProgress('done');
-          setNotice(data.message || 'WordPress下書きを作成しました。', false);
+          setNotice(data.message || 'WordPress荳区嶌縺阪ｒ菴懈・縺励∪縺励◆縲・, false);
         }).withFailureHandler(fail).uaCreateWpDraftFromWeb(readForm());
       }
 
       function saveProviders() {
-        setBusy('使用APIを更新中...');
+        setBusy('菴ｿ逕ｨAPI繧呈峩譁ｰ荳ｭ...');
         google.script.run.withSuccessHandler(function(result) {
           clearBusy();
           setProgress('done');
-          setNotice(result.message || '使用APIを更新しました。', false);
+          setNotice(result.message || '菴ｿ逕ｨAPI繧呈峩譁ｰ縺励∪縺励◆縲・, false);
         }).withFailureHandler(fail).uaSetProvidersFromPanel(document.getElementById('articleProvider').value, document.getElementById('readerMindProvider').value);
       }
 
@@ -895,9 +944,9 @@
       function copyField(id, label) {
         const el = document.getElementById(id);
         const text = el ? el.value : '';
-        if (!text) { setNotice((label || '項目') + 'は空です。', true); return; }
+        if (!text) { setNotice((label || '鬆・岼') + '縺ｯ遨ｺ縺ｧ縺吶・, true); return; }
         navigator.clipboard.writeText(text).then(function() {
-          setNotice((label || '項目') + 'をコピーしました。', false);
+          setNotice((label || '鬆・岼') + '繧偵さ繝斐・縺励∪縺励◆縲・, false);
         }).catch(function() {
           const temp = document.createElement('textarea');
           temp.value = text;
@@ -907,7 +956,7 @@
           temp.select();
           document.execCommand('copy');
           document.body.removeChild(temp);
-          setNotice((label || '項目') + 'をコピーしました。', false);
+          setNotice((label || '鬆・岼') + '繧偵さ繝斐・縺励∪縺励◆縲・, false);
         });
       }
 
@@ -948,10 +997,11 @@
       function fail(error) {
         clearBusy();
         setProgress('error');
-        setNotice('処理に失敗しました: ' + (error && error.message ? error.message : error), true);
+        setNotice('蜃ｦ逅・↓螟ｱ謨励＠縺ｾ縺励◆: ' + (error && error.message ? error.message : error), true);
       }
 
       init();
     </script>
   </body>
 </html>
+

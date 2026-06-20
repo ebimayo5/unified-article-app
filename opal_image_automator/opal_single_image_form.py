@@ -22,22 +22,21 @@ from selenium.webdriver.support.ui import WebDriverWait
 
 
 HOST = "127.0.0.1"
-APP_VERSION = "2026-06-20-single-002"
+APP_VERSION = "2026-06-20-single-005"
 ROOT = Path(__file__).resolve().parent
 CONFIG_PATH = ROOT / "opal_single_image_config.json"
 STYLE_PATH = ROOT / "style_instruction.txt"
 
-DEFAULT_OPAL_URL = "https://opal.google/edit/1x59-WBuo5-AIygPJMIXq-A8-QogKaA3w"
-DEFAULT_WHISK_URL = "https://labs.google/fx/tools/whisk"
+DEFAULT_CHATGPT_URL = "https://chatgpt.com/"
 
 
 @dataclass
 class AppConfig:
-    target_tool: str = "opal"
-    opal_url: str = DEFAULT_OPAL_URL
-    whisk_url: str = DEFAULT_WHISK_URL
+    target_tool: str = "chatgpt"
+    chatgpt_url: str = DEFAULT_CHATGPT_URL
     chrome_profile_dir: str = str(ROOT / "chrome_profile")
     wait_seconds: int = 50
+    batch_pause_seconds: int = 12
 
     @classmethod
     def load(cls) -> "AppConfig":
@@ -53,25 +52,25 @@ class AppConfig:
             profile_dir = str(ROOT / profile_dir)
 
         return cls(
-            target_tool=str(data.get("target_tool") or data.get("targetTool") or "opal"),
-            opal_url=str(data.get("opal_url") or data.get("target_url") or DEFAULT_OPAL_URL),
-            whisk_url=str(data.get("whisk_url") or DEFAULT_WHISK_URL),
+            target_tool="chatgpt",
+            chatgpt_url=str(data.get("chatgpt_url") or DEFAULT_CHATGPT_URL),
             chrome_profile_dir=profile_dir,
             wait_seconds=int(data.get("wait_seconds") or 50),
+            batch_pause_seconds=int(data.get("batch_pause_seconds") or 12),
         )
 
     def target_url(self) -> str:
-        return self.whisk_url if self.target_tool == "whisk" else self.opal_url
+        return self.chatgpt_url
 
     def save(self) -> None:
         CONFIG_PATH.write_text(
             json.dumps(
                 {
                     "target_tool": self.target_tool,
-                    "opal_url": self.opal_url,
-                    "whisk_url": self.whisk_url,
+                    "chatgpt_url": self.chatgpt_url,
                     "chrome_profile_dir": self.chrome_profile_dir,
                     "wait_seconds": self.wait_seconds,
+                    "batch_pause_seconds": self.batch_pause_seconds,
                 },
                 ensure_ascii=False,
                 indent=2,
@@ -170,12 +169,8 @@ def build_single_prompt(title: str, body: str, style: str, image_type: str, targ
     title = (title or "").strip()
     body = (body or "").strip()
 
-    body_limit = 2400 if target_tool == "whisk" else 7000
-    tool_note = (
-        "Whisk向け: 長文記事をそのまま絵にせず、主題・場面・読者の理解ポイントを1つのビジュアルに要約する。"
-        if target_tool == "whisk"
-        else "Opal向け: 1枚だけ生成する。複数枚、候補一覧、同じ構図の量産は禁止。"
-    )
+    body_limit = 7000
+    tool_note = "ChatGPT向け: この記事用の画像を生成する。説明文だけで終わらず、必ず画像生成まで進める。"
 
     return "\n".join(
         [
@@ -193,6 +188,7 @@ def build_single_prompt(title: str, body: str, style: str, image_type: str, targ
             "- 横長16:9",
             "- WordPress記事内で使いやすい、明るく見やすい図解/イラスト寄り",
             "- 文字を入れる場合は短い日本語だけ。細かい文章は入れない",
+            "- 比較・手順・原因対策・判断基準は、文章ではなく図解として理解できる構図にする",
             "- アイキャッチなら記事全体の価値が一目で伝わる構図",
             "- H2画像なら対象見出しの理解を助ける構図",
             "- 写実よりも、情報が伝わる整理されたビジュアルを優先",
@@ -297,8 +293,7 @@ def click_center_input(driver: webdriver.Chrome) -> bool:
 
 
 def click_start_if_needed(driver: webdriver.Chrome, target_tool: str, wait_seconds: int) -> None:
-    if target_tool != "opal":
-        return
+    return
     deadline = time.time() + wait_seconds
     while time.time() < deadline:
         text = body_text(driver)
@@ -314,6 +309,9 @@ def click_start_if_needed(driver: webdriver.Chrome, target_tool: str, wait_secon
 
 def find_prompt_input(driver: webdriver.Chrome):
     selectors = [
+        "textarea[data-testid='prompt-textarea']",
+        "[data-testid='prompt-textarea']",
+        "#prompt-textarea",
         "textarea[name='request']",
         "textarea[placeholder*='response']",
         "textarea[placeholder*='prompt']",
@@ -358,6 +356,9 @@ def paste_prompt(driver: webdriver.Chrome, prompt: str, wait_seconds: int) -> bo
 
 def send_prompt(driver: webdriver.Chrome) -> bool:
     selectors = [
+        "button[data-testid='send-button']",
+        "button[aria-label='Send prompt']",
+        "button[aria-label='Send message']",
         "button[title='Submit']",
         "button[aria-label='Submit']",
         "button[type='submit']",
@@ -373,7 +374,7 @@ def send_prompt(driver: webdriver.Chrome) -> bool:
                     return True
             except Exception:
                 continue
-    if click_by_text(driver, ["send", "submit", "run", "generate", "create", "送信", "生成"]):
+    if click_by_text(driver, ["send", "submit", "run", "generate", "create", "送信", "生成", "送る"]):
         return True
     try:
         ActionChains(driver).key_down(Keys.CONTROL).send_keys(Keys.ENTER).key_up(Keys.CONTROL).perform()
@@ -384,123 +385,74 @@ def send_prompt(driver: webdriver.Chrome) -> bool:
     return click_bottom_send(driver)
 
 
-def run_single_image(title: str, body: str, style: str, image_type: str, log) -> None:
-    config = AppConfig.load()
-    target_tool = config.target_tool if config.target_tool in ("opal", "whisk") else "opal"
+def open_target_tool(config: AppConfig, target_tool: str, log) -> webdriver.Chrome:
     target_url = config.target_url()
-    prompt = build_single_prompt(title, body, style, image_type, target_tool)
-    set_windows_clipboard(prompt)
 
     log("Chromeを起動します。")
     driver = launch_chrome(Path(config.chrome_profile_dir))
     wait = WebDriverWait(driver, config.wait_seconds)
 
-    log(f"{'Whisk' if target_tool == 'whisk' else 'Opal'}を開きます: {target_url}")
+    tool_label = "ChatGPT"
+    log(f"{tool_label}を開きます: {target_url}")
     driver.get(target_url)
     wait.until(lambda d: d.execute_script("return document.readyState") in ("interactive", "complete"))
     time.sleep(2.0)
 
     if "accounts.google" in driver.current_url or "signin" in driver.current_url:
         log("Googleログイン画面です。ログイン後、もう一度送信してください。")
-        return
+        return driver
 
     click_start_if_needed(driver, target_tool, config.wait_seconds)
+    return driver
+
+
+def send_one_image_prompt(driver: webdriver.Chrome, prompt: str, log) -> bool:
     pasted = paste_prompt(driver, prompt, 14)
     if not pasted:
         log("入力欄へ自動貼り付けできませんでした。プロンプトはクリップボードに入っています。")
-        return
+        return False
 
     if send_prompt(driver):
         log("1枚生成用プロンプトを送信しました。生成結果はブラウザ画面で確認してください。")
-    else:
-        log("送信ボタンを押せませんでした。プロンプトは貼り付け済みです。画面上で送信してください。")
+        return True
+
+    log("送信ボタンを押せませんでした。プロンプトは貼り付け済みです。画面上で送信してください。")
+    return False
 
 
-def render_page(message: str = "", details: str = "", port: int | None = None) -> bytes:
+def run_single_image(title: str, body: str, style: str, image_type: str, log) -> None:
     config = AppConfig.load()
-    style_value = html.escape(read_style())
-    opal_checked = "checked" if config.target_tool != "whisk" else ""
-    whisk_checked = "checked" if config.target_tool == "whisk" else ""
-    message_html = f"<div class='notice'>{html.escape(message)}</div>" if message else ""
-    details_html = f"<div class='details'>{html.escape(details).replace(chr(10), '<br>')}</div>" if details else ""
-    return f"""<!doctype html>
-<html lang="ja">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>ブログ画像 1枚生成</title>
-<style>
-body {{ margin:0; background:#eef6f1; color:#14251d; font-family:"Yu Gothic UI","Meiryo",sans-serif; }}
-.wrap {{ max-width:1040px; margin:0 auto; padding:24px; }}
-h1 {{ margin:0; font-size:26px; }}
-.sub {{ margin-top:6px; color:#557064; font-size:14px; }}
-.panel {{ margin-top:18px; background:#fff; border:1px solid #cfe0d7; border-radius:10px; box-shadow:0 8px 30px rgba(20,58,40,.08); padding:20px; }}
-label {{ display:block; font-weight:700; margin:16px 0 8px; }}
-input, textarea, select {{ width:100%; box-sizing:border-box; border:1px solid #b9cec4; border-radius:8px; padding:12px; font:inherit; background:#fbfdfc; color:#14251d; }}
-textarea {{ min-height:250px; resize:vertical; line-height:1.65; }}
-textarea.style {{ min-height:110px; }}
-.grid {{ display:grid; grid-template-columns:1fr 220px; gap:14px; }}
-.tools {{ display:flex; gap:12px; flex-wrap:wrap; margin-top:8px; }}
-.tool {{ display:flex; gap:8px; align-items:center; border:1px solid #cfe0d7; border-radius:999px; padding:9px 14px; background:#f7fbf8; }}
-.tool input {{ width:auto; }}
-button {{ border:0; border-radius:999px; background:#16834f; color:#fff; font-weight:700; padding:13px 26px; cursor:pointer; font-size:16px; }}
-button:hover {{ background:#0f6f41; }}
-.hint, .version {{ color:#6b8278; font-size:13px; }}
-.notice {{ background:#e3f6eb; color:#0c5d37; border:1px solid #9bd7b7; border-radius:8px; padding:12px 14px; margin-bottom:14px; font-weight:700; }}
-.details {{ background:#fff8dc; color:#4b3b00; border:1px solid #ead27b; border-radius:8px; padding:12px 14px; margin-bottom:14px; line-height:1.7; }}
-</style>
-</head>
-<body>
-<div class="wrap">
-  <h1>ブログ画像 1枚生成</h1>
-  <div class="sub">タイトル・本文・画風を入れて、画像生成ツールへ1枚分だけ送ります。</div>
-  <div class="version">version: {APP_VERSION}{' / port: ' + str(port) if port else ''}</div>
-  <div class="panel">
-    {message_html}
-    {details_html}
-    <form method="post" action="/send" onsubmit="document.getElementById('send').disabled=true;document.getElementById('send').textContent='送信中...';">
-      <label>送信先</label>
-      <div class="tools">
-        <label class="tool"><input type="radio" name="target_tool" value="opal" {opal_checked}>Opal</label>
-        <label class="tool"><input type="radio" name="target_tool" value="whisk" {whisk_checked}>Whisk</label>
-      </div>
+    target_tool = "chatgpt"
+    prompt = build_single_prompt(title, body, style, image_type, target_tool)
+    set_windows_clipboard(prompt)
 
-      <label for="opal_url">Opal URL</label>
-      <input id="opal_url" name="opal_url" value="{html.escape(config.opal_url)}">
+    driver = open_target_tool(config, target_tool, log)
+    if "accounts.google" in driver.current_url or "signin" in driver.current_url:
+        return
+    send_one_image_prompt(driver, prompt, log)
 
-      <label for="whisk_url">Whisk URL</label>
-      <input id="whisk_url" name="whisk_url" value="{html.escape(config.whisk_url)}">
 
-      <div class="grid">
-        <div>
-          <label for="title">タイトル</label>
-          <input id="title" name="title" autocomplete="off" placeholder="記事タイトルを貼り付け">
-        </div>
-        <div>
-          <label for="image_type">画像タイプ</label>
-          <select id="image_type" name="image_type">
-            <option value="EYECATCH">EYECATCH</option>
-            <option value="H2-01">H2-01</option>
-            <option value="H2-02">H2-02</option>
-            <option value="H2-03">H2-03</option>
-            <option value="CUSTOM">CUSTOM</option>
-          </select>
-        </div>
-      </div>
+def run_image_batch(items: list[dict], style: str, log) -> None:
+    config = AppConfig.load()
+    target_tool = "chatgpt"
+    driver = open_target_tool(config, target_tool, log)
+    if "accounts.google" in driver.current_url or "signin" in driver.current_url:
+        return
 
-      <label for="body">本文</label>
-      <textarea id="body" name="body" placeholder="WordPress本文や対象H2周辺を貼り付け"></textarea>
-
-      <label for="style">画風指定</label>
-      <textarea id="style" name="style" class="style">{style_value}</textarea>
-
-      <p class="hint">Whiskは画像リミックス寄りのツールなので、本文は短めに要約して送ります。Opalは接続未完了だと送信後に止まる場合があります。</p>
-      <button id="send" type="submit">画像生成ツールへ送る</button>
-    </form>
-  </div>
-</div>
-</body>
-</html>""".encode("utf-8")
+    total = len(items)
+    for index, item in enumerate(items, start=1):
+        title = str(item.get("title") or "").strip()
+        body = str(item.get("body") or "").strip()
+        image_type = str(item.get("imageType") or item.get("image_type") or f"IMAGE-{index:02d}").strip()
+        prompt = build_single_prompt(title, body, style, image_type, target_tool)
+        set_windows_clipboard(prompt)
+        log(f"{index}/{total} 枚目を送信します: {image_type}")
+        if not send_one_image_prompt(driver, prompt, log):
+            log("ここで送信が止まりました。残りは未送信です。")
+            return
+        if index < total:
+            time.sleep(max(4, config.batch_pause_seconds))
+    log(f"{total}件の画像生成リクエストを順番に送信しました。")
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -555,23 +507,19 @@ class Handler(BaseHTTPRequestHandler):
         body = str(values.get("body") or "").strip()
         style = str(values.get("style") or "").strip() or read_style()
         image_type = str(values.get("imageType") or values.get("image_type") or "EYECATCH").strip() or "EYECATCH"
-        target_tool = str(values.get("targetTool") or values.get("target_tool") or "").strip().lower()
-        opal_url = str(values.get("opal_url") or "").strip()
-        whisk_url = str(values.get("whisk_url") or "").strip()
+        items = values.get("items") if isinstance(values.get("items"), list) else []
+        chatgpt_url = str(values.get("chatgpt_url") or "").strip()
 
-        if not title and not body:
+        if not items and not title and not body:
             return {"ok": False, "message": "タイトルか本文を入力してください。"}
 
         if style:
             write_style(style)
 
         config = AppConfig.load()
-        if target_tool in ("opal", "whisk"):
-            config.target_tool = target_tool
-        if opal_url:
-            config.opal_url = opal_url
-        if whisk_url:
-            config.whisk_url = whisk_url
+        config.target_tool = "chatgpt"
+        if chatgpt_url:
+            config.chatgpt_url = chatgpt_url
         config.save()
 
         def worker() -> None:
@@ -579,7 +527,10 @@ class Handler(BaseHTTPRequestHandler):
                 print(message, flush=True)
 
             try:
-                run_single_image(title, body, style, image_type, log)
+                if items:
+                    run_image_batch(items, style, log)
+                else:
+                    run_single_image(title, body, style, image_type, log)
             except WebDriverException as exc:
                 print(f"ブラウザ操作で失敗しました: {exc.__class__.__name__}", flush=True)
             except Exception as exc:
@@ -588,7 +539,7 @@ class Handler(BaseHTTPRequestHandler):
         threading.Thread(target=worker, daemon=True).start()
         return {
             "ok": True,
-            "message": "1枚生成リクエストを送りました。Chromeで生成結果を確認してください。",
+            "message": (str(len(items)) + "件の画像生成リクエストを順番に送ります。Chromeで生成結果を確認してください。") if items else "1枚生成リクエストを送りました。Chromeで生成結果を確認してください。",
             "version": APP_VERSION,
             "mode": "single",
         }
@@ -611,6 +562,82 @@ class Handler(BaseHTTPRequestHandler):
 
     def log_message(self, format: str, *args) -> None:
         return
+
+
+def render_page(message: str = "", details: str = "", port: int | None = None) -> bytes:
+    config = AppConfig.load()
+    style_value = html.escape(read_style())
+    message_html = f"<div class='notice'>{html.escape(message)}</div>" if message else ""
+    details_html = f"<div class='details'>{html.escape(details).replace(chr(10), '<br>')}</div>" if details else ""
+    return f"""<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ChatGPT画像生成フォーム</title>
+<style>
+body {{ margin:0; background:#eef6f1; color:#14251d; font-family:"Yu Gothic UI","Meiryo",sans-serif; }}
+.wrap {{ max-width:1040px; margin:0 auto; padding:24px; }}
+h1 {{ margin:0; font-size:26px; }}
+.sub {{ margin-top:6px; color:#557064; font-size:14px; }}
+.panel {{ margin-top:18px; background:#fff; border:1px solid #cfe0d7; border-radius:10px; box-shadow:0 8px 30px rgba(20,58,40,.08); padding:20px; }}
+label {{ display:block; font-weight:700; margin:16px 0 8px; }}
+input, textarea, select {{ width:100%; box-sizing:border-box; border:1px solid #b9cec4; border-radius:8px; padding:12px; font:inherit; background:#fbfdfc; color:#14251d; }}
+textarea {{ min-height:250px; resize:vertical; line-height:1.65; }}
+textarea.style {{ min-height:110px; }}
+.grid {{ display:grid; grid-template-columns:1fr 220px; gap:14px; }}
+.badge {{ display:inline-flex; align-items:center; border:1px solid #9bd7b7; border-radius:999px; padding:8px 14px; background:#e3f6eb; color:#0c5d37; font-weight:700; margin-top:14px; }}
+button {{ border:0; border-radius:999px; background:#16834f; color:#fff; font-weight:700; padding:13px 26px; cursor:pointer; font-size:16px; }}
+button:hover {{ background:#0f6f41; }}
+.hint, .version {{ color:#6b8278; font-size:13px; }}
+.notice {{ background:#e3f6eb; color:#0c5d37; border:1px solid #9bd7b7; border-radius:8px; padding:12px 14px; margin-bottom:14px; font-weight:700; }}
+.details {{ background:#fff8dc; color:#4b3b00; border:1px solid #ead27b; border-radius:8px; padding:12px 14px; margin-bottom:14px; line-height:1.7; }}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>ChatGPT画像生成フォーム</h1>
+  <div class="sub">タイトル・本文・画風を入れて、ChatGPTへ画像生成リクエストを1枚ずつ送ります。</div>
+  <div class="version">version: {APP_VERSION}{' / port: ' + str(port) if port else ''}</div>
+  <div class="panel">
+    {message_html}
+    {details_html}
+    <form method="post" action="/send" onsubmit="document.getElementById('send').disabled=true;document.getElementById('send').textContent='送信中...';">
+      <div class="badge">送信先: ChatGPT</div>
+
+      <label for="chatgpt_url">ChatGPT URL</label>
+      <input id="chatgpt_url" name="chatgpt_url" value="{html.escape(config.chatgpt_url)}">
+
+      <div class="grid">
+        <div>
+          <label for="title">タイトル</label>
+          <input id="title" name="title" autocomplete="off" placeholder="記事タイトルを貼り付け">
+        </div>
+        <div>
+          <label for="image_type">画像タイプ</label>
+          <select id="image_type" name="image_type">
+            <option value="EYECATCH">EYECATCH</option>
+            <option value="H2-01">H2-01</option>
+            <option value="H2-02">H2-02</option>
+            <option value="H2-03">H2-03</option>
+            <option value="CUSTOM">CUSTOM</option>
+          </select>
+        </div>
+      </div>
+
+      <label for="body">本文</label>
+      <textarea id="body" name="body" placeholder="WordPress本文や対象H2周辺を貼り付け"></textarea>
+
+      <label for="style">画風指定</label>
+      <textarea id="style" name="style" class="style">{style_value}</textarea>
+
+      <p class="hint">ChatGPTのWeb版へ送ります。初回だけ専用Chromeでログインが必要になることがあります。</p>
+      <button id="send" type="submit">ChatGPTへ画像生成</button>
+    </form>
+  </div>
+</div>
+</body>
+</html>""".encode("utf-8")
 
 
 def main() -> int:

@@ -223,7 +223,8 @@ def write_xlsx(results: list[KeywordResult], path: Path) -> None:
     sheet.freeze_panes = "A2"
 
     header_fill = PatternFill("solid", fgColor="1F2937")
-    header_font = Font(name="Meiryo UI", color="FFFFFF", bold=True)
+    header_font = Font(name="Meiryo UI", size=10, color="FFFFFF", bold=True)
+    sheet.row_dimensions[1].height = 24
     for cell in sheet[1]:
         cell.fill = header_fill
         cell.font = header_font
@@ -281,6 +282,7 @@ def write_xlsx(results: list[KeywordResult], path: Path) -> None:
     centered_cols = set(range(2, 22))
     text_left_cols = {1, 22}
     for row_index in range(2, sheet.max_row + 1):
+        sheet.row_dimensions[row_index].height = 22
         aim_value = str(sheet.cell(row=row_index, column=aim_col).value or "")
         score_value = sheet.cell(row=row_index, column=score_col).value or 0
         level_value = str(sheet.cell(row=row_index, column=level_col).value or "")
@@ -288,7 +290,7 @@ def write_xlsx(results: list[KeywordResult], path: Path) -> None:
         for column_index in range(1, sheet.max_column + 1):
             cell = sheet.cell(row=row_index, column=column_index)
             cell.border = thin_border
-            cell.font = Font(name="Meiryo UI")
+            cell.font = Font(name="Meiryo UI", size=10, color="111827", bold=True)
             if column_index in text_left_cols:
                 cell.alignment = Alignment(horizontal="left", vertical="center", wrap_text=column_index == 22)
             elif column_index in centered_cols:
@@ -303,7 +305,7 @@ def write_xlsx(results: list[KeywordResult], path: Path) -> None:
                 for column_index in columns:
                     cell = sheet.cell(row=row_index, column=column_index)
                     cell.fill = fills[fill_key]
-                    cell.font = Font(name="Meiryo UI", color="FFFFFF", bold=True)
+                    cell.font = Font(name="Meiryo UI", size=10, color="FFFFFF", bold=True)
                     cell.alignment = Alignment(horizontal="center", vertical="center")
 
         if "\u672a\u8abf\u67fb" in aim_value or "\u672a\u8abf\u67fb" in level_value:
@@ -320,7 +322,7 @@ def write_xlsx(results: list[KeywordResult], path: Path) -> None:
 
         for column_index in (aim_col, score_col, level_col):
             sheet.cell(row=row_index, column=column_index).alignment = Alignment(horizontal="center", vertical="center")
-        sheet.cell(row=row_index, column=score_col).font = Font(name="Meiryo UI", bold=True)
+            sheet.cell(row=row_index, column=column_index).font = Font(name="Meiryo UI", size=10, color="111827", bold=True)
 
     widths = {
         "キーワード": 34,

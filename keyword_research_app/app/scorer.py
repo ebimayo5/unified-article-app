@@ -199,14 +199,34 @@ def judge_level(score: int) -> str:
 
 
 def build_notes(result: KeywordResult) -> str:
-    level = result.opportunity_level or judge_level(result.opportunity_score)
-    if level == "かなり狙い目":
-        return "allintitleが少なく、検索上位にQ&Aや個人系サイトがあるため、記事化の余地があります。"
-    if level == "狙いやすい":
-        return "競合はありますが、上位に弱いドメインも含まれているため、切り口次第で検討できます。"
-    if level == "要検討":
-        return "競合はやや強めです。体験談、比較表、具体例などで差別化できるか確認してください。"
-    return "公式サイトや大手サイトが多く、個人ブログでは難易度が高い可能性があります。"
+    notes = []
+    if not result.top_urls:
+        notes.append("\u691c\u7d22\u7d50\u679cURL\u3092\u53d6\u5f97\u3067\u304d\u307e\u305b\u3093\u3067\u3057\u305f")
+    if result.strong_domain_count >= 8:
+        notes.append("\u4e0a\u4f4d\u306b\u5f37\u3044\u30b5\u30a4\u30c8\u304c\u591a\u3081")
+    if (
+        result.opportunity_score >= 70
+        and result.allintitle_count <= 10
+        and result.intitle_count <= 100
+        and not _has_weak_site(result)
+    ):
+        notes.append("\u30bf\u30a4\u30c8\u30eb\u7af6\u5408\u306f\u5c11\u306a\u3044\u304c\u5f31\u3044\u30b5\u30a4\u30c8\u306f\u672a\u691c\u51fa")
+    return " / ".join(notes)
+
+
+def _has_weak_site(result: KeywordResult) -> bool:
+    return any(
+        rank > 0
+        for rank in (
+            result.qa_site_rank,
+            result.free_blog_rank,
+            result.tiktok_rank,
+            result.instagram_rank,
+            result.x_rank,
+            result.threads_rank,
+            result.facebook_rank,
+        )
+    )
 
 
 def enrich_score(
@@ -286,12 +306,12 @@ def _looks_long_tail(keyword: str) -> bool:
 
 
 def build_import_notes(result: KeywordResult) -> str:
+    notes = []
     if result.monthly_search_volume <= 0:
-        return "月間検索数が空です。CSV/Excelの検索ボリューム列を確認してください。"
-    if result.aim == "かなり狙い目":
-        return "月間検索数があり、ロングテール寄りのため候補として優先できます。"
-    if result.aim == "狙い目":
-        return "月間検索数を確認できました。記事化候補として検討できます。"
-    if result.aim == "要検討":
-        return "需要はありますが、実検索の上位サイト確認も合わせると精度が上がります。"
-    return "月間検索数だけでは判断材料が少ないため、追加調査向きです。"
+        notes.append("\u6708\u9593\u691c\u7d22\u6570\u304c\u7a7a\u3067\u3059")
+    if result.keyword_difficulty >= 50:
+        notes.append("KD\u9ad8\u3081")
+    if result.competitor_position > 0:
+        notes.append(f"\u5143CSV\u9806\u4f4d: {result.competitor_position}")
+    return " / ".join(notes)
+

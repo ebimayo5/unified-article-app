@@ -37,8 +37,25 @@ class KeywordTreasureApp(ctk.CTk):
         ctk.set_appearance_mode("light")
         ctk.set_default_color_theme("blue")
         self.title("Keyword Treasure Finder")
-        self.geometry("1160x760")
-        self.minsize(980, 680)
+        self.geometry("1240x820")
+        self.minsize(1080, 720)
+        self.configure(fg_color="#F3F6FA")
+        self.colors = {
+            "bg": "#F3F6FA",
+            "panel": "#FFFFFF",
+            "panel_alt": "#F8FAFC",
+            "border": "#D7DEE8",
+            "text": "#111827",
+            "muted": "#64748B",
+            "primary": "#2563EB",
+            "primary_hover": "#1D4ED8",
+            "secondary": "#475569",
+            "secondary_hover": "#334155",
+            "danger": "#DC2626",
+            "danger_hover": "#B91C1C",
+            "header": "#0F172A",
+            "accent": "#38BDF8",
+        }
 
         self.input_path = ctk.StringVar(value=str(self.keyword_sheet_path))
         self.discovery_theme = ctk.StringVar(value="")
@@ -68,30 +85,55 @@ class KeywordTreasureApp(ctk.CTk):
         self.grid_rowconfigure(4, weight=1)
         self.grid_rowconfigure(5, weight=1)
 
-        title = ctk.CTkLabel(self, text="Keyword Treasure Finder", font=ctk.CTkFont(size=22, weight="bold"))
-        title.grid(row=0, column=0, sticky="ew", padx=18, pady=(14, 8))
+        title_bar = ctk.CTkFrame(self, corner_radius=0, fg_color=self.colors["header"])
+        title_bar.grid(row=0, column=0, sticky="ew")
+        title_bar.grid_columnconfigure(0, weight=1)
+        ctk.CTkLabel(
+            title_bar,
+            text="Keyword Treasure Finder",
+            font=ctk.CTkFont(size=24, weight="bold"),
+            text_color="#FFFFFF",
+        ).grid(row=0, column=0, sticky="w", padx=24, pady=(16, 2))
+        ctk.CTkLabel(
+            title_bar,
+            text="Personal keyword research workspace",
+            font=ctk.CTkFont(size=12),
+            text_color="#BAE6FD",
+        ).grid(row=1, column=0, sticky="w", padx=24, pady=(0, 16))
 
-        file_frame = ctk.CTkFrame(self, corner_radius=8)
-        file_frame.grid(row=1, column=0, sticky="ew", padx=18, pady=8)
+        file_frame = ctk.CTkFrame(
+            self,
+            corner_radius=8,
+            fg_color=self.colors["panel"],
+            border_width=1,
+            border_color=self.colors["border"],
+        )
+        file_frame.grid(row=1, column=0, sticky="ew", padx=20, pady=(16, 8))
         file_frame.grid_columnconfigure(1, weight=1)
         file_frame.grid_columnconfigure(3, weight=1)
 
         ctk.CTkLabel(file_frame, text="入力ファイル").grid(row=0, column=0, padx=10, pady=10, sticky="w")
         ctk.CTkEntry(file_frame, textvariable=self.input_path).grid(row=0, column=1, padx=8, pady=10, sticky="ew")
-        ctk.CTkButton(file_frame, text="選択", width=86, command=self._choose_input).grid(row=0, column=2, padx=8, pady=10)
-        ctk.CTkButton(file_frame, text="キーワードシートを開く", width=180, command=self._open_keyword_sheet).grid(row=0, column=3, padx=8, pady=10, sticky="ew")
+        ctk.CTkButton(file_frame, text="選択", width=86, fg_color=self.colors["secondary"], hover_color=self.colors["secondary_hover"], command=self._choose_input).grid(row=0, column=2, padx=8, pady=10)
+        ctk.CTkButton(file_frame, text="キーワードシートを開く", width=180, fg_color=self.colors["primary"], hover_color=self.colors["primary_hover"], command=self._open_keyword_sheet).grid(row=0, column=3, padx=8, pady=10, sticky="ew")
 
         ctk.CTkLabel(file_frame, text="探索テーマ").grid(row=1, column=0, padx=10, pady=10, sticky="w")
         ctk.CTkEntry(file_frame, textvariable=self.discovery_theme, placeholder_text="例: ナビ / ソリオ 後部座席 / https://...",).grid(row=1, column=1, padx=8, pady=10, sticky="ew")
-        ctk.CTkButton(file_frame, text="候補取得→調査", width=150, command=lambda: self._start(auto_discover=True)).grid(row=1, column=2, padx=8, pady=10)
+        ctk.CTkButton(file_frame, text="候補取得→調査", width=150, fg_color=self.colors["primary"], hover_color=self.colors["primary_hover"], command=lambda: self._start(auto_discover=True)).grid(row=1, column=2, padx=8, pady=10)
 
         ctk.CTkLabel(file_frame, text="出力フォルダ").grid(row=2, column=0, padx=10, pady=10, sticky="w")
         ctk.CTkEntry(file_frame, textvariable=self.output_dir).grid(row=2, column=1, padx=8, pady=10, sticky="ew")
-        ctk.CTkButton(file_frame, text="選択", width=86, command=self._choose_output).grid(row=2, column=2, padx=8, pady=10)
+        ctk.CTkButton(file_frame, text="選択", width=86, fg_color=self.colors["secondary"], hover_color=self.colors["secondary_hover"], command=self._choose_output).grid(row=2, column=2, padx=8, pady=10)
         ctk.CTkSegmentedButton(file_frame, values=["xlsx"], variable=self.output_format).grid(row=2, column=3, padx=8, pady=10, sticky="ew")
 
-        settings = ctk.CTkFrame(self, corner_radius=8)
-        settings.grid(row=2, column=0, sticky="ew", padx=18, pady=8)
+        settings = ctk.CTkFrame(
+            self,
+            corner_radius=8,
+            fg_color=self.colors["panel"],
+            border_width=1,
+            border_color=self.colors["border"],
+        )
+        settings.grid(row=2, column=0, sticky="ew", padx=20, pady=8)
         for col in range(8):
             settings.grid_columnconfigure(col, weight=1)
 
@@ -115,17 +157,23 @@ class KeywordTreasureApp(ctk.CTk):
         ctk.CTkLabel(settings, text="候補数").grid(row=2, column=0, padx=10, pady=8, sticky="w")
         ctk.CTkEntry(settings, textvariable=self.discovery_max_keywords, width=78).grid(row=2, column=1, padx=6, pady=8, sticky="w")
 
-        actions = ctk.CTkFrame(self, corner_radius=8)
-        actions.grid(row=3, column=0, sticky="ew", padx=18, pady=8)
+        actions = ctk.CTkFrame(
+            self,
+            corner_radius=8,
+            fg_color=self.colors["panel"],
+            border_width=1,
+            border_color=self.colors["border"],
+        )
+        actions.grid(row=3, column=0, sticky="ew", padx=20, pady=8)
         actions.grid_columnconfigure(6, weight=1)
-        self.start_button = ctk.CTkButton(actions, text="開始", width=96, command=self._start)
+        self.start_button = ctk.CTkButton(actions, text="開始", width=104, fg_color=self.colors["primary"], hover_color=self.colors["primary_hover"], command=self._start)
         self.start_button.grid(row=0, column=0, padx=10, pady=10)
-        self.discovery_button = ctk.CTkButton(actions, text="探索テーマから調査", width=150, command=lambda: self._start(auto_discover=True))
+        self.discovery_button = ctk.CTkButton(actions, text="探索テーマから調査", width=160, fg_color=self.colors["primary"], hover_color=self.colors["primary_hover"], command=lambda: self._start(auto_discover=True))
         self.discovery_button.grid(row=0, column=1, padx=10, pady=10)
-        self.stop_button = ctk.CTkButton(actions, text="停止", width=96, state="disabled", fg_color="#B91C1C", hover_color="#991B1B", command=self._stop)
+        self.stop_button = ctk.CTkButton(actions, text="停止", width=96, state="disabled", fg_color=self.colors["danger"], hover_color=self.colors["danger_hover"], command=self._stop)
         self.stop_button.grid(row=0, column=2, padx=10, pady=10)
-        ctk.CTkButton(actions, text="設定保存", width=110, command=self._save_config).grid(row=0, column=3, padx=10, pady=10)
-        ctk.CTkButton(actions, text="出力フォルダを開く", width=150, command=self._open_output).grid(row=0, column=4, padx=10, pady=10)
+        ctk.CTkButton(actions, text="設定保存", width=110, fg_color=self.colors["secondary"], hover_color=self.colors["secondary_hover"], command=self._save_config).grid(row=0, column=3, padx=10, pady=10)
+        ctk.CTkButton(actions, text="出力フォルダを開く", width=150, fg_color=self.colors["secondary"], hover_color=self.colors["secondary_hover"], command=self._open_output).grid(row=0, column=4, padx=10, pady=10)
 
         progress_frame = ctk.CTkFrame(actions, fg_color="transparent")
         progress_frame.grid(row=0, column=6, padx=10, pady=10, sticky="ew")
@@ -137,12 +185,19 @@ class KeywordTreasureApp(ctk.CTk):
         ctk.CTkLabel(progress_frame, textvariable=self.progress_text, width=80).grid(row=0, column=2, padx=(10, 0))
         ctk.CTkLabel(progress_frame, textvariable=self.current_keyword).grid(row=1, column=0, columnspan=3, sticky="w", pady=(6, 0))
 
-        preview_frame = ctk.CTkFrame(self, corner_radius=8)
-        preview_frame.grid(row=4, column=0, sticky="nsew", padx=18, pady=8)
+        preview_frame = ctk.CTkFrame(
+            self,
+            corner_radius=8,
+            fg_color=self.colors["panel"],
+            border_width=1,
+            border_color=self.colors["border"],
+        )
+        preview_frame.grid(row=4, column=0, sticky="nsew", padx=20, pady=8)
         preview_frame.grid_rowconfigure(0, weight=1)
         preview_frame.grid_columnconfigure(0, weight=1)
 
         columns = ("keyword", "volume", "aim", "allintitle", "intitle", "qa", "blog", "tk", "ig", "x", "strong", "score", "level")
+        self._configure_tree_style()
         self.tree = ttk.Treeview(preview_frame, columns=columns, show="headings", height=8)
         headings = {
             "keyword": "keyword",
@@ -163,14 +218,55 @@ class KeywordTreasureApp(ctk.CTk):
         for column in columns:
             self.tree.heading(column, text=headings[column])
             self.tree.column(column, width=widths.get(column, 86), anchor="w")
-        self.tree.grid(row=0, column=0, sticky="nsew", padx=10, pady=10)
+        self.tree.grid(row=0, column=0, sticky="nsew", padx=12, pady=12)
 
-        log_frame = ctk.CTkFrame(self, corner_radius=8)
-        log_frame.grid(row=5, column=0, sticky="nsew", padx=18, pady=(8, 16))
+        log_frame = ctk.CTkFrame(
+            self,
+            corner_radius=8,
+            fg_color=self.colors["panel"],
+            border_width=1,
+            border_color=self.colors["border"],
+        )
+        log_frame.grid(row=5, column=0, sticky="nsew", padx=20, pady=(8, 18))
         log_frame.grid_rowconfigure(0, weight=1)
         log_frame.grid_columnconfigure(0, weight=1)
-        self.log_box = ctk.CTkTextbox(log_frame, height=150)
-        self.log_box.grid(row=0, column=0, sticky="nsew", padx=10, pady=10)
+        self.log_box = ctk.CTkTextbox(
+            log_frame,
+            height=150,
+            fg_color=self.colors["panel_alt"],
+            border_color=self.colors["border"],
+            border_width=1,
+        )
+        self.log_box.grid(row=0, column=0, sticky="nsew", padx=12, pady=12)
+
+    def _configure_tree_style(self) -> None:
+        style = ttk.Style()
+        style.theme_use("clam")
+        style.configure(
+            "Treeview",
+            background="#FFFFFF",
+            foreground=self.colors["text"],
+            fieldbackground="#FFFFFF",
+            rowheight=28,
+            borderwidth=0,
+            font=("Yu Gothic UI", 9),
+        )
+        style.configure(
+            "Treeview.Heading",
+            background="#E2E8F0",
+            foreground="#0F172A",
+            relief="flat",
+            font=("Yu Gothic UI", 9, "bold"),
+        )
+        style.map(
+            "Treeview",
+            background=[("selected", "#DBEAFE")],
+            foreground=[("selected", "#0F172A")],
+        )
+        style.map(
+            "Treeview.Heading",
+            background=[("active", "#CBD5E1")],
+        )
 
     def _choose_input(self) -> None:
         path = filedialog.askopenfilename(filetypes=[("Keyword files", "*.csv *.xlsx"), ("All files", "*.*")])

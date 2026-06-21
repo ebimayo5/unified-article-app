@@ -220,9 +220,10 @@ def write_xlsx(results: list[KeywordResult], path: Path) -> None:
     sheet = workbook.active
     sheet.title = "results"
     sheet.append(DOKUSOU_LIKE_COLUMNS)
+    sheet.freeze_panes = "A2"
 
     header_fill = PatternFill("solid", fgColor="1F2937")
-    header_font = Font(color="FFFFFF", bold=True)
+    header_font = Font(name="Meiryo UI", color="FFFFFF", bold=True)
     for cell in sheet[1]:
         cell.fill = header_fill
         cell.font = header_font
@@ -254,35 +255,72 @@ def write_xlsx(results: list[KeywordResult], path: Path) -> None:
         "watch": PatternFill("solid", fgColor="FFF2CC"),
         "hard": PatternFill("solid", fgColor="FCE4D6"),
         "unresearched": PatternFill("solid", fgColor="E5E7EB"),
-        "key": PatternFill("solid", fgColor="EAF2F8"),
+        "qa": PatternFill("solid", fgColor="00B050"),
+        "free": PatternFill("solid", fgColor="0070C0"),
+        "tiktok": PatternFill("solid", fgColor="7030A0"),
+        "instagram": PatternFill("solid", fgColor="C00000"),
+        "x": PatternFill("solid", fgColor="7F7F7F"),
+        "threads": PatternFill("solid", fgColor="BF9000"),
+        "facebook": PatternFill("solid", fgColor="1F4E79"),
     }
-    thin_border = Border(bottom=Side(style="thin", color="E5E7EB"))
+    thin_border = Border(
+        left=Side(style="thin", color="111827"),
+        right=Side(style="thin", color="111827"),
+        top=Side(style="thin", color="111827"),
+        bottom=Side(style="thin", color="111827"),
+    )
+    site_pairs = {
+        "qa": (3, 4),
+        "free": (5, 6),
+        "tiktok": (7, 8),
+        "instagram": (9, 10),
+        "x": (11, 12),
+        "threads": (13, 14),
+        "facebook": (15, 16),
+    }
+    centered_cols = set(range(2, 22))
+    text_left_cols = {1, 22}
     for row_index in range(2, sheet.max_row + 1):
         aim_value = str(sheet.cell(row=row_index, column=aim_col).value or "")
         score_value = sheet.cell(row=row_index, column=score_col).value or 0
         level_value = str(sheet.cell(row=row_index, column=level_col).value or "")
-        row_fill = None
-        if "\u672a\u8abf\u67fb" in aim_value or "\u672a\u8abf\u67fb" in level_value:
-            row_fill = fills["unresearched"]
-        elif "\u304b\u306a\u308a" in aim_value or score_value >= 80:
-            row_fill = fills["best"]
-        elif "\u72d9\u3044\u76ee" in aim_value or score_value >= 60:
-            row_fill = fills["good"]
-        elif "\u8981\u691c\u8a0e" in aim_value or score_value >= 40:
-            row_fill = fills["watch"]
-        elif score_value or level_value:
-            row_fill = fills["hard"]
 
         for column_index in range(1, sheet.max_column + 1):
             cell = sheet.cell(row=row_index, column=column_index)
             cell.border = thin_border
-            cell.alignment = Alignment(vertical="top", wrap_text=column_index > 20)
-            if row_fill and column_index <= level_col:
-                cell.fill = row_fill
-            elif column_index in title_cols:
-                cell.fill = fills["key"]
+            cell.font = Font(name="Meiryo UI")
+            if column_index in text_left_cols:
+                cell.alignment = Alignment(horizontal="left", vertical="center", wrap_text=column_index == 22)
+            elif column_index in centered_cols:
+                cell.alignment = Alignment(horizontal="center", vertical="center")
+            else:
+                cell.alignment = Alignment(vertical="center")
 
-        sheet.cell(row=row_index, column=score_col).font = Font(bold=True)
+        for fill_key, columns in site_pairs.items():
+            marker_cell = sheet.cell(row=row_index, column=columns[0])
+            rank_cell = sheet.cell(row=row_index, column=columns[1])
+            if marker_cell.value or rank_cell.value:
+                for column_index in columns:
+                    cell = sheet.cell(row=row_index, column=column_index)
+                    cell.fill = fills[fill_key]
+                    cell.font = Font(name="Meiryo UI", color="FFFFFF", bold=True)
+                    cell.alignment = Alignment(horizontal="center", vertical="center")
+
+        if "\u672a\u8abf\u67fb" in aim_value or "\u672a\u8abf\u67fb" in level_value:
+            for column_index in (aim_col, score_col, level_col):
+                sheet.cell(row=row_index, column=column_index).fill = fills["unresearched"]
+        elif "\u304b\u306a\u308a" in aim_value or score_value >= 80:
+            sheet.cell(row=row_index, column=aim_col).fill = fills["best"]
+        elif "\u72d9\u3044\u76ee" in aim_value or score_value >= 60:
+            sheet.cell(row=row_index, column=aim_col).fill = fills["good"]
+        elif "\u8981\u691c\u8a0e" in aim_value or score_value >= 40:
+            sheet.cell(row=row_index, column=aim_col).fill = fills["watch"]
+        elif score_value or level_value:
+            sheet.cell(row=row_index, column=aim_col).fill = fills["hard"]
+
+        for column_index in (aim_col, score_col, level_col):
+            sheet.cell(row=row_index, column=column_index).alignment = Alignment(horizontal="center", vertical="center")
+        sheet.cell(row=row_index, column=score_col).font = Font(name="Meiryo UI", bold=True)
 
     widths = {
         "キーワード": 34,

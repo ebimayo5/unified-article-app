@@ -230,6 +230,10 @@ def write_xlsx(results: list[KeywordResult], path: Path) -> None:
 
     for result in results:
         row = result.to_dokusou_like_row()
+        if result.opportunity_level == "未調査":
+            row[DOKUSOU_LIKE_COLUMNS[17]] = ""
+            row[DOKUSOU_LIKE_COLUMNS[19]] = ""
+            row[DOKUSOU_LIKE_COLUMNS[20]] = ""
         sheet.append([row[column] for column in DOKUSOU_LIKE_COLUMNS])
 
     aim_col = DOKUSOU_LIKE_COLUMNS.index("ねらい目判定") + 1
@@ -249,20 +253,24 @@ def write_xlsx(results: list[KeywordResult], path: Path) -> None:
         "good": PatternFill("solid", fgColor="E2F0D9"),
         "watch": PatternFill("solid", fgColor="FFF2CC"),
         "hard": PatternFill("solid", fgColor="FCE4D6"),
+        "unresearched": PatternFill("solid", fgColor="E5E7EB"),
         "key": PatternFill("solid", fgColor="EAF2F8"),
     }
     thin_border = Border(bottom=Side(style="thin", color="E5E7EB"))
     for row_index in range(2, sheet.max_row + 1):
         aim_value = str(sheet.cell(row=row_index, column=aim_col).value or "")
         score_value = sheet.cell(row=row_index, column=score_col).value or 0
+        level_value = str(sheet.cell(row=row_index, column=level_col).value or "")
         row_fill = None
-        if "かなり" in aim_value or score_value >= 80:
+        if "\u672a\u8abf\u67fb" in aim_value or "\u672a\u8abf\u67fb" in level_value:
+            row_fill = fills["unresearched"]
+        elif "\u304b\u306a\u308a" in aim_value or score_value >= 80:
             row_fill = fills["best"]
-        elif "狙い目" in aim_value or score_value >= 60:
+        elif "\u72d9\u3044\u76ee" in aim_value or score_value >= 60:
             row_fill = fills["good"]
-        elif "要検討" in aim_value or score_value >= 40:
+        elif "\u8981\u691c\u8a0e" in aim_value or score_value >= 40:
             row_fill = fills["watch"]
-        elif score_value:
+        elif score_value or level_value:
             row_fill = fills["hard"]
 
         for column_index in range(1, sheet.max_column + 1):

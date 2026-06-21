@@ -98,6 +98,10 @@ def run_research(
         error_message = str(exc)
         log("Stopped by error after partial results: %s", error_message)
 
+    if stop_event.is_set() or error_message:
+        reason = "途中終了のため未調査" if error_message else "停止のため未調査"
+        _append_unresearched_results(keywords, results, reason)
+
     run_result = _save_results(results, output_dir, config, log)
     run_result.stopped = stop_event.is_set() or bool(error_message)
     run_result.error_message = error_message
@@ -213,6 +217,28 @@ def _run_dummy(
         log,
         lambda keyword: create_dummy_result(keyword, config, target_sites),
     )
+
+
+def _append_unresearched_results(
+    keywords: list[KeywordInput],
+    results: list[KeywordResult],
+    reason: str,
+) -> None:
+    for keyword in keywords[len(results):]:
+        results.append(
+            KeywordResult(
+                keyword=keyword.keyword,
+                genre=keyword.genre,
+                monthly_search_volume=keyword.monthly_search_volume,
+                competitor_position=keyword.competitor_position,
+                competitor_url=keyword.competitor_url,
+                keyword_difficulty=keyword.keyword_difficulty,
+                source_file=keyword.source_file,
+                aim="未調査",
+                opportunity_level="未調査",
+                notes=reason,
+            )
+        )
 
 
 def _save_results(

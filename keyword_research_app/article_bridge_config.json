@@ -1,0 +1,18 @@
+{
+    "web_app_url":  "https://script.google.com/macros/s/AKfycbzGbxQA5AuXH3MlUZSlfTjDn1hrpH4MnNNG0NVKty0wUz1Bd-4oVXbMQUBloQvd-HCm/exec",
+    "token":  "vydFxlIuaMVcHm5tZJnq8XBwjSeUQfCb9GYOgA6orDL14WKs",
+    "poll_seconds":  10,
+    "once":  false,
+    "crawler":  {
+                    "search_engine":  "yahoo",
+                    "search_mode":  "live",
+                    "max_results":  10,
+                    "wait_seconds":  2,
+                    "timeout_seconds":  20,
+                    "headless":  true,
+                    "enable_allintitle":  false,
+                    "enable_intitle":  false,
+                    "enable_domain_check":  true,
+                    "fallback_to_dummy":  false
+                }
+}

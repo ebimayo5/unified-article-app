@@ -1,0 +1,19 @@
+{
+  "search_engine": "yahoo",
+  "search_mode": "live",
+  "max_results": 10,
+  "wait_seconds": 2,
+  "timeout_seconds": 20,
+  "headless": true,
+  "output_format": "xlsx",
+  "enable_allintitle": true,
+  "enable_intitle": true,
+  "enable_domain_check": true,
+  "aim_allintitle_limit": 10,
+  "aim_intitle_limit": 5000,
+  "user_agent": "",
+  "log_retention_count": 20,
+  "output_retention_count": 20,
+  "fallback_to_dummy": false,
+  "discovery_max_keywords": 100
+}

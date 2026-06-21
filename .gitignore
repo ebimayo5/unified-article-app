@@ -8,3 +8,12 @@ unified_article_app/PASTE_THIS_READER_MIND_ONLY.gs
 
 # clasp local credentials
 .clasprc.json
+
+# Keyword Treasure Finder generated files
+keyword_research_app/build/
+keyword_research_app/dist/
+keyword_research_app/logs/
+keyword_research_app/output/
+keyword_research_app/work/
+**/__pycache__/
+*.pyc

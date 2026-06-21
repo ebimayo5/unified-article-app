@@ -290,7 +290,7 @@ def write_xlsx(results: list[KeywordResult], path: Path) -> None:
         for column_index in range(1, sheet.max_column + 1):
             cell = sheet.cell(row=row_index, column=column_index)
             cell.border = thin_border
-            cell.font = Font(name="Meiryo UI", size=10, color="111827", bold=True)
+            cell.font = Font(name="Meiryo UI", size=10, color="111827")
             if column_index in text_left_cols:
                 cell.alignment = Alignment(horizontal="left", vertical="center", wrap_text=column_index == 22)
             elif column_index in centered_cols:
@@ -322,7 +322,7 @@ def write_xlsx(results: list[KeywordResult], path: Path) -> None:
 
         for column_index in (aim_col, score_col, level_col):
             sheet.cell(row=row_index, column=column_index).alignment = Alignment(horizontal="center", vertical="center")
-            sheet.cell(row=row_index, column=column_index).font = Font(name="Meiryo UI", size=10, color="111827", bold=True)
+            sheet.cell(row=row_index, column=column_index).font = Font(name="Meiryo UI", size=10, color="111827")
 
     widths = {
         "キーワード": 34,

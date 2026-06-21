@@ -39,22 +39,29 @@ class KeywordTreasureApp(ctk.CTk):
         self.title("Keyword Treasure Finder")
         self.geometry("1240x820")
         self.minsize(1080, 720)
-        self.configure(fg_color="#F3F6FA")
+        self.configure(fg_color="#EEF2F7")
         self.colors = {
-            "bg": "#F3F6FA",
+            "bg": "#EEF2F7",
             "panel": "#FFFFFF",
-            "panel_alt": "#F8FAFC",
-            "border": "#D7DEE8",
+            "panel_alt": "#F6F8FB",
+            "border": "#CBD5E1",
             "text": "#111827",
             "muted": "#64748B",
-            "primary": "#2563EB",
-            "primary_hover": "#1D4ED8",
-            "secondary": "#475569",
-            "secondary_hover": "#334155",
-            "danger": "#DC2626",
-            "danger_hover": "#B91C1C",
-            "header": "#0F172A",
-            "accent": "#38BDF8",
+            "primary": "#1E3A8A",
+            "primary_hover": "#172554",
+            "secondary": "#334155",
+            "secondary_hover": "#1F2937",
+            "danger": "#B91C1C",
+            "danger_hover": "#7F1D1D",
+            "header": "#0B1120",
+            "accent": "#C8A24A",
+        }
+        self.fonts = {
+            "button": ctk.CTkFont(family="Yu Gothic UI", size=13, weight="bold"),
+            "control": ctk.CTkFont(family="Yu Gothic UI", size=13, weight="bold"),
+            "entry": ctk.CTkFont(family="Yu Gothic UI", size=13),
+            "status": ctk.CTkFont(family="Yu Gothic UI", size=12, weight="bold"),
+            "log": ctk.CTkFont(family="Yu Gothic UI", size=12),
         }
 
         self.input_path = ctk.StringVar(value=str(self.keyword_sheet_path))
@@ -77,6 +84,7 @@ class KeywordTreasureApp(ctk.CTk):
         self.progress_text = ctk.StringVar(value="0 / 0")
 
         self._build_layout()
+        self._polish_controls(self)
         self._ensure_keyword_sheet()
         self.after(100, self._drain_events)
 
@@ -97,8 +105,8 @@ class KeywordTreasureApp(ctk.CTk):
         ctk.CTkLabel(
             title_bar,
             text="Personal keyword research workspace",
-            font=ctk.CTkFont(size=12),
-            text_color="#BAE6FD",
+            font=ctk.CTkFont(size=12, weight="bold"),
+            text_color=self.colors["accent"],
         ).grid(row=1, column=0, sticky="w", padx=24, pady=(0, 16))
 
         file_frame = ctk.CTkFrame(
@@ -178,12 +186,12 @@ class KeywordTreasureApp(ctk.CTk):
         progress_frame = ctk.CTkFrame(actions, fg_color="transparent")
         progress_frame.grid(row=0, column=6, padx=10, pady=10, sticky="ew")
         progress_frame.grid_columnconfigure(1, weight=1)
-        ctk.CTkLabel(progress_frame, textvariable=self.status, width=80).grid(row=0, column=0, padx=(0, 10))
+        ctk.CTkLabel(progress_frame, textvariable=self.status, width=80, font=self.fonts["status"]).grid(row=0, column=0, padx=(0, 10))
         self.progress_bar = ctk.CTkProgressBar(progress_frame)
         self.progress_bar.set(0)
         self.progress_bar.grid(row=0, column=1, sticky="ew")
-        ctk.CTkLabel(progress_frame, textvariable=self.progress_text, width=80).grid(row=0, column=2, padx=(10, 0))
-        ctk.CTkLabel(progress_frame, textvariable=self.current_keyword).grid(row=1, column=0, columnspan=3, sticky="w", pady=(6, 0))
+        ctk.CTkLabel(progress_frame, textvariable=self.progress_text, width=80, font=self.fonts["status"]).grid(row=0, column=2, padx=(10, 0))
+        ctk.CTkLabel(progress_frame, textvariable=self.current_keyword, font=self.fonts["status"], text_color=self.colors["muted"]).grid(row=1, column=0, columnspan=3, sticky="w", pady=(6, 0))
 
         preview_frame = ctk.CTkFrame(
             self,
@@ -239,6 +247,23 @@ class KeywordTreasureApp(ctk.CTk):
         )
         self.log_box.grid(row=0, column=0, sticky="nsew", padx=12, pady=12)
 
+    def _polish_controls(self, widget) -> None:
+        for child in widget.winfo_children():
+            try:
+                if isinstance(child, ctk.CTkButton):
+                    child.configure(font=self.fonts["button"], height=36, corner_radius=7)
+                elif isinstance(child, ctk.CTkSegmentedButton):
+                    child.configure(font=self.fonts["control"], height=34, corner_radius=7)
+                elif isinstance(child, ctk.CTkCheckBox):
+                    child.configure(font=self.fonts["control"], text_color=self.colors["text"])
+                elif isinstance(child, ctk.CTkEntry):
+                    child.configure(font=self.fonts["entry"], height=34, corner_radius=7)
+                elif isinstance(child, ctk.CTkTextbox):
+                    child.configure(font=self.fonts["log"], corner_radius=7)
+            except Exception:
+                pass
+            self._polish_controls(child)
+
     def _configure_tree_style(self) -> None:
         style = ttk.Style()
         style.theme_use("clam")
@@ -253,8 +278,8 @@ class KeywordTreasureApp(ctk.CTk):
         )
         style.configure(
             "Treeview.Heading",
-            background="#E2E8F0",
-            foreground="#0F172A",
+            background="#111827",
+            foreground="#FFFFFF",
             relief="flat",
             font=("Yu Gothic UI", 9, "bold"),
         )
@@ -265,7 +290,7 @@ class KeywordTreasureApp(ctk.CTk):
         )
         style.map(
             "Treeview.Heading",
-            background=[("active", "#CBD5E1")],
+            background=[("active", "#1E3A8A")],
         )
 
     def _choose_input(self) -> None:

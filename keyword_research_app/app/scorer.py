@@ -76,23 +76,25 @@ def classify_social_platform(url: str) -> str:
 def calculate_score(result: KeywordResult) -> int:
     score = 0
 
-    if result.allintitle_count <= 10:
-        score += 30
-    elif result.allintitle_count <= 30:
-        score += 20
-    elif result.allintitle_count <= 50:
-        score += 10
-    elif result.allintitle_count <= 300:
-        score += 8
-    elif result.allintitle_count <= 500:
-        score += 5
+    if result.allintitle_count >= 0:
+        if result.allintitle_count <= 10:
+            score += 30
+        elif result.allintitle_count <= 30:
+            score += 20
+        elif result.allintitle_count <= 50:
+            score += 10
+        elif result.allintitle_count <= 300:
+            score += 8
+        elif result.allintitle_count <= 500:
+            score += 5
 
-    if result.intitle_count <= 100:
-        score += 20
-    elif result.intitle_count <= 300:
-        score += 10
-    elif result.intitle_count <= 1000:
-        score += 5
+    if result.intitle_count >= 0:
+        if result.intitle_count <= 100:
+            score += 20
+        elif result.intitle_count <= 300:
+            score += 10
+        elif result.intitle_count <= 1000:
+            score += 5
 
     score += _rank_score(result.qa_site_rank, top_score=40, mid_score=28, low_score=16)
     score += _rank_score(result.free_blog_rank, top_score=30, mid_score=20, low_score=12)
@@ -153,11 +155,15 @@ def judge_keyword_opportunity(
     weak_site_near_top = _best_weak_rank(result) <= 3
     weak_site_visible = _best_weak_rank(result) <= 10
     low_title_competition = (
-        result.allintitle_count <= allintitle_limit
+        result.allintitle_count >= 0
+        and result.intitle_count >= 0
+        and result.allintitle_count <= allintitle_limit
         and result.intitle_count <= intitle_limit
     )
     very_low_title_competition = (
-        result.allintitle_count <= allintitle_limit
+        result.allintitle_count >= 0
+        and result.intitle_count >= 0
+        and result.allintitle_count <= allintitle_limit
         and result.intitle_count <= intitle_limit
     )
 
@@ -202,10 +208,16 @@ def build_notes(result: KeywordResult) -> str:
     notes = []
     if not result.top_urls:
         notes.append("\u691c\u7d22\u7d50\u679cURL\u3092\u53d6\u5f97\u3067\u304d\u307e\u305b\u3093\u3067\u3057\u305f")
+    if result.allintitle_count < 0:
+        notes.append("allintitle取得失敗")
+    if result.intitle_count < 0:
+        notes.append("intitle取得失敗")
     if result.strong_domain_count >= 8:
         notes.append("\u4e0a\u4f4d\u306b\u5f37\u3044\u30b5\u30a4\u30c8\u304c\u591a\u3081")
     if (
         result.opportunity_score >= 70
+        and result.allintitle_count >= 0
+        and result.intitle_count >= 0
         and result.allintitle_count <= 10
         and result.intitle_count <= 100
         and not _has_weak_site(result)

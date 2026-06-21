@@ -181,10 +181,12 @@ class SearchCrawler:
 
         if self.config.enable_allintitle:
             self._raise_if_stopped()
-            allintitle_count = self._fetch(f"allintitle:{keyword_input.keyword}").count
+            allintitle = self._fetch(f"allintitle:{keyword_input.keyword}")
+            allintitle_count = -1 if allintitle.error else allintitle.count
         if self.config.enable_intitle:
             self._raise_if_stopped()
-            intitle_count = self._fetch(f"intitle:{keyword_input.keyword}").count
+            intitle = self._fetch(f"intitle:{keyword_input.keyword}")
+            intitle_count = -1 if intitle.error else intitle.count
 
         if self.config.enable_domain_check:
             counts = count_and_rank_urls(normal.urls, self.target_sites)
@@ -240,10 +242,12 @@ class SearchCrawler:
 
                 body_text = self.driver.find_element("tag name", "body").text
                 urls = self._extract_urls()
+                count = parse_result_count(body_text)
                 return _FetchedSearch(
                     url=url,
-                    count=parse_result_count(body_text),
+                    count=count or 0,
                     urls=normalize_urls(urls, self.config.max_results),
+                    error="count not found" if count is None else "",
                 )
             except Exception as exc:
                 self._raise_if_stopped()

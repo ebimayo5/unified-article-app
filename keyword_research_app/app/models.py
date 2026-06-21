@@ -142,8 +142,8 @@ class KeywordResult:
             "genre": self.genre,
             "monthly_search_volume": self.monthly_search_volume,
             "search_url": self.search_url,
-            "allintitle_count": self.allintitle_count,
-            "intitle_count": self.intitle_count,
+            "allintitle_count": _title_count_value(self.allintitle_count),
+            "intitle_count": _title_count_value(self.intitle_count),
             "ねらい目判定": self.aim,
             "qa_site_count": self.qa_site_count,
             "qa_site_rank": self.qa_site_rank,
@@ -189,8 +189,8 @@ class KeywordResult:
             "ねらい目判定": self.aim,
             "スコア": self.opportunity_score,
             "判定レベル": self.opportunity_level,
-            "allintitle_count": self.allintitle_count,
-            "intitle_count": self.intitle_count,
+            "allintitle_count": _title_count_value(self.allintitle_count),
+            "intitle_count": _title_count_value(self.intitle_count),
             "メモ": self.notes,
         }
 
@@ -202,3 +202,7 @@ class RunResult:
     count: int = 0
     stopped: bool = False
     error_message: str = ""
+
+
+def _title_count_value(value: int) -> int | str:
+    return "取得失敗" if value < 0 else value

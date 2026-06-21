@@ -4,7 +4,7 @@ import re
 from urllib.parse import parse_qs, unquote, urlparse
 
 
-def parse_result_count(text: str) -> int:
+def parse_result_count(text: str) -> int | None:
     """Extract a rough search result count from visible result text."""
     patterns = [
         r"約\s*([0-9,]+)\s*件",
@@ -17,7 +17,7 @@ def parse_result_count(text: str) -> int:
         if match:
             break
     if not match:
-        return 0
+        return None
     return int(match.group(1).replace(",", ""))
 
 

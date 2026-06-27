@@ -7,7 +7,7 @@ import threading
 import time
 from dataclasses import asdict
 from pathlib import Path
-from tkinter import filedialog, messagebox, ttk
+from tkinter import Canvas, filedialog, messagebox, ttk
 
 import customtkinter as ctk
 
@@ -39,22 +39,28 @@ class KeywordTreasureApp(ctk.CTk):
         self.title("Keyword Treasure Finder")
         self.geometry("1240x820")
         self.minsize(1080, 720)
-        self.configure(fg_color="#EEF2F7")
+        self.configure(fg_color="#0F2F27")
         self.colors = {
-            "bg": "#EEF2F7",
+            "bg": "#0F2F27",
             "panel": "#FFFFFF",
-            "panel_alt": "#F6F8FB",
-            "border": "#CBD5E1",
-            "text": "#111827",
-            "muted": "#64748B",
-            "primary": "#1E3A8A",
-            "primary_hover": "#172554",
-            "secondary": "#334155",
-            "secondary_hover": "#1F2937",
-            "danger": "#B91C1C",
-            "danger_hover": "#7F1D1D",
-            "header": "#0B1120",
-            "accent": "#C8A24A",
+            "panel_alt": "#FBFDFC",
+            "border": "#95CFC2",
+            "text": "#1F2933",
+            "muted": "#667085",
+            "primary": "#20AD7F",
+            "primary_hover": "#0D7659",
+            "secondary": "#E4F4EF",
+            "secondary_hover": "#C9EBD9",
+            "secondary_text": "#0D7659",
+            "danger": "#B42318",
+            "danger_hover": "#8E1C13",
+            "header": "#0A241D",
+            "accent": "#0D7659",
+            "soft": "#E5F7EE",
+            "soft_strong": "#C9EBD9",
+            "header_start": "#071B16",
+            "header_mid": "#0D7659",
+            "header_end": "#20AD7F",
         }
         self.fonts = {
             "button": ctk.CTkFont(family="Yu Gothic UI", size=13, weight="bold"),
@@ -93,21 +99,9 @@ class KeywordTreasureApp(ctk.CTk):
         self.grid_rowconfigure(4, weight=1)
         self.grid_rowconfigure(5, weight=1)
 
-        title_bar = ctk.CTkFrame(self, corner_radius=0, fg_color=self.colors["header"])
-        title_bar.grid(row=0, column=0, sticky="ew")
-        title_bar.grid_columnconfigure(0, weight=1)
-        ctk.CTkLabel(
-            title_bar,
-            text="Keyword Treasure Finder",
-            font=ctk.CTkFont(size=24, weight="bold"),
-            text_color="#FFFFFF",
-        ).grid(row=0, column=0, sticky="w", padx=24, pady=(16, 2))
-        ctk.CTkLabel(
-            title_bar,
-            text="Personal keyword research workspace",
-            font=ctk.CTkFont(size=12, weight="bold"),
-            text_color=self.colors["accent"],
-        ).grid(row=1, column=0, sticky="w", padx=24, pady=(0, 16))
+        self.header_canvas = Canvas(self, height=92, highlightthickness=0, bd=0)
+        self.header_canvas.grid(row=0, column=0, sticky="ew")
+        self.header_canvas.bind("<Configure>", self._draw_header)
 
         file_frame = ctk.CTkFrame(
             self,
@@ -188,6 +182,7 @@ class KeywordTreasureApp(ctk.CTk):
         progress_frame.grid_columnconfigure(1, weight=1)
         ctk.CTkLabel(progress_frame, textvariable=self.status, width=80, font=self.fonts["status"]).grid(row=0, column=0, padx=(0, 10))
         self.progress_bar = ctk.CTkProgressBar(progress_frame)
+        self.progress_bar.configure(progress_color=self.colors["primary"], fg_color="#DFE7E5")
         self.progress_bar.set(0)
         self.progress_bar.grid(row=0, column=1, sticky="ew")
         ctk.CTkLabel(progress_frame, textvariable=self.progress_text, width=80, font=self.fonts["status"]).grid(row=0, column=2, padx=(10, 0))
@@ -247,19 +242,87 @@ class KeywordTreasureApp(ctk.CTk):
         )
         self.log_box.grid(row=0, column=0, sticky="nsew", padx=12, pady=12)
 
+    def _draw_header(self, event=None) -> None:
+        canvas = self.header_canvas
+        width = max(canvas.winfo_width(), 1)
+        height = max(canvas.winfo_height(), 1)
+        canvas.delete("all")
+
+        start = _hex_to_rgb(self.colors["header_start"])
+        mid = _hex_to_rgb(self.colors["header_mid"])
+        end = _hex_to_rgb(self.colors["header_end"])
+        for x in range(width):
+            ratio = x / max(width - 1, 1)
+            if ratio < 0.58:
+                color = _mix_rgb(start, mid, ratio / 0.58)
+            else:
+                color = _mix_rgb(mid, end, (ratio - 0.58) / 0.42)
+            canvas.create_line(x, 0, x, height, fill=_rgb_to_hex(color))
+
+        canvas.create_rectangle(0, height - 1, width, height, fill="#064E3B", outline="")
+        canvas.create_text(
+            24,
+            22,
+            anchor="nw",
+            text="Keyword Treasure Finder",
+            fill="#FFFFFF",
+            font=("Yu Gothic UI", 25, "bold"),
+        )
+        canvas.create_text(
+            25,
+            58,
+            anchor="nw",
+            text="Article Compass System style keyword research workspace",
+            fill="#D9FBE8",
+            font=("Yu Gothic UI", 12, "bold"),
+        )
+        canvas.create_text(
+            width - 24,
+            32,
+            anchor="ne",
+            text="TREASURE MODE",
+            fill="#B7F7D6",
+            font=("Yu Gothic UI", 11, "bold"),
+        )
+
     def _polish_controls(self, widget) -> None:
         for child in widget.winfo_children():
             try:
                 if isinstance(child, ctk.CTkButton):
                     child.configure(font=self.fonts["button"], height=36, corner_radius=7)
+                    if child.cget("fg_color") == self.colors["secondary"]:
+                        child.configure(text_color=self.colors["secondary_text"], border_width=1, border_color="#95CFC2")
+                    else:
+                        child.configure(text_color="#FFFFFF")
                 elif isinstance(child, ctk.CTkSegmentedButton):
-                    child.configure(font=self.fonts["control"], height=34, corner_radius=7)
+                    child.configure(
+                        font=self.fonts["control"],
+                        height=34,
+                        corner_radius=7,
+                        selected_color=self.colors["primary"],
+                        selected_hover_color=self.colors["primary_hover"],
+                        unselected_color=self.colors["soft"],
+                        unselected_hover_color=self.colors["soft_strong"],
+                        text_color=self.colors["secondary_text"],
+                    )
                 elif isinstance(child, ctk.CTkCheckBox):
-                    child.configure(font=self.fonts["control"], text_color=self.colors["text"])
+                    child.configure(
+                        font=self.fonts["control"],
+                        text_color=self.colors["text"],
+                        fg_color=self.colors["primary"],
+                        hover_color=self.colors["primary_hover"],
+                        border_color="#95CFC2",
+                    )
                 elif isinstance(child, ctk.CTkEntry):
-                    child.configure(font=self.fonts["entry"], height=34, corner_radius=7)
+                    child.configure(
+                        font=self.fonts["entry"],
+                        height=34,
+                        corner_radius=7,
+                        border_color="#CBD5DF",
+                        fg_color="#FFFFFF",
+                    )
                 elif isinstance(child, ctk.CTkTextbox):
-                    child.configure(font=self.fonts["log"], corner_radius=7)
+                    child.configure(font=self.fonts["log"], corner_radius=7, fg_color=self.colors["panel_alt"])
             except Exception:
                 pass
             self._polish_controls(child)
@@ -272,25 +335,25 @@ class KeywordTreasureApp(ctk.CTk):
             background="#FFFFFF",
             foreground=self.colors["text"],
             fieldbackground="#FFFFFF",
-            rowheight=28,
+            rowheight=30,
             borderwidth=0,
             font=("Yu Gothic UI", 9),
         )
         style.configure(
             "Treeview.Heading",
-            background="#111827",
+            background="#0D7659",
             foreground="#FFFFFF",
             relief="flat",
             font=("Yu Gothic UI", 9, "bold"),
         )
         style.map(
             "Treeview",
-            background=[("selected", "#DBEAFE")],
-            foreground=[("selected", "#0F172A")],
+            background=[("selected", "#C9EBD9")],
+            foreground=[("selected", "#1F2933")],
         )
         style.map(
             "Treeview.Heading",
-            background=[("active", "#1E3A8A")],
+            background=[("active", "#20AD7F")],
         )
 
     def _choose_input(self) -> None:
@@ -553,3 +616,17 @@ def _normalize_app_root(app_root: Path) -> Path:
     if app_root.is_file() or app_root.suffix.lower() == ".exe":
         return app_root.parent
     return app_root
+
+
+def _hex_to_rgb(value: str) -> tuple[int, int, int]:
+    value = value.lstrip("#")
+    return int(value[0:2], 16), int(value[2:4], 16), int(value[4:6], 16)
+
+
+def _rgb_to_hex(value: tuple[int, int, int]) -> str:
+    return f"#{value[0]:02x}{value[1]:02x}{value[2]:02x}"
+
+
+def _mix_rgb(start: tuple[int, int, int], end: tuple[int, int, int], ratio: float) -> tuple[int, int, int]:
+    ratio = max(0.0, min(1.0, ratio))
+    return tuple(round(start[index] + (end[index] - start[index]) * ratio) for index in range(3))

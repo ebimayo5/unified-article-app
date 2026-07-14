@@ -50,7 +50,11 @@ function uaRunArticleFromPanel(data) {
     }
 
     const body = uaApplyRakutenAffiliateBanner_(
-      uaFixGeneratedHtml_(resultJson.body),
+      uaApplyYmylNotice_(
+        uaNormalizeFaqHeadingLevels_(uaFixGeneratedHtml_(resultJson.body)),
+        rowData,
+        appConfig
+      ),
       rowData,
       appConfig
     );
@@ -94,6 +98,357 @@ function uaRunArticleFromPanel(data) {
 
 function uaRunArticleFromWeb(data) {
   return uaRunArticleFromPanel(data || {});
+}
+
+function uaFindFaqSectionBounds_(body) {
+  const html = String(body || '');
+  const h2Regex = /<h2\b[^>]*>([\s\S]*?)<\/h2>/gi;
+  let match;
+  let faqStart = -1;
+
+  while ((match = h2Regex.exec(html)) !== null) {
+    const headingText = String(match[1] || '')
+      .replace(/<!--[\s\S]*?-->/g, ' ')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/&nbsp;/gi, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    if (headingText.indexOf('よくある質問') !== -1 || /^FAQ(?:\s|$|[：:（(])/i.test(headingText)) {
+      faqStart = h2Regex.lastIndex;
+      break;
+    }
+  }
+
+  if (faqStart < 0) return null;
+
+  h2Regex.lastIndex = faqStart;
+  const nextH2 = h2Regex.exec(html);
+  return {
+    start: faqStart,
+    end: nextH2 ? nextH2.index : html.length
+  };
+}
+
+function uaNormalizeFaqHeadingLevels_(body) {
+  const html = String(body || '');
+  const bounds = uaFindFaqSectionBounds_(html);
+  if (!bounds) return html;
+
+  const section = html.slice(bounds.start, bounds.end)
+    .replace(/<!--\s*wp:heading\b[\s\S]*?-->/gi, function(comment) {
+      return comment.replace(/("level"\s*:\s*)4\b/g, function(_, prefix) {
+        return prefix + '3';
+      });
+    })
+    .replace(/<h4\b([^>]*)>([\s\S]*?)<\/h4>/gi, '<h3$1>$2</h3>');
+
+  return html.slice(0, bounds.start) + section + html.slice(bounds.end);
+}
+
+function uaApplyYmylNotice_(body, rowData, appConfig) {
+  const html = String(body || '').trim();
+  if (!html || uaHasYmylNotice_(html)) return html;
+
+  const spec = uaBuildYmylNoticeSpec_(rowData || {}, appConfig, html);
+  if (!spec) return html;
+
+  const notice = uaBuildYmylNoticeHtml_(spec);
+  const insertionIndex = uaFindYmylNoticeInsertionIndex_(html, spec.category);
+  return [
+    html.slice(0, insertionIndex).trimEnd(),
+    notice,
+    html.slice(insertionIndex).trimStart()
+  ].filter(Boolean).join('\n\n');
+}
+
+function uaBuildYmylNoticeSpec_(rowData, appConfig, body) {
+  const notes = String(rowData && rowData.affiliateNotes || '');
+  if (notes.indexOf('YMYL注意書きなし') !== -1) return null;
+
+  const detectionText = uaBuildYmylDetectionText_(rowData, body);
+  const category = uaDetectYmylCategory_(detectionText, appConfig);
+  if (!category && notes.indexOf('YMYL注意書きあり') === -1) return null;
+
+  const resolvedCategory = category || uaDefaultYmylCategory_(appConfig);
+  const source = uaPickYmylNoticeSource_(rowData, appConfig, resolvedCategory, detectionText, body);
+  return {
+    category: resolvedCategory,
+    topic: String(rowData && rowData.mainInput || uaPickWpTitle_(rowData && rowData.titleIdeas || '') || 'この記事のテーマ').trim(),
+    sourceUrl: source && source.url || '',
+    sourceLabel: source && source.label || ''
+  };
+}
+
+function uaBuildYmylDetectionText_(rowData, body) {
+  const headings = [];
+  const regex = /<h2\b[^>]*>([\s\S]*?)<\/h2>/gi;
+  let match;
+  while ((match = regex.exec(String(body || ''))) !== null) {
+    headings.push(uaPlainYmylText_(match[1]));
+  }
+  return [
+    rowData && rowData.mainInput,
+    rowData && rowData.titleIdeas,
+    headings.join(' ')
+  ].map(function(value) {
+    return String(value || '').trim();
+  }).filter(Boolean).join(' ');
+}
+
+function uaDetectYmylCategory_(text, appConfig) {
+  const value = String(text || '');
+  if (/(病気|症状|治療|診断|服薬|薬の|医療|妊娠|アレルギー|感染症|健康被害)/i.test(value)) {
+    return 'health';
+  }
+  if (/(住宅ローン|自動車ローン|ローン|借入|金利|任意保険|自動車保険|車両保険|生命保険|税金|税制|補助金|投資|資産運用|相続)/i.test(value)) {
+    return 'finance';
+  }
+  if (/(法律相談|法的責任|弁護士|訴訟|損害賠償|契約解除|クーリングオフ|消費者契約|相続放棄)/i.test(value)) {
+    return 'legal';
+  }
+  if (/(電気工事|電気配線|分電盤|感電|ガス工事|ガス漏れ|給湯器|火災|アスベスト|耐震|構造耐力|防水工事|雨漏り|屋根工事|高所作業|農薬|薬剤散布|害虫駆除)/i.test(value)) {
+    return 'home_safety';
+  }
+  if (/(道路交通法|道路運送車両法|保安基準|車検適合|違法改造|道路規制|運転免許|灯火類|ナンバープレート)/i.test(value)) {
+    return 'vehicle_law';
+  }
+  if (/(E[-‐‑–—\s]?Four|4WD|AWD|四輪駆動|雪道|凍結路|アイスバーン|スタッドレス|タイヤチェーン|タイヤ交換|ブレーキ|運転支援|自動ブレーキ|衝突被害軽減|牽引|冠水|事故|走行可否|安全性|チャイルドシート|ジャッキアップ|バッテリー交換)/i.test(value)) {
+    return 'vehicle_safety';
+  }
+  return null;
+}
+
+function uaDefaultYmylCategory_(appConfig) {
+  const key = String(appConfig && appConfig.key || '').toLowerCase();
+  if (key === 'drive') return 'vehicle_safety';
+  if (key === 'home') return 'home_safety';
+  return 'general_safety';
+}
+
+function uaPickYmylNoticeSource_(rowData, appConfig, category, detectionText, body) {
+  let candidates = [];
+  try {
+    candidates = uaGetExternalSourceCandidates_(rowData && rowData.mainInput || '', appConfig) || [];
+  } catch (e) {
+    candidates = [];
+  }
+  candidates = uaExtractYmylBodySourceCandidates_(body, rowData, appConfig).concat(candidates);
+
+  const mainInput = String(rowData && rowData.mainInput || '').trim();
+  const inputParts = mainInput.split(/[\s　]+/).filter(function(part) { return part.length >= 2; });
+  const categoryTerms = uaGetYmylCategoryTerms_(category);
+  let best = null;
+
+  candidates.forEach(function(item) {
+    const url = String(item && item.url || '').trim();
+    if (!/^https:\/\//i.test(url)) return;
+    const sourceText = [item.name, item.genre, item.usage, item.keywords].join(' ');
+    let relevanceScore = 0;
+    inputParts.forEach(function(part) {
+      if (sourceText.indexOf(part) !== -1) relevanceScore += 4;
+    });
+    categoryTerms.forEach(function(term) {
+      if (sourceText.indexOf(term) !== -1) relevanceScore += 2;
+    });
+    if (relevanceScore < 2) return;
+    let contextScore = relevanceScore;
+    if (/公式|公的|省|庁|警察|自治体|機構|協会|取扱説明書|メーカー/i.test(sourceText) || /\.go\.jp(?:\/|$)/i.test(url)) {
+      contextScore += 2;
+    }
+    contextScore += Math.min(4, Number(item.score || 0));
+    if (contextScore < 3) return;
+    if (!best || contextScore > best.score) {
+      best = {
+        url: url,
+        label: String(item.name || '公式情報').trim(),
+        score: contextScore
+      };
+    }
+  });
+
+  if (best) return best;
+
+  if (/E[-‐‑–—\s]?Four/i.test(String(detectionText || ''))) {
+    return {
+      url: 'https://toyota.jp/ownersmanual/index.html',
+      label: 'トヨタ公式の取扱説明書',
+      score: 1
+    };
+  }
+
+  return null;
+}
+
+function uaExtractYmylBodySourceCandidates_(body, rowData, appConfig) {
+  const affiliateUrl = uaNormalizeYmylUrl_(rowData && rowData.affiliateUrl || '');
+  const competitorUrls = [
+    rowData && rowData.competitorUrl1,
+    rowData && rowData.competitorUrl2,
+    rowData && rowData.competitorUrl3
+  ].map(uaNormalizeYmylUrl_).filter(Boolean);
+  const siteHost = uaGetYmylSiteHost_(rowData, appConfig);
+  const html = String(body || '').replace(
+    /<!--\s*wp:cocoon-blocks\/blogcard\b[\s\S]*?<!--\s*\/wp:cocoon-blocks\/blogcard\s*-->/gi,
+    ''
+  );
+  const result = [];
+  const regex = /<a\b([^>]*)\bhref=["']([^"']+)["']([^>]*)>([\s\S]*?)<\/a>/gi;
+  let match;
+  while ((match = regex.exec(html)) !== null) {
+    const attributes = String(match[1] || '') + ' ' + String(match[3] || '');
+    const url = uaNormalizeYmylUrl_(match[2]);
+    if (!/^https:\/\//i.test(url)) continue;
+    if (affiliateUrl && url === affiliateUrl) continue;
+    if (competitorUrls.indexOf(url) !== -1) continue;
+    if (/\brel=["'][^"']*\b(?:sponsored|affiliate)\b/i.test(attributes)) continue;
+    if (siteHost && uaExtractYmylHost_(url) === siteHost) continue;
+
+    const label = uaPlainYmylText_(match[4]) || '公式情報';
+    const contextStart = Math.max(0, match.index - 240);
+    const contextEnd = Math.min(html.length, regex.lastIndex + 240);
+    const context = uaPlainYmylText_(html.slice(contextStart, contextEnd));
+    const trustText = label + ' ' + context;
+    if (!(/公式|公的|省|庁|警察|自治体|機構|協会|取扱説明書|メーカー|JAF/i.test(trustText) || /\.go\.jp(?:\/|$)/i.test(url))) {
+      continue;
+    }
+    result.push({
+      name: label,
+      url: url,
+      genre: '本文内の公式・公的リンク',
+      usage: context,
+      keywords: context,
+      score: 8
+    });
+  }
+  return result;
+}
+
+function uaGetYmylSiteHost_(rowData, appConfig) {
+  const editHost = uaExtractYmylHost_(rowData && rowData.wpEditUrl || '');
+  if (editHost) return editHost;
+  try {
+    const wpConfig = appConfig ? uaGetWpConfig_(appConfig) : null;
+    return uaExtractYmylHost_(wpConfig && wpConfig.siteUrl || '');
+  } catch (e) {
+    return '';
+  }
+}
+
+function uaExtractYmylHost_(url) {
+  const match = String(url || '').match(/^https?:\/\/([^\/:?#]+)/i);
+  return match ? String(match[1] || '').toLowerCase().replace(/^www\./, '') : '';
+}
+
+function uaNormalizeYmylUrl_(value) {
+  return String(value || '')
+    .trim()
+    .replace(/&amp;/g, '&')
+    .replace(/\/$/, '');
+}
+
+function uaGetYmylCategoryTerms_(category) {
+  const terms = {
+    vehicle_safety: ['安全', '走行', '雪道', 'タイヤ', '取扱説明書', '車種', '年式', '道路'],
+    vehicle_law: ['法令', '車検', '保安基準', '道路', '警察', '国土交通省'],
+    home_safety: ['安全', '施工', '電気', 'ガス', '火災', '建物', '資格'],
+    finance: ['金融', '保険', '税', '補助金', '制度', '契約'],
+    legal: ['法律', '法令', '契約', '消費者', '裁判', '弁護士', '公的'],
+    health: ['医療', '健康', '治療', '薬', '厚生労働省'],
+    general_safety: ['安全', '法令', '公式', '公的']
+  };
+  return terms[category] || terms.general_safety;
+}
+
+function uaBuildYmylNoticeHtml_(spec) {
+  const topic = uaEscapeHtml_(spec && spec.topic || 'この記事のテーマ');
+  const reference = uaBuildYmylReferenceHtml_(spec);
+  let text;
+
+  if (spec.category === 'health') {
+    text = 'この記事は、' + topic + 'に関する一般的な情報であり、診断や治療の代わりになるものではありません。症状、体質、服薬状況によって適切な対応は変わります。判断に迷う場合は、' + reference + '、医師・薬剤師などの専門家へ確認してください。';
+  } else if (spec.category === 'legal') {
+    text = 'この記事は、' + topic + 'に関する一般的な情報であり、個別の法律相談に代わるものではありません。適用される法令や手続きは、契約内容、地域、時期、個別事情で変わります。重要な判断の前には、' + reference + '、弁護士・司法書士・所管機関などの専門家へ確認してください。';
+  } else if (spec.category === 'finance') {
+    text = 'この記事は、' + topic + 'の判断材料を整理する一般的な情報です。費用、税制、保険、補助制度、契約条件は、時期・地域・申込条件・個別の状況で変わります。契約や申請の前には、' + reference + '、金融機関・保険会社・自治体などの最新情報を確認してください。';
+  } else if (spec.category === 'home_safety') {
+    text = 'この記事は、' + topic + 'の考え方を整理する一般的な情報です。実際の施工可否や安全性は、建物・設備の状態、使用製品、施工方法、地域の規制で変わります。作業や契約の前には、' + reference + '、有資格者・施工会社・関係機関の最新情報を確認してください。';
+  } else if (spec.category === 'vehicle_law') {
+    text = 'この記事は、' + topic + 'に関する法規・安全面の一般的な情報です。実際の適法性や車検適合性は、車種・年式・部品仕様・取付方法・法令改正で変わります。購入・取付・走行前には、' + reference + '、販売店・整備事業者・所管機関の最新情報を確認してください。';
+  } else {
+    text = 'この記事は、' + topic + 'について判断材料を整理する一般的な情報です。実際の走行可否や安全性は、車種・年式・装備の状態・路面状況・道路規制で変わります。購入・走行・作業前には、' + reference + '、販売店・整備事業者・道路管理者の最新情報を確認してください。';
+  }
+
+  return [
+    '<!-- wp:cocoon-blocks/info-box {"style":"danger-box"} -->',
+    '<div class="wp-block-cocoon-blocks-info-box block-box danger-box"><!-- wp:paragraph -->',
+    '<p><strong>注意：</strong>' + text + '</p>',
+    '<!-- /wp:paragraph --></div>',
+    '<!-- /wp:cocoon-blocks/info-box -->'
+  ].join('\n');
+}
+
+function uaBuildYmylReferenceHtml_(spec) {
+  const url = String(spec && spec.sourceUrl || '').trim();
+  const label = String(spec && spec.sourceLabel || '').trim();
+  if (url && label) {
+    return '<a href="' + uaEscapeHtml_(url) + '" target="_blank" rel="noopener">' + uaEscapeHtml_(label) + '</a>';
+  }
+  if (spec.category === 'health') return '公的機関の公式情報';
+  if (spec.category === 'legal') return '公的機関の公式情報';
+  if (spec.category === 'finance') return '公的機関・事業者の公式情報';
+  if (spec.category === 'home_safety') return 'メーカー・公的機関の公式情報';
+  return 'メーカーの取扱説明書・公的機関の公式情報';
+}
+
+function uaFindYmylNoticeInsertionIndex_(body, category) {
+  const html = String(body || '');
+  const headingPattern = uaGetYmylHeadingPattern_(category);
+  const h2Regex = /<h2\b[^>]*>([\s\S]*?)<\/h2>/gi;
+  let match;
+  while ((match = h2Regex.exec(html)) !== null) {
+    if (headingPattern.test(uaPlainYmylText_(match[1]))) return match.index;
+  }
+
+  const pointsClose = /<!--\s*\/wp:cocoon-blocks\/tab-caption-box-1\s*-->/i.exec(html);
+  if (pointsClose) return pointsClose.index + pointsClose[0].length;
+
+  const firstH2 = /<h2\b/i.exec(html);
+  if (firstH2) return firstH2.index;
+
+  const firstParagraph = /<\/p>/i.exec(html);
+  return firstParagraph ? firstParagraph.index + firstParagraph[0].length : 0;
+}
+
+function uaGetYmylHeadingPattern_(category) {
+  if (category === 'health') return /(注意|症状|治療|薬|医療|受診|リスク)/i;
+  if (category === 'legal') return /(法律|法令|契約|手続き|責任|注意|リスク)/i;
+  if (category === 'finance') return /(費用|税|保険|補助金|契約|金利|注意|リスク)/i;
+  if (category === 'home_safety') return /(安全|注意|施工|資格|電気|ガス|火災|規制|リスク)/i;
+  if (category === 'vehicle_law') return /(法規|車検|保安基準|違法|規制|注意|安全)/i;
+  return /(安全|注意|雪道|凍結|タイヤ|ブレーキ|走行|規制|事故|リスク)/i;
+}
+
+function uaHasYmylNotice_(body) {
+  const text = String(body || '');
+  return text.indexOf('wp:cocoon-blocks/info-box') !== -1 &&
+    text.indexOf('danger-box') !== -1 &&
+    /<strong>\s*注意[：:]\s*<\/strong>/i.test(text) &&
+    /(一般的な情報|最新情報を確認|専門家へ確認)/.test(text);
+}
+
+function uaGetYmylNoticeSourceUrls_(rowData, appConfig, body) {
+  const spec = uaBuildYmylNoticeSpec_(rowData || {}, appConfig, body || rowData && rowData.body || '');
+  return spec && spec.sourceUrl ? [spec.sourceUrl] : [];
+}
+
+function uaPlainYmylText_(html) {
+  return String(html || '')
+    .replace(/<!--([\s\S]*?)-->/g, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 function uaAddRakutenBannerToActiveRow() {
@@ -432,7 +787,7 @@ function uaBuildRakutenAffiliateBanner_(body, rowData, appConfig) {
   }
 
   return [
-    '<p>具体的な商品を比較したい場合は、下の楽天バナーから関連アイテムを確認できます。楽天を特別に推す意図ではなく、価格や種類を見比べるための選択肢として使ってください。</p>',
+    '<p>本文の対策を実際に試すための商品候補を見比べたい場合は、下の楽天バナーから関連アイテムの価格や種類を確認できます。</p>',
     uaNormalizeRakutenAffiliateBanner_(fallbackHtml)
   ].join('\n');
 }
@@ -463,10 +818,11 @@ function uaSelectRakutenProductQuery_(body, rowData, appConfig) {
 
   candidates.forEach(function(candidate) {
     const score = candidate.keywords.reduce(function(total, keyword) {
-      return total + (text.indexOf(keyword) !== -1 ? 1 : 0);
+      return total + (uaRakutenTextContains_(text, keyword) ? 1 : 0);
     }, 0);
+    const minScore = Number(candidate.minScore) || 1;
 
-    if (score > 0 && (!best || score > best.score)) {
+    if (score >= minScore && (!best || score > best.score)) {
       best = {
         query: candidate.query,
         score: score
@@ -526,16 +882,17 @@ function uaGetRakutenKeywordSuggestions_(data) {
   candidates
     .map(function(candidate) {
       const score = candidate.keywords.reduce(function(total, keyword) {
-        return total + (text.indexOf(keyword) !== -1 ? 1 : 0);
+        return total + (uaRakutenTextContains_(text, keyword) ? 1 : 0);
       }, 0);
 
       return {
         query: candidate.query,
-        score: score
+        score: score,
+        minScore: Number(candidate.minScore) || 1
       };
     })
     .filter(function(item) {
-      return item.score > 0;
+      return item.score >= item.minScore;
     })
     .sort(function(a, b) {
       return b.score - a.score;
@@ -757,6 +1114,18 @@ function uaFetchRakutenItemsByQueries_(queries, maxItems) {
   return results;
 }
 
+function uaRakutenTextContains_(text, keyword) {
+  const value = String(text || '');
+  const word = String(keyword || '').trim();
+
+  if (!word) return false;
+  if (value.indexOf(word) !== -1) return true;
+
+  const compactValue = value.replace(/[\s　]+/g, '');
+  const compactWord = word.replace(/[\s　]+/g, '');
+  return !!compactWord && compactValue.indexOf(compactWord) !== -1;
+}
+
 function uaKeywordBasedRakutenQueries_(keyword, appKey) {
   const value = String(keyword || '')
     .replace(/[「」『』【】（）()]/g, ' ')
@@ -819,7 +1188,7 @@ function uaHomeRakutenProductCandidates_() {
     { query: '脱衣所 収納 チェスト', keywords: ['脱衣所', '洗面所', 'チェスト'] },
     { query: '収納ボックス 住宅', keywords: ['収納', '収納ボックス', '片付け'] },
     { query: '可動棚 収納', keywords: ['可動棚', '棚', '収納'] },
-    { query: '排水口 掃除 ぬめり取り', keywords: ['排水口', 'ぬめり', '掃除'] },
+    { query: '排水口ブラシ 排水トラップ 掃除', keywords: ['排水口', 'ぬめり', '掃除'], minScore: 2 },
     { query: '滑り止めマット 玄関 浴室', keywords: ['滑りにくい', '滑り止め', 'マット'] },
     { query: 'センサーライト 屋外', keywords: ['センサーライト', '外構', '防犯'] },
     { query: '防災用品 セット 家庭用', keywords: ['防災', '停電', '備え'] },
@@ -1016,12 +1385,12 @@ function uaBuildRakutenSingleItemBannerHtml_(item, query) {
     : '';
 
   return [
-    '<p>具体的な商品を比較したい場合は、下の楽天バナーから「' + queryText + '」の関連アイテムを確認できます。楽天を特別に推す意図ではなく、価格や種類を見比べるための選択肢として使ってください。</p>',
+    '<p>本文の対策を実際に試すための商品候補を見比べたい場合は、下の楽天バナーから「' + queryText + '」の価格や種類を確認できます。</p>',
     '<!-- wp:html -->',
     '<div style=\'background:#fff;border:1px solid #d7dde3;border-radius:8px;padding:14px;margin:16px 0;display:flex;gap:14px;align-items:center;max-width:720px;box-sizing:border-box;\'>',
     imageHtml,
     '<div style=\'min-width:0;\'>',
-    '<p style=\'margin:0 0 8px;font-weight:700;\'>関連アイテムを楽天で確認</p>',
+    '<p style=\'margin:0 0 8px;font-weight:700;\'>「' + queryText + '」を楽天で比較する</p>',
     '<p style=\'margin:0;font-size:14px;line-height:1.7;\'><a href=\'' + url + '\' target=\'_blank\' rel=\'nofollow sponsored\'>' + name + '</a></p>',
     '</div>',
     '</div>',
@@ -1055,17 +1424,17 @@ function uaBuildRakutenItemBannerHtml_(items, query) {
 
   const leadText = queryText
     ? (items.length > 1
-      ? '<p>具体的な商品を比較したい場合は、下の楽天バナーから「' + queryText + '」の関連アイテムをいくつか確認できます。楽天を特別に推す意図ではなく、価格や種類を見比べるための選択肢として使ってください。</p>'
-      : '<p>具体的な商品を確認したい場合は、下の楽天バナーから「' + queryText + '」の関連アイテムを確認できます。楽天を特別に推す意図ではなく、価格や種類を見比べるための選択肢として使ってください。</p>')
+      ? '<p>本文の対策を実際に試すための商品候補を見比べたい場合は、下の楽天バナーから「' + queryText + '」の価格や種類をいくつか確認できます。</p>'
+      : '<p>本文の対策を実際に試すための商品候補を確認したい場合は、下の楽天バナーから「' + queryText + '」の価格や種類を確認できます。</p>')
     : (items.length > 1
-      ? '<p>具体的な商品を比較したい場合は、下の楽天バナーから本文で触れた関連アイテムをいくつか確認できます。楽天を特別に推す意図ではなく、価格や種類を見比べるための選択肢として使ってください。</p>'
-      : '<p>具体的な商品を確認したい場合は、下の楽天バナーから本文で触れた関連アイテムを確認できます。楽天を特別に推す意図ではなく、価格や種類を見比べるための選択肢として使ってください。</p>');
+      ? '<p>本文の対策を実際に試すための商品候補を見比べたい場合は、下の楽天バナーから関連アイテムの価格や種類をいくつか確認できます。</p>'
+      : '<p>本文の対策を実際に試すための商品候補を確認したい場合は、下の楽天バナーから関連アイテムの価格や種類を確認できます。</p>');
 
   return [
     leadText,
     '<!-- wp:html -->',
     '<div style=\'background:#fff;border:1px solid #d7dde3;border-radius:8px;padding:14px;margin:16px 0;max-width:760px;box-sizing:border-box;\'>',
-    '<p style=\'margin:0 0 8px;font-weight:700;\'>関連アイテムを楽天で確認</p>',
+    '<p style=\'margin:0 0 8px;font-weight:700;\'>「' + queryText + '」を楽天で比較する</p>',
     itemHtml,
     '</div>',
     '<!-- /wp:html -->'
@@ -1253,8 +1622,6 @@ function uaFixGeneratedHtml_(html) {
     .replace(/style=''+([^']+?)''*/g, "style='$1'")
     .replace(/<body[^>]*>/gi, '')
     .replace(/<\/body>\s*$/i, '')
-    .replace(/<div[^>]*>/gi, '')
-    .replace(/<\/div>/gi, '')
     .replace(/<table class='[^']*'>/gi, '<table>')
     .replace(/<table style='[^']*'>/gi, '<table>');
 

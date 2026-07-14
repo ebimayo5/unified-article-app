@@ -39,11 +39,18 @@ function uaBuildInternalLinksPrompt_(mainInput, appConfig) {
 同じURLは1回だけ使ってください。
 関連性が薄い候補は使わないでください。
 アンカーテキストは記事タイトルをそのまま使わず、本文になじむ短い自然な文言にしてください。
-リンク形式は <a href='URL'>自然なアンカーテキスト</a> とします。
-内部リンクだけの独立段落を連発せず、読者の次の悩みや補足理解につながる位置に入れてください。
+内部リンクは通常のテキストリンクではなく、必ず「前置き文 + Cocoonブログカード」で入れてください。
+前置き文は、文脈に合わせて「〜の記事も参考になります。」「詳しくはこちらの記事で整理しています。」「関連する注意点は次の記事も参考になります。」のように、読者が別記事へ移動すると分かる一文にしてください。
+ブログカードは必ず次の形式にしてください。divの中にはURLだけを入れ、タイトルや<a>タグは入れないでください。
+<!-- wp:cocoon-blocks/blogcard {"style":"blogcard-type bct-together"} -->
+<div class="wp-block-cocoon-blocks-blogcard blogcard-type bct-together">
+URL
+</div>
+<!-- /wp:cocoon-blocks/blogcard -->
+内部リンクだけのブロックを連発せず、読者の次の悩みや補足理解につながる位置に入れてください。
 入れやすい位置は、関連するH2の本文中、比較・注意点の補足、まとめ前の「次に読む内容」です。
-内部リンクは自然に溶け込ませすぎず、読者が別記事へ移動するリンクだと分かる文脈にしてください。
-1記事内の内部リンクのうち少なくとも1つは、「あわせて読みたい」「関連する内容は〜の記事で整理しています」「本文では触れきれない注意点は〜も参考になります」のような補足導線として入れてください。
+内部リンクは自然に溶け込ませすぎず、読者が別記事へ移動するブログカードだと分かる文脈にしてください。
+1記事内の内部リンクのうち少なくとも1つは、「あわせて読みたい」「関連する内容は〜の記事で整理しています」「本文では触れきれない注意点は〜も参考になります」のような補足導線の前置き文を添えてください。
 ただし、リンクだけの不自然な案内文は避け、本文の悩みや次の確認事項につながる位置に置いてください。
 
 【内部リンク候補】
@@ -620,53 +627,82 @@ function uaFetchPageInfo_(url, introLength) {
   }
 }
 
+function uaGetCompetitorFetchOptions_() {
+  return {
+    muteHttpExceptions: true,
+    followRedirects: true,
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (compatible; UnifiedArticleApp/1.0; Google Apps Script)'
+    }
+  };
+}
+
+function uaBuildCompetitorPageFetchFailure_(url, fetchStatus) {
+  return {
+    url: url,
+    fetchStatus: fetchStatus || '取得失敗',
+    title: uaBuildUrlHintTitle_(url),
+    description: '',
+    headings: [],
+    bodyText: '',
+    keywords: uaBuildUrlKeywords_(url)
+  };
+}
+
+function uaBuildCompetitorPageInfoFromResponse_(url, res) {
+  if (!res) return uaBuildCompetitorPageFetchFailure_(url, '取得失敗');
+
+  if (res.getResponseCode() >= 400) {
+    return uaBuildCompetitorPageFetchFailure_(url, 'HTTP ' + res.getResponseCode());
+  }
+
+  const html = res.getContentText();
+  const title = uaExtractTitle_(html);
+  const description = uaExtractMetaDescription_(html);
+  const headings = uaExtractHeadings_(html).slice(0, UA_COMPETITOR_URL_MAX_HEADINGS);
+  const bodyText = uaExtractBodyIntro_(html, UA_COMPETITOR_URL_TEXT_LENGTH);
+
+  return {
+    url: url,
+    fetchStatus: 'OK',
+    title: title,
+    description: description,
+    headings: headings,
+    bodyText: bodyText,
+    keywords: uaBuildSimpleKeywords_(title + ' ' + description + ' ' + bodyText)
+  };
+}
+
+function uaFetchCompetitorPageInfos_(urls) {
+  const list = (Array.isArray(urls) ? urls : []).map(function(url) {
+    return String(url || '').trim();
+  }).filter(Boolean);
+
+  if (list.length === 0) return [];
+
+  try {
+    const requests = list.map(function(url) {
+      const options = uaGetCompetitorFetchOptions_();
+      options.url = url;
+      return options;
+    });
+    const responses = UrlFetchApp.fetchAll(requests);
+    return list.map(function(url, index) {
+      return uaBuildCompetitorPageInfoFromResponse_(url, responses[index]);
+    });
+  } catch (e) {
+    return list.map(function(url) {
+      return uaFetchCompetitorPageInfo_(url);
+    });
+  }
+}
+
 function uaFetchCompetitorPageInfo_(url) {
   try {
-    const res = UrlFetchApp.fetch(url, {
-      muteHttpExceptions: true,
-      followRedirects: true,
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; UnifiedArticleApp/1.0; Google Apps Script)'
-      }
-    });
-
-    if (res.getResponseCode() >= 400) {
-      return {
-        url: url,
-        fetchStatus: 'HTTP ' + res.getResponseCode(),
-        title: uaBuildUrlHintTitle_(url),
-        description: '',
-        headings: [],
-        bodyText: '',
-        keywords: uaBuildUrlKeywords_(url)
-      };
-    }
-
-    const html = res.getContentText();
-    const title = uaExtractTitle_(html);
-    const description = uaExtractMetaDescription_(html);
-    const headings = uaExtractHeadings_(html).slice(0, UA_COMPETITOR_URL_MAX_HEADINGS);
-    const bodyText = uaExtractBodyIntro_(html, UA_COMPETITOR_URL_TEXT_LENGTH);
-
-    return {
-      url: url,
-      fetchStatus: 'OK',
-      title: title,
-      description: description,
-      headings: headings,
-      bodyText: bodyText,
-      keywords: uaBuildSimpleKeywords_(title + ' ' + description + ' ' + bodyText)
-    };
+    const res = UrlFetchApp.fetch(url, uaGetCompetitorFetchOptions_());
+    return uaBuildCompetitorPageInfoFromResponse_(url, res);
   } catch (e) {
-    return {
-      url: url,
-      fetchStatus: '取得失敗',
-      title: uaBuildUrlHintTitle_(url),
-      description: '',
-      headings: [],
-      bodyText: '',
-      keywords: uaBuildUrlKeywords_(url)
-    };
+    return uaBuildCompetitorPageFetchFailure_(url, '取得失敗');
   }
 }
 
@@ -1095,12 +1131,23 @@ function uaPickExternalSourceForBody_(rowData, appConfig, body) {
 
 function uaBuildInternalLinkPostInsertBlock_(candidate) {
   const url = uaEscapeLinkHtml_(candidate.url);
-  const title = uaEscapeLinkHtml_(candidate.title || '関連記事');
-  const usage = uaEscapeLinkHtml_(candidate.usage || '本文では触れきれない補足内容');
-  const anchor = uaBuildShortAnchorText_(candidate.title || '関連記事');
+  const rawUsage = String(candidate.usage || '本文では触れきれない補足内容')
+    .replace(/として使う$/, '')
+    .replace(/ときに使う$/, 'とき')
+    .replace(/に使う$/, '')
+    .trim();
+  const usage = uaEscapeLinkHtml_(rawUsage || '本文では触れきれない補足内容');
+  const leadText = /とき$/.test(usage)
+    ? usage + 'は、こちらの記事も参考になります。'
+    : usage + 'をあわせて確認したい場合は、こちらの記事も参考になります。';
 
   return [
-    '<p>あわせて確認したい内容として、' + usage + 'は<a href=\'' + url + '\'>' + anchor + '</a>でも整理しています。</p>'
+    '<p>' + leadText + '</p>',
+    '<!-- wp:cocoon-blocks/blogcard {"style":"blogcard-type bct-together"} -->',
+    '<div class="wp-block-cocoon-blocks-blogcard blogcard-type bct-together">',
+    url,
+    '</div>',
+    '<!-- /wp:cocoon-blocks/blogcard -->'
   ].join('\n');
 }
 
@@ -1111,24 +1158,6 @@ function uaBuildExternalSourcePostInsertBlock_(candidate) {
 
   return [
     '<p>' + usage + 'は、<a href=\'' + url + '\' target=\'_blank\' rel=\'noopener\'>' + name + '</a>でも確認できます。記事内の判断材料とあわせて、最新条件は公式情報で確認しておくと安心です。</p>'
-  ].join('\n');
-}
-
-function uaBuildInternalLinkPostInsertBlock_(candidate) {
-  const url = uaEscapeLinkHtml_(candidate.url);
-  const anchor = uaBuildShortAnchorText_(candidate.title || '関連記事');
-
-  return [
-    '<p>この内容に近い補足は、<a href=\'' + url + '\'>' + anchor + '</a>でも詳しく整理しています。</p>'
-  ].join('\n');
-}
-
-function uaBuildExternalSourcePostInsertBlock_(candidate) {
-  const url = uaEscapeLinkHtml_(candidate.url);
-  const name = uaEscapeLinkHtml_(candidate.name || '公式情報');
-
-  return [
-    '<p>最新の条件や公式の案内は、<a href=\'' + url + '\' target=\'_blank\' rel=\'noopener\'>' + name + '</a>でも確認できます。</p>'
   ].join('\n');
 }
 

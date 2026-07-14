@@ -154,6 +154,152 @@ function uaCallOpenAiJson_(promptText, maxOutputTokens) {
   };
 }
 
+function uaCallOpenAiImage_(promptText, options) {
+  const apiKey = uaGetOpenAiApiKey_();
+
+  if (!apiKey) {
+    throw new Error('OpenAI APIキーが設定されていません。');
+  }
+
+  const model = uaGetOpenAiImageModel_();
+  const payload = {
+    model: model,
+    prompt: promptText,
+    n: 1,
+    size: options && options.size ? options.size : '1536x1024',
+    quality: options && options.quality ? options.quality : 'high'
+  };
+
+  const response = UrlFetchApp.fetch('https://api.openai.com/v1/images/generations', {
+    method: 'post',
+    contentType: 'application/json',
+    headers: {
+      Authorization: 'Bearer ' + apiKey
+    },
+    payload: JSON.stringify(payload),
+    muteHttpExceptions: true
+  });
+
+  const statusCode = response.getResponseCode();
+  const responseText = response.getContentText();
+
+  if (statusCode < 200 || statusCode >= 300) {
+    throw new Error('OpenAI Images APIエラー: ' + responseText);
+  }
+
+  const json = JSON.parse(responseText);
+  const first = json.data && json.data[0];
+  if (!first) {
+    throw new Error('OpenAI Images APIから画像データが返りませんでした。');
+  }
+
+  if (first.b64_json) {
+    return {
+      bytes: Utilities.base64Decode(first.b64_json),
+      contentType: 'image/png',
+      model: model
+    };
+  }
+
+  if (first.url) {
+    const imageRes = UrlFetchApp.fetch(first.url, {
+      muteHttpExceptions: true,
+      followRedirects: true
+    });
+    const imageStatus = imageRes.getResponseCode();
+    if (imageStatus < 200 || imageStatus >= 300) {
+      throw new Error('OpenAI Images APIの画像URLを取得できませんでした。HTTP ' + imageStatus);
+    }
+    const headers = imageRes.getHeaders();
+    const contentType = String(headers['Content-Type'] || headers['content-type'] || 'image/png').split(';')[0].trim();
+    return {
+      bytes: imageRes.getBlob().getBytes(),
+      contentType: contentType,
+      model: model
+    };
+  }
+
+  throw new Error('OpenAI Images APIのレスポンスに画像が含まれていません。');
+}
+
+
+function uaCallGeminiImage_(promptText, options) {
+  const apiKey = uaGetGeminiApiKey_();
+
+  if (!apiKey) {
+    throw new Error('Gemini API key is not configured.');
+  }
+
+  const model = uaGetGeminiImageModel_();
+  const payload = {
+    contents: [
+      {
+        parts: [
+          { text: promptText }
+        ]
+      }
+    ],
+    generationConfig: {
+      responseModalities: ['IMAGE'],
+      temperature: 0.86
+    }
+  };
+
+  const response = UrlFetchApp.fetch('https://generativelanguage.googleapis.com/v1beta/' + model + ':generateContent?key=' + apiKey, {
+    method: 'post',
+    contentType: 'application/json',
+    payload: JSON.stringify(payload),
+    muteHttpExceptions: true
+  });
+
+  const statusCode = response.getResponseCode();
+  const responseText = response.getContentText();
+
+  if (statusCode < 200 || statusCode >= 300) {
+    throw new Error('Gemini Images API error: ' + responseText);
+  }
+
+  const json = JSON.parse(responseText);
+  const imagePart = uaExtractGeminiImagePart_(json);
+
+  if (!imagePart || !imagePart.data) {
+    throw new Error('Gemini Images API did not return image data.');
+  }
+
+  return {
+    bytes: Utilities.base64Decode(imagePart.data),
+    contentType: imagePart.mimeType || 'image/png',
+    model: model
+  };
+}
+
+function uaExtractGeminiImagePart_(json) {
+  const candidates = json && json.candidates || [];
+  for (let i = 0; i < candidates.length; i++) {
+    const parts = candidates[i] &&
+      candidates[i].content &&
+      candidates[i].content.parts || [];
+    for (let j = 0; j < parts.length; j++) {
+      const inlineData = parts[j].inlineData || parts[j].inline_data;
+      if (inlineData && inlineData.data) {
+        return {
+          data: inlineData.data,
+          mimeType: inlineData.mimeType || inlineData.mime_type || 'image/png'
+        };
+      }
+    }
+  }
+
+  const outputImage = json && json.output_image;
+  if (outputImage && outputImage.data) {
+    return {
+      data: outputImage.data,
+      mimeType: outputImage.mime_type || outputImage.mimeType || 'image/png'
+    };
+  }
+
+  return null;
+}
 function uaCallClaudeJson_(promptText, maxOutputTokens) {
   const apiKey = uaGetClaudeApiKey_();
 

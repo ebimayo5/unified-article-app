@@ -6,6 +6,7 @@ function uaAddWpImagesFromWeb(data) {
   return uaAddWpImagesFromPanel(data || {});
 }
 
+
 function uaTestWordPressConnections() {
   const messages = [];
 
@@ -21,15 +22,15 @@ function uaTestWordPressConnections() {
       const user = uaCallWordPressApi_(wpConfig, '/wp-json/wp/v2/users/me', 'get');
       const userLabel = user && (user.name || user.slug || user.username || user.id)
         ? (user.name || user.slug || user.username || user.id)
-        : 'ユーザー取得OK';
+        : 'user';
 
-      messages.push(appConfig.label + ': OK（' + wpConfig.siteUrl + ' / ' + userLabel + '）');
+      messages.push(appConfig.label + ': OK - ' + wpConfig.siteUrl + ' / ' + userLabel);
     } catch (e) {
       messages.push(appConfig.label + ': NG - ' + e.message);
     }
   });
 
-  SpreadsheetApp.getUi().alert(messages.join('\n') || 'WordPress対象の記事タイプがありません。');
+  SpreadsheetApp.getUi().alert(messages.join('`n') || 'No WordPress app type found.');
 }
 
 function uaCreateWpDraftFromPanel(data) {
@@ -41,19 +42,19 @@ function uaCreateWpDraftFromPanel(data) {
   const appConfig = uaGetAppConfigByLabel_(rowData.appType);
 
   if (!appConfig) {
-    throw new Error('記事タイプを取得できません。A列で DRIVE BASE または たくみパパ を選んでください。');
+    throw new Error('WP draft: article type was not found. Open DRIVE BASE or Takumi Papa and select the target row.');
   }
 
   if (appConfig && appConfig.useWordPress === false) {
-    throw new Error('汎用記事はWordPress下書き作成の対象外です。本文コピーで納品してください。');
+    throw new Error('WP draft: this article type is not configured for WordPress drafts.');
   }
 
   if (!rowData.body) {
-    throw new Error('本文が空です。先に本文生成または本文入力をしてください。');
+    throw new Error('WP draft: body is empty. Generate or paste body first.');
   }
 
   if (!rowData.titleIdeas) {
-    throw new Error('タイトル案が空です。WordPress下書き作成前にタイトル案を入れてください。');
+    throw new Error('WP draft: title candidates are empty.');
   }
 
   const wpConfig = uaGetWpConfig_(appConfig);
@@ -61,6 +62,7 @@ function uaCreateWpDraftFromPanel(data) {
   const slug = uaCleanWpSlug_(rowData.permalink);
   const tagIds = uaEnsureWpTagIds_(wpConfig, rowData.tags);
   const categoryIds = uaGetWpCategoryIds_(wpConfig);
+  const existingPostId = Number(rowData.wpPostId || 0);
 
   const payload = {
     title: title,
@@ -80,11 +82,33 @@ function uaCreateWpDraftFromPanel(data) {
     payload.categories = categoryIds;
   }
 
-  const post = uaCallWordPressApi_(wpConfig, '/wp-json/wp/v2/posts', 'post', payload);
+  let post;
+  let updatedExistingDraft = false;
+  if (existingPostId > 0) {
+    const existingPost = uaFetchWpPostForEdit_(wpConfig, existingPostId);
+    const existingStatus = String(existingPost && existingPost.status || '').trim();
+    const editableStatuses = ['draft', 'pending', 'auto-draft'];
+    if (editableStatuses.indexOf(existingStatus) === -1) {
+      throw new Error('WP draft: 投稿ID ' + existingPostId + ' は「' + (existingStatus || '状態不明') + '」のため自動更新しません。公開済み・予約済み記事の誤更新を防ぐため停止しました。');
+    }
+    payload.status = existingStatus === 'auto-draft' ? 'draft' : existingStatus;
+    post = uaCallWordPressApi_(
+      wpConfig,
+      '/wp-json/wp/v2/posts/' + encodeURIComponent(existingPostId),
+      'post',
+      payload
+    );
+    updatedExistingDraft = true;
+  } else {
+    post = uaCallWordPressApi_(wpConfig, '/wp-json/wp/v2/posts', 'post', payload);
+  }
   const postId = post && post.id;
 
   if (!postId) {
-    throw new Error('WordPress下書きの作成結果に投稿IDがありません。');
+    throw new Error('WP draft: WordPress did not return a post ID.');
+  }
+  if (existingPostId > 0 && Number(postId) !== existingPostId) {
+    throw new Error('WP draft: 既存下書きの更新確認に失敗しました。別の投稿IDは保存しません。');
   }
 
   const editUrl = uaBuildWpEditUrl_(wpConfig.siteUrl, postId);
@@ -96,7 +120,9 @@ function uaCreateWpDraftFromPanel(data) {
   sheet.getRange(row, UA_COLUMNS.status).setValue(UA_STATUS_WP_DRAFTED);
 
   const nextData = uaBuildRowData_(sheet, row);
-  nextData.message = 'WordPress下書きを作成しました。';
+  nextData.message = updatedExistingDraft
+    ? 'WordPressの既存下書きを更新しました。'
+    : 'WordPress下書きを作成しました。';
   return nextData;
 }
 
@@ -109,20 +135,20 @@ function uaAddWpImagesFromPanel(data) {
   const appConfig = uaGetAppConfigByLabel_(rowData.appType);
 
   if (!appConfig) {
-    throw new Error('記事タイプを取得できません。');
+    throw new Error('WP images: article type was not found.');
   }
 
   if (!appConfig.useWordPress) {
-    throw new Error('この記事タイプはWordPress入稿対象外です。');
+    throw new Error('WP images: this article type is not configured for WordPress.');
   }
 
   if (!rowData.body) {
-    throw new Error('本文が空です。先に本文生成または本文入力をしてください。');
+    throw new Error('WP images: body is empty.');
   }
 
   const imageItems = uaParseImageUrlMemo_(rowData.structureMemo);
   if (imageItems.length === 0) {
-    throw new Error('構成メモに画像URLメモがありません。「画像URLひな形」を追加し、画像URLを入れてください。');
+    throw new Error('WP images: no image URL memo was found in the structure memo.');
   }
 
   const wpConfig = uaGetWpConfig_(appConfig);
@@ -132,7 +158,7 @@ function uaAddWpImagesFromPanel(data) {
   const uploaded = [];
 
   imageItems.forEach(function(item, index) {
-    const media = uaUploadWpImageFromUrl_(wpConfig, item.url, item.alt || uaPickWpTitle_(rowData.titleIdeas) || rowData.mainInput || '記事画像', index + 1);
+    const media = uaUploadWpImageFromUrl_(wpConfig, item.url, item.alt || uaPickWpTitle_(rowData.titleIdeas) || rowData.mainInput || 'article image', index + 1);
     uploaded.push(media);
 
     if (item.role === 'eyecatch') {
@@ -151,22 +177,36 @@ function uaAddWpImagesFromPanel(data) {
 
   const postId = Number(rowData.wpPostId || 0);
   if (postId > 0) {
-    const payload = { content: body };
-    if (featuredMediaId > 0) {
-      payload.featured_media = featuredMediaId;
-    }
-    uaCallWordPressApi_(wpConfig, '/wp-json/wp/v2/posts/' + encodeURIComponent(postId), 'post', payload);
+    uaUpdateWpPostWithImages_(wpConfig, postId, body, featuredMediaId, uploaded);
   }
 
   const nextData = uaBuildRowData_(sheet, row);
-  const wpPart = postId > 0 ? 'WordPress下書きも更新しました。' : '本文へ挿入しました。WP下書き作成前なら、次回下書き作成時に反映されます。';
-  nextData.message = '画像を' + uploaded.length + '件アップロードし、本文へ' + insertedCount + '件挿入しました。' + wpPart;
+  const wpPart = postId > 0 ? 'WordPress draft updated.' : 'Inserted into body only.';
+  nextData.message = 'Uploaded ' + uploaded.length + ' image(s), inserted ' + insertedCount + ' image(s). ' + wpPart;
   return nextData;
+}
+
+function uaDecodeHtmlEntities_(value) {
+  return String(value || '')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&nbsp;/g, ' ');
+}
+
+function uaEscapeHtml_(value) {
+  return String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
 }
 
 function uaGetWpConfig_(appConfig) {
   if (!appConfig || !appConfig.key) {
-    throw new Error('記事タイプが取得できません。');
+    throw new Error('WP config: article type key was not found.');
   }
 
   const props = PropertiesService.getScriptProperties();
@@ -179,7 +219,7 @@ function uaGetWpConfig_(appConfig) {
   const categoryIds = props.getProperty(prefix + 'CATEGORY_IDS') || props.getProperty(fallbackPrefix + 'CATEGORY_IDS') || '';
 
   if (!siteUrl || !username || !appPassword) {
-    throw new Error('WordPress接続情報が未設定です。スクリプトプロパティに ' + prefix + 'SITE_URL / USERNAME / APP_PASSWORD を設定してください。');
+    throw new Error('WP config: SITE_URL / USERNAME / APP_PASSWORD is missing in script properties.');
   }
 
   return {
@@ -192,26 +232,27 @@ function uaGetWpConfig_(appConfig) {
 
 function uaParseImageUrlMemo_(memoText) {
   const text = String(memoText || '');
-  const markerIndex = text.indexOf('【画像URLメモ】');
+  const marker = '\u3010\u753b\u50cfURL\u30e1\u30e2\u3011';
+  const markerIndex = text.indexOf(marker);
   const target = markerIndex >= 0 ? text.slice(markerIndex) : text;
   const lines = target.split(/\r?\n/);
   const items = [];
 
   lines.forEach(function(line) {
     const raw = String(line || '').trim();
-    if (!raw || raw === '【画像URLメモ】') return;
+    if (!raw || raw === marker) return;
     const urlMatch = raw.match(/https?:\/\/\S+/);
     if (!urlMatch) return;
 
-    const url = urlMatch[0].replace(/[)、。,\]]+$/g, '');
+    const url = urlMatch[0].replace(/[)、。\\]]+$/g, '');
     const beforeUrl = raw.slice(0, raw.indexOf(urlMatch[0])).trim();
 
-    if (/^アイキャッチ[:：]/.test(beforeUrl) || /^eyecatch[:：]/i.test(beforeUrl)) {
+    if (/^\u30a2\u30a4\u30ad\u30e3\u30c3\u30c1[:：]/.test(beforeUrl) || /^eyecatch[:：]/i.test(beforeUrl)) {
       items.push({
         role: 'eyecatch',
         heading: '',
         url: url,
-        alt: beforeUrl.replace(/^アイキャッチ[:：]\s*/i, '').trim()
+        alt: beforeUrl.replace(/^\u30a2\u30a4\u30ad\u30e3\u30c3\u30c1[:：]\s*/i, '').trim()
       });
       return;
     }
@@ -240,15 +281,19 @@ function uaUploadWpImageFromUrl_(wpConfig, imageUrl, altText, index) {
   });
   const statusCode = res.getResponseCode();
   if (statusCode < 200 || statusCode >= 300) {
-    throw new Error('画像URLを取得できませんでした。HTTP ' + statusCode + ': ' + imageUrl);
+    throw new Error('WP image fetch: image URL could not be downloaded.');
   }
 
   const headers = res.getHeaders();
   const contentType = String(headers['Content-Type'] || headers['content-type'] || 'image/jpeg').split(';')[0].trim();
   if (!/^image\//i.test(contentType)) {
-    throw new Error('画像URLのContent-Typeが画像ではありません: ' + contentType);
+    throw new Error('WP image fetch: downloaded file is not an image.');
   }
 
+  return uaUploadWpImageBytes_(wpConfig, res.getBlob().getBytes(), contentType, imageUrl, altText, index);
+}
+
+function uaUploadWpImageBytes_(wpConfig, bytes, contentType, sourceUrl, altText, index) {
   const extension = uaImageExtensionFromContentType_(contentType);
   const filename = 'article-image-' + Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyyMMdd-HHmmss') + '-' + index + extension;
   const uploadUrl = wpConfig.siteUrl + '/wp-json/wp/v2/media';
@@ -256,7 +301,7 @@ function uaUploadWpImageFromUrl_(wpConfig, imageUrl, altText, index) {
     method: 'post',
     muteHttpExceptions: true,
     contentType: contentType,
-    payload: res.getBlob().getBytes(),
+    payload: bytes,
     headers: {
       Authorization: 'Basic ' + Utilities.base64Encode(wpConfig.username + ':' + wpConfig.appPassword),
       Accept: 'application/json',
@@ -272,11 +317,11 @@ function uaUploadWpImageFromUrl_(wpConfig, imageUrl, altText, index) {
   try {
     media = uploadText ? JSON.parse(uploadText) : {};
   } catch (e) {
-    throw new Error('WordPressメディア登録の返答をJSONとして読めませんでした。HTTP ' + uploadStatus + ': ' + uploadText);
+    throw new Error('WP media upload: WordPress response was not JSON.');
   }
 
   if (uploadStatus < 200 || uploadStatus >= 300 || !media.id) {
-    throw new Error('WordPressメディア登録に失敗しました。HTTP ' + uploadStatus + ': ' + uploadText);
+    throw new Error('WP media upload: upload failed or media ID was missing.');
   }
 
   if (altText) {
@@ -291,7 +336,7 @@ function uaUploadWpImageFromUrl_(wpConfig, imageUrl, altText, index) {
 
   return {
     id: media.id,
-    url: media.source_url || imageUrl,
+    url: media.source_url || sourceUrl || '',
     alt: String(altText || '').slice(0, 120)
   };
 }
@@ -345,9 +390,124 @@ function uaBuildWpImageBlock_(media) {
   const id = Number(media.id || 0);
   const url = String(media.url || '');
   const alt = String(media.alt || '').replace(/"/g, '&quot;');
+  const caption = String(media.caption || '').trim();
+  if (!id) {
+    return '<!-- wp:image {"sizeSlug":"large","linkDestination":"none"} -->\n' +
+      '<figure class="wp-block-image size-large"><img src="' + url + '" alt="' + alt + '"/>' +
+      (caption ? '<figcaption class="wp-element-caption">' + caption + '</figcaption>' : '') +
+      '</figure>\n' +
+      '<!-- /wp:image -->';
+  }
   return '<!-- wp:image {"id":' + id + ',"sizeSlug":"large","linkDestination":"none"} -->\n' +
-    '<figure class="wp-block-image size-large"><img src="' + url + '" alt="' + alt + '" class="wp-image-' + id + '"/></figure>\n' +
+    '<figure class="wp-block-image size-large"><img src="' + url + '" alt="' + alt + '" class="wp-image-' + id + '"/>' +
+    (caption ? '<figcaption class="wp-element-caption">' + caption + '</figcaption>' : '') +
+    '</figure>\n' +
     '<!-- /wp:image -->';
+}
+
+function uaUpdateWpPostWithImages_(wpConfig, postId, bodyHtml, featuredMediaId, uploadedMedia) {
+  const cleanPostId = Number(postId || 0);
+  if (!cleanPostId) {
+    throw new Error('WP post update: post ID is empty.');
+  }
+
+  const payload = { content: String(bodyHtml || '') };
+  const cleanFeaturedMediaId = Number(featuredMediaId || 0);
+  if (cleanFeaturedMediaId > 0) {
+    payload.featured_media = cleanFeaturedMediaId;
+  }
+
+  let post = uaCallWordPressApi_(wpConfig, '/wp-json/wp/v2/posts/' + encodeURIComponent(cleanPostId), 'post', payload);
+  post = uaVerifyWpPostImageUpdate_(wpConfig, cleanPostId, bodyHtml, cleanFeaturedMediaId, uploadedMedia, post);
+  return post;
+}
+
+function uaVerifyWpPostImageUpdate_(wpConfig, postId, bodyHtml, featuredMediaId, uploadedMedia, post) {
+  let latest = post || {};
+  let state = uaInspectWpPostImageState_(latest, featuredMediaId, uploadedMedia);
+
+  if (!state.ok) {
+    latest = uaFetchWpPostForEdit_(wpConfig, postId);
+    state = uaInspectWpPostImageState_(latest, featuredMediaId, uploadedMedia);
+  }
+
+  if (!state.featuredOk && featuredMediaId > 0) {
+    uaCallWordPressApi_(wpConfig, '/wp-json/wp/v2/posts/' + encodeURIComponent(postId), 'post', {
+      featured_media: featuredMediaId
+    });
+    latest = uaFetchWpPostForEdit_(wpConfig, postId);
+    state = uaInspectWpPostImageState_(latest, featuredMediaId, uploadedMedia);
+  }
+
+  if (!state.bodyOk && uaGetExpectedBodyImageMedia_(uploadedMedia).length > 0) {
+    uaCallWordPressApi_(wpConfig, '/wp-json/wp/v2/posts/' + encodeURIComponent(postId), 'post', {
+      content: String(bodyHtml || '')
+    });
+    latest = uaFetchWpPostForEdit_(wpConfig, postId);
+    state = uaInspectWpPostImageState_(latest, featuredMediaId, uploadedMedia);
+  }
+
+  if (!state.ok) {
+    const parts = [];
+    if (!state.featuredOk && featuredMediaId > 0) {
+      parts.push('Featured image not reflected expected=' + featuredMediaId + ' actual=' + state.actualFeaturedMediaId);
+    }
+    if (!state.bodyOk) {
+      parts.push('Body image not reflected missing=' + state.missingBodyImages.join(', '));
+    }
+    throw new Error('WP post update: image reflection check failed.');
+  }
+
+  return latest;
+}
+
+function uaFetchWpPostForEdit_(wpConfig, postId) {
+  const path = '/wp-json/wp/v2/posts/' + encodeURIComponent(postId) + '?context=edit&_=' + Date.now();
+  return uaCallWordPressApi_(wpConfig, path, 'get');
+}
+
+function uaInspectWpPostImageState_(post, featuredMediaId, uploadedMedia) {
+  const actualFeaturedMediaId = Number(post && post.featured_media || 0);
+  const expectedFeaturedMediaId = Number(featuredMediaId || 0);
+  const featuredOk = expectedFeaturedMediaId > 0
+    ? actualFeaturedMediaId === expectedFeaturedMediaId
+    : true;
+  const expectedBodyImages = uaGetExpectedBodyImageMedia_(uploadedMedia);
+  const contentText = uaGetWpPostContentText_(post);
+  const missingBodyImages = expectedBodyImages.filter(function(media) {
+    const id = Number(media && media.id || 0);
+    const url = String(media && media.url || '');
+    const idToken = id > 0 ? 'wp-image-' + id : '';
+    return !(idToken && contentText.indexOf(idToken) !== -1) &&
+      !(url && contentText.indexOf(url) !== -1);
+  }).map(function(media) {
+    return String(media && (media.id || media.url || media.heading) || '');
+  });
+  const bodyOk = missingBodyImages.length === 0;
+
+  return {
+    ok: featuredOk && bodyOk,
+    featuredOk: featuredOk,
+    bodyOk: bodyOk,
+    actualFeaturedMediaId: actualFeaturedMediaId,
+    missingBodyImages: missingBodyImages
+  };
+}
+
+function uaGetExpectedBodyImageMedia_(uploadedMedia) {
+  return (uploadedMedia || []).filter(function(media) {
+    return media && media.role !== 'eyecatch';
+  });
+}
+
+function uaGetWpPostContentText_(post) {
+  const content = post && post.content || {};
+  return [
+    content.raw,
+    content.rendered
+  ].map(function(value) {
+    return String(value || '');
+  }).join('\n');
 }
 
 function uaCallWordPressApi_(wpConfig, path, method, payload) {
@@ -379,16 +539,15 @@ function uaCallWordPressApi_(wpConfig, path, method, payload) {
     json = text ? JSON.parse(text) : {};
   } catch (e) {
     if (statusCode === 403 && /^<!DOCTYPE|^<html/i.test(String(text || '').trim())) {
-      throw new Error('WordPress REST APIがサーバー側で403拒否されています。' +
-        'WAF、セキュリティプラグイン、Basic認証、.htaccess、REST API制限を確認してください。URL: ' + url);
+      throw new Error('WP API: server returned a 403 HTML response.');
     }
 
-    throw new Error('WordPress APIの返答をJSONとして読めませんでした。HTTP ' + statusCode + ': ' + text);
+    throw new Error('WP API: response was not JSON.');
   }
 
   if (statusCode < 200 || statusCode >= 300) {
     const message = json && json.message ? json.message : text;
-    throw new Error('WordPress APIエラー HTTP ' + statusCode + ': ' + message);
+    throw new Error('WP API: request failed.');
   }
 
   return json;
@@ -443,7 +602,7 @@ function uaSplitTags_(tagsText) {
   const tags = [];
 
   String(tagsText || '')
-    .split(/[,，、\n]/)
+    .split(/[,・後―n]/)
     .forEach(function(rawTag) {
       const tag = String(rawTag || '')
         .replace(/^#+/, '')
@@ -459,7 +618,7 @@ function uaSplitTags_(tagsText) {
 
 function uaGetWpCategoryIds_(wpConfig) {
   return String(wpConfig.categoryIds || '')
-    .split(/[,，、\s]+/)
+    .split(/[,・後―s]+/)
     .map(function(id) {
       return Number(id);
     })
@@ -476,8 +635,8 @@ function uaPickWpTitle_(titleIdeas) {
   }
 
   const first = text
-    .split(/\s*[\/／]\s*|\n/)[0]
-    .replace(/^案\s*\d+\s*[:：.\-、]?\s*/i, '')
+    .split(/\s*[\/・｜|\n]/)[0]
+    .replace(/^案\s*\d+\s*[:：・\-]?\s*/i, '')
     .trim();
 
   return first || text;

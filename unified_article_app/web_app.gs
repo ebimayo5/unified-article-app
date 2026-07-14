@@ -1,4 +1,4 @@
-﻿function doGet() {
+function doGet() {
   return HtmlService
     .createHtmlOutputFromFile('ua_web_app')
     .setTitle(UA_APP_NAME)
@@ -151,14 +151,21 @@ function uaNormalizeLocalImportUrls_(urls) {
     results.push(value);
   });
 
-  return results.slice(0, 3);
+  return results.slice(0, UA_STRUCTURE_COMPETITOR_ANALYSIS_MAX_PAGES || 10);
 }
 
 function uaBuildLocalImportStructureMemo_(payload) {
   const parts = [];
+  const urls = uaNormalizeLocalImportUrls_(payload && (payload.competitorUrls || payload.urls));
   const competitorMemo = String(payload && payload.competitorAnalysisMemo || '').trim();
   const structureMemo = String(payload && payload.structureMemo || '').trim();
   const articleOutline = String(payload && payload.articleOutline || '').trim();
+
+  if (urls.length) {
+    parts.push('【記事作成のヒントに用いた上位URL】\n' + urls.map(function(url, index) {
+      return (index + 1) + '. ' + url;
+    }).join('\n'));
+  }
 
   if (competitorMemo) {
     parts.push('【ローカルSelenium競合分析メモ】\n' + competitorMemo);
@@ -258,6 +265,52 @@ function uaGetCandidateSheetUrlForWeb(appTypeLabel) {
   };
 }
 
+
+function uaGetArticleSheetUrlForWeb(appTypeLabel) {
+  const appConfig = uaGetAppConfigByLabel_(appTypeLabel);
+
+  if (!appConfig || !appConfig.articleSheetName) {
+    throw new Error('\u3053\u306e\u8a18\u4e8b\u30bf\u30a4\u30d7\u306b\u306f\u8a18\u4e8b\u30b7\u30fc\u30c8\u304c\u3042\u308a\u307e\u305b\u3093\u3002');
+  }
+
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(appConfig.articleSheetName);
+
+  if (!sheet) {
+    throw new Error('"' + appConfig.articleSheetName + '" \u30b7\u30fc\u30c8\u304c\u898b\u3064\u304b\u308a\u307e\u305b\u3093\u3002');
+  }
+
+  sheet.showColumns(1, sheet.getMaxColumns());
+  sheet.setFrozenRows(1);
+  sheet.setFrozenColumns(2);
+
+  return {
+    url: ss.getUrl() + '#gid=' + sheet.getSheetId(),
+    message: appConfig.label + '\u306e\u8a18\u4e8b\u30b7\u30fc\u30c8\u3092\u958b\u304d\u307e\u3057\u305f\u3002\u884c\u3092\u9078\u3093\u3067\u304b\u3089\u300c\u8a18\u4e8b\u30b7\u30fc\u30c8\u306e\u9078\u629e\u884c\u3092\u53cd\u6620\u300d\u3092\u62bc\u3057\u3066\u304f\u3060\u3055\u3044\u3002'
+  };
+}
+
+function uaLoadArticleFromActiveArticleSheetForWeb(appTypeLabel) {
+  const appConfig = uaGetAppConfigByLabel_(appTypeLabel);
+
+  if (!appConfig || !appConfig.articleSheetName) {
+    throw new Error('\u3053\u306e\u8a18\u4e8b\u30bf\u30a4\u30d7\u306b\u306f\u8a18\u4e8b\u30b7\u30fc\u30c8\u304c\u3042\u308a\u307e\u305b\u3093\u3002');
+  }
+
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const activeSheet = ss.getActiveSheet();
+  const articleSheet = ss.getSheetByName(appConfig.articleSheetName);
+
+  if (!articleSheet) {
+    throw new Error('"' + appConfig.articleSheetName + '" \u30b7\u30fc\u30c8\u304c\u898b\u3064\u304b\u308a\u307e\u305b\u3093\u3002');
+  }
+
+  if (activeSheet.getName() === articleSheet.getName() && activeSheet.getActiveCell().getRow() > 1) {
+    return uaGetArticleRowForWeb(appConfig.label, activeSheet.getActiveCell().getRow());
+  }
+
+  throw new Error('\u5148\u306b "' + appConfig.articleSheetName + '" \u30b7\u30fc\u30c8\u3092\u958b\u304d\u3001\u53cd\u6620\u3057\u305f\u3044\u884c\u3092\u9078\u3093\u3067\u304b\u3089\u3082\u3046\u4e00\u5ea6\u5b9f\u884c\u3057\u3066\u304f\u3060\u3055\u3044\u3002');
+}
 function uaCreateArticleFromActiveCandidateForWeb(appTypeLabel) {
   const appConfig = uaGetAppConfigByLabel_(appTypeLabel);
 
@@ -400,7 +453,10 @@ function uaGetArticleRowForWeb(appTypeLabel, row) {
     throw new Error('「' + appConfig.articleSheetName + '」シートが見つかりません。');
   }
 
-  return uaBuildRowData_(sheet, Number(row));
+  const rowNumber = Number(row);
+  const data = uaBuildRowData_(sheet, rowNumber);
+  data.trefaiJob = uaGetLatestTrefaiJobStatus_(data.appType || appTypeLabel, rowNumber, data.mainInput);
+  return data;
 }
 
 function uaCreateBlankArticleForWeb(appTypeLabel) {

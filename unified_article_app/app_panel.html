@@ -4,23 +4,28 @@
     <base target="_top">
     <style>
       :root {
-        --bg: #f6f7f8;
-        --panel: #ffffff;
-        --line: #dfe3e7;
-        --text: #1f2933;
+        --bg: #edf5f0;
+        --panel: #fcfffd;
+        --line: #bddcc9;
+        --text: #1d2b25;
         --muted: #667085;
-        --brand: #176b5d;
-        --brand-dark: #0f5146;
-        --soft: #eef6f4;
+        --brand: #139b67;
+        --brand-dark: #063f31;
+        --soft: #e5f7ee;
+        --soft-strong: #c5ead7;
+        --ink: #082820;
+        --chrome: #062c23;
         --danger: #b42318;
       }
 
       body {
         margin: 0;
-        background: var(--bg);
+        background: linear-gradient(180deg, #e9f5ee 0, var(--bg) 240px);
         color: var(--text);
         font-family: Arial, "Hiragino Sans", "Yu Gothic", Meiryo, sans-serif;
         font-size: 13px;
+        font-weight: 600;
+        letter-spacing: 0;
       }
 
       .app {
@@ -37,19 +42,25 @@
         align-items: flex-start;
         justify-content: space-between;
         gap: 12px;
-        padding: 0 0 10px;
-        margin-bottom: 12px;
-        background: var(--bg);
+        padding: 13px 15px;
+        margin-bottom: 14px;
+        background: linear-gradient(135deg, var(--chrome), #0b4a39);
+        border: 1px solid #145d48;
+        border-radius: 8px;
+        box-shadow: 0 16px 38px rgba(6, 44, 35, 0.18);
+        backdrop-filter: blur(8px);
       }
 
       .title {
         margin: 0 0 4px;
-        font-size: 20px;
+        color: #ffffff;
+        font-size: 21px;
         font-weight: 800;
+        letter-spacing: 0;
       }
 
       .sub {
-        color: var(--muted);
+        color: #cdeee1;
         line-height: 1.5;
       }
 
@@ -57,9 +68,19 @@
         background: var(--panel);
         border: 1px solid var(--line);
         border-radius: 8px;
-        padding: 12px;
-        margin: 10px 0;
-        box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+        padding: 14px;
+        margin: 11px 0;
+        box-shadow: 0 12px 28px rgba(6, 44, 35, 0.08);
+        position: relative;
+        overflow: hidden;
+      }
+
+      .section::before {
+        content: "";
+        position: absolute;
+        inset: 0 0 auto;
+        height: 3px;
+        background: linear-gradient(90deg, #0c6b50, var(--brand), #53c896);
       }
 
       .wide-grid {
@@ -75,7 +96,8 @@
         font-weight: 800;
         margin: 0 0 10px;
         padding: 0 0 7px;
-        border-bottom: 2px solid var(--soft);
+        border-bottom: 1px solid #d4eadf;
+        letter-spacing: 0;
       }
 
       label {
@@ -91,12 +113,21 @@
       select {
         width: 100%;
         box-sizing: border-box;
-        border: 1px solid #cfd6dd;
+        border: 1px solid #b9d6c7;
         border-radius: 6px;
         padding: 8px;
         font: inherit;
-        background: #fff;
+        font-weight: 600;
+        background: #fbfffd;
         color: var(--text);
+      }
+
+      input:focus,
+      textarea:focus,
+      select:focus {
+        outline: 2px solid rgba(24, 166, 111, 0.18);
+        border-color: var(--brand);
+        background: #fff;
       }
 
       textarea {
@@ -113,6 +144,7 @@
         min-height: 220px;
         font-family: Consolas, "Courier New", monospace;
         font-size: 12px;
+        font-weight: 500;
       }
 
       .check-preview {
@@ -121,6 +153,34 @@
 
       .structure-preview {
         min-height: 260px;
+      }
+
+      .api-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 10px;
+        align-items: end;
+      }
+
+      .api-model-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 10px;
+        align-items: end;
+      }
+
+      .api-grid select,
+      .api-model-grid input {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .api-model-grid input {
+        font-family: Consolas, "Courier New", monospace;
+        font-size: 12px;
+        font-weight: 600;
       }
 
       .row {
@@ -164,10 +224,11 @@
       }
 
       .action-group {
-        border: 1px solid var(--line);
+        border: 1px solid #bfdcca;
         border-radius: 8px;
-        padding: 10px;
-        background: #fbfdfc;
+        padding: 11px;
+        background: linear-gradient(180deg, #ffffff, #f6fbf8);
+        box-shadow: 0 10px 22px rgba(6, 44, 35, 0.07);
       }
 
       .action-label {
@@ -176,6 +237,7 @@
         color: var(--brand-dark);
         font-size: 12px;
         font-weight: 800;
+        letter-spacing: 0;
       }
 
       .action-group .actions {
@@ -191,23 +253,32 @@
         font: inherit;
         font-weight: 700;
         cursor: pointer;
+        letter-spacing: 0;
+        transition: transform 0.12s ease, box-shadow 0.12s ease, background 0.12s ease, border-color 0.12s ease;
+      }
+
+      button:hover:not(:disabled) {
+        transform: translateY(-1px);
+        box-shadow: 0 7px 16px rgba(7, 84, 61, 0.12);
       }
 
       button.primary {
         color: #fff;
-        background: var(--brand);
+        background: linear-gradient(180deg, #20b87d, #0f8d5d);
+        border-color: #0f7a53;
+        box-shadow: inset 0 1px 0 rgba(255,255,255,0.22);
       }
 
       button.secondary {
         color: var(--brand-dark);
-        background: #e4f4ef;
-        border-color: #95cfc2;
+        background: linear-gradient(180deg, #e9f8ef, #d7f0e3);
+        border-color: #79c59f;
       }
 
       button.neutral {
         color: var(--brand-dark);
-        background: #f3faf7;
-        border-color: #badbd2;
+        background: linear-gradient(180deg, #f7fcf9, #e8f5ee);
+        border-color: #aed6c3;
       }
 
       button:disabled {
@@ -262,8 +333,8 @@
       .status {
         min-width: 220px;
         padding: 10px 12px;
-        background: var(--soft);
-        border: 1px solid #c9e4dd;
+        background: #f2fff8;
+        border: 1px solid #8ed2ad;
         border-radius: 6px;
         color: var(--brand-dark);
         font-size: 15px;
@@ -348,6 +419,34 @@
         justify-content: flex-end;
       }
 
+      .image-prompt-modal {
+        width: min(820px, 100%);
+        max-height: 90vh;
+        overflow: auto;
+      }
+
+      .image-prompt-toolbar {
+        display: grid;
+        grid-template-columns: 44px minmax(0, 1fr) 44px;
+        gap: 8px;
+        align-items: center;
+        margin: 8px 0;
+      }
+
+      .image-prompt-counter {
+        text-align: center;
+        color: var(--brand-dark);
+        font-weight: 800;
+      }
+
+      .image-prompt-nav {
+        width: 44px;
+        min-width: 44px;
+        height: 40px;
+        padding: 0;
+        font-size: 20px;
+      }
+
       .error {
         background: #fff1f0;
         border-color: #fecdca;
@@ -359,9 +458,34 @@
       }
 
       .theme-brown {
-        --brand: #8a5a32;
-        --brand-dark: #5f3b1f;
-        --soft: #f8ead6;
+        --bg: #f5f0e8;
+        --panel: #fffdf9;
+        --line: #dcc8aa;
+        --brand: #9b6a2f;
+        --brand-dark: #4b3017;
+        --soft: #f5ead7;
+        --soft-strong: #e6d0ad;
+        --ink: #2b1b0f;
+        --chrome: #2a170d;
+      }
+
+      .theme-brown .header {
+        background: linear-gradient(135deg, var(--chrome), #5a3518);
+        border-color: #7b5327;
+        box-shadow: 0 16px 38px rgba(42, 23, 13, 0.2);
+      }
+
+      .theme-brown .title::after {
+        content: "たくみパパ";
+        display: inline-block;
+        margin-left: 10px;
+        padding: 3px 8px;
+        border: 1px solid rgba(255,255,255,0.28);
+        border-radius: 999px;
+        background: rgba(255,255,255,0.12);
+        color: #f8ead6;
+        font-size: 12px;
+        vertical-align: 2px;
       }
 
       .theme-blue {
@@ -393,7 +517,7 @@
     <div id="app" class="app">
       <div class="header">
         <div>
-          <p class="title">統合版記事作成アプリ</p>
+          <p class="title">Article Compass System</p>
           <div class="sub">スプシは一覧、パネルは編集画面。まずは読み込み・保存の土台です。</div>
         </div>
         <div>
@@ -427,7 +551,7 @@
           <label for="volume">検索ボリューム</label>
           <input id="volume">
 
-          <div class="row">
+          <div class="api-grid">
             <div>
               <label for="articleProvider">記事生成API</label>
               <select id="articleProvider" onchange="saveProviders()"></select>
@@ -436,9 +560,26 @@
               <label for="readerMindProvider">読者心理API</label>
               <select id="readerMindProvider" onchange="saveProviders()"></select>
             </div>
+            <div>
+              <label for="imageProvider">画像API</label>
+              <select id="imageProvider" onchange="saveProviders()"></select>
+            </div>
+            <div>
+              <label for="imageModel">Image Model</label>
+              <select id="imageModel" onchange="saveProviders()"></select>
+            </div>
           </div>
+          <label for="imageStylePrompt">画像スタイル指定</label>
+          <div class="api-grid">
+            <select id="imageStylePreset">
+              <option value="latestAnime">最新アニメ風</option>
+              <option value="softFree">柔らかいフリー素材風</option>
+              <option value="custom">手入力の指定</option>
+            </select>
+          </div>
+          <textarea id="imageStylePrompt" placeholder="手入力を選んだ場合の画風指定。例: 淡い色、人物なし、余白多め"></textarea>
 
-          <div class="row">
+          <div class="api-model-grid">
             <div>
               <label for="selectedArticleModel">記事生成モデル</label>
               <input id="selectedArticleModel" readonly>
@@ -475,17 +616,11 @@
         </div>
       </div>
 
-      <div class="wide-grid">
-        <div class="section">
-          <h2>競合URL</h2>
-          <label for="competitorUrl1">競合URL1</label>
-          <input id="competitorUrl1">
-          <label for="competitorUrl2">競合URL2</label>
-          <input id="competitorUrl2">
-          <label for="competitorUrl3">競合URL3</label>
-          <input id="competitorUrl3">
-        </div>
+      <input id="competitorUrl1" type="hidden">
+      <input id="competitorUrl2" type="hidden">
+      <input id="competitorUrl3" type="hidden">
 
+      <div class="wide-grid">
         <div class="section">
           <h2>読者心理メモ</h2>
           <div class="field-head">
@@ -495,42 +630,34 @@
           <textarea id="readerMindMemo" class="memo"></textarea>
         </div>
       </div>
-
       <div class="action-groups">
         <div class="action-group">
-          <span class="action-label">候補・保存</span>
+          <span class="action-label">&#20505;&#35036;&#12539;&#20445;&#23384;</span>
           <div class="actions">
-            <button class="neutral" onclick="openCandidateSheet(this)">候補シートを開く</button>
-            <button class="secondary" onclick="loadSelectedRow(this)">選択行を反映</button>
-            <button class="neutral" onclick="saveRow(this)">今すぐ保存</button>
+            <button class="neutral" onclick="openCandidateSheet(this)">&#20505;&#35036;&#12471;&#12540;&#12488;&#12434;&#38283;&#12367;</button>
+            <button class="secondary" onclick="loadSelectedRow(this)">&#36984;&#25246;&#34892;&#12434;&#21453;&#26144;</button>
+            <button class="neutral" onclick="saveRow(this)">&#20170;&#12377;&#12368;&#20445;&#23384;</button>
           </div>
         </div>
         <div class="action-group">
-          <span class="action-label">生成</span>
+          <span class="action-label">&#26412;&#25991;&#12408;&#24460;&#20837;&#12428;</span>
           <div class="actions">
-            <button class="secondary" onclick="runReaderMind(this)">読者心理メモを取得</button>
-            <button class="secondary" onclick="runArticleStructure(this)">記事構成作成</button>
-            <button class="primary" onclick="runArticle(this)">記事を書く</button>
+            <button class="secondary" onclick="addRakutenBanner(this)">&#27005;&#22825;&#12496;&#12490;&#12540;&#12434;&#36861;&#21152;</button>
+            <button class="secondary" onclick="addInternalLink(this)">&#20869;&#37096;&#12522;&#12531;&#12463;&#12434;&#36861;&#21152;</button>
+            <button class="secondary" onclick="addExternalLink(this)">&#22806;&#37096;&#12522;&#12531;&#12463;&#12434;&#36861;&#21152;</button>
           </div>
         </div>
         <div class="action-group">
-          <span class="action-label">本文へ後入れ</span>
+          <span class="action-label">&#30011;&#20687;&#12539;&#20844;&#38283;</span>
           <div class="actions">
-            <button class="secondary" onclick="addRakutenBanner(this)">楽天バナーを追加</button>
-            <button class="secondary" onclick="addInternalLink(this)">内部リンクを追加</button>
-            <button class="secondary" onclick="addExternalLink(this)">外部リンクを追加</button>
-            <button class="secondary" onclick="sendToOpalImageGenerator(this)">ChatGPTへ画像生成</button>
-            <button class="secondary" onclick="addWpImages(this)">画像URLをWPへ追加</button>
-          </div>
-        </div>
-        <div class="action-group">
-          <span class="action-label">公開後</span>
-          <div class="actions">
-            <button class="neutral" onclick="markPosted(this)">投稿済みにする</button>
+            <button class="secondary" onclick="generateImagePromptPack(this)">&#30011;&#20687;&#12503;&#12525;&#12531;&#12503;&#12488;&#20316;&#25104;</button>
+            <button class="primary" onclick="createWpDraft(this)">WP&#12408;&#19979;&#26360;&#12365;</button>
+            <button class="secondary" onclick="runPrePublishCheck(this)">&#20844;&#38283;&#21069;&#12481;&#12455;&#12483;&#12463;</button>
+            <button class="primary" onclick="runPrePublishFixAndWp(this)">&#12481;&#12455;&#12483;&#12463;&#20462;&#27491;&#8594;WP&#21453;&#26144;</button>
+            <button class="neutral" onclick="markPosted(this)">&#25237;&#31295;&#28168;&#12415;&#12395;&#12377;&#12427;</button>
           </div>
         </div>
       </div>
-
       <div class="section">
         <div class="tabs">
           <button id="tabSummary" class="tab active" onclick="showTab('summary')">概要</button>
@@ -576,7 +703,6 @@
           <div class="field-head">
             <label for="structureMemo">構成メモ</label>
             <button class="copy-button" type="button" onclick="copyField('structureMemo', '構成メモ')">コピー</button>
-            <button class="copy-button" type="button" onclick="appendImageUrlTemplate()">画像URLひな形</button>
           </div>
           <textarea id="structureMemo" class="body-preview structure-preview"></textarea>
 
@@ -603,19 +729,23 @@
     </div>
 
     <div id="imageGeneratorDialog" class="modal-backdrop hidden">
-      <div class="modal">
-        <p class="modal-title">ChatGPT画像生成フォームを起動</p>
-        <p class="modal-text">ローカルの画像生成フォームが起動していません。下のボタンで起動してから、もう一度「ChatGPTへ画像生成」を押してください。ブラウザに確認が出たら許可してください。</p>
-        <textarea id="imageGeneratorRunPath" class="modal-path hidden" readonly>C:\Users\ebima\Documents\Codex\2026-04-24\const-gemini-api-key-aizasyadbkxfjgjo3kmu8o5pf8wh-5f2wfj3x0o\opal_image_automator\dist\OpalSingleImageFormAutomator.exe</textarea>
+      <div class="modal image-prompt-modal">
+        <p class="modal-title">画像プロンプト</p>
+        <p class="modal-text">AIが各画像の被写体と構図を設計しました。手動生成は1枚分ずつコピーしてください。API実行では設計済みの全プロンプトを使います。</p>
+        <div class="image-prompt-toolbar">
+          <button id="imagePromptPrev" class="neutral image-prompt-nav" type="button" title="前の画像" aria-label="前の画像" onclick="changeImagePromptBlock(-1)">&larr;</button>
+          <span id="imagePromptCounter" class="image-prompt-counter">1 / 1</span>
+          <button id="imagePromptNext" class="neutral image-prompt-nav" type="button" title="次の画像" aria-label="次の画像" onclick="changeImagePromptBlock(1)">&rarr;</button>
+        </div>
+        <textarea id="imagePromptPack" class="modal-path" style="min-height: 420px;" readonly></textarea>
         <div class="modal-actions">
-          <button class="secondary" type="button" onclick="copyImageGeneratorRunPath()">うまく開かない時はパスをコピー</button>
-          <button class="neutral" type="button" onclick="closeImageGeneratorDialog()">あとで</button>
-          <button class="primary" type="button" onclick="launchImageGenerator()">画像生成フォームを起動</button>
+          <button class="primary" type="button" onclick="generateWpImagesFromPromptDialog(this)">画像生成してWP差し込み</button>
+          <button class="secondary" type="button" onclick="copyImagePromptPack()">この1枚をコピー</button>
+          <button class="neutral" type="button" onclick="closeImageGeneratorDialog()">キャンセル</button>
         </div>
       </div>
     </div>
-
-    <script>
+<script>
       const fields = [
         'row', 'appType', 'mainInput', 'volume', 'affiliateName', 'affiliateUrl',
         'affiliateNotes', 'competitorUrl1', 'competitorUrl2', 'competitorUrl3',
@@ -627,6 +757,8 @@
       let appConfigs = [];
       let articleProviders = [];
       let readerMindProviders = [];
+      let imageProviders = [];
+      let imageModels = [];
       let activeButton = null;
       let activeButtonText = '';
       let autoSaveTimer = null;
@@ -636,6 +768,9 @@
       let loadedAppType = '';
       let trefaiPollTimer = null;
       let trefaiPollCount = 0;
+      let imagePromptPackFull = '';
+      let imagePromptBlocks = [];
+      let imagePromptIndex = 0;
 
       function init() {
         bindAutoSaveControls();
@@ -645,8 +780,10 @@
             appConfigs = options.appConfigs || [];
             articleProviders = options.articleProviders || [];
             readerMindProviders = options.readerMindProviders || [];
+            imageProviders = options.imageProviders || [];
+            imageModels = options.imageModels || [];
             populateAppTypes();
-            populateProviders(options.selectedArticleProvider, options.selectedReaderMindProvider);
+            populateProviders(options.selectedArticleProvider, options.selectedReaderMindProvider, options.selectedImageProvider, options.selectedImageModelValue);
             loadInitialRow();
           })
           .withFailureHandler(fail)
@@ -664,9 +801,11 @@
         });
       }
 
-      function populateProviders(selectedArticleProvider, selectedReaderMindProvider) {
+      function populateProviders(selectedArticleProvider, selectedReaderMindProvider, selectedImageProvider, selectedImageModelValue) {
         fillSelect('articleProvider', articleProviders, selectedArticleProvider || 'openai');
         fillSelect('readerMindProvider', readerMindProviders, selectedReaderMindProvider || 'gemini');
+        fillSelect('imageProvider', imageProviders, selectedImageProvider || 'openai');
+        fillSelect('imageModel', imageModels, selectedImageModelValue || '');
       }
 
       function fillSelect(id, options, selectedValue) {
@@ -688,6 +827,8 @@
           const el = document.getElementById(id);
           if (el) data[id] = el.value;
         });
+        data.imageStylePreset = document.getElementById('imageStylePreset').value;
+        data.imageStylePrompt = document.getElementById('imageStylePrompt').value;
         return data;
       }
 
@@ -698,6 +839,7 @@
           if (!el) return;
           el.value = data && data[id] ? data[id] : '';
         });
+        applyDefaultImageStyle();
         applyTheme();
         parseRakutenControlsFromNotes();
         loadedAppType = data && data.appType ? data.appType : '';
@@ -708,7 +850,7 @@
       function bindAutoSaveControls() {
         document.querySelectorAll('input, textarea, select').forEach(function(el) {
           if (!el.id) return;
-          if (el.id === 'appType' || el.id === 'articleProvider' || el.id === 'readerMindProvider') return;
+          if (el.id === 'appType' || el.id === 'articleProvider' || el.id === 'readerMindProvider' || el.id === 'imageProvider' || el.id === 'imageModel' || el.id === 'imageStylePreset' || el.id === 'imageStylePrompt') return;
           el.addEventListener('input', scheduleAutoSave);
           el.addEventListener('change', scheduleAutoSave);
         });
@@ -716,10 +858,18 @@
 
       function onAppTypeChange() {
         applyTheme();
+        applyDefaultImageStyle();
         if (loadedAppType && document.getElementById('appType').value !== loadedAppType) {
           clearLoadedArticleForm();
           setNotice('サイトを切り替えました。候補シートから行を反映してください。', false);
         }
+      }
+
+      function applyDefaultImageStyle() {
+        const appTypeEl = document.getElementById('appType');
+        const preset = document.getElementById('imageStylePreset');
+        if (!appTypeEl || !preset) return;
+        preset.value = appTypeEl.value === 'DRIVE BASE' ? 'latestAnime' : 'softFree';
       }
 
       function clearLoadedArticleForm() {
@@ -733,6 +883,7 @@
         document.getElementById('rakutenBannerMode').value = 'auto';
         document.getElementById('rakutenProductKeyword').value = '';
         document.getElementById('rakutenSuggestions').innerHTML = '';
+        applyDefaultImageStyle();
         isFillingForm = false;
       }
 
@@ -897,8 +1048,18 @@
           .withFailureHandler(fail)
           .uaOpenCandidateSheetFromPanel(document.getElementById('appType').value);
       }
-
-      function saveProviders(button) {
+      function openArticleSheet(button) {
+        setBusy('\u8a18\u4e8b\u30b7\u30fc\u30c8\u3092\u958b\u3044\u3066\u3044\u307e\u3059...', button);
+        google.script.run
+          .withSuccessHandler(function(result) {
+            clearBusy();
+            setProgress('done');
+            setNotice(result && result.message ? result.message : '\u8a18\u4e8b\u30b7\u30fc\u30c8\u3092\u958b\u304d\u307e\u3057\u305f\u3002', false);
+          })
+          .withFailureHandler(fail)
+          .uaOpenArticleSheetFromPanel(document.getElementById('appType').value);
+      }
+function saveProviders(button) {
         setBusy('使用APIを更新中...', button);
         google.script.run
           .withSuccessHandler(function(result) {
@@ -911,7 +1072,9 @@
           .withFailureHandler(fail)
           .uaSetProvidersFromPanel(
             document.getElementById('articleProvider').value,
-            document.getElementById('readerMindProvider').value
+            document.getElementById('readerMindProvider').value,
+            document.getElementById('imageProvider').value,
+            document.getElementById('imageModel').value
           );
       }
 
@@ -950,19 +1113,25 @@
       }
 
       function runArticle(button) {
-        setBusy('記事生成中... 少し時間がかかります', button);
+        const opToken = beginCancelableOperation('記事生成中... 少し時間がかかります', button);
         google.script.run
+
           .withSuccessHandler(function(data) {
-            clearBusy();
-            fillForm(data);
-            setProgress('done');
-            setNotice(data && data.message ? data.message : '記事生成が完了しました。', false);
-          })
-          .withFailureHandler(fail)
+          if (isOperationCancelled(opToken)) return;
+          clearBusy();
+          fillForm(data);
+
+          setProgress('done');
+          setNotice(data && data.message ? data.message : '記事生成が完了しました。', false);
+        })
+
+          .withFailureHandler(function(error) {
+          if (isOperationCancelled(opToken)) return;
+          fail(error);
+        })
+
           .uaRunArticleFromPanel(readForm());
       }
-
-
       function pickFirstTitleIdea() {
         const text = document.getElementById('titleIdeas').value || '';
         return text.split(/\s*[\/／]\s*|\n/)[0].trim();
@@ -1010,20 +1179,248 @@
         setNotice('画像URLメモのひな形を構成メモに追加しました。', false);
       }
 
-      async function findLocalOpalBaseUrl() {
-        for (let port = 8765; port <= 8799; port++) {
-          const baseUrl = 'http://127.0.0.1:' + port;
-          try {
-            const res = await fetch(baseUrl + '/health', { method: 'GET', cache: 'no-store' });
-            if (res.ok) return baseUrl;
-          } catch (e) {
-            // Try next local port.
-          }
-        }
-        return '';
+      function decodeHtmlText(text) {
+        const div = document.createElement('div');
+        div.innerHTML = String(text || '');
+        return (div.textContent || div.innerText || '').replace(/\s+/g, ' ').trim();
       }
 
-      async function sendToOpalImageGenerator(button) {
+      function getArticleSectionsForImages() {
+        const body = document.getElementById('body').value || '';
+        const sections = [];
+        const regex = /<h2\b[^>]*>([\s\S]*?)<\/h2>/gi;
+        let match;
+        const matches = [];
+        while ((match = regex.exec(body)) !== null) {
+          matches.push({
+            index: match.index,
+            end: regex.lastIndex,
+            heading: decodeHtmlText(match[1])
+          });
+        }
+        matches.forEach(function(item, index) {
+          const next = matches[index + 1];
+          const rawSection = body.slice(item.end, next ? next.index : body.length);
+          const sectionText = decodeHtmlText(rawSection).slice(0, 900);
+          sections.push({
+            heading: item.heading,
+            text: sectionText
+          });
+        });
+        return sections;
+      }
+
+      function classifyImageNeed(section) {
+        const target = (section.heading + ' ' + section.text).toLowerCase();
+        if (!section.heading || /よくある質問|faq|まとめ/.test(target)) return 'C';
+        if (/比較|違い|手順|流れ|方法|原因|対策|判断|選び方|費用|工賃|相場|内訳|注意|リスク|チェック|ポイント|メリット|デメリット|失敗|後悔|安全|保証/.test(target)) return 'A';
+        if (/向いて|ケース|例|特徴|理由|おすすめ|必要|便利|種類|パターン|使い方|確認/.test(target)) return 'B';
+        return 'C';
+      }
+
+      function pickImageTargets(sections) {
+        const targets = [];
+        const used = {};
+        sections.forEach(function(section) {
+          const rank = classifyImageNeed(section);
+          if (rank === 'A' && targets.length < 6 && !used[section.heading]) {
+            used[section.heading] = true;
+            targets.push(Object.assign({ rank: rank }, section));
+          }
+        });
+        sections.forEach(function(section) {
+          const rank = classifyImageNeed(section);
+          const bCount = targets.filter(function(item) { return item.rank === 'B'; }).length;
+          if (rank === 'B' && targets.length < 6 && bCount < 2 && !used[section.heading]) {
+            used[section.heading] = true;
+            targets.push(Object.assign({ rank: rank }, section));
+          }
+        });
+        return targets;
+      }
+
+      function getSelectedImageStylePromptLine() {
+        const preset = document.getElementById('imageStylePreset').value;
+        const custom = document.getElementById('imageStylePrompt').value.trim();
+        if (preset === 'softFree') return '柔らかいフリー素材風。淡い色、やさしい形、ブログ素材として使いやすい清潔なイラスト。';
+        if (preset === 'custom') return custom || '手入力の指定。画像スタイル指定欄に書いた内容を優先する。';
+        return '最新アニメ風。現代的で高品質なアニメ調、清潔な線、自然な光、記事向けの見やすい構図。';
+      }
+
+      function buildNaturalImageLabel(title, mainInput, required) {
+        const maxLength = 20;
+        const sources = [mainInput, title];
+        for (let sourceIndex = 0; sourceIndex < sources.length; sourceIndex++) {
+          const cleaned = String(sources[sourceIndex] || '')
+            .replace(/<[^>]+>/g, ' ')
+            .replace(/^案\s*\d+\s*[:：・\-]?\s*/i, '')
+            .replace(/[「」『』【】\[\]（）()]/g, '')
+            .replace(/\s+/g, ' ')
+            .trim();
+          if (!cleaned) continue;
+          if (cleaned.length <= maxLength) return cleaned;
+
+          const clauses = cleaned.split(/[｜|／/:：!?！？。、]/).map(function(value) {
+            return value.trim();
+          }).filter(Boolean);
+          const completeClause = clauses.find(function(value) {
+            return value.length >= 3 && value.length <= maxLength;
+          });
+          if (completeClause) return completeClause;
+
+          const words = cleaned.split(/[\s　]+/).filter(Boolean);
+          let joined = '';
+          words.forEach(function(word) {
+            const candidate = joined ? joined + ' ' + word : word;
+            if (candidate.length <= maxLength) joined = candidate;
+          });
+          if (joined) return joined;
+        }
+        if (!required) return '';
+        const context = String(title || '') + ' ' + String(mainInput || '');
+        if (/後悔|失敗|がっかり/.test(context)) return '後悔しないための要点';
+        if (/比較|違い/.test(context)) return '違いをわかりやすく比較';
+        if (/費用|価格|料金|いくら/.test(context)) return '費用と条件をチェック';
+        if (/安全|雪道|事故|注意/.test(context)) return '安全のための確認ポイント';
+        if (/手順|方法|やり方/.test(context)) return '手順をわかりやすく解説';
+        if (/おすすめ|選び方/.test(context)) return '失敗しない選び方';
+        return '知っておきたいポイント';
+      }
+
+      function buildImagePromptPack(title, body, mainInput) {
+        const sections = getArticleSectionsForImages();
+        const targets = pickImageTargets(sections);
+        const articleTitle = title || mainInput || '記事タイトル未設定';
+        const eyecatchLabel = buildNaturalImageLabel(articleTitle, mainInput, true);
+        const commonRules = [
+          '横長16:9。ブログ本文に入れる日本語の図解イラスト。',
+          '画像は清潔感ある図解イラストにする。配色は記事テーマに合わせて自然に選ぶ。',
+          '画像内テキストは、各ブロックで指定された完成形の短い日本語ラベルだけ。文字を途中で省略・切断しない。収まらない場合は文字を入れない。',
+          '文字と主役は中央の安全範囲に置き、上下左右に15%以上の余白を取る。16:9でトリミングされても文字が欠けない構図にする。',
+          '画像の右下隅から十分に余白を取り、対応番号を小さく入れる。アイキャッチは「00」、H2画像は「01」「02」のように2桁で入れる。番号は目立たせすぎず、整理用の小さな印にする。',
+          '同じ構図の使い回しは禁止。各画像で視点、配置、主役を変える。',
+          '実在ブランドのロゴ、正確な商品パッケージ、人物の顔の特定描写は入れない。',
+          '記事の内容理解を補完する画像にする。単なる一覧画像や装飾画像にしない。'
+        ].join('\n- ');
+        const layouts = [
+          '左右分割で「迷い」と「解決」を対比する構図',
+          '中央に主役、周囲に3つの確認ポイントを置く構図',
+          '上から下へ進む3ステップの流れ図',
+          '費用や条件をカード状に分解する構図',
+          '原因から対策へ矢印でつなぐ構図',
+          'チェックリストを斜め配置で見せる構図'
+        ];
+        const lines = [];
+        lines.push('以下の記事用に、画像を1枚ずつ生成してください。');
+        lines.push('一度に全部を合成せず、各ブロックごとに1枚の画像として作成してください。');
+        lines.push('');
+        lines.push('【画風指定】');
+        lines.push(getSelectedImageStylePromptLine());
+        lines.push('');
+        lines.push('【共通ルール】');
+        lines.push('- ' + commonRules);
+        lines.push('');
+        lines.push('【01 アイキャッチ】');
+        lines.push('画像タイプ: EYECATCH');
+        lines.push('表示番号: 00（画像の右下隅に小さく入れる）');
+        lines.push('画像の役割: 記事全体を代表するアイキャッチ画像。読者がクリックしたくなる第一印象を重視。');
+        lines.push('記事タイトル: ' + articleTitle);
+        lines.push('構図: 記事テーマを象徴する大きな主役を中央に置き、周囲に不安・比較・解決の要素を控えめに配置。本文画像とは違う広い構図にする。');
+        lines.push(eyecatchLabel
+          ? '画像内テキスト: 「' + eyecatchLabel + '」だけを一字も省略せず入れる。記事タイトル全文は描かない。'
+          : '画像内テキスト: なし。記事タイトルや説明文を画像内に描かない。');
+        targets.forEach(function(target, index) {
+          const number = String(index + 1).padStart(2, '0');
+          const sectionLabel = buildNaturalImageLabel(target.heading, mainInput, false);
+          lines.push('');
+          lines.push('【' + number + ' H2図解】');
+          lines.push('画像タイプ: H2_SECTION');
+          lines.push('表示番号: ' + number + '（画像の右下隅に小さく入れる）');
+          lines.push('対象H2: ' + target.heading);
+          lines.push('判定: ' + (target.rank === 'A' ? '画像必須。理解補助に強く効く見出し。' : '画像があると良い見出し。'));
+          lines.push('画像の役割: このH2の内容を読む前に、読者が要点を直感的につかめる補助図解。');
+          lines.push('画像生成プロンプト: H2「' + target.heading + '」で扱う判断材料を、主役と2〜3個の視覚要素で直感的に理解できる1枚のブログ図解として描く。本文や見出し全文は画像内へ転載しない。');
+          lines.push('構図: ' + layouts[index % layouts.length]);
+          lines.push(sectionLabel
+            ? '画像内テキスト: 「' + sectionLabel + '」だけを一字も省略せず入れる。H2全文は描かない。'
+            : '画像内テキスト: なし。H2や説明文を画像内に描かない。');
+        });
+        if (!targets.length) {
+          lines.push('');
+          lines.push('【補足】本文内H2はC判定中心のため、本文画像は無理に作らずアイキャッチ1枚のみでよいです。');
+        }
+        return lines.join('\n');
+      }
+
+      function buildImagePromptRequestPayload(data, title) {
+        const payload = data || readForm();
+        payload.imageArticleTitle = title || pickFirstTitleIdea() || payload.mainInput || '';
+        payload.imageTargets = pickImageTargets(getArticleSectionsForImages()).map(function(target) {
+          return {
+            heading: target.heading,
+            text: target.text,
+            rank: target.rank
+          };
+        });
+        return payload;
+      }
+
+      function splitImagePromptPackForCopy(fullPack) {
+        const source = String(fullPack || '').trim();
+        if (!source) return [];
+        const headingPattern = /^【[^\r\n]*(?:アイキャッチ|H2図解)[^\r\n]*】[ \t]*$/gm;
+        const matches = [];
+        let match;
+        while ((match = headingPattern.exec(source)) !== null) {
+          matches.push({ index: match.index });
+        }
+        if (!matches.length) return [source];
+
+        let preamble = source.slice(0, matches[0].index).trim();
+        const styleStart = preamble.indexOf('【画風指定】');
+        if (styleStart >= 0) preamble = preamble.slice(styleStart).trim();
+
+        return matches.map(function(item, index) {
+          const next = matches[index + 1];
+          const block = source.slice(item.index, next ? next.index : source.length).trim();
+          return [
+            '@画像を作成する',
+            '以下の1枚だけを16:9で生成してください。ほかの画像、画像一覧、コラージュ、設計表は作らないでください。',
+            '生成後は次の画像へ進まず、この1枚で停止してください。',
+            '',
+            preamble,
+            '',
+            block
+          ].filter(Boolean).join('\n');
+        });
+      }
+
+      function setImagePromptPack(fullPack) {
+        imagePromptPackFull = String(fullPack || '').trim();
+        imagePromptBlocks = splitImagePromptPackForCopy(imagePromptPackFull);
+        imagePromptIndex = 0;
+        renderImagePromptBlock();
+      }
+
+      function renderImagePromptBlock() {
+        const field = document.getElementById('imagePromptPack');
+        const counter = document.getElementById('imagePromptCounter');
+        const prev = document.getElementById('imagePromptPrev');
+        const next = document.getElementById('imagePromptNext');
+        const total = imagePromptBlocks.length;
+        if (field) field.value = total ? imagePromptBlocks[imagePromptIndex] : '';
+        if (counter) counter.textContent = total ? '画像 ' + (imagePromptIndex + 1) + ' / ' + total : '画像 0 / 0';
+        if (prev) prev.disabled = imagePromptIndex <= 0;
+        if (next) next.disabled = !total || imagePromptIndex >= total - 1;
+      }
+
+      function changeImagePromptBlock(delta) {
+        if (!imagePromptBlocks.length) return;
+        imagePromptIndex = Math.max(0, Math.min(imagePromptBlocks.length - 1, imagePromptIndex + Number(delta || 0)));
+        renderImagePromptBlock();
+      }
+
+      function generateImagePromptPack(button) {
         const data = readForm();
         const title = pickFirstTitleIdea() || data.mainInput || '';
         const body = data.body || '';
@@ -1031,35 +1428,23 @@
           setNotice('タイトル候補または本文がありません。本文生成後に実行してください。', true);
           return;
         }
-        setBusy('ChatGPTへ画像生成リクエストを送信中...', button);
-        try {
-          const baseUrl = await findLocalOpalBaseUrl();
-          if (!baseUrl) {
-            clearBusy();
-            setProgress('error');
-            setNotice('ChatGPT画像生成フォームが起動していません。起動用ショートカットからフォームを開いてから、もう一度押してください。', true);
-            showImageGeneratorDialog();
-            return;
-          }
-          const res = await fetch(baseUrl + '/api/send', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ title: title, body: body, style: '' })
-          });
-          const result = await res.json();
+        const payload = buildImagePromptRequestPayload(data, title);
+        const opToken = setBusy('画像プロンプト作成 / AIが各画像の被写体と構図を設計中...', button);
+        google.script.run.withSuccessHandler(function(result) {
+          if (isOperationCancelled(opToken)) return;
           clearBusy();
-          if (!result || !result.ok) {
-            setProgress('error');
-            setNotice(result && result.message ? result.message : 'ChatGPTへの画像生成リクエスト送信に失敗しました。', true);
+          if (!result || !result.imagePromptPack) {
+            fail(new Error('画像設計AIからプロンプトが返りませんでした。'));
             return;
           }
+          setImagePromptPack(result.imagePromptPack);
+          showImageGeneratorDialog();
           setProgress('done');
-          setNotice(result.message || 'ChatGPTへ画像生成リクエストを送信しました。', false);
-        } catch (e) {
-          clearBusy();
-          setProgress('error');
-          setNotice('ChatGPT画像生成送信でエラーが出ました: ' + (e && e.message ? e.message : e), true);
-        }
+          setNotice(result.message || '画像生成プロンプトを作成しました。1枚分ずつコピーしてください。', false);
+        }).withFailureHandler(function(error) {
+          if (isOperationCancelled(opToken)) return;
+          fail(error);
+        }).uaCreateImagePromptPackFromWeb(payload);
       }
 
       function runArticleStructure(button) {
@@ -1165,22 +1550,35 @@
         if (dialog) dialog.classList.add('hidden');
       }
 
-      function launchImageGenerator() {
-        window.location.href = 'chatgptimage://run';
+      function generateWpImagesFromPromptDialog(button) {
+        const data = readForm();
+        data.imagePromptPack = imagePromptPackFull || '';
+        if (!data.imagePromptPack) {
+          setNotice('画像生成プロンプト一式がありません。もう一度「画像プロンプト作成」を実行してください。', true);
+          return;
+        }
         closeImageGeneratorDialog();
-        setNotice('ChatGPT画像生成フォームを起動しました。ブラウザの確認が出たら許可してください。起動後にもう一度「ChatGPTへ画像生成」を押してください。', false);
+        generateWpImages(button, data);
       }
 
-      function copyImageGeneratorRunPath() {
-        const field = document.getElementById('imageGeneratorRunPath');
+      function copyImagePromptPack() {
+        const field = document.getElementById('imagePromptPack');
         if (!field) return;
         field.focus();
         field.select();
         try {
           document.execCommand('copy');
-          setNotice('画像生成フォームのEXEパスをコピーしました。エクスプローラーやWin+Rに貼り付けて実行できます。', false);
+          const copiedIndex = imagePromptIndex + 1;
+          const total = imagePromptBlocks.length || 1;
+          if (imagePromptIndex < imagePromptBlocks.length - 1) {
+            imagePromptIndex++;
+            renderImagePromptBlock();
+            setNotice('画像 ' + copiedIndex + ' / ' + total + ' をコピーしました。次の画像プロンプトを表示しています。', false);
+          } else {
+            setNotice('画像 ' + copiedIndex + ' / ' + total + ' をコピーしました。これが最後です。', false);
+          }
         } catch (e) {
-          setNotice('コピーできませんでした。パスを選択して手動コピーしてください。', true);
+          setNotice('コピーできませんでした。プロンプト欄を選択して手動コピーしてください。', true);
         }
       }
 
@@ -1265,6 +1663,53 @@
           .withFailureHandler(fail)
           .uaAddWpImagesFromPanel(readForm());
       }
+      function generateWpImages(button, payload) {
+        syncRakutenControlsToNotes();
+        const requestData = payload || readForm();
+        requestData.imageBatchSize = requestData.imageBatchSize || 1;
+        if (!requestData.imageAutoContinue) {
+          window.uaImageGenerationCancelled = false;
+        }
+        if (window.uaImageGenerationCancelled) {
+          clearBusy();
+          setNotice('画像生成の自動継続をキャンセルしました。', false);
+          return;
+        }
+        const busyMessage = requestData.imageAutoContinue ? '画像生成を継続中...' : '画像生成とWordPress差し込み中...';
+        const opToken = beginCancelableOperation(busyMessage, button);
+        window.uaBusyDetail = requestData.imageProgressDone ? '成功 ' + requestData.imageProgressDone + '件' : '1枚ずつ処理中';
+        updateBusyProgress(busyMessage, window.uaBusyDetail);
+        google.script.run.withSuccessHandler(function(data) {
+          if (isOperationCancelled(opToken)) return;
+          fillForm(data);
+          showTab('body');
+          setProgress('done');
+          const processed = Number(data && data.imageProcessedThisRun || 0);
+          const completed = Number(requestData.imageProgressDone || 0) + processed;
+          const remaining = Number(data && data.imageRemainingCount || 0);
+          const progressDetail = '成功 ' + completed + '件 / 残り ' + remaining + '件';
+          window.uaBusyDetail = progressDetail;
+          setNotice((data.message || '画像生成とWordPress差し込みが完了しました。') + ' [' + progressDetail + ']', false);
+          if (data && data.imageHasMore) {
+            const nextPayload = readForm();
+            nextPayload.imagePromptPack = requestData.imagePromptPack || data.imagePromptPack || '';
+            nextPayload.imageBatchSize = requestData.imageBatchSize || data.imageBatchSize || 1;
+            nextPayload.imageAutoContinue = true;
+            nextPayload.imageProgressDone = completed;
+            showBusyCancelButton(data.message || '残り画像を続けて処理します...', progressDetail);
+            window.uaImageGenerationTimer = setTimeout(function() {
+              window.uaImageGenerationTimer = null;
+              generateWpImages(button, nextPayload);
+            }, 600);
+            return;
+          }
+          clearBusy();
+        }).withFailureHandler(function(error) {
+          if (isOperationCancelled(opToken)) return;
+          window.uaImageGenerationTimer = null;
+          fail(error);
+        }).uaGenerateWpImagesFromPanel(requestData);
+      }
 
       function markPosted(button) {
         setBusy('投稿済みに更新中...', button);
@@ -1277,6 +1722,62 @@
           })
           .withFailureHandler(fail)
           .uaMarkActiveArticlePosted(readForm());
+      }
+
+      function createWpDraft(button) {
+        setBusy('WordPress下書き反映中...', button);
+        google.script.run
+          .withSuccessHandler(function(data) {
+            clearBusy();
+            fillForm(data);
+            setProgress('done');
+            setNotice(data && data.message ? data.message : 'WordPress下書きへ反映しました。', false);
+          })
+          .withFailureHandler(fail)
+          .uaCreateWpDraftFromWeb(readForm());
+      }
+
+      function runPrePublishCheck(button) {
+        setBusy('公開前チェック中...', button);
+        google.script.run
+          .withSuccessHandler(function(data) {
+            clearBusy();
+            fillForm(data);
+            showTab('check');
+            setProgress('done');
+            setNotice(data && data.message ? data.message : '公開前チェックを実行しました。', false);
+          })
+          .withFailureHandler(fail)
+          .uaRunPrePublishCheckFromWeb(readForm());
+      }
+
+      function runPrePublishFixAndWp(button) {
+        const opToken = beginCancelableOperation('公開前チェック中...', button);
+        updateBusyProgress('公開前チェック中...', '1/3');
+        const handleFailure = function(error) {
+          if (isOperationCancelled(opToken)) return;
+          fail(error);
+        };
+        google.script.run.withSuccessHandler(function(checkData) {
+          if (isOperationCancelled(opToken)) return;
+          fillForm(checkData);
+          showTab('check');
+          updateBusyProgress('文脈を読んで修正中...', '2/3');
+          google.script.run.withSuccessHandler(function(fixedData) {
+            if (isOperationCancelled(opToken)) return;
+            fillForm(fixedData);
+            showTab('check');
+            updateBusyProgress('WordPress下書きへ反映中...', '3/3');
+            google.script.run.withSuccessHandler(function(wpData) {
+              if (isOperationCancelled(opToken)) return;
+              clearBusy();
+              fillForm(wpData);
+              showTab('check');
+              setProgress('done');
+              setNotice('公開前チェック、文脈修正、WordPress下書きへの反映が完了しました。', false);
+            }).withFailureHandler(handleFailure).uaCreateWpDraftFromWeb(fixedData);
+          }).withFailureHandler(handleFailure).uaApplyPrePublishFixesOnceFromWeb(checkData);
+        }).withFailureHandler(handleFailure).uaRunPrePublishCheckFromWeb(readForm());
       }
 
       function copyField(id, label) {
@@ -1346,15 +1847,90 @@
         bar.style.width = '0%';
       }
 
+      function beginCancelableOperation(message, button) {
+        setBusy(message, button);
+        return window.uaCurrentOperationToken || 0;
+      }
+
+      function isOperationCancelled(token) {
+        return !!token && window.uaCancelledOperationToken === token;
+      }
+
+      function cancelActiveOperation() {
+        if (!window.uaCurrentOperationToken) return;
+        window.uaCancelledOperationToken = window.uaCurrentOperationToken;
+        window.uaImageGenerationCancelled = true;
+        if (window.uaImageGenerationTimer) {
+          clearTimeout(window.uaImageGenerationTimer);
+          window.uaImageGenerationTimer = null;
+        }
+        clearBusy();
+        setProgress('done');
+        setNotice('キャンセルしました。実行中のサーバー処理は止められませんが、戻ってきた結果は画面に反映しません。', false);
+      }
+
+      function formatElapsedTime(ms) {
+        const total = Math.max(0, Math.floor(ms / 1000));
+        const minutes = Math.floor(total / 60);
+        const seconds = total % 60;
+        return minutes + ':' + String(seconds).padStart(2, '0');
+      }
+
+      function updateBusyProgress(message, detail) {
+        const notice = document.getElementById('notice');
+        const label = notice.querySelector('[data-busy-label]');
+        const meta = notice.querySelector('[data-busy-meta]');
+        if (label) label.textContent = message || '';
+        if (meta) {
+          const elapsed = window.uaBusyStartedAt ? formatElapsedTime(Date.now() - window.uaBusyStartedAt) : '0:00';
+          meta.textContent = (detail ? detail + ' / ' : '') + '経過 ' + elapsed;
+        }
+      }
+
+      function showBusyCancelButton(message, detail) {
+        const notice = document.getElementById('notice');
+        notice.textContent = '';
+        const text = document.createElement('span');
+        text.dataset.busyLabel = '1';
+        text.textContent = message;
+        const meta = document.createElement('span');
+        meta.dataset.busyMeta = '1';
+        meta.style.display = 'inline-block';
+        meta.style.marginLeft = '10px';
+        meta.style.opacity = '0.78';
+        const cancel = document.createElement('button');
+        cancel.type = 'button';
+        cancel.className = 'secondary';
+        cancel.style.marginLeft = '12px';
+        cancel.textContent = 'キャンセル';
+        cancel.onclick = cancelActiveOperation;
+        cancel.disabled = false;
+        notice.appendChild(text);
+        notice.appendChild(meta);
+        notice.appendChild(cancel);
+        notice.className = 'status working';
+        updateBusyProgress(message, detail);
+      }
+
       function setBusy(message, button) {
         const notice = document.getElementById('notice');
+
         notice.textContent = message;
+
         notice.className = 'status working';
         setProgress('loading');
+        window.uaActiveOperationSeq = (window.uaActiveOperationSeq || 0) + 1;
+        window.uaCurrentOperationToken = window.uaActiveOperationSeq;
         activeButton = button || null;
         activeButtonText = activeButton ? activeButton.textContent : '';
         document.querySelectorAll('button').forEach(function(item) { item.disabled = true; });
         if (activeButton) activeButton.textContent = message;
+        window.uaBusyStartedAt = Date.now();
+        if (window.uaBusyTimer) clearInterval(window.uaBusyTimer);
+        window.uaBusyTimer = setInterval(function() { updateBusyProgress(message, window.uaBusyDetail || ''); }, 1000);
+        window.uaBusyDetail = '';
+        showBusyCancelButton(message);
+        return window.uaCurrentOperationToken;
       }
 
       function clearBusy() {
@@ -1362,6 +1938,13 @@
         if (activeButton) activeButton.textContent = activeButtonText;
         activeButton = null;
         activeButtonText = '';
+        window.uaCurrentOperationToken = 0;
+        window.uaBusyStartedAt = 0;
+        window.uaBusyDetail = '';
+        if (window.uaBusyTimer) {
+          clearInterval(window.uaBusyTimer);
+          window.uaBusyTimer = null;
+        }
         if (autoSavePending) scheduleAutoSave();
       }
 

@@ -1,6 +1,8 @@
 function onOpen() {
+  uaRenameSpreadsheetFileIfLegacyName_();
+
   SpreadsheetApp.getUi()
-    .createMenu('★記事作成アプリ')
+    .createMenu('★Article Compass System')
     .addItem('記事作成パネルを開く', 'uaShowArticleApp')
     .addSeparator()
     .addItem('アプリ表示にする', 'uaSetupAppView')
@@ -26,6 +28,13 @@ function onOpen() {
     .addItem('読者心理をGeminiに切替', 'uaSetReaderMindProviderGemini')
     .addItem('読者心理をOpenAIに切替', 'uaSetReaderMindProviderOpenAi')
     .addToUi();
+}
+
+function uaRenameSpreadsheetFileIfLegacyName_() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  if (ss.getName() === '統合版アプリ用シート') {
+    ss.rename('Article Compass System');
+  }
 }
 
 function onSelectionChange(e) {
@@ -385,8 +394,15 @@ function uaGetPanelOptions() {
       { value: 'gemini', label: 'Gemini（読者心理向き）' },
       { value: 'openai', label: 'OpenAI' }
     ],
+    imageProviders: [
+      { value: 'openai', label: 'OpenAI Images' },
+      { value: 'gemini', label: 'Gemini Nano Banana / Pro' }
+    ],
+    imageModels: uaGetImageModelOptions_(),
     selectedArticleProvider: uaGetArticleProvider_(),
-    selectedReaderMindProvider: uaGetReaderMindProvider_()
+    selectedReaderMindProvider: uaGetReaderMindProvider_(),
+    selectedImageProvider: uaGetImageProvider_(),
+    selectedImageModelValue: uaGetSelectedImageModelValue_()
   };
 }
 
@@ -421,6 +437,40 @@ function uaGetOpenAiModel_() {
     UA_DEFAULT_OPENAI_MODEL;
 }
 
+function uaGetImageModelOptions_() {
+  return [
+    { value: 'openai:' + uaGetOpenAiImageModel_(), label: 'OpenAI Images: ' + uaGetOpenAiImageModel_() }
+  ].concat((UA_GEMINI_IMAGE_MODEL_OPTIONS || []).map(function(option) {
+    return {
+      value: 'gemini:' + option.value,
+      label: option.label + ': ' + option.value.replace(/^models\//, '')
+    };
+  }));
+}
+
+function uaGetSelectedImageModelValue_() {
+  const provider = uaGetImageProvider_();
+  if (provider === 'gemini') {
+    return 'gemini:' + uaGetGeminiImageModel_();
+  }
+  return 'openai:' + uaGetOpenAiImageModel_();
+}
+
+function uaGetOpenAiImageModel_() {
+  const model = PropertiesService.getScriptProperties().getProperty('OPENAI_IMAGE_MODEL');
+  if (!model || model === 'gpt-image-1' || model === 'gpt-image-1.5') {
+    return UA_DEFAULT_OPENAI_IMAGE_MODEL;
+  }
+  return model;
+}
+
+function uaGetGeminiImageModel_() {
+  const model = PropertiesService.getScriptProperties().getProperty('GEMINI_IMAGE_MODEL') ||
+    UA_DEFAULT_GEMINI_IMAGE_MODEL;
+  const allowed = (UA_GEMINI_IMAGE_MODEL_OPTIONS || []).map(function(option) { return option.value; });
+  return allowed.indexOf(model) !== -1 ? model : UA_DEFAULT_GEMINI_IMAGE_MODEL;
+}
+
 function uaGetClaudeModel_() {
   return PropertiesService.getScriptProperties().getProperty('CLAUDE_MODEL') ||
     UA_DEFAULT_CLAUDE_MODEL;
@@ -444,6 +494,14 @@ function uaGetReaderMindProvider_() {
     .trim();
 
   return provider === 'openai' ? 'openai' : 'gemini';
+}
+
+function uaGetImageProvider_() {
+  const provider = String(PropertiesService.getScriptProperties().getProperty(UA_IMAGE_PROVIDER_PROPERTY) || 'openai')
+    .toLowerCase()
+    .trim();
+
+  return provider === 'gemini' ? 'gemini' : 'openai';
 }
 
 function uaSetArticleProviderGemini() {
@@ -471,9 +529,11 @@ function uaSetReaderMindProviderOpenAi() {
   SpreadsheetApp.getUi().alert('読者心理メモ生成をOpenAIに切り替えました。');
 }
 
-function uaSetProvidersFromPanel(articleProvider, readerMindProvider) {
+function uaSetProvidersFromPanel(articleProvider, readerMindProvider, imageProvider, imageModelValue) {
   const cleanArticleProvider = String(articleProvider || '').toLowerCase().trim();
   const cleanReaderMindProvider = String(readerMindProvider || '').toLowerCase().trim();
+  const cleanImageProvider = String(imageProvider || '').toLowerCase().trim();
+  const cleanImageModelValue = String(imageModelValue || '').trim();
 
   if (cleanArticleProvider === 'gemini' || cleanArticleProvider === 'openai' || cleanArticleProvider === 'claude') {
     PropertiesService.getScriptProperties().setProperty(UA_ARTICLE_PROVIDER_PROPERTY, cleanArticleProvider);
@@ -483,9 +543,26 @@ function uaSetProvidersFromPanel(articleProvider, readerMindProvider) {
     PropertiesService.getScriptProperties().setProperty(UA_READER_MIND_PROVIDER_PROPERTY, cleanReaderMindProvider);
   }
 
+  if (cleanImageProvider === 'openai' || cleanImageProvider === 'gemini') {
+    PropertiesService.getScriptProperties().setProperty(UA_IMAGE_PROVIDER_PROPERTY, cleanImageProvider);
+  }
+
+  const imageModelParts = cleanImageModelValue.split(':');
+  const imageModelProvider = imageModelParts.shift();
+  const imageModel = imageModelParts.join(':');
+  if (imageModelProvider === 'gemini' && imageModel) {
+    const allowedGeminiImageModels = (UA_GEMINI_IMAGE_MODEL_OPTIONS || []).map(function(option) { return option.value; });
+    if (allowedGeminiImageModels.indexOf(imageModel) !== -1) {
+      PropertiesService.getScriptProperties().setProperty('GEMINI_IMAGE_MODEL', imageModel);
+      PropertiesService.getScriptProperties().setProperty(UA_IMAGE_PROVIDER_PROPERTY, 'gemini');
+    }
+  }
+
   return {
     selectedArticleModel: uaGetSelectedArticleModelLabel_(),
     selectedReaderMindModel: uaGetSelectedReaderMindModelLabel_(),
+    selectedImageModel: uaGetSelectedImageModelLabel_(),
+    selectedImageModelValue: uaGetSelectedImageModelValue_(),
     message: '使用APIを更新しました。'
   };
 }
@@ -525,6 +602,38 @@ function uaGetSelectedReaderMindModelLabel_() {
   return uaFormatModelLabel_(provider, UA_GEMINI_MODELS[0] || '');
 }
 
+function uaGetSelectedImageModelLabel_() {
+  const provider = uaGetImageProvider_();
+  if (provider === 'gemini') {
+    return uaFormatModelLabel_(provider, uaGetGeminiImageModel_());
+  }
+  return uaFormatModelLabel_(provider, uaGetOpenAiImageModel_());
+}
+
+
+function uaOpenArticleSheetFromPanel(appTypeLabel) {
+  const appConfig = uaGetAppConfigByLabel_(appTypeLabel);
+
+  if (!appConfig || !appConfig.articleSheetName) {
+    throw new Error('\u3053\u306e\u8a18\u4e8b\u30bf\u30a4\u30d7\u306b\u306f\u8a18\u4e8b\u30b7\u30fc\u30c8\u304c\u3042\u308a\u307e\u305b\u3093\u3002');
+  }
+
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(appConfig.articleSheetName);
+
+  if (!sheet) {
+    throw new Error('"' + appConfig.articleSheetName + '" \u30b7\u30fc\u30c8\u304c\u898b\u3064\u304b\u308a\u307e\u305b\u3093\u3002');
+  }
+
+  ss.setActiveSheet(sheet);
+  sheet.showColumns(1, sheet.getMaxColumns());
+  sheet.setFrozenRows(1);
+  sheet.setFrozenColumns(2);
+
+  return {
+    message: appConfig.label + '\u306e\u8a18\u4e8b\u30b7\u30fc\u30c8\u3092\u958b\u304d\u307e\u3057\u305f\u3002\u53cd\u6620\u3057\u305f\u3044\u884c\u3092\u9078\u3093\u3067\u304b\u3089\u300c\u9078\u629e\u884c\u3092\u53cd\u6620\u300d\u3092\u62bc\u3057\u3066\u304f\u3060\u3055\u3044\u3002'
+  };
+}
 function uaGetRequiredSheet_() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const activeSheet = ss.getActiveSheet();

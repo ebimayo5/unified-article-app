@@ -56,6 +56,7 @@ function uaRunArticleStructureForData_(data) {
   if (uaShouldUseTrefaiBridge_(rowData, data)) {
     const job = uaCreateTrefaiStructureJob_(sheet, row, rowData, appConfig);
     const nextData = uaBuildRowData_(sheet, row);
+    nextData.trefaiJob = job;
     nextData.message = 'トレファイへ上位URL取得を依頼しました。PC側ブリッジが処理すると構成メモまで作成されます。jobId: ' + job.jobId;
     return nextData;
   }
@@ -80,7 +81,7 @@ function uaGenerateArticleStructureForRow_(sheet, row, appConfig, provider, opti
     throw new Error('記事構成の生成結果に必要な項目がありません。');
   }
 
-  const structureMemo = uaFormatArticleStructureMemo_(resultJson);
+  const structureMemo = uaFormatArticleStructureMemo_(resultJson, competitorPages);
 
   sheet.getRange(row, UA_COLUMNS.structureMemo).setValue(structureMemo);
   sheet.getRange(row, UA_COLUMNS.createdAt).setValue(new Date());
@@ -179,6 +180,33 @@ function uaFindOpenTrefaiJob_(queueSheet, appType, row, keyword) {
   return null;
 }
 
+function uaGetLatestTrefaiJobStatus_(appType, row, keyword) {
+  const queueSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(UA_TREFAI_QUEUE_SHEET_NAME);
+  if (!queueSheet || queueSheet.getLastRow() < 2) return null;
+
+  const targetAppType = String(appType || '').trim();
+  const targetRow = Number(row || 0);
+  const targetKeyword = String(keyword || '').trim();
+  const values = queueSheet.getRange(2, 1, queueSheet.getLastRow() - 1, UA_TREFAI_QUEUE_COLUMNS.resultJson).getValues();
+
+  for (let index = values.length - 1; index >= 0; index--) {
+    const item = values[index];
+    if (String(item[UA_TREFAI_QUEUE_COLUMNS.appType - 1] || '').trim() !== targetAppType) continue;
+    if (Number(item[UA_TREFAI_QUEUE_COLUMNS.row - 1] || 0) !== targetRow) continue;
+    if (String(item[UA_TREFAI_QUEUE_COLUMNS.keyword - 1] || '').trim() !== targetKeyword) continue;
+
+    const updatedAt = item[UA_TREFAI_QUEUE_COLUMNS.updatedAt - 1];
+    return {
+      jobId: String(item[UA_TREFAI_QUEUE_COLUMNS.jobId - 1] || '').trim(),
+      status: String(item[UA_TREFAI_QUEUE_COLUMNS.status - 1] || '').trim(),
+      updatedAt: updatedAt ? String(updatedAt) : '',
+      message: String(item[UA_TREFAI_QUEUE_COLUMNS.message - 1] || '').trim()
+    };
+  }
+
+  return null;
+}
+
 function uaEnsureTrefaiQueueSheet_() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   let sheet = ss.getSheetByName(UA_TREFAI_QUEUE_SHEET_NAME);
@@ -237,6 +265,7 @@ function uaGetNextTrefaiStructureJob_(payload) {
       const rowNumber = index + 2;
       sheet.getRange(rowNumber, UA_TREFAI_QUEUE_COLUMNS.status).setValue(UA_TREFAI_STATUS_RUNNING);
       sheet.getRange(rowNumber, UA_TREFAI_QUEUE_COLUMNS.updatedAt).setValue(new Date());
+      sheet.getRange(rowNumber, UA_TREFAI_QUEUE_COLUMNS.message).setValue('PC側トレファイの起動を確認しました。上位URLを取得中です。');
       SpreadsheetApp.flush();
 
       return {
@@ -308,6 +337,10 @@ function uaCompleteTrefaiStructureJob_(payload) {
   }
 
   const urls = uaNormalizeTrefaiUrls_(payload && (payload.competitorUrls || payload.urls));
+  queueSheet.getRange(queueRow, UA_TREFAI_QUEUE_COLUMNS.status).setValue(UA_TREFAI_STATUS_RUNNING);
+  queueSheet.getRange(queueRow, UA_TREFAI_QUEUE_COLUMNS.updatedAt).setValue(new Date());
+  queueSheet.getRange(queueRow, UA_TREFAI_QUEUE_COLUMNS.message).setValue('上位URLを' + urls.length + '件取得しました。競合ページを確認して記事構成を生成中です。');
+  SpreadsheetApp.flush();
   uaSaveTrefaiUrlsToArticleRow_(articleSheet, row, urls);
 
   const provider = uaGetArticleProvider_();
@@ -423,9 +456,7 @@ function uaFetchStructureCompetitorPages_(rowData, appConfig, preferredUrls) {
     urls.push(url);
   });
 
-  return urls.slice(0, UA_STRUCTURE_COMPETITOR_ANALYSIS_MAX_PAGES).map(function(url) {
-    return uaFetchCompetitorPageInfo_(url);
-  });
+  return uaFetchCompetitorPageInfos_(urls.slice(0, UA_STRUCTURE_COMPETITOR_ANALYSIS_MAX_PAGES));
 }
 
 function uaSaveAutoCompetitorUrls_(sheet, row, rowData, pages) {
@@ -605,8 +636,11 @@ ${competitorText}
 `;
 }
 
-function uaFormatArticleStructureMemo_(resultJson) {
+function uaFormatArticleStructureMemo_(resultJson, competitorPages) {
+  const referenceUrls = uaFormatStructureReferenceUrls_(competitorPages);
   return [
+    referenceUrls,
+    '',
     '【自動競合分析メモ】',
     String(resultJson.competitor_analysis_memo || '').trim(),
     '',
@@ -615,4 +649,20 @@ function uaFormatArticleStructureMemo_(resultJson) {
     '【本文手前の記事構成】',
     String(resultJson.article_outline || '').trim()
   ].join('\n').trim();
+}
+
+function uaFormatStructureReferenceUrls_(competitorPages) {
+  const pages = Array.isArray(competitorPages) ? competitorPages : [];
+  const lines = pages.map(function(item, index) {
+    const url = String(item && item.url || '').trim();
+    if (!url) return '';
+    const title = String(item && item.title || '').trim();
+    return (index + 1) + '. ' + url + (title ? '｜' + title : '');
+  }).filter(Boolean);
+
+  if (lines.length === 0) {
+    return '【記事作成のヒントに用いた上位URL】\n取得できた上位URLはありません。';
+  }
+
+  return '【記事作成のヒントに用いた上位URL】\n' + lines.join('\n');
 }

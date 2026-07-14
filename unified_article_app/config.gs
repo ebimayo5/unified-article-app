@@ -1,7 +1,8 @@
-const UA_APP_NAME = '統合版記事作成アプリ';
+const UA_APP_NAME = 'Article Compass System';
 
 const UA_ARTICLE_PROVIDER_PROPERTY = 'ARTICLE_PROVIDER';
 const UA_READER_MIND_PROVIDER_PROPERTY = 'READER_MIND_PROVIDER';
+const UA_IMAGE_PROVIDER_PROPERTY = 'IMAGE_PROVIDER';
 
 const UA_GEMINI_MODELS = [
   'models/gemini-3.5-flash',
@@ -9,6 +10,12 @@ const UA_GEMINI_MODELS = [
 ];
 
 const UA_DEFAULT_OPENAI_MODEL = 'gpt-5.2';
+const UA_DEFAULT_OPENAI_IMAGE_MODEL = 'gpt-image-2';
+const UA_DEFAULT_GEMINI_IMAGE_MODEL = 'models/gemini-3-pro-image-preview';
+const UA_GEMINI_IMAGE_MODEL_OPTIONS = [
+  { value: 'models/gemini-3-pro-image-preview', label: 'Gemini Nano Banana Pro' },
+  { value: 'models/gemini-2.5-flash-image-preview', label: 'Gemini Nano Banana' }
+];
 const UA_DEFAULT_CLAUDE_MODEL = 'claude-sonnet-4-5-20250929';
 
 const UA_STATUS_GENERATING = '記事生成中';
@@ -35,6 +42,7 @@ const UA_COMPETITOR_URL_TEXT_LENGTH = 12000;
 const UA_COMPETITOR_URL_MAX_HEADINGS = 40;
 const UA_EXTERNAL_SOURCE_SHEET_NAME = '外部出典';
 const UA_EXTERNAL_SOURCE_MAX_CANDIDATES = 6;
+const UA_GENERATED_IMAGE_MAX_ITEMS = 5;
 
 const UA_APP_TYPES = {
   drive: {

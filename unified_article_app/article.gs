@@ -176,11 +176,7 @@ function uaBuildNaviokunIntroSetHtml_() {
     '<!-- wp:paragraph -->',
     '<p>[affi id=7]</p>',
     '<!-- /wp:paragraph --></div>',
-    '<!-- /wp:cocoon-blocks/info-box -->',
-    '',
-    '<!-- wp:paragraph -->',
-    '<p>[affi id=3]</p>',
-    '<!-- /wp:paragraph -->'
+    '<!-- /wp:cocoon-blocks/info-box -->'
   ].join('\n');
 }
 

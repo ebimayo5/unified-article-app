@@ -1,4 +1,5 @@
 let UA_LAST_RAKUTEN_STATUS = '';
+const UA_NAVIOKUN_INTRO_URL = 'https://ebimayo5.com/archives/naviokun-reputation/';
 
 function uaRunArticleFromPanel(data) {
   uaSaveActiveRowData(data || {});
@@ -50,8 +51,12 @@ function uaRunArticleFromPanel(data) {
     }
 
     const body = uaApplyRakutenAffiliateBanner_(
-      uaApplyYmylNotice_(
-        uaNormalizeFaqHeadingLevels_(uaFixGeneratedHtml_(resultJson.body)),
+      uaApplyNaviokunIntroSet_(
+        uaApplyYmylNotice_(
+          uaNormalizeFaqHeadingLevels_(uaFixGeneratedHtml_(resultJson.body)),
+          rowData,
+          appConfig
+        ),
         rowData,
         appConfig
       ),
@@ -98,6 +103,85 @@ function uaRunArticleFromPanel(data) {
 
 function uaRunArticleFromWeb(data) {
   return uaRunArticleFromPanel(data || {});
+}
+
+function uaApplyNaviokunIntroSet_(body, rowData, appConfig) {
+  const html = String(body || '');
+  if (!html || !appConfig || appConfig.key !== 'drive') return html;
+  if (html.indexOf('ナビ男くん') === -1) return html;
+
+  if (html.indexOf(UA_NAVIOKUN_INTRO_URL) !== -1 || /\[affi\s+id\s*=\s*7\s*\]/i.test(html)) {
+    return html;
+  }
+
+  const insertionIndex = uaFindNaviokunIntroInsertionIndex_(html);
+  const introSet = uaBuildNaviokunIntroSetHtml_();
+  return [
+    html.slice(0, insertionIndex).trimEnd(),
+    introSet,
+    html.slice(insertionIndex).trimStart()
+  ].filter(Boolean).join('\n\n');
+}
+
+function uaFindNaviokunIntroInsertionIndex_(body) {
+  const html = String(body || '');
+  let bestStart = -1;
+  let bestInsertionIndex = -1;
+  const blockPatterns = [
+    /<!--\s*wp:paragraph\b[^>]*-->[\s\S]*?<!--\s*\/wp:paragraph\s*-->/gi,
+    /<!--\s*wp:heading\b[^>]*-->[\s\S]*?<!--\s*\/wp:heading\s*-->/gi
+  ];
+
+  for (let i = 0; i < blockPatterns.length; i += 1) {
+    const regex = blockPatterns[i];
+    let match;
+    while ((match = regex.exec(html)) !== null) {
+      if (String(match[0] || '').indexOf('ナビ男くん') !== -1) {
+        if (bestStart === -1 || match.index < bestStart) {
+          bestStart = match.index;
+          bestInsertionIndex = match.index + match[0].length;
+        }
+        break;
+      }
+    }
+  }
+
+  if (bestInsertionIndex !== -1) return bestInsertionIndex;
+
+  const rawParagraphRegex = /<p\b[^>]*>[\s\S]*?<\/p>/gi;
+  let rawParagraphMatch;
+  while ((rawParagraphMatch = rawParagraphRegex.exec(html)) !== null) {
+    if (String(rawParagraphMatch[0] || '').indexOf('ナビ男くん') !== -1) {
+      return rawParagraphMatch.index + rawParagraphMatch[0].length;
+    }
+  }
+
+  const fallbackHeading = /<!--\s*wp:heading\b[^>]*-->\s*<h2\b[^>]*>[\s\S]*?(?:よくある質問|まとめ)[\s\S]*?<\/h2>\s*<!--\s*\/wp:heading\s*-->/i.exec(html);
+  return fallbackHeading ? fallbackHeading.index : html.length;
+}
+
+function uaBuildNaviokunIntroSetHtml_() {
+  return [
+    '<!-- wp:cocoon-blocks/info-box {"style":"danger-box"} -->',
+    '<div class="wp-block-cocoon-blocks-info-box block-box danger-box"><!-- wp:paragraph -->',
+    '<p><strong><span class="marker">ナビ男くんとは車内エンタメのアップグレードを得意とする専門店です。</span></strong></p>',
+    '<!-- /wp:paragraph -->',
+    '',
+    '<!-- wp:cocoon-blocks/blogcard {"style":"blogcard-type bct-detail"} -->',
+    '<div class="wp-block-cocoon-blocks-blogcard blogcard-type bct-detail">',
+    '<a href="' + UA_NAVIOKUN_INTRO_URL + '">' + UA_NAVIOKUN_INTRO_URL + '</a>',
+    '</div>',
+    '<!-- /wp:cocoon-blocks/blogcard -->',
+    '',
+    '<!-- wp:paragraph -->',
+    '<p>[affi id=7]</p>',
+    '<!-- /wp:paragraph --></div>',
+    '<!-- /wp:cocoon-blocks/info-box -->',
+    '',
+    '<!-- wp:paragraph -->',
+    '<p>[affi id=3]</p>',
+    '<!-- /wp:paragraph -->'
+  ].join('\n');
 }
 
 function uaFindFaqSectionBounds_(body) {

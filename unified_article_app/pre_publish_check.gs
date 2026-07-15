@@ -77,13 +77,18 @@ function uaApplyPrePublishFixesOnceFromPanel(data) {
     provider
   );
   const revision = uaNormalizePrePublishRevision_(result && result.data, rowData);
-  const revisedBody = uaApplyYmylNotice_(
-    uaNormalizeFaqHeadingLevels_(uaFixGeneratedHtml_(revision.bodyHtml)),
+  const revisedBody = uaApplyNaviokunIntroSet_(
+    uaApplyYmylNotice_(
+      uaNormalizeFaqHeadingLevels_(uaFixGeneratedHtml_(revision.bodyHtml)),
+      rowData,
+      appConfig
+    ),
     rowData,
     appConfig
   );
   const allowedNewUrls = uaExtractPrePublishUrlsFromText_(externalSourcesPrompt)
     .concat([String(rowData.affiliateUrl || '').trim()])
+    .concat([UA_NAVIOKUN_INTRO_URL])
     .concat(uaGetYmylNoticeSourceUrls_(rowData, appConfig, revisedBody))
     .filter(Boolean);
 

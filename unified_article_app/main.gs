@@ -361,14 +361,7 @@ function uaApplyCandidateSheetRules_(sheet) {
   uaEnsureCandidateSheetLayout_(sheet);
   const maxRows = Math.max(sheet.getMaxRows() - 1, 1);
 
-  const statusRule = SpreadsheetApp.newDataValidation()
-    .requireValueInList([
-      UA_CANDIDATE_STATUS_WRITE,
-      UA_CANDIDATE_STATUS_SENT,
-      UA_CANDIDATE_STATUS_HOLD
-    ], true)
-    .setAllowInvalid(false)
-    .build();
+  const statusRule = uaBuildCandidateStatusValidation_();
 
   sheet.getRange(2, UA_CANDIDATE_COLUMNS.status, maxRows, 1).setDataValidation(statusRule);
 
@@ -420,6 +413,17 @@ function uaApplyCandidateSheetRules_(sheet) {
   ];
 
   sheet.setConditionalFormatRules(existingRules.concat(candidateRules));
+}
+
+function uaBuildCandidateStatusValidation_() {
+  return SpreadsheetApp.newDataValidation()
+    .requireValueInList([
+      UA_CANDIDATE_STATUS_WRITE,
+      UA_CANDIDATE_STATUS_SENT,
+      UA_CANDIDATE_STATUS_HOLD
+    ], true)
+    .setAllowInvalid(false)
+    .build();
 }
 
 function uaSetupAffiliateManagementSheet() {
@@ -503,7 +507,9 @@ function uaEnsureCandidateSheetLayout_(sheet) {
         changed = true;
       }
     });
+    statusRange.clearDataValidations();
     if (changed) statusRange.setValues(statuses);
+    statusRange.setDataValidation(uaBuildCandidateStatusValidation_());
   }
 }
 

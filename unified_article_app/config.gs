@@ -52,7 +52,7 @@ const UA_AFFILIATE_COLUMNS = {
 };
 const UA_AFFILIATE_HEADERS = [
   '案件名',
-  'アフィリエイトURL',
+  'アフィリエイトURL / A8リンクHTML',
   'ショートコード',
   '案件注意点'
 ];

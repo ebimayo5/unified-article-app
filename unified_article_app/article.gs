@@ -52,8 +52,12 @@ function uaRunArticleFromPanel(data) {
 
     const body = uaApplyRakutenAffiliateBanner_(
       uaApplyNaviokunIntroSet_(
-        uaApplyYmylNotice_(
-          uaNormalizeFaqHeadingLevels_(uaFixGeneratedHtml_(resultJson.body)),
+        uaApplyManagedAffiliateCta_(
+          uaApplyYmylNotice_(
+            uaNormalizeFaqHeadingLevels_(uaFixGeneratedHtml_(resultJson.body)),
+            rowData,
+            appConfig
+          ),
           rowData,
           appConfig
         ),
@@ -103,6 +107,176 @@ function uaRunArticleFromPanel(data) {
 
 function uaRunArticleFromWeb(data) {
   return uaRunArticleFromPanel(data || {});
+}
+
+function uaApplyManagedAffiliateCta_(body, rowData, appConfig) {
+  const html = String(body || '');
+  const spec = uaGetManagedAffiliateCtaSpec_(rowData);
+  if (!html || !spec) return html;
+
+  if (uaManagedAffiliateCtaAlreadyExists_(html, spec)) {
+    return uaRemoveManagedAffiliateCtaToken_(html);
+  }
+
+  const cleanHtml = uaRemoveManagedAffiliateButtonBlocks_(html, spec);
+  const tokenMatch = /\[UA_AFFILIATE_CTA[:：]\s*([^\]\r\n]{1,160})\]/i.exec(cleanHtml);
+  const ctaText = uaNormalizeManagedAffiliateCtaText_(
+    tokenMatch && tokenMatch[1],
+    spec.name
+  );
+  const ctaBlock = uaBuildManagedAffiliateCtaBlock_(spec, ctaText);
+
+  if (tokenMatch) {
+    return uaReplaceManagedAffiliateCtaToken_(cleanHtml, ctaBlock);
+  }
+
+  const insertionIndex = uaFindManagedAffiliateCtaFallbackIndex_(cleanHtml);
+  return [
+    cleanHtml.slice(0, insertionIndex).trimEnd(),
+    ctaBlock,
+    cleanHtml.slice(insertionIndex).trimStart()
+  ].filter(Boolean).join('\n\n');
+}
+
+function uaManagedAffiliateCtaAlreadyExists_(body, spec) {
+  const html = String(body || '');
+  if (spec.type === 'shortcode') {
+    const shortcode = String(spec.content || '').trim();
+    const buttonBlocks = uaGetManagedAffiliateButtonBlocks_(html);
+    return buttonBlocks.some(function(block) {
+      return shortcode && block.indexOf(shortcode) !== -1;
+    });
+  }
+
+  const urls = uaExtractUrlsFromAffiliateCode_(spec.content);
+  return urls.length > 0 && urls.every(function(url) {
+    return html.indexOf(url) !== -1 || html.indexOf(url.replace(/&/g, '&amp;')) !== -1;
+  });
+}
+
+function uaGetManagedAffiliateButtonBlocks_(body) {
+  return String(body || '').match(
+    /<!--\s*wp:cocoon-blocks\/button-wrap-1\b[\s\S]*?<!--\s*\/wp:cocoon-blocks\/button-wrap-1\s*-->/gi
+  ) || [];
+}
+
+function uaRemoveManagedAffiliateButtonBlocks_(body, spec) {
+  let html = String(body || '');
+  const markers = uaExtractUrlsFromAffiliateCode_(spec && spec.content || '');
+  if (spec && spec.url && markers.indexOf(spec.url) === -1) markers.push(spec.url);
+  if (spec && spec.type === 'shortcode' && spec.content) markers.push(String(spec.content).trim());
+  if (markers.length === 0) return html;
+
+  uaGetManagedAffiliateButtonBlocks_(html).forEach(function(block) {
+    const isManagedBlock = markers.some(function(marker) {
+      return marker && (
+        block.indexOf(marker) !== -1 ||
+        block.indexOf(String(marker).replace(/&/g, '&amp;')) !== -1
+      );
+    });
+    if (isManagedBlock) html = html.replace(block, '');
+  });
+  return html;
+}
+
+function uaRemoveManagedAffiliateCtaToken_(body) {
+  return uaReplaceManagedAffiliateCtaToken_(String(body || ''), '');
+}
+
+function uaReplaceManagedAffiliateCtaToken_(body, replacement) {
+  const html = String(body || '');
+  const block = String(replacement || '');
+  const token = '\\[UA_AFFILIATE_CTA[:：]\\s*[^\\]\\r\\n]{1,160}\\]';
+  const patterns = [
+    new RegExp('<!--\\s*wp:paragraph\\b[^>]*-->\\s*<p\\b[^>]*>\\s*' + token + '\\s*<\\/p>\\s*<!--\\s*\\/wp:paragraph\\s*-->', 'i'),
+    new RegExp('<p\\b[^>]*>\\s*' + token + '\\s*<\\/p>', 'i'),
+    new RegExp(token, 'i')
+  ];
+
+  for (let i = 0; i < patterns.length; i += 1) {
+    if (patterns[i].test(html)) return html.replace(patterns[i], block);
+  }
+  return html;
+}
+
+function uaNormalizeManagedAffiliateCtaText_(value, affiliateName) {
+  const name = String(affiliateName || '').trim();
+  let text = String(value || '')
+    .replace(/<!--[^]*?-->/g, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/[\[\]]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  const vague = !text || /^(詳しくはこちら|公式サイトはこちら|詳細を見る|こちら)$/i.test(text);
+  if (vague || (name && text.indexOf(name) === -1)) {
+    text = name ? name + 'で対応内容を確認する' : '対応内容を確認する';
+  }
+  return text.slice(0, 100);
+}
+
+function uaBuildManagedAffiliateCtaBlock_(spec, ctaText) {
+  let tagContent = '';
+
+  if (spec.type === 'shortcode') {
+    tagContent = String(spec.content || '').trim();
+  } else {
+    const sourceHtml = uaNormalizeAffiliateCodeInput_(spec.content);
+    const safeText = uaEscapeHtml_(ctaText);
+    const anchorMatch = /<a\b([^>]*)>([\s\S]*?)<\/a>/i.exec(sourceHtml);
+    if (!anchorMatch) {
+      throw new Error('案件管理シートのA8リンクHTMLに、置換できるリンクタグがありません。');
+    }
+    tagContent = uaIsAffiliateFreeTextPlaceholder_(anchorMatch[2])
+      ? sourceHtml.replace(anchorMatch[0], '<a' + anchorMatch[1] + '>' + safeText + '</a>')
+      : sourceHtml;
+  }
+
+  if (!tagContent) {
+    throw new Error('案件管理シートのCTA情報が空です。');
+  }
+
+  const attributes = {
+    tag: tagContent + '\n',
+    isCircle: true,
+    isShine: true,
+    align: 'center',
+    backgroundColor: 'teal',
+    textColor: 'cocoon-white',
+    width: '75'
+  };
+
+  return [
+    '<!-- wp:cocoon-blocks/button-wrap-1 ' + JSON.stringify(attributes) + ' -->',
+    '<div class="wp-block-cocoon-blocks-button-wrap-1 aligncenter btn-wrap btn-wrap-block button-block btn-wrap-circle btn-wrap-shine has-text-color has-background has-cocoon-white-color has-teal-background-color has-custom-width cocoon-block-button__width-75">' + tagContent + '</div>',
+    '<!-- /wp:cocoon-blocks/button-wrap-1 -->'
+  ].join('\n');
+}
+
+function uaIsAffiliateFreeTextPlaceholder_(value) {
+  const text = String(value || '')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/\s+/g, '')
+    .trim();
+  return /^(?:＜|<)?自由テキスト(?:\d+)?(?:＞|>)?$/i.test(text);
+}
+
+function uaFindManagedAffiliateCtaFallbackIndex_(body) {
+  const html = String(body || '');
+  const h2Regex = /<h2\b[^>]*>([\s\S]*?)<\/h2>/gi;
+  let match;
+
+  while ((match = h2Regex.exec(html)) !== null) {
+    const heading = String(match[1] || '')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    if (heading.indexOf('よくある質問') !== -1 || heading.indexOf('まとめ') !== -1) {
+      return match.index;
+    }
+  }
+  return html.length;
 }
 
 function uaApplyNaviokunIntroSet_(body, rowData, appConfig) {

@@ -57,7 +57,11 @@ function uaCreateWpDraftFromPanel(data) {
     throw new Error('WP draft: title candidates are empty.');
   }
 
-  const wpBody = uaApplyNaviokunIntroSet_(rowData.body, rowData, appConfig);
+  const wpBody = uaApplyNaviokunIntroSet_(
+    uaApplyManagedAffiliateCta_(rowData.body, rowData, appConfig),
+    rowData,
+    appConfig
+  );
   if (wpBody !== String(rowData.body || '')) {
     sheet.getRange(row, UA_COLUMNS.body).setValue(wpBody);
     rowData.body = wpBody;
@@ -158,7 +162,11 @@ function uaAddWpImagesFromPanel(data) {
   }
 
   const wpConfig = uaGetWpConfig_(appConfig);
-  let body = uaApplyNaviokunIntroSet_(rowData.body, rowData, appConfig);
+  let body = uaApplyNaviokunIntroSet_(
+    uaApplyManagedAffiliateCta_(rowData.body, rowData, appConfig),
+    rowData,
+    appConfig
+  );
   let featuredMediaId = 0;
   let insertedCount = 0;
   const uploaded = [];

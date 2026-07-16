@@ -201,11 +201,19 @@ function uaBuildArticleRowFromCandidate_(keyword, volume, appConfig, affiliate) 
 function uaGetAffiliateProjectByName_(affiliateName) {
   const cleanName = String(affiliateName || '').trim();
   if (!cleanName) {
-    return { name: '', url: '', shortcode: '', notes: '' };
+    return { name: '', url: '', linkInput: '', shortcode: '', notes: '' };
   }
+
+  return uaReadAffiliateProjectByName_(cleanName, true);
+}
+
+function uaReadAffiliateProjectByName_(affiliateName, required) {
+  const cleanName = String(affiliateName || '').trim();
+  if (!cleanName) return null;
 
   const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(UA_AFFILIATE_SHEET_NAME);
   if (!sheet || sheet.getLastRow() < 2) {
+    if (!required) return null;
     throw new Error('案件「' + cleanName + '」を案件管理シートで確認できません。先に案件管理シートを整えてください。');
   }
 
@@ -217,6 +225,7 @@ function uaGetAffiliateProjectByName_(affiliateName) {
   });
 
   if (matches.length === 0) {
+    if (!required) return null;
     throw new Error('案件「' + cleanName + '」が案件管理シートにありません。プルダウンから選び直してください。');
   }
   if (matches.length > 1) {
@@ -224,12 +233,87 @@ function uaGetAffiliateProjectByName_(affiliateName) {
   }
 
   const match = matches[0];
+  const linkInput = uaNormalizeAffiliateCodeInput_(match[UA_AFFILIATE_COLUMNS.url - 1]);
   return {
     name: cleanName,
-    url: String(match[UA_AFFILIATE_COLUMNS.url - 1] || '').trim(),
+    url: uaExtractAffiliateUrl_(linkInput),
+    linkInput: linkInput,
     shortcode: String(match[UA_AFFILIATE_COLUMNS.shortcode - 1] || '').trim(),
     notes: String(match[UA_AFFILIATE_COLUMNS.notes - 1] || '').trim()
   };
+}
+
+function uaNormalizeAffiliateCodeInput_(value) {
+  let text = String(value || '').trim();
+  const looksQuoted = text.length >= 2 && text.charAt(0) === '"' && text.charAt(text.length - 1) === '"';
+
+  if (looksQuoted) {
+    text = text.slice(1, -1).replace(/""/g, '"').trim();
+  } else if (/<a\b/i.test(text) && text.indexOf('""') !== -1) {
+    text = text.replace(/""/g, '"');
+  }
+
+  return text;
+}
+
+function uaExtractAffiliateUrl_(value) {
+  const text = uaNormalizeAffiliateCodeInput_(value);
+  const anchorMatch = /<a\b[^>]*\bhref\s*=\s*(['"])(.*?)\1/i.exec(text);
+  if (anchorMatch && /^https?:\/\//i.test(String(anchorMatch[2] || '').trim())) {
+    return String(anchorMatch[2] || '').trim().replace(/&amp;/gi, '&');
+  }
+  return /^https?:\/\//i.test(text) ? text : '';
+}
+
+function uaExtractUrlsFromAffiliateCode_(value) {
+  const text = uaNormalizeAffiliateCodeInput_(value);
+  const urls = [];
+  const regex = /\b(?:href|src)\s*=\s*(['"])(https?:\/\/.*?)\1/gi;
+  let match;
+
+  while ((match = regex.exec(text)) !== null) {
+    const url = String(match[2] || '').trim().replace(/&amp;/gi, '&');
+    if (url && urls.indexOf(url) === -1) urls.push(url);
+  }
+
+  if (urls.length === 0 && /^https?:\/\//i.test(text)) urls.push(text);
+  return urls;
+}
+
+function uaGetManagedAffiliateUrls_(rowData) {
+  const spec = uaGetManagedAffiliateCtaSpec_(rowData);
+  if (!spec) return [];
+  return uaExtractUrlsFromAffiliateCode_(spec.content).concat(spec.url || '').filter(function(url, index, list) {
+    return url && list.indexOf(url) === index;
+  });
+}
+
+function uaGetManagedAffiliateCtaSpec_(rowData) {
+  const name = String(rowData && rowData.affiliateName || '').trim();
+  if (!name) return null;
+
+  const project = uaReadAffiliateProjectByName_(name, false);
+  if (!project) return null;
+
+  if (project.shortcode) {
+    return {
+      type: 'shortcode',
+      name: project.name,
+      url: project.url,
+      content: project.shortcode
+    };
+  }
+
+  if (/<a\b/i.test(project.linkInput)) {
+    return {
+      type: 'html',
+      name: project.name,
+      url: project.url,
+      content: project.linkInput
+    };
+  }
+
+  return null;
 }
 
 function uaLoadSelectedRowForPanel() {

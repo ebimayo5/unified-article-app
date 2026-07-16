@@ -23,6 +23,24 @@ function uaBuildAffiliatePrompt_(rowData) {
   const name = String(rowData.affiliateName || '').trim();
   const url = String(rowData.affiliateUrl || '').trim();
   const notes = String(rowData.affiliateNotes || '').trim();
+  const managedCta = uaGetManagedAffiliateCtaSpec_(rowData);
+
+  if (managedCta) {
+    return [
+      'メイン案件名: ' + name,
+      'メインアフィリエイトURL: ' + (url || 'システム側で管理'),
+      '案件注意点: ' + (notes || '特になし'),
+      '本文内では、案件を押し売りせず、読者の迷いが整理された直後に選択肢のひとつとして紹介してください。',
+      'CTA前には、クリック先で確認できることを1〜2文で具体的に説明してください。',
+      'CTAを置く位置には、リンクHTMLやショートコードを作らず、次の形式の置換記号を1回だけ書いてください。',
+      '[UA_AFFILIATE_CTA:' + name + 'で記事内容に合う具体的な確認行動を書く]',
+      'コロンの後ろは実際のCTA文言に置き換え、必ず案件名と具体的な行動を含めてください。',
+      '例:「' + name + 'で対応内容を確認する」「' + name + 'で対応車種と施工条件を確認する」「' + name + 'で関連商品を比較する」。',
+      '「詳しくはこちら」「公式サイトはこちら」「詳細を見る」のような曖昧な文言は禁止です。',
+      '置換記号は導入文、「この記事のポイント」、Q&A内には入れないでください。',
+      '実際の囲みボタン、アフィリエイトHTML、計測画像、ショートコードは本文生成後にシステム側で安全に挿入します。'
+    ].join('\n');
+  }
 
   if (!name && !url) {
     return 'メイン案件は未入力です。アフィリエイトリンクは入れないでください。';

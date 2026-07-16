@@ -78,8 +78,12 @@ function uaApplyPrePublishFixesOnceFromPanel(data) {
   );
   const revision = uaNormalizePrePublishRevision_(result && result.data, rowData);
   const revisedBody = uaApplyNaviokunIntroSet_(
-    uaApplyYmylNotice_(
-      uaNormalizeFaqHeadingLevels_(uaFixGeneratedHtml_(revision.bodyHtml)),
+    uaApplyManagedAffiliateCta_(
+      uaApplyYmylNotice_(
+        uaNormalizeFaqHeadingLevels_(uaFixGeneratedHtml_(revision.bodyHtml)),
+        rowData,
+        appConfig
+      ),
       rowData,
       appConfig
     ),
@@ -88,6 +92,7 @@ function uaApplyPrePublishFixesOnceFromPanel(data) {
   );
   const allowedNewUrls = uaExtractPrePublishUrlsFromText_(externalSourcesPrompt)
     .concat([String(rowData.affiliateUrl || '').trim()])
+    .concat(uaGetManagedAffiliateUrls_(rowData))
     .concat([UA_NAVIOKUN_INTRO_URL])
     .concat(uaGetYmylNoticeSourceUrls_(rowData, appConfig, revisedBody))
     .filter(Boolean);

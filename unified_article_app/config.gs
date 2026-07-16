@@ -25,13 +25,37 @@ const UA_STATUS_WP_DRAFTED = 'WP下書き済み';
 const UA_STATUS_POSTED = '投稿済み';
 
 const UA_CANDIDATE_STATUS_WRITE = '書く';
-const UA_CANDIDATE_STATUS_SENT = '記事化済み';
+const UA_CANDIDATE_STATUS_SENT = '転送済み';
+const UA_CANDIDATE_STATUS_HOLD = '保留';
+const UA_CANDIDATE_LEGACY_STATUS_SENT = '記事化済み';
 
 const UA_CANDIDATE_COLUMNS = {
   status: 1,
-  keyword: 2,
-  volume: 3
+  affiliateName: 2,
+  keyword: 3,
+  volume: 4
 };
+
+const UA_CANDIDATE_HEADERS = [
+  '状態',
+  '案件名',
+  'キーワード',
+  '検索ボリューム'
+];
+
+const UA_AFFILIATE_SHEET_NAME = '案件管理';
+const UA_AFFILIATE_COLUMNS = {
+  name: 1,
+  url: 2,
+  shortcode: 3,
+  notes: 4
+};
+const UA_AFFILIATE_HEADERS = [
+  '案件名',
+  'アフィリエイトURL',
+  'ショートコード',
+  '案件注意点'
+];
 
 const UA_READER_MIND_MAX_RESULTS = 6;
 const UA_INTERNAL_LINK_SHEET_NAME = '内部リンク';

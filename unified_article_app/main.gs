@@ -10,6 +10,7 @@ function onOpen() {
     .addSeparator()
     .addItem('DRIVE BASE候補を開く', 'uaOpenDriveCandidateSheet')
     .addItem('たくみパパ候補を開く', 'uaOpenHomeCandidateSheet')
+    .addItem('案件管理シートを作る・整える', 'uaSetupAffiliateManagementSheet')
     .addItem('「書く」候補を記事シートへ送る', 'uaMoveWriteCandidatesToArticleSheets')
     .addItem('記事/候補シートの表示ルールを整える', 'uaSetupArticleAndCandidateFormatting')
     .addItem('内部リンクシートを作る', 'uaSetupInternalLinkSheet')
@@ -81,9 +82,10 @@ function uaOpenCandidateSheet_(appKey) {
     return;
   }
 
+  uaEnsureCandidateSheetLayout_(sheet);
   sheet.showColumns(1, sheet.getMaxColumns());
   sheet.setFrozenRows(1);
-  sheet.setFrozenColumns(3);
+  sheet.setFrozenColumns(4);
   ss.setActiveSheet(sheet);
 }
 
@@ -128,6 +130,7 @@ function uaMoveWriteCandidatesToArticleSheets() {
 }
 
 function uaMoveWriteCandidatesForApp_(candidateSheet, articleSheet) {
+  uaEnsureCandidateSheetLayout_(candidateSheet);
   const lastRow = candidateSheet.getLastRow();
 
   if (lastRow < 2) {
@@ -142,6 +145,7 @@ function uaMoveWriteCandidatesForApp_(candidateSheet, articleSheet) {
 
   values.forEach(function(row, index) {
     const status = String(row[UA_CANDIDATE_COLUMNS.status - 1] || '').trim();
+    const affiliateName = String(row[UA_CANDIDATE_COLUMNS.affiliateName - 1] || '').trim();
     const keyword = String(row[UA_CANDIDATE_COLUMNS.keyword - 1] || '').trim();
     const volume = row[UA_CANDIDATE_COLUMNS.volume - 1] || '';
 
@@ -149,7 +153,13 @@ function uaMoveWriteCandidatesForApp_(candidateSheet, articleSheet) {
       return;
     }
 
-    rowsToAppend.push(uaBuildArticleRowFromCandidate_(keyword, volume, uaGetAppConfigByArticleSheet_(articleSheet.getName())));
+    const affiliate = uaGetAffiliateProjectByName_(affiliateName);
+    rowsToAppend.push(uaBuildArticleRowFromCandidate_(
+      keyword,
+      volume,
+      uaGetAppConfigByArticleSheet_(articleSheet.getName()),
+      affiliate
+    ));
     candidateRowsToMark.push(index + 2);
   });
 
@@ -173,7 +183,7 @@ function uaMoveWriteCandidatesForApp_(candidateSheet, articleSheet) {
   return rowsToAppend.length;
 }
 
-function uaBuildArticleRowFromCandidate_(keyword, volume, appConfig) {
+function uaBuildArticleRowFromCandidate_(keyword, volume, appConfig, affiliate) {
   const row = new Array(UA_ARTICLE_COLUMN_COUNT).fill('');
 
   row[UA_COLUMNS.appType - 1] = appConfig && appConfig.label
@@ -181,8 +191,45 @@ function uaBuildArticleRowFromCandidate_(keyword, volume, appConfig) {
     : '';
   row[UA_COLUMNS.mainInput - 1] = keyword;
   row[UA_COLUMNS.volume - 1] = volume;
+  row[UA_COLUMNS.affiliateName - 1] = affiliate && affiliate.name || '';
+  row[UA_COLUMNS.affiliateUrl - 1] = affiliate && affiliate.url || '';
+  row[UA_COLUMNS.affiliateNotes - 1] = affiliate && affiliate.notes || '';
 
   return row;
+}
+
+function uaGetAffiliateProjectByName_(affiliateName) {
+  const cleanName = String(affiliateName || '').trim();
+  if (!cleanName) {
+    return { name: '', url: '', shortcode: '', notes: '' };
+  }
+
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(UA_AFFILIATE_SHEET_NAME);
+  if (!sheet || sheet.getLastRow() < 2) {
+    throw new Error('案件「' + cleanName + '」を案件管理シートで確認できません。先に案件管理シートを整えてください。');
+  }
+
+  const values = sheet
+    .getRange(2, 1, sheet.getLastRow() - 1, UA_AFFILIATE_HEADERS.length)
+    .getValues();
+  const matches = values.filter(function(row) {
+    return String(row[UA_AFFILIATE_COLUMNS.name - 1] || '').trim() === cleanName;
+  });
+
+  if (matches.length === 0) {
+    throw new Error('案件「' + cleanName + '」が案件管理シートにありません。プルダウンから選び直してください。');
+  }
+  if (matches.length > 1) {
+    throw new Error('案件管理シートに「' + cleanName + '」が重複しています。案件名を一意にしてください。');
+  }
+
+  const match = matches[0];
+  return {
+    name: cleanName,
+    url: String(match[UA_AFFILIATE_COLUMNS.url - 1] || '').trim(),
+    shortcode: String(match[UA_AFFILIATE_COLUMNS.shortcode - 1] || '').trim(),
+    notes: String(match[UA_AFFILIATE_COLUMNS.notes - 1] || '').trim()
+  };
 }
 
 function uaLoadSelectedRowForPanel() {
@@ -275,6 +322,7 @@ function uaMarkActiveArticlePosted(data) {
 
 function uaSetupArticleAndCandidateFormatting() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
+  uaEnsureAffiliateManagementSheet_(ss);
 
   Object.keys(UA_APP_TYPES).forEach(function(key) {
     const appConfig = UA_APP_TYPES[key];
@@ -310,21 +358,29 @@ function uaEnsureArticleSheetLayout_(sheet) {
 }
 
 function uaApplyCandidateSheetRules_(sheet) {
+  uaEnsureCandidateSheetLayout_(sheet);
   const maxRows = Math.max(sheet.getMaxRows() - 1, 1);
 
   const statusRule = SpreadsheetApp.newDataValidation()
     .requireValueInList([
-      '未選定',
-      '候補',
       UA_CANDIDATE_STATUS_WRITE,
-      '保留',
       UA_CANDIDATE_STATUS_SENT,
-      '対象外'
+      UA_CANDIDATE_STATUS_HOLD
     ], true)
     .setAllowInvalid(false)
     .build();
 
   sheet.getRange(2, UA_CANDIDATE_COLUMNS.status, maxRows, 1).setDataValidation(statusRule);
+
+  const affiliateSheet = uaEnsureAffiliateManagementSheet_(SpreadsheetApp.getActiveSpreadsheet());
+  const affiliateRule = SpreadsheetApp.newDataValidation()
+    .requireValueInRange(
+      affiliateSheet.getRange(2, UA_AFFILIATE_COLUMNS.name, Math.max(affiliateSheet.getMaxRows() - 1, 1), 1),
+      true
+    )
+    .setAllowInvalid(false)
+    .build();
+  sheet.getRange(2, UA_CANDIDATE_COLUMNS.affiliateName, maxRows, 1).setDataValidation(affiliateRule);
 
   const rangeAll = sheet.getRange(2, 1, maxRows, sheet.getMaxColumns());
   const statusRange = sheet.getRange(2, UA_CANDIDATE_COLUMNS.status, maxRows, 1);
@@ -364,6 +420,91 @@ function uaApplyCandidateSheetRules_(sheet) {
   ];
 
   sheet.setConditionalFormatRules(existingRules.concat(candidateRules));
+}
+
+function uaSetupAffiliateManagementSheet() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = uaEnsureAffiliateManagementSheet_(ss);
+
+  Object.keys(UA_APP_TYPES).forEach(function(key) {
+    const candidateName = UA_APP_TYPES[key].candidateSheetName;
+    const candidateSheet = candidateName && ss.getSheetByName(candidateName);
+    if (candidateSheet) uaApplyCandidateSheetRules_(candidateSheet);
+  });
+
+  ss.setActiveSheet(sheet);
+  SpreadsheetApp.getUi().alert('案件管理シートと候補シートの案件プルダウンを整えました。');
+}
+
+function uaEnsureAffiliateManagementSheet_(ss) {
+  const spreadsheet = ss || SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = spreadsheet.getSheetByName(UA_AFFILIATE_SHEET_NAME);
+
+  if (!sheet) {
+    sheet = spreadsheet.insertSheet(UA_AFFILIATE_SHEET_NAME);
+  }
+  if (sheet.getMaxColumns() < UA_AFFILIATE_HEADERS.length) {
+    sheet.insertColumnsAfter(sheet.getMaxColumns(), UA_AFFILIATE_HEADERS.length - sheet.getMaxColumns());
+  }
+
+  sheet.getRange(1, 1, 1, UA_AFFILIATE_HEADERS.length).setValues([UA_AFFILIATE_HEADERS]);
+  sheet.setFrozenRows(1);
+  sheet.getRange(1, 1, 1, UA_AFFILIATE_HEADERS.length)
+    .setFontWeight('bold')
+    .setBackground('#d9ead3');
+  sheet.setColumnWidth(UA_AFFILIATE_COLUMNS.name, 180);
+  sheet.setColumnWidth(UA_AFFILIATE_COLUMNS.url, 360);
+  sheet.setColumnWidth(UA_AFFILIATE_COLUMNS.shortcode, 220);
+  sheet.setColumnWidth(UA_AFFILIATE_COLUMNS.notes, 360);
+  return sheet;
+}
+
+function uaEnsureCandidateSheetLayout_(sheet) {
+  if (sheet.getMaxColumns() < UA_CANDIDATE_HEADERS.length) {
+    sheet.insertColumnsAfter(sheet.getMaxColumns(), UA_CANDIDATE_HEADERS.length - sheet.getMaxColumns());
+  }
+
+  const currentHeaders = sheet.getRange(1, 1, 1, Math.min(sheet.getMaxColumns(), 4)).getDisplayValues()[0];
+  const secondHeader = String(currentHeaders[1] || '').trim();
+  const thirdHeader = String(currentHeaders[2] || '').trim();
+  const fourthHeader = String(currentHeaders[3] || '').trim();
+  const isLegacyLayout = (secondHeader === 'キーワード' || secondHeader === 'メインキーワード') &&
+    (thirdHeader === '検索ボリューム' || thirdHeader === 'ボリューム');
+  const isCurrentLayout = secondHeader === '案件名' &&
+    (thirdHeader === 'キーワード' || thirdHeader === 'メインキーワード') &&
+    (fourthHeader === '検索ボリューム' || fourthHeader === 'ボリューム');
+  const isEmptyLayout = sheet.getLastRow() <= 1 && currentHeaders.every(function(header) {
+    return !String(header || '').trim();
+  });
+
+  if (!isLegacyLayout && !isCurrentLayout && !isEmptyLayout) {
+    throw new Error(
+      '「' + sheet.getName() + '」の見出しを安全に判別できません。' +
+      'A〜D列を確認してから、必要であれば旧チャットの仕様と照合してください。'
+    );
+  }
+
+  if (isLegacyLayout) {
+    sheet.insertColumnAfter(UA_CANDIDATE_COLUMNS.status);
+  }
+
+  sheet.getRange(1, 1, 1, UA_CANDIDATE_HEADERS.length).setValues([UA_CANDIDATE_HEADERS]);
+  sheet.setFrozenRows(1);
+  sheet.setFrozenColumns(4);
+
+  const lastRow = sheet.getLastRow();
+  if (lastRow >= 2) {
+    const statusRange = sheet.getRange(2, UA_CANDIDATE_COLUMNS.status, lastRow - 1, 1);
+    const statuses = statusRange.getValues();
+    let changed = false;
+    statuses.forEach(function(row) {
+      if (String(row[0] || '').trim() === UA_CANDIDATE_LEGACY_STATUS_SENT) {
+        row[0] = UA_CANDIDATE_STATUS_SENT;
+        changed = true;
+      }
+    });
+    if (changed) statusRange.setValues(statuses);
+  }
 }
 
 function uaShowArticleApp() {

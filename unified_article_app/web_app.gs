@@ -195,6 +195,8 @@ function uaListCandidatesForWeb(appTypeLabel, query) {
     return [];
   }
 
+  uaEnsureCandidateSheetLayout_(sheet);
+
   const lastRow = sheet.getLastRow();
   const lastColumn = sheet.getLastColumn();
   const values = sheet.getRange(2, 1, lastRow - 1, lastColumn).getDisplayValues();
@@ -215,9 +217,10 @@ function uaListCandidatesForWeb(appTypeLabel, query) {
     results.push({
       row: index + 2,
       status: status,
+      affiliateName: row[UA_CANDIDATE_COLUMNS.affiliateName - 1] || '',
       keyword: keyword,
       volume: row[UA_CANDIDATE_COLUMNS.volume - 1] || '',
-      meta: row.slice(3),
+      meta: row.slice(4),
       isSent: status === UA_CANDIDATE_STATUS_SENT
     });
   });
@@ -255,9 +258,10 @@ function uaGetCandidateSheetUrlForWeb(appTypeLabel) {
     throw new Error('「' + appConfig.candidateSheetName + '」シートが見つかりません。');
   }
 
+  uaEnsureCandidateSheetLayout_(sheet);
   sheet.showColumns(1, sheet.getMaxColumns());
   sheet.setFrozenRows(1);
-  sheet.setFrozenColumns(3);
+  sheet.setFrozenColumns(4);
 
   return {
     url: ss.getUrl() + '#gid=' + sheet.getSheetId(),
@@ -347,6 +351,8 @@ function uaCreateArticleFromCandidateRow_(candidateSheet, appConfig, row) {
     throw new Error('候補データの行を選択してください。');
   }
 
+  uaEnsureCandidateSheetLayout_(candidateSheet);
+  const affiliateName = String(candidateSheet.getRange(row, UA_CANDIDATE_COLUMNS.affiliateName).getValue() || '').trim();
   const keyword = String(candidateSheet.getRange(row, UA_CANDIDATE_COLUMNS.keyword).getValue() || '').trim();
   const volume = candidateSheet.getRange(row, UA_CANDIDATE_COLUMNS.volume).getValue() || '';
   const candidateStatus = String(candidateSheet.getRange(row, UA_CANDIDATE_COLUMNS.status).getValue() || '').trim();
@@ -366,7 +372,12 @@ function uaCreateArticleFromCandidateRow_(candidateSheet, appConfig, row) {
   }
 
   const articleRow = uaFindNextArticleRow_(articleSheet);
-  const articleValues = uaBuildArticleRowFromCandidate_(keyword, volume, appConfig);
+  const articleValues = uaBuildArticleRowFromCandidate_(
+    keyword,
+    volume,
+    appConfig,
+    uaGetAffiliateProjectByName_(affiliateName)
+  );
 
   articleSheet
     .getRange(articleRow, 1, 1, UA_ARTICLE_COLUMN_COUNT)
@@ -393,11 +404,11 @@ function uaLoadSentCandidateArticleRow_(appConfig, keyword, volume) {
   const articleRow = uaFindArticleRowByCandidate_(articleSheet, appConfig, keyword, volume);
 
   if (!articleRow) {
-    throw new Error('この候補は記事化済みですが、記事シート側の保存行を見つけられませんでした。記事シートでキーワード検索してください。');
+    throw new Error('この候補は転送済みですが、記事シート側の保存行を見つけられませんでした。記事シートでキーワード検索してください。');
   }
 
   const data = uaBuildRowData_(articleSheet, articleRow);
-  data.message = '記事化済みの保存行を読み込みました。';
+  data.message = '転送済みの保存行を読み込みました。';
   return data;
 }
 

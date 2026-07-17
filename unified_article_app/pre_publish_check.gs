@@ -408,16 +408,20 @@ function uaBuildPrePublishRuleCheck_(rowData) {
 
 function uaFindTitleNumberConsistencyIssue_(title, body) {
   const titleText = String(title || '');
-  const numberMatch = titleText.match(/([1-9]|10|[１-９]|１０)\s*(つ|選|項目|個|点|ポイント|理由|方法|チェック|注意点)/);
+  const numberMatch = titleText.match(/([1-9]|10|[１-９]|１０)\s*(つ|選|項目|個|点|ポイント|理由|方法|チェック|注意点|コツ|特徴|メリット|デメリット|対策|手順|原因|違い|失敗例)/);
   if (!numberMatch) return '';
 
   const expected = Number(String(numberMatch[1]).replace(/[１-９０]/g, function(char) {
     return String.fromCharCode(char.charCodeAt(0) - 65248);
   }));
   const topic = String(numberMatch[2] || '');
-  const titleTail = titleText.slice(numberMatch.index + numberMatch[0].length, numberMatch.index + numberMatch[0].length + 28);
-  const preferredTerm = ['購入前チェック', 'チェック', '確認', '注意点', '理由', '方法', 'ポイント', '選び方'].find(function(term) {
-    return titleTail.indexOf(term) !== -1;
+  const titleNeighborhood = titleText.slice(Math.max(0, numberMatch.index - 20), numberMatch.index + numberMatch[0].length + 28);
+  const preferredTerm = [
+    '購入前チェック', 'デメリット', 'メリット', 'おすすめ', 'チェック', '確認', '注意点',
+    '失敗例', '失敗', '後悔', '原因', '理由', '方法', '手順', '対策', 'コツ',
+    '特徴', '違い', '比較', 'ポイント', '選び方'
+  ].find(function(term) {
+    return titleNeighborhood.indexOf(term) !== -1;
   }) || '';
   const headingPattern = /<h([2-4])\b[^>]*>([\s\S]*?)<\/h\1>/gi;
   const headings = [];
@@ -435,7 +439,7 @@ function uaFindTitleNumberConsistencyIssue_(title, body) {
   const topicPattern = preferredTerm
     ? new RegExp(preferredTerm)
     : topic === '選' || topic === '項目' || topic === '個' || topic === '点' || topic === 'つ'
-    ? /(チェック|ポイント|理由|方法|注意|選び方|確認)/
+    ? /(おすすめ|チェック|ポイント|理由|原因|方法|手順|対策|コツ|特徴|メリット|デメリット|違い|比較|失敗|後悔|注意|選び方|確認)/
     : new RegExp(topic.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
   const matchingHeadingIndexes = headings.map(function(item, index) {
     return topicPattern.test(item.text) ? index : -1;

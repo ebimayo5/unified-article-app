@@ -821,13 +821,93 @@ function uaUniqueUrls_(urls) {
   return result;
 }
 
-function uaBuildExternalSourcesPrompt_(mainInput, appConfig) {
-  const candidates = uaGetExternalSourceCandidates_(mainInput, appConfig);
+function uaRequiresFreshOfficialSourceSearch_(mainInput) {
+  return /(最新|現在|今後|倒産|経営|決算|業績|赤字|黒字|利益|財務|負債|資金繰り|キャッシュフロー|株価|法令|法律|違反|規制|制度|補助金|税制|保険|保証|リコール|改善対策|安全基準|価格|料金|相場)/i.test(String(mainInput || ''));
+}
+
+function uaIsFinanceFreshnessTopic_(value) {
+  return /(倒産|経営|決算|業績|赤字|黒字|利益|財務|負債|資金繰り|キャッシュフロー|株価)/i.test(String(value || ''));
+}
+
+function uaDiscoverCurrentOfficialSources_(mainInput, appConfig, contextText) {
+  const input = String(mainInput || '').trim();
+  const topicText = [input, contextText].join(' ');
+  if (!input || !uaRequiresFreshOfficialSourceSearch_(topicText)) return [];
+  if (typeof uaFetchSearchResultUrls_ !== 'function' || typeof uaFetchCompetitorPageInfos_ !== 'function') return [];
+
+  const queries = [input + ' 最新 公式'];
+  if (uaIsFinanceFreshnessTopic_(topicText)) queries.unshift(input + ' 最新 決算 IR 公式');
+
+  const urls = [];
+  queries.forEach(function(query) {
+    uaFetchSearchResultUrls_(query, 8).forEach(function(url) {
+      if (urls.length >= 10 || urls.indexOf(url) !== -1) return;
+      urls.push(url);
+    });
+  });
+
+  const pages = uaFetchCompetitorPageInfos_(urls).filter(function(page) {
+    return page && page.fetchStatus === 'OK' && uaIsLikelyOfficialSourcePage_(page);
+  }).map(function(page) {
+    const dateText = uaExtractOfficialSourceDate_(
+      [page.title, page.description, page.bodyText].join(' ')
+    );
+    return {
+      genre: uaIsFinanceFreshnessTopic_(topicText) ? '自動検索・最新IR/公式情報' : '自動検索・最新公式情報',
+      name: String(page.title || '公式情報').trim(),
+      url: String(page.url || '').trim(),
+      usage: '記事公開時点の最新情報、日付、数値、条件を確認する',
+      keywords: input,
+      priority: '最優先',
+      urlStatus: '自動取得OK',
+      checkedAt: Utilities.formatDate(new Date(), Session.getScriptTimeZone() || 'Asia/Tokyo', 'yyyy-MM-dd HH:mm'),
+      sourceDate: dateText,
+      verifiedExcerpt: String(page.bodyText || page.description || '').replace(/\s+/g, ' ').trim().slice(0, 1800)
+    };
+  });
+
+  pages.sort(function(a, b) {
+    return String(b.sourceDate || '').localeCompare(String(a.sourceDate || ''));
+  });
+
+  return pages.slice(0, 4);
+}
+
+function uaIsLikelyOfficialSourcePage_(page) {
+  const url = String(page && page.url || '').toLowerCase();
+  const text = [page && page.title, page && page.description, page && page.bodyText].join(' ');
+  if (!/^https?:\/\//i.test(url)) return false;
+  if (/(wikipedia|youtube|facebook|instagram|x\.com|twitter|note\.com|ameblo|価格\.com|kakaku|yahoo|goo\.ne\.jp|allabout|carview|minkara)/i.test(url)) return false;
+  if (/\.(?:go|lg)\.jp(?:\/|$)/i.test(url)) return true;
+  return /(公式|official|企業サイト|コーポレート|IR情報|投資家情報|株主・投資家|決算|有価証券報告書|取扱説明書|リコール|改善対策)/i.test(text);
+}
+
+function uaExtractOfficialSourceDate_(value) {
+  const text = String(value || '');
+  const matches = text.match(/20\d{2}[年\/.-]\s*\d{1,2}[月\/.-]\s*\d{1,2}日?/g) || [];
+  if (matches.length === 0) return '';
+  return matches.map(function(item) {
+    const parts = String(item).match(/(20\d{2})\D+(\d{1,2})\D+(\d{1,2})/);
+    return parts ? parts[1] + '-' + ('0' + parts[2]).slice(-2) + '-' + ('0' + parts[3]).slice(-2) : '';
+  }).filter(Boolean).sort().reverse()[0] || '';
+}
+
+function uaBuildExternalSourcesPrompt_(mainInput, appConfig, contextText) {
+  const storedCandidates = uaGetExternalSourceCandidates_(mainInput, appConfig);
+  const discoveredCandidates = uaDiscoverCurrentOfficialSources_(mainInput, appConfig, contextText);
+  const seenUrls = {};
+  const candidates = discoveredCandidates.concat(storedCandidates).filter(function(item) {
+    const url = String(item && item.url || '').trim();
+    if (!url || seenUrls[url]) return false;
+    seenUrls[url] = true;
+    return true;
+  });
 
   if (candidates.length === 0) {
     return `
 外部出典リンク:
-外部出典シートに関連候補がない、または外部出典シートが未作成です。
+外部出典シートと最新公式情報の自動検索で、関連候補を取得できませんでした。
+記事テーマが最新性を必要とする場合は、本文を一般論だけで完成させず、fact_check_points に「最新の公式情報を取得できないため公開前に確認」と必ず出してください。
 ただし、記事内で法規・安全・メーカー仕様・料金・保証・制度・補助金・公的統計など、読者が「本当かな？」と感じやすい説明をする場合は、URLが確実に分かる公式サイト・公的機関・メーカー公式などの外部リンクを本文中に自然に1〜3個入れてください。
 URLが不確かな場合は本文にリンクを入れず、fact_check_points に確認事項として出してください。
 無関係な外部リンクは入れないでください。
@@ -845,13 +925,20 @@ URLが不確かな場合は本文にリンクを入れず、fact_check_points �
       'URL: ' + item.url,
       '使う場面: ' + item.usage,
       '関連キーワード: ' + item.keywords,
-      '優先度: ' + item.priority
+      '優先度: ' + item.priority,
+      '自動確認日時: ' + (item.checkedAt || '未確認'),
+      'ページ内の日付候補: ' + (item.sourceDate || '取得できず'),
+      '取得本文抜粋: ' + (item.verifiedExcerpt || '自動取得なし')
     ].join('\n');
   }).join('\n\n');
 
   return `
 外部出典リンク:
 以下は、記事テーマに関連しそうな外部出典候補です。
+「自動検索・最新」と付いた候補は、記事生成直前に公式情報を検索して取得した候補です。ページ内の日付候補と実際の内容を比較し、公開時点で最も新しい資料を優先してください。
+最新性が必要なテーマでは、URLを置くだけで終わらせず、資料名・公表日または確認時点・本文の判断に必要な具体的数値や条件を本文へ反映してください。
+具体的な数値や条件は「取得本文抜粋」に実際に含まれる内容だけを使い、抜粋にない数字を推測で補わないでください。
+最新候補を取得できない、日付を確認できない、必要な数値を読み取れない場合は、一般論で穴埋めせず fact_check_points に公開停止理由として出してください。
 候補が本文の内容に合う場合は、候補URLを優先して使ってください。
 ただし、関連性が薄い候補を無理に入れないでください。
 候補だけで足りない場合は、URLが確実に分かる公式サイト・公的機関・メーカー公式など信頼できる外部リンクを補っても構いません。

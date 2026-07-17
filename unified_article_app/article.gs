@@ -50,7 +50,7 @@ function uaRunArticleFromPanel(data) {
       throw new Error('生成結果に必要な項目がありません。');
     }
 
-    const body = uaApplyRakutenAffiliateBanner_(
+    const body = uaNormalizeAnchorRelAttributes_(uaApplyRakutenAffiliateBanner_(
       uaApplyNaviokunIntroSet_(
         uaApplyManagedAffiliateCta_(
           uaApplyYmylNotice_(
@@ -66,7 +66,7 @@ function uaRunArticleFromPanel(data) {
       ),
       rowData,
       appConfig
-    );
+    ));
     const metaDescription = resultJson.meta_description ||
       resultJson.metaDescription ||
       '';
@@ -221,7 +221,7 @@ function uaBuildManagedAffiliateCtaBlock_(spec, ctaText) {
   if (spec.type === 'shortcode') {
     tagContent = String(spec.content || '').trim();
   } else {
-    const sourceHtml = uaNormalizeAffiliateCodeInput_(spec.content);
+    const sourceHtml = uaNormalizeAnchorRelAttributes_(uaNormalizeAffiliateCodeInput_(spec.content));
     const safeText = uaEscapeHtml_(ctaText);
     const anchorMatch = /<a\b([^>]*)>([\s\S]*?)<\/a>/i.exec(sourceHtml);
     if (!anchorMatch) {
@@ -262,6 +262,35 @@ function uaIsAffiliateFreeTextPlaceholder_(value) {
   return /^(?:＜|<)?自由テキスト(?:\d+)?(?:＞|>)?$/i.test(text);
 }
 
+function uaIsNaviokunHighRelevanceTopic_(rowData) {
+  const text = [
+    rowData && rowData.mainInput,
+    rowData && rowData.readerMindMemo,
+    rowData && rowData.affiliateNotes
+  ].join(' ');
+  return /(ナビ|モニター|ディスプレイ|carplay|android\s*auto|hdmi|テレビ|\btv\b|動画|車内エンタメ|ミラーリング|オーディオ|後席モニター|後席ディスプレイ)/i.test(text);
+}
+
+function uaNormalizeAnchorRelAttributes_(value) {
+  return String(value || '').replace(/<a\b[^>]*>/gi, function(tag) {
+    const relPattern = /\s+rel\s*=\s*(["'])([\s\S]*?)\1/gi;
+    const relValues = [];
+    let match;
+
+    while ((match = relPattern.exec(tag)) !== null) {
+      String(match[2] || '').split(/\s+/).forEach(function(token) {
+        const clean = String(token || '').trim().toLowerCase();
+        if (clean && relValues.indexOf(clean) === -1) relValues.push(clean);
+      });
+    }
+
+    if (relValues.length === 0) return tag;
+
+    const withoutRel = tag.replace(relPattern, '');
+    return withoutRel.replace(/\s*>$/, ' rel="' + relValues.join(' ') + '">');
+  });
+}
+
 function uaFindManagedAffiliateCtaFallbackIndex_(body) {
   const html = String(body || '');
   const h2Regex = /<h2\b[^>]*>([\s\S]*?)<\/h2>/gi;
@@ -284,7 +313,8 @@ function uaApplyNaviokunIntroSet_(body, rowData, appConfig) {
   if (!html || !appConfig || appConfig.key !== 'drive') return html;
   if (html.indexOf('ナビ男くん') === -1) return html;
 
-  if (html.indexOf(UA_NAVIOKUN_INTRO_URL) !== -1 || /\[affi\s+id\s*=\s*7\s*\]/i.test(html)) {
+  const hasCompleteIntroSet = html.indexOf(UA_NAVIOKUN_INTRO_URL) !== -1 && /\[affi\s+id\s*=\s*7\s*\]/i.test(html);
+  if (hasCompleteIntroSet) {
     return html;
   }
 

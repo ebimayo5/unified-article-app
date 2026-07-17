@@ -2,7 +2,11 @@ function uaBuildArticlePrompt_(rowData, appConfig) {
   const internalLinksPrompt = appConfig && appConfig.useInternalLinks
     ? uaBuildInternalLinksPrompt_(rowData.mainInput, appConfig)
     : '';
-  const externalSourcesPrompt = uaBuildExternalSourcesPrompt_(rowData.mainInput, appConfig);
+  const externalSourcesPrompt = uaBuildExternalSourcesPrompt_(
+    rowData.mainInput,
+    appConfig,
+    [rowData.readerMindMemo, rowData.structureMemo, rowData.affiliateNotes].join(' ')
+  );
   const affiliatePrompt = uaBuildAffiliatePrompt_(rowData);
   const competitorPrompt = uaBuildCompetitorPrompt_(rowData);
   const preparedStructurePrompt = uaBuildPreparedStructurePrompt_(rowData);
@@ -26,15 +30,34 @@ function uaBuildAffiliatePrompt_(rowData) {
   const managedCta = uaGetManagedAffiliateCtaSpec_(rowData);
 
   if (managedCta) {
+    const usesNaviokunIntroSet = /ナビ男くん/.test(name);
+    const naviokunHighRelevance = usesNaviokunIntroSet && uaIsNaviokunHighRelevanceTopic_(rowData);
     return [
       'メイン案件名: ' + name,
       'メインアフィリエイトURL: ' + (url || 'システム側で管理'),
       '案件注意点: ' + (notes || '特になし'),
       '本文内では、案件を押し売りせず、読者の迷いが整理された直後に選択肢のひとつとして紹介してください。',
+      '案件が検索意図の中心から少し離れる場合も、案件のためだけに新しいH2・H3や長い商品紹介章を作らないでください。既存の購入判断・選び方・まとめ前のセクション内で、変えにくい不満と後から調整できる不満など、読者の判断に役立つ短い橋渡しを1〜3段落だけ書いてください。',
+      '橋渡しは案件を売るための話題転換ではなく、記事の主題から自然に導ける場合だけにします。案件説明が記事の主題より目立つ構成は禁止です。',
       'CTA前には、クリック先で確認できることを1〜2文で具体的に説明してください。',
       'CTAを置く位置には、リンクHTMLやショートコードを作らず、次の形式の置換記号を1回だけ書いてください。',
       '[UA_AFFILIATE_CTA:' + name + 'で記事内容に合う具体的な確認行動を書く]',
       'コロンの後ろは実際のCTA文言に置き換え、必ず案件名と具体的な行動を含めてください。',
+      usesNaviokunIntroSet
+        ? 'ナビ男くんは、関連度にかかわらずシステム側で紹介セットと案件CTAの両方を挿入します。説明を重複させず、2つが連続した一つの導線として読める位置に置いてください。'
+        : '',
+      usesNaviokunIntroSet && !naviokunHighRelevance
+        ? 'ナビ男くんとの関連が少し離れるテーマでは、案件用の新しいH2・H3を作らず、既存の購入判断セクション内で「購入後に変えにくい不満」と「後付けで調整できる不満」を分けるなど、記事の主題に役立つ短い橋渡しを1〜3段落だけ書いてから紹介してください。'
+        : '',
+      usesNaviokunIntroSet && !naviokunHighRelevance
+        ? '橋渡しは毎回同じ定型文にせず、メインキーワード、読者の不安、対象車種、直前セクションの結論を読んで作ってください。購入判断、長距離・家族利用、純正機能への不満、後付けできる範囲などから、この記事で本当に意味のある接点を1つだけ選びます。'
+        : '',
+      usesNaviokunIntroSet
+        ? 'ナビ男くんへ移る直前には、「なぜここでナビ男くんを確認するのか」が分かる具体的な一文を必ず置いてください。単に「選択肢です」「確認してみましょう」とだけ書くのは禁止です。'
+        : '',
+      usesNaviokunIntroSet && naviokunHighRelevance
+        ? 'ナビ・モニター・車内エンタメが主題に近いため、読者が対応車種・施工内容・純正機能との兼ね合いを確認する流れで直接つないでください。'
+        : '',
       '例:「' + name + 'で対応内容を確認する」「' + name + 'で対応車種と施工条件を確認する」「' + name + 'で関連商品を比較する」。',
       '「詳しくはこちら」「公式サイトはこちら」「詳細を見る」のような曖昧な文言は禁止です。',
       '置換記号は導入文、「この記事のポイント」、Q&A内には入れないでください。',

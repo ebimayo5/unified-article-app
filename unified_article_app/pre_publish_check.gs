@@ -71,13 +71,17 @@ function uaApplyPrePublishFixesOnceFromPanel(data) {
 
   const provider = uaGetArticleProvider_();
   uaAssertArticleProviderReady_(provider);
-  const externalSourcesPrompt = uaBuildExternalSourcesPrompt_(rowData.mainInput, appConfig);
+  const externalSourcesPrompt = uaBuildExternalSourcesPrompt_(
+    rowData.mainInput,
+    appConfig,
+    [rowData.titleIdeas, rowData.structureMemo, rowData.body].join(' ')
+  );
   const result = uaCallArticleGenerationJson_(
     uaBuildPrePublishRevisionPrompt_(rowData, originalReport, externalSourcesPrompt),
     provider
   );
   const revision = uaNormalizePrePublishRevision_(result && result.data, rowData);
-  const revisedBody = uaApplyNaviokunIntroSet_(
+  const revisedBody = uaNormalizeAnchorRelAttributes_(uaApplyNaviokunIntroSet_(
     uaApplyManagedAffiliateCta_(
       uaApplyYmylNotice_(
         uaNormalizeFaqHeadingLevels_(uaFixGeneratedHtml_(revision.bodyHtml)),
@@ -89,7 +93,7 @@ function uaApplyPrePublishFixesOnceFromPanel(data) {
     ),
     rowData,
     appConfig
-  );
+  ));
   const allowedNewUrls = uaExtractPrePublishUrlsFromText_(externalSourcesPrompt)
     .concat([String(rowData.affiliateUrl || '').trim()])
     .concat(uaGetManagedAffiliateUrls_(rowData))
@@ -141,12 +145,16 @@ function uaBuildPrePublishRevisionPrompt_(rowData, checkReport, externalSourcesP
     '元の意味と事実を変えず、必要な箇所だけを最小限に直してください。記事全体の書き直しは禁止です。',
     '事実、数値、制度、法規、安全、価格、保証、メーカー仕様、対応可否、URLを推測で作らないでください。根拠を確認できない指摘は本文で断定せず、manual_confirmation_needed に残してください。',
     '信頼性が必要な主張には、その内容に直接対応する公的機関・メーカー公式・店舗公式などの外部リンクを近くに置いてください。ただし、下記の外部出典候補または本文内に既にあるURLだけを使用し、URLを捏造しないでください。',
+    '「最新」「現在」、経営、倒産、決算、法規、制度、価格など鮮度が必要なテーマでは、使用を許可する外部出典候補のうち自動検索された最新の公式資料を優先してください。資料名、公表日または確認時点、記事の判断に必要な具体的数値・条件を本文へ反映し、一般論だけで完成させないでください。',
     '既存の画像、リンク、楽天広告、アフィリエイトCTA、Cocoonブログカード、YMYL注意書き、WordPressブロックコメントと属性は削除・変更しないでください。',
     '商品名や用品紹介は、楽天バナー、案件CTA、公式リンクなど読者が次に確認できる導線があり、記事の判断に必要な場合だけ残してください。導線のない商品名の羅列は増やさず、選び方・適合条件・確認項目へ置き換えてください。',
+    '案件が検索意図の中心から少し離れる場合は、案件のためだけのH2・H3や長い商品紹介章を作らず、既存の購入判断セクション内の1〜3段落に圧縮してください。変えにくい不満と後から調整できる不満など、記事の主題に沿う短い橋渡しは残してください。',
+    'ナビ男くん案件では紹介セットと案件CTAの両方を必ず残してください。検索意図から少し離れる場合は、メインキーワード、読者の不安、対象車種、直前セクションの結論を読み、「なぜここでナビ男くんを確認するのか」が具体的に分かる橋渡しへ直してください。単なる「選択肢です」「確認してみましょう」だけの接続は禁止です。',
     '「この記事のポイント」はCocoon tab-caption-box-1、CTAはCocoon button-wrap-1、内部リンクは前置き文とCocoonブログカードの形式を守ってください。',
     'H2は「よくある質問」「まとめ」を含めて最大7個にしてください。H2が多い場合は近い論点を統合し、詳細をH3へ整理してください。',
     'FAQはH2「よくある質問」の直下にH3「Q. 質問」を置き、回答はp要素にしてください。FAQ内の質問にH4は使わないでください。',
     'タイトル案を直す場合は、メインキーワードを自然に含め、本文に根拠がある数字を使い、読者の悩みと読むメリットが伝わる魅力的な30〜32文字を目安にしてください。煽りや本文にない約束は禁止です。',
+    'タイトルに「7つ」「5選」など項目数がある場合は、対応する本文の見出しまたはリスト項目を数え、必ず一致させてください。本文の内容を増やす根拠がなければタイトル側の数字を実数へ直してください。',
     'メタディスクリプションを直す場合は、メインキーワード、読者の悩み、記事で分かる具体的な判断材料、読むメリットを自然に含め、約120文字にしてください。単なる記事説明や煽り文句は禁止です。',
     '必ずJSONだけで返してください。body_htmlには修正後の本文HTML全文を省略せず入れてください。',
     '{"body_html":"...","title_ideas":"案1 / 案2 / 案3","tags":"...","meta_description":"...","permalink":"...","applied_changes":[{"target":"対象箇所","reason":"文脈上の理由","change":"実際の修正"}],"skipped_suggestions":[{"target":"対象箇所","reason":"文脈上適切なので見送った理由"}],"manual_confirmation_needed":[{"target":"対象箇所","reason":"確認が必要な理由"}]}',
@@ -206,6 +214,9 @@ function uaBuildPrePublishRuleCheck_(rowData) {
   const unbalancedBlocks = uaFindPrePublishUnbalancedBlocks_(body);
   const reliabilityClaims = uaFindPrePublishReliabilityClaims_(body);
   const externalSourceLinkCount = uaCountPrePublishExternalSourceLinks_(body, rowData);
+  const titleNumberIssue = uaFindTitleNumberConsistencyIssue_(title, body);
+  const currentSourceIssue = uaCheckCurrentOfficialSourceRequirement_(rowData, body);
+  const affiliateDetourIssue = uaFindAffiliateDetourIssue_(rowData, body);
   let ymylNoticeSpec = null;
   try {
     const appConfig = uaGetAppConfigByLabel_(rowData && rowData.appType);
@@ -248,6 +259,9 @@ function uaBuildPrePublishRuleCheck_(rowData) {
   }
   if (title && !/[0-9０-９]/.test(title)) {
     result.warnings.push('タイトルに数字がありません。本文内容に合う理由数・注意点数・確認項目数を自然に使えるか確認してください。');
+  }
+  if (titleNumberIssue) {
+    result.critical.push(titleNumberIssue);
   }
 
   if (!meta) {
@@ -304,9 +318,16 @@ function uaBuildPrePublishRuleCheck_(rowData) {
   }
 
   const hasAffiliateCtaTarget = !!String(rowData && rowData.affiliateUrl || '').trim();
-  if (body.indexOf('wp:cocoon-blocks/button-wrap-1') !== -1 &&
-      /<a\b[^>]+href=["'][^"']+["'][^>]*>/i.test(body)) {
+  const hasNaviokunIntroCta = /ナビ男くん/.test(String(rowData && rowData.affiliateName || '')) &&
+    body.indexOf(UA_NAVIOKUN_INTRO_URL) !== -1 && /\[affi\s+id\s*=\s*7\s*\]/i.test(body);
+  const hasCocoonAffiliateButton = body.indexOf('wp:cocoon-blocks/button-wrap-1') !== -1 &&
+    /<a\b[^>]+href=["'][^"']+["'][^>]*>/i.test(body);
+  const requiresBothNaviokunBlocks = /ナビ男くん/.test(String(rowData && rowData.affiliateName || ''));
+  if ((requiresBothNaviokunBlocks && hasNaviokunIntroCta && hasCocoonAffiliateButton) ||
+      (!requiresBothNaviokunBlocks && (hasCocoonAffiliateButton || hasNaviokunIntroCta))) {
     result.ok.push('CTA\u306fCocoon button-wrap-1\u5f62\u5f0f\u3067\u898b\u3064\u304b\u308a\u307e\u3057\u305f\u3002');
+  } else if (requiresBothNaviokunBlocks) {
+    result.critical.push('ナビ男くん案件ですが、紹介セットと案件CTAの両方がそろっていません。');
   } else if (hasAffiliateCtaTarget) {
     result.critical.push('\u6848\u4ef6URL\u304c\u3042\u308a\u307e\u3059\u304c\u3001CTA\u306eCocoon button-wrap-1\u5f62\u5f0f\u304c\u898b\u3064\u304b\u308a\u307e\u305b\u3093\u3002');
   } else {
@@ -314,8 +335,16 @@ function uaBuildPrePublishRuleCheck_(rowData) {
   }
 
   relDuplicates.forEach(function(item) {
-    result.warnings.push('CTA/リンクのrel属性で重複があります: ' + item);
+    result.critical.push('CTA/リンクのrel属性で重複があります: ' + item);
   });
+
+  if (currentSourceIssue && currentSourceIssue.message) {
+    (currentSourceIssue.critical ? result.critical : result.ok).push(currentSourceIssue.message);
+  }
+
+  if (affiliateDetourIssue) {
+    (affiliateDetourIssue.critical ? result.critical : result.warnings).push(affiliateDetourIssue.message);
+  }
 
   if (body.indexOf('wp:cocoon-blocks/blogcard') !== -1 &&
       body.indexOf('wp-block-cocoon-blocks-blogcard') !== -1) {
@@ -375,6 +404,134 @@ function uaBuildPrePublishRuleCheck_(rowData) {
   else result.warnings.push('WordPress下書きIDがありません。WP貼り付け後の反映確認は未実施です。');
 
   return result;
+}
+
+function uaFindTitleNumberConsistencyIssue_(title, body) {
+  const titleText = String(title || '');
+  const numberMatch = titleText.match(/([1-9]|10|[１-９]|１０)\s*(つ|選|項目|個|点|ポイント|理由|方法|チェック|注意点)/);
+  if (!numberMatch) return '';
+
+  const expected = Number(String(numberMatch[1]).replace(/[１-９０]/g, function(char) {
+    return String.fromCharCode(char.charCodeAt(0) - 65248);
+  }));
+  const topic = String(numberMatch[2] || '');
+  const titleTail = titleText.slice(numberMatch.index + numberMatch[0].length, numberMatch.index + numberMatch[0].length + 28);
+  const preferredTerm = ['購入前チェック', 'チェック', '確認', '注意点', '理由', '方法', 'ポイント', '選び方'].find(function(term) {
+    return titleTail.indexOf(term) !== -1;
+  }) || '';
+  const headingPattern = /<h([2-4])\b[^>]*>([\s\S]*?)<\/h\1>/gi;
+  const headings = [];
+  let match;
+
+  while ((match = headingPattern.exec(String(body || ''))) !== null) {
+    headings.push({
+      level: Number(match[1]),
+      text: uaStripPrePublishHtml_(match[2]),
+      start: match.index,
+      end: headingPattern.lastIndex
+    });
+  }
+
+  const topicPattern = preferredTerm
+    ? new RegExp(preferredTerm)
+    : topic === '選' || topic === '項目' || topic === '個' || topic === '点' || topic === 'つ'
+    ? /(チェック|ポイント|理由|方法|注意|選び方|確認)/
+    : new RegExp(topic.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+  const matchingHeadingIndexes = headings.map(function(item, index) {
+    return topicPattern.test(item.text) ? index : -1;
+  }).filter(function(index) { return index >= 0; });
+  matchingHeadingIndexes.sort(function(a, b) {
+    const aText = String(headings[a].text || '');
+    const bText = String(headings[b].text || '');
+    const aExact = preferredTerm && aText.indexOf(preferredTerm) !== -1 ? 1 : 0;
+    const bExact = preferredTerm && bText.indexOf(preferredTerm) !== -1 ? 1 : 0;
+    if (aExact !== bExact) return bExact - aExact;
+    if (aText.length !== bText.length) return aText.length - bText.length;
+    return headings[b].level - headings[a].level;
+  });
+  const targetIndex = matchingHeadingIndexes.length ? matchingHeadingIndexes[0] : -1;
+  if (targetIndex === -1) return '';
+
+  const target = headings[targetIndex];
+  let sectionEnd = String(body || '').length;
+  for (let i = targetIndex + 1; i < headings.length; i += 1) {
+    if (headings[i].level <= target.level) {
+      sectionEnd = headings[i].start;
+      break;
+    }
+  }
+  const section = String(body || '').slice(target.end, sectionEnd);
+  const numberedHeadings = (section.match(/<h[3-4]\b[^>]*>\s*(?:<[^>]+>\s*)*[1-9１-９][.．、:：\s]/gi) || []).length;
+  const listItems = (section.match(/<li\b/gi) || []).length;
+  const actual = numberedHeadings || listItems;
+
+  if (!actual || actual === expected) return '';
+  return 'タイトルは「' + expected + topic + '」と約束していますが、対応する「' + target.text + '」は' + actual + '項目です。タイトルか本文を一致させてください。';
+}
+
+function uaCheckCurrentOfficialSourceRequirement_(rowData, body) {
+  const input = String(rowData && rowData.mainInput || '');
+  const topicText = [input, rowData && rowData.titleIdeas, rowData && rowData.structureMemo].join(' ');
+  if (!uaRequiresFreshOfficialSourceSearch_(topicText)) return null;
+
+  const html = String(body || '');
+  const links = html.match(/<a\b[^>]*href=["'][^"']+["'][^>]*>[\s\S]*?<\/a>/gi) || [];
+  const hasOfficialLink = links.some(function(tag) {
+    const urlMatch = tag.match(/href=["']([^"']+)["']/i);
+    const url = String(urlMatch && urlMatch[1] || '').toLowerCase();
+    const text = uaStripPrePublishHtml_(tag);
+    if (/(ebimayo5\.com|px\.a8\.net|rakuten)/i.test(url)) return false;
+    return /\.(?:go|lg)\.jp(?:\/|$)/i.test(url) || /(公式|公的|省|庁|自治体|メーカー|IR|投資家)/i.test(text);
+  });
+
+  if (!hasOfficialLink) {
+    return { critical: true, message: '最新性が必要なテーマですが、内容に直接対応する公式・公的リンクがありません。自動検索で信頼できる最新資料を取得できるまで公開しないでください。' };
+  }
+
+  if (uaIsFinanceFreshnessTopic_(topicText)) {
+    const hasFinanceIrLink = links.some(function(tag) {
+      const urlMatch = tag.match(/href=["']([^"']+)["']/i);
+      return /(investor|investors|\/ir(?:\/|$)|financial|result|securities|決算)/i.test(String(urlMatch && urlMatch[1] || ''));
+    });
+    const hasDatedFinancialFact = /20\d{2}年(?:\d{1,2}月|\d{1,2}月期|\d{1,2}月\d{1,2}日)[\s\S]{0,500}(?:売上高|営業利益|経常利益|純利益|キャッシュフロー|現金|有利子負債|自己資本比率)[^。<]{0,100}[0-9０-９][0-9０-９,，.．]*(?:億円|百万円|万円|円|%|％)/i.test(html) ||
+      /(?:売上高|営業利益|経常利益|純利益|キャッシュフロー|現金|有利子負債|自己資本比率)[^。<]{0,100}[0-9０-９][0-9０-９,，.．]*(?:億円|百万円|万円|円|%|％)[\s\S]{0,300}20\d{2}年/i.test(html);
+    if (!hasFinanceIrLink || !hasDatedFinancialFact) {
+      return { critical: true, message: '経営・倒産など最新決算が必要なテーマですが、最新IRへの直接リンクと日付付きの具体的な財務数値がそろっていません。一般論だけで完成扱いにしないでください。' };
+    }
+  }
+
+  return { critical: false, message: '最新性が必要なテーマに、公式・公的リンクがあります。' };
+}
+
+function uaFindAffiliateDetourIssue_(rowData, body) {
+  const name = String(rowData && rowData.affiliateName || '').trim();
+  const input = String(rowData && rowData.mainInput || '').trim();
+  if (!name || !body || input.indexOf(name) !== -1) return null;
+  if (/ナビ男くん/.test(name) && uaIsNaviokunHighRelevanceTopic_(rowData)) return null;
+
+  const sections = String(body).split(/(?=<h2\b)/i);
+  const section = sections.find(function(item) { return item.indexOf(name) !== -1; });
+  if (!section) return null;
+  const textLength = uaStripPrePublishHtml_(section).length;
+  const subHeadingCount = (section.match(/<h[3-4]\b/gi) || []).length;
+
+  if (textLength > 900 || subHeadingCount > 1) {
+    return { critical: true, message: '案件「' + name + '」が検索意図の中心から離れているのに、専用章が長すぎます。新しいH2/H3で広げず、既存の購入判断セクション内の1〜3段落と案件CTAに圧縮してください。' };
+  }
+  if (textLength > 550 || subHeadingCount > 0) {
+    return { critical: false, message: '案件「' + name + '」の説明がやや長い可能性があります。検索意図から少し離れる場合は短い橋渡しに留めてください。' };
+  }
+  return null;
+}
+
+function uaAssertWpDraftHardQualityGates_(rowData) {
+  const check = uaBuildPrePublishRuleCheck_(rowData || {});
+  const blockers = check.critical.filter(function(item) {
+    return /(タイトルは「|rel属性で重複|最新性が必要|最新決算が必要|専用章が長すぎ|紹介セットと案件CTAの両方)/.test(String(item || ''));
+  });
+  if (blockers.length) {
+    throw new Error('WordPress下書き作成を停止しました。' + blockers.join(' / '));
+  }
 }
 
 function uaBuildPrePublishEditorPrompt_(rowData, ruleCheck) {

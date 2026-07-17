@@ -57,15 +57,17 @@ function uaCreateWpDraftFromPanel(data) {
     throw new Error('WP draft: title candidates are empty.');
   }
 
-  const wpBody = uaApplyNaviokunIntroSet_(
+  const wpBody = uaNormalizeAnchorRelAttributes_(uaApplyNaviokunIntroSet_(
     uaApplyManagedAffiliateCta_(rowData.body, rowData, appConfig),
     rowData,
     appConfig
-  );
+  ));
   if (wpBody !== String(rowData.body || '')) {
     sheet.getRange(row, UA_COLUMNS.body).setValue(wpBody);
     rowData.body = wpBody;
   }
+
+  uaAssertWpDraftHardQualityGates_(rowData);
 
   const wpConfig = uaGetWpConfig_(appConfig);
   const title = uaPickWpTitle_(rowData.titleIdeas);
@@ -162,11 +164,11 @@ function uaAddWpImagesFromPanel(data) {
   }
 
   const wpConfig = uaGetWpConfig_(appConfig);
-  let body = uaApplyNaviokunIntroSet_(
+  let body = uaNormalizeAnchorRelAttributes_(uaApplyNaviokunIntroSet_(
     uaApplyManagedAffiliateCta_(rowData.body, rowData, appConfig),
     rowData,
     appConfig
-  );
+  ));
   let featuredMediaId = 0;
   let insertedCount = 0;
   const uploaded = [];

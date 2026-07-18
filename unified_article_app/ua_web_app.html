@@ -290,8 +290,22 @@
             <option value="下書きまで">下書きまで</option>
             <option value="公開まで">投稿まで（公開）</option>
           </select>
+          <div class="row">
+            <div>
+              <label for="autoPostingNotificationEnabled">エラー通知</label>
+              <select id="autoPostingNotificationEnabled">
+                <option value="ON">ON</option>
+                <option value="OFF">OFF</option>
+              </select>
+            </div>
+            <div>
+              <label for="autoPostingNotificationEmail">通知先メール</label>
+              <input id="autoPostingNotificationEmail" type="email" placeholder="スマホで受信するメール">
+            </div>
+          </div>
           <div id="autoPostingSummary" class="muted" style="margin-top:8px; line-height:1.6;">毎日4時ごろ・1日1記事。重大NGがある場合は公開せず下書きで停止します。</div>
           <button class="primary" type="button" style="width:100%; margin-top:10px;" onclick="saveAutomaticPostingSettings(this)">自動投稿設定を保存</button>
+          <button class="secondary" type="button" style="width:100%; margin-top:8px;" onclick="sendAutomaticPostingTestNotification(this)">テスト通知を送る</button>
           <div id="autoPostingStatus" class="auto-posting-status">設定を読み込み中...</div>
           <button id="autoPostingResumeButton" class="danger hidden" type="button" style="width:100%; margin-top:8px;" onclick="resumeAutomaticPosting(this)">停止位置から再開</button>
         </div>
@@ -538,7 +552,9 @@
         document.getElementById('autoPostingPublishMode').value = settings.publishMode === '公開まで' ? '公開まで' : '下書きまで';
         document.getElementById('autoPostingHour').value = Number(settings.hour) >= 0 ? Number(settings.hour) : 4;
         document.getElementById('autoPostingDailyLimit').value = Number(settings.dailyLimit) || 1;
-        document.getElementById('autoPostingSummary').textContent = '毎日' + document.getElementById('autoPostingHour').value + '時ごろ・最大' + document.getElementById('autoPostingDailyLimit').value + '記事。複数記事は1記事ずつ順番に処理し、重大NG時は下書きで停止します。';
+        document.getElementById('autoPostingNotificationEnabled').value = settings.notificationEnabled === false ? 'OFF' : 'ON';
+        document.getElementById('autoPostingNotificationEmail').value = settings.notificationEmail || '';
+        document.getElementById('autoPostingSummary').textContent = '毎日' + document.getElementById('autoPostingHour').value + '時ごろ・最大' + document.getElementById('autoPostingDailyLimit').value + '記事。重大NG時は停止し、通知ONならスマホで確認・再開できます。';
         const parts = [settings.status || ''];
         if (settings.activeKeyword) parts.push('処理中: ' + settings.activeKeyword + (settings.activeStep ? ' / ' + settings.activeStep : ''));
         if (settings.lastError) parts.push('エラー: ' + settings.lastError);
@@ -564,6 +580,20 @@
           .uaResumeAutomaticPostingFromPanel(appType);
       }
 
+      function sendAutomaticPostingTestNotification(button) {
+        const appType = document.getElementById('appType').value;
+        const email = document.getElementById('autoPostingNotificationEmail').value.trim();
+        setBusy('テスト通知を送信しています...', button);
+        google.script.run
+          .withSuccessHandler(function(result) {
+            clearBusy();
+            setProgress('done');
+            setNotice(result && result.message ? result.message : 'テスト通知を送信しました。', false);
+          })
+          .withFailureHandler(fail)
+          .uaSendAutomaticPostingTestNotificationFromPanel(appType, email);
+      }
+
       function saveAutomaticPostingSettings(button) {
         const data = {
           appType: document.getElementById('appType').value,
@@ -571,7 +601,9 @@
           includeImages: document.getElementById('autoPostingImages').value === 'あり',
           publishMode: document.getElementById('autoPostingPublishMode').value,
           hour: Number(document.getElementById('autoPostingHour').value),
-          dailyLimit: Number(document.getElementById('autoPostingDailyLimit').value)
+          dailyLimit: Number(document.getElementById('autoPostingDailyLimit').value),
+          notificationEnabled: document.getElementById('autoPostingNotificationEnabled').value === 'ON',
+          notificationEmail: document.getElementById('autoPostingNotificationEmail').value.trim()
         };
         setBusy('自動投稿設定を保存中...', button);
         google.script.run

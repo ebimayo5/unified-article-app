@@ -59,6 +59,55 @@ function uaFormatReaderMindMemoValue_(value) {
   return String(value);
 }
 
+function uaFindDeterministicKeywordSiteFitIssue_(mainInput, appConfig) {
+  const input = String(mainInput || '').trim();
+  const compact = input.replace(/[\s　]+/g, '');
+  const appKey = String(appConfig && appConfig.key || '').toLowerCase();
+  if (!input || !appKey || appKey === 'general') return null;
+
+  if (appKey === 'drive') {
+    const explicitlyAutomotive = /(車|自動車|車載|カーナビ|カー用品|運転|走行|ディーラー|メーカー|車種)/i.test(input);
+    const knownPcRecoveryIntent = /トラブル解決ナビ|recovery\s*and\s*utility/i.test(compact) ||
+      (/(富士通|FMV|Windows|パソコン|PC|リカバリ|復旧領域|回復環境)/i.test(input) && !explicitlyAutomotive);
+    if (knownPcRecoveryIntent) {
+      return {
+        status: 'off_topic',
+        primaryIntent: '富士通FMVなどのパソコン復旧機能を探す検索意図',
+        reason: '「トラブル解決ナビ」は車載ナビの一般語ではなく、富士通PCの復旧機能名として使われます。'
+      };
+    }
+  }
+
+  return null;
+}
+
+function uaNormalizeReaderMindSiteFit_(value) {
+  const source = value && typeof value === 'object' ? value : {};
+  const rawStatus = String(source.status || source['判定'] || '').toLowerCase().trim();
+  const status = rawStatus === 'off_topic' || rawStatus === 'off-topic' || rawStatus === '対象外'
+    ? 'off_topic'
+    : rawStatus === 'ambiguous' || rawStatus === '要確認'
+    ? 'ambiguous'
+    : rawStatus === 'fit' || rawStatus === '適合'
+    ? 'fit'
+    : '';
+  return {
+    status: status,
+    primaryIntent: String(source.primary_intent || source.primaryIntent || source['主な検索意図'] || '').trim(),
+    reason: String(source.reason || source['理由'] || '').trim()
+  };
+}
+
+function uaBuildSiteFitStopMessage_(issue, appConfig) {
+  const siteLabel = String(appConfig && appConfig.label || 'このサイト');
+  const intent = String(issue && issue.primaryIntent || '').trim();
+  const reason = String(issue && issue.reason || '').trim();
+  return 'キーワードの検索意図が「' + siteLabel + '」の対象外です。' +
+    (intent ? ' 主な検索意図: ' + intent + '。' : '') +
+    (reason ? ' ' + reason : '') +
+    ' 候補シートでは「保留」にし、車・住宅などサイトの主題に合うキーワードを選び直してください。';
+}
+
 function uaSetFactCheckPointsWithLinks_(sheet, rowNumber, text) {
   const range = sheet.getRange(rowNumber, UA_COLUMNS.factCheckPoints);
   const value = String(text || '').trim();
@@ -79,3 +128,4 @@ function uaSetFactCheckPointsWithLinks_(sheet, rowNumber, text) {
 
   range.setRichTextValue(builder.build());
 }
+

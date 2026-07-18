@@ -61,6 +61,8 @@ function uaGetAutomaticPostingSettingsForPanel(appType) {
     dailyLimit: settings.dailyLimit,
     includeImages: settings.includeImages,
     publishMode: settings.publishMode,
+    notificationEnabled: settings.notificationEnabled,
+    notificationEmail: settings.notificationEmail,
     status: statusValues[0] || (settings.enabled ? '稼働中' : '停止中'),
     lastUpdated: statusValues[1] || '',
     lastError: statusValues[2] || '',
@@ -78,6 +80,11 @@ function uaSaveAutomaticPostingSettingsFromPanel(data) {
   const enabled = request.enabled === true || String(request.enabled || '').toUpperCase() === 'ON';
   const includeImages = request.includeImages !== false && String(request.includeImages || '') !== 'なし';
   const publishMode = String(request.publishMode || '') === '公開まで' ? '公開まで' : '下書きまで';
+  const notificationEnabled = request.notificationEnabled !== false && String(request.notificationEnabled || '').toUpperCase() !== 'OFF';
+  const notificationEmail = uaNormalizeAutomaticPostingNotificationEmail_(request.notificationEmail);
+  if (notificationEnabled && !notificationEmail) {
+    throw new Error('エラー通知をONにする場合は、通知先メールを入力してください。');
+  }
   const hour = uaNormalizeAutomaticPostingInteger_(request.hour, 0, 23, 4);
   const dailyLimit = uaNormalizeAutomaticPostingInteger_(request.dailyLimit, 1, 5, 1);
   uaDeleteAutomaticPostingTriggers_(UA_AUTOMATION_DAILY_HANDLER);
@@ -88,6 +95,11 @@ function uaSaveAutomaticPostingSettingsFromPanel(data) {
     includeImages ? 'あり' : 'なし'
   ], [
     publishMode
+  ]]);
+  sheet.getRange(10, column, 2, 1).setValues([[
+    notificationEnabled ? 'ON' : 'OFF'
+  ], [
+    notificationEmail
   ]]);
 
   if (enabled) {
@@ -348,6 +360,11 @@ function uaRunAutomaticPostingWorker() {
       uaTryMarkAutomaticPostingRowStopped_(job);
       const appConfig = uaGetAutomationAppConfig_(job.appType);
       uaWriteAutomaticPostingStatus_(appConfig.key, '停止：' + job.keyword, job.lastError);
+      try {
+        uaSendAutomaticPostingErrorNotification_(job, appConfig, job.lastError);
+      } catch (notificationError) {
+        console.error(notificationError && notificationError.stack ? notificationError.stack : notificationError);
+      }
     }
     console.error(e && e.stack ? e.stack : e);
   } finally {
@@ -429,11 +446,12 @@ function uaEnsureAutomaticPostingSheet_() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   let sheet = ss.getSheetByName(UA_AUTOMATION_SHEET_NAME);
   if (!sheet) sheet = ss.insertSheet(UA_AUTOMATION_SHEET_NAME);
-  const driveExisting = sheet.getRange('B2:B9').getDisplayValues().map(function(row) { return row[0]; });
+  const driveExisting = sheet.getRange('B2:B11').getDisplayValues().map(function(row) { return row[0]; });
   const hasSiteColumns = String(sheet.getRange('C1').getDisplayValue() || '').trim() === UA_APP_TYPES.home.label;
   const homeExisting = hasSiteColumns
-    ? sheet.getRange('C2:C9').getDisplayValues().map(function(row) { return row[0]; })
+    ? sheet.getRange('C2:C11').getDisplayValues().map(function(row) { return row[0]; })
     : [];
+  const defaultNotificationEmail = uaGetDefaultAutomaticPostingNotificationEmail_();
   const rows = [
     ['設定', UA_APP_TYPES.drive.label, UA_APP_TYPES.home.label, '説明'],
     ['自動運転', driveExisting[0] || 'OFF', homeExisting[0] || 'OFF', 'ONのサイトだけ実行'],
@@ -443,7 +461,9 @@ function uaEnsureAutomaticPostingSheet_() {
     ['WordPress到達点', driveExisting[4] || '下書きまで', homeExisting[4] || '下書きまで', '公開まででも重大NG時は下書き停止'],
     ['現在の状態', driveExisting[5] || '', homeExisting[5] || '', ''],
     ['最後の更新', driveExisting[6] || '', homeExisting[6] || '', ''],
-    ['最後のエラー', driveExisting[7] || '', homeExisting[7] || '', '']
+    ['最後のエラー', driveExisting[7] || '', homeExisting[7] || '', ''],
+    ['エラー通知', driveExisting[8] || 'ON', homeExisting[8] || 'ON', 'エラー停止時にメール通知'],
+    ['通知先メール', driveExisting[9] || defaultNotificationEmail, homeExisting[9] || defaultNotificationEmail, 'スマホで受信できるメールアドレス']
   ];
   sheet.getRange(1, 1, rows.length, 4).setValues(rows);
   sheet.getRange('B2:C2').setDataValidation(SpreadsheetApp.newDataValidation().requireValueInList(['ON', 'OFF'], true).build());
@@ -451,6 +471,7 @@ function uaEnsureAutomaticPostingSheet_() {
   sheet.getRange('B4:C4').setDataValidation(SpreadsheetApp.newDataValidation().requireNumberBetween(1, 5).setAllowInvalid(false).build());
   sheet.getRange('B5:C5').setDataValidation(SpreadsheetApp.newDataValidation().requireValueInList(['あり', 'なし'], true).build());
   sheet.getRange('B6:C6').setDataValidation(SpreadsheetApp.newDataValidation().requireValueInList(['下書きまで', '公開まで'], true).build());
+  sheet.getRange('B10:C10').setDataValidation(SpreadsheetApp.newDataValidation().requireValueInList(['ON', 'OFF'], true).build());
   sheet.getRange('A1:D1').setFontWeight('bold').setFontColor('#ffffff');
   sheet.getRange('A1:B1').setBackground('#1f4e3d');
   sheet.getRange('C1').setBackground('#7b5327');
@@ -468,6 +489,7 @@ function uaReadAutomaticPostingSettings_(appType) {
   const sheet = uaEnsureAutomaticPostingSheet_();
   const column = uaGetAutomationColumn_(appConfig.key);
   const values = sheet.getRange(2, column, 5, 1).getDisplayValues().map(function(row) { return String(row[0] || '').trim(); });
+  const notificationValues = sheet.getRange(10, column, 2, 1).getDisplayValues().map(function(row) { return String(row[0] || '').trim(); });
   return {
     appType: appConfig.label,
     appKey: appConfig.key,
@@ -475,7 +497,81 @@ function uaReadAutomaticPostingSettings_(appType) {
     hour: uaNormalizeAutomaticPostingInteger_(values[1], 0, 23, 4),
     dailyLimit: uaNormalizeAutomaticPostingInteger_(values[2], 1, 5, 1),
     includeImages: values[3] !== 'なし',
-    publishMode: values[4] === '公開まで' ? '公開まで' : '下書きまで'
+    publishMode: values[4] === '公開まで' ? '公開まで' : '下書きまで',
+    notificationEnabled: notificationValues[0] !== 'OFF',
+    notificationEmail: uaNormalizeAutomaticPostingNotificationEmail_(notificationValues[1])
+  };
+}
+
+function uaNormalizeAutomaticPostingNotificationEmail_(value) {
+  const email = String(value || '').trim();
+  if (!email) return '';
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    throw new Error('通知先メールの形式を確認してください。');
+  }
+  return email;
+}
+
+function uaGetDefaultAutomaticPostingNotificationEmail_() {
+  try {
+    return uaNormalizeAutomaticPostingNotificationEmail_(Session.getEffectiveUser().getEmail());
+  } catch (e) {
+    return '';
+  }
+}
+
+function uaSendAutomaticPostingErrorNotification_(job, appConfig, errorMessage) {
+  const settings = uaReadAutomaticPostingSettings_(appConfig.key);
+  if (!settings.notificationEnabled || !settings.notificationEmail) return false;
+
+  const occurredAt = Utilities.formatDate(new Date(), UA_AUTOMATION_TIMEZONE, 'yyyy-MM-dd HH:mm:ss');
+  const stepLabel = uaGetAutomaticPostingStepLabel_(job && job.step);
+  const webAppUrl = String(ScriptApp.getService().getUrl() || '').trim();
+  const spreadsheetUrl = SpreadsheetApp.getActiveSpreadsheet().getUrl();
+  const bodyLines = [
+    '自動投稿がエラーで停止しました。',
+    '',
+    'サイト: ' + appConfig.label,
+    '記事: ' + String(job && job.keyword || ''),
+    '停止工程: ' + (stepLabel || String(job && job.step || '不明')),
+    '発生時刻: ' + occurredAt,
+    'エラー: ' + String(errorMessage || '不明なエラー'),
+    '',
+    webAppUrl ? 'スマホで確認・再開: ' + webAppUrl : '',
+    '管理シート: ' + spreadsheetUrl,
+    '',
+    'Webパネルで該当サイトを選び、赤いエラー欄の「停止位置から再開」をタップしてください。'
+  ].filter(function(line) { return line !== ''; });
+
+  MailApp.sendEmail({
+    to: settings.notificationEmail,
+    subject: '【Article Compass】' + appConfig.label + ' 自動投稿エラー',
+    body: bodyLines.join('\n'),
+    name: 'Article Compass System'
+  });
+  return true;
+}
+
+function uaSendAutomaticPostingTestNotificationFromPanel(appType, notificationEmail) {
+  const appConfig = uaGetAutomationAppConfig_(appType);
+  const email = uaNormalizeAutomaticPostingNotificationEmail_(notificationEmail);
+  if (!email) throw new Error('テスト通知の送信先メールを入力してください。');
+  const webAppUrl = String(ScriptApp.getService().getUrl() || '').trim();
+  const bodyLines = [
+    'Article Compass Systemのテスト通知です。',
+    'サイト: ' + appConfig.label,
+    'このメールがスマホに届けば、エラー通知の準備は完了です。',
+    webAppUrl ? 'スマホ用Webパネル: ' + webAppUrl : '',
+    '本番のエラー通知からWebパネルを開き、「停止位置から再開」をタップできます。'
+  ].filter(Boolean);
+  MailApp.sendEmail({
+    to: email,
+    subject: '【Article Compass】スマホ通知テスト',
+    body: bodyLines.join('\n'),
+    name: 'Article Compass System'
+  });
+  return {
+    message: email + 'へテスト通知を送信しました。スマホで受信を確認してください。'
   };
 }
 

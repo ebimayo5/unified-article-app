@@ -124,9 +124,24 @@ function uaDisableAutomaticPosting() {
 }
 
 function uaResumeAutomaticPosting() {
+  const result = uaResumeAutomaticPostingFromPanel('');
+  SpreadsheetApp.getUi().alert(result.message);
+}
+
+function uaResumeAutomaticPostingFromPanel(appType) {
   const job = uaGetAutomaticPostingJob_();
   if (!job) throw new Error('再開対象の記事はありません。');
   const appConfig = uaGetAutomationAppConfig_(job.appType);
+  const requestedType = String(appType || '').trim();
+  if (requestedType) {
+    const requestedConfig = uaGetAutomationAppConfig_(requestedType);
+    if (requestedConfig.key !== appConfig.key) {
+      throw new Error('再開対象は' + appConfig.label + 'の記事です。' + appConfig.label + 'へ切り替えて再開してください。');
+    }
+  }
+  if (String(job.status || '') !== 'error') {
+    throw new Error('再開できるエラー停止中の記事はありません。');
+  }
   const settings = uaReadAutomaticPostingSettings_(appConfig.key);
   if (!settings.enabled) throw new Error(appConfig.label + 'の自動投稿設定がOFFです。');
   job.status = 'running';
@@ -135,7 +150,9 @@ function uaResumeAutomaticPosting() {
   uaSaveAutomaticPostingJob_(job);
   uaScheduleAutomaticPostingWorker_(1000);
   uaWriteAutomaticPostingStatus_(appConfig.key, '再開待ち：' + job.keyword, '');
-  SpreadsheetApp.getUi().alert('停止位置から再開します。');
+  const result = uaGetAutomaticPostingSettingsForPanel(appConfig.label);
+  result.message = appConfig.label + 'の記事「' + job.keyword + '」を停止位置から再開しました。';
+  return result;
 }
 
 function uaStartAutomaticPostingDaily() {
@@ -655,3 +672,4 @@ function uaTestAutomaticPostingLogic() {
   if (uaNormalizeAutomaticPostingInteger_(3, 1, 5, 1) !== 3) throw new Error('記事数変更テスト失敗');
   return { ok: true, tested: ['1日1〜5記事', '0〜23時', '画像あり', '下書き/公開分岐', '再開段階'] };
 }
+

@@ -310,6 +310,9 @@ function uaIsNaviokunHighRelevanceTopic_(rowData) {
     rowData && rowData.readerMindMemo,
     rowData && rowData.affiliateNotes
   ].join(' ');
+  if (/(トラブル\s*解決\s*ナビ|Recovery\s*and\s*Utility|富士通|FMV|Windows|復旧領域|リカバリ)/i.test(text)) {
+    return false;
+  }
   return /(ナビ|モニター|ディスプレイ|carplay|android\s*auto|hdmi|テレビ|\btv\b|動画|車内エンタメ|ミラーリング|オーディオ|後席モニター|後席ディスプレイ)/i.test(text);
 }
 
@@ -563,7 +566,10 @@ function uaBuildYmylDetectionText_(rowData, body) {
 
 function uaDetectYmylCategory_(text, appConfig) {
   const value = String(text || '');
-  if (/(病気|症状|治療|診断|服薬|薬の|医療|妊娠|アレルギー|感染症|健康被害)/i.test(value)) {
+  const strongHealthTerms = /(病気|服薬|薬の|医療|妊娠|アレルギー|感染症|健康被害|医師|薬剤師|病院|クリニック)/i;
+  const contextualHealthTerms = /(症状|治療|診断)/i;
+  const bodyHealthContext = /(身体|体調|痛み|発熱|皮膚|呼吸|血圧|血糖|吐き気|めまい|けが|怪我|患者)/i;
+  if (strongHealthTerms.test(value) || (contextualHealthTerms.test(value) && bodyHealthContext.test(value))) {
     return 'health';
   }
   if (/(住宅ローン|自動車ローン|ローン|借入|金利|任意保険|自動車保険|車両保険|生命保険|税金|税制|補助金|投資|資産運用|相続)/i.test(value)) {
@@ -1535,7 +1541,7 @@ function uaDriveRakutenProductCandidates_() {
     { query: '車 シートクッション 腰', keywords: ['シートクッション', '腰', '疲労対策', '運転 疲れ'] },
     { query: '運転用 サングラス 偏光', keywords: ['サングラス', '偏光サングラス', '目の疲れ', '視認性'] },
     { query: '車 サンシェード', keywords: ['サンシェード', '日よけ', '暑さ対策'] },
-    { query: 'ポータブル電源 車中泊', keywords: ['ポータブル電源', '車中泊', '電源'] },
+    { query: 'ポータブル電源 車中泊', keywords: ['ポータブル電源', '車中泊'] },
     { query: '車載扇風機 車中泊', keywords: ['車載扇風機', '扇風機', '車内 待機'] },
     { query: 'スマホホルダー 車', keywords: ['スマホホルダー', 'スマホ', 'ナビアプリ'] },
     { query: 'HDMI 車載 モニター', keywords: ['HDMI', '後席モニター', 'モニター', 'YouTube'] },
@@ -1993,3 +1999,4 @@ function uaFixGeneratedHtml_(html) {
 
   return text;
 }
+

@@ -236,20 +236,12 @@
           <button class="secondary" type="button" style="width:100%; margin-top:10px;" onclick="createBlankArticle(this)">&#26032;&#35215;&#35352;&#20107;&#34892;&#12434;&#20316;&#12427;</button>
           <div class="api-grid">
             <div>
-              <label for="articleProvider">本文API</label>
-              <select id="articleProvider" onchange="saveProviders()"></select>
+              <label for="textModel">OpenAI 文章モデル</label>
+              <select id="textModel" onchange="saveOpenAiModels()"></select>
             </div>
             <div>
-              <label for="readerMindProvider">心理API</label>
-              <select id="readerMindProvider" onchange="saveProviders()"></select>
-            </div>
-            <div>
-              <label for="imageProvider">画像API</label>
-              <select id="imageProvider" onchange="saveProviders()"></select>
-            </div>
-            <div>
-              <label for="imageModel">Image Model</label>
-              <select id="imageModel" onchange="saveProviders()"></select>
+              <label for="imageModel">OpenAI 画像モデル</label>
+              <select id="imageModel" onchange="saveOpenAiModels()"></select>
             </div>
           </div>
           <label for="imageStylePrompt">画像スタイル指定</label>
@@ -474,9 +466,7 @@
 <script>
       const fields = ['row','mainInput','volume','affiliateName','affiliateUrl','affiliateNotes','competitorUrl1','competitorUrl2','competitorUrl3','readerMindMemo','status','generationModel','body','titleIdeas','tags','metaDescription','permalink','factCheckPoints','structureMemo','wpPostId','wpEditUrl','wpDraftedAt'];
       let appConfigs = [];
-      let articleProviders = [];
-      let readerMindProviders = [];
-      let imageProviders = [];
+      let textModels = [];
       let imageModels = [];
       let activeButton = null;
       let activeButtonText = '';
@@ -504,15 +494,11 @@
         google.script.run.withSuccessHandler(function(data) {
           clearBusy();
           appConfigs = data.appConfigs || [];
-          articleProviders = data.articleProviders || [];
-          readerMindProviders = data.readerMindProviders || [];
-          imageProviders = data.imageProviders || [];
+          textModels = data.textModels || [];
           imageModels = data.imageModels || [];
           fillSelect('appType', appConfigs.map(function(item) { return { value: item.label, label: item.label }; }), appConfigs[0] && appConfigs[0].label);
-          fillSelect('articleProvider', articleProviders, data.selectedArticleProvider || 'openai');
-          fillSelect('readerMindProvider', readerMindProviders, data.selectedReaderMindProvider || 'gemini');
-          fillSelect('imageProvider', imageProviders, data.selectedImageProvider || 'openai');
-          fillSelect('imageModel', imageModels, data.selectedImageModelValue || '');
+          fillSelect('textModel', textModels, data.selectedTextModel || 'gpt-5.2');
+          fillSelect('imageModel', imageModels, data.selectedImageModel || 'gpt-image-2');
           applyDefaultImageStyle();
           applyTheme();
           setProgress('done');
@@ -578,7 +564,6 @@
           .withFailureHandler(fail)
           .uaResumeAutomaticPostingFromPanel(appType);
       }
-
 
       function saveAutomaticPostingSettings(button) {
         const data = {
@@ -650,7 +635,7 @@
       function bindAutoSaveControls() {
         document.querySelectorAll('input, textarea, select').forEach(function(el) {
           if (!el.id) return;
-          if (el.id === 'appType' || el.id === 'sourceType' || el.id === 'sourceRow' || el.id === 'candidateRow' || el.id === 'articleRow' || el.id === 'articleProvider' || el.id === 'readerMindProvider' || el.id === 'imageProvider' || el.id === 'imageModel' || el.id === 'imageStylePreset' || el.id === 'imageStylePrompt' || el.id.indexOf('autoPosting') === 0) return;
+          if (el.id === 'appType' || el.id === 'sourceType' || el.id === 'sourceRow' || el.id === 'candidateRow' || el.id === 'articleRow' || el.id === 'textModel' || el.id === 'imageModel' || el.id === 'imageStylePreset' || el.id === 'imageStylePrompt' || el.id.indexOf('autoPosting') === 0) return;
           el.addEventListener('input', scheduleAutoSave);
           el.addEventListener('change', scheduleAutoSave);
         });
@@ -1861,16 +1846,16 @@
         }).withFailureHandler(handleFailure).uaRunPrePublishCheckFromWeb(readForm());
       }
 
-      function saveProviders() {
-        setBusy('使用APIを更新中...');
+      function saveOpenAiModels() {
+        setBusy('OpenAIモデルを更新中...');
         google.script.run.withSuccessHandler(function(result) {
           clearBusy();
           setProgress('done');
-          setNotice(result.message || '使用APIを更新しました。', false);
-        }).withFailureHandler(fail).uaSetProvidersFromPanel(
-          document.getElementById('articleProvider').value,
-          document.getElementById('readerMindProvider').value,
-          document.getElementById('imageProvider').value,
+          document.getElementById('textModel').value = result.selectedTextModel || document.getElementById('textModel').value;
+          document.getElementById('imageModel').value = result.selectedImageModel || document.getElementById('imageModel').value;
+          setNotice(result.message || 'OpenAIモデルを更新しました。', false);
+        }).withFailureHandler(fail).uaSetOpenAiModelsFromPanel(
+          document.getElementById('textModel').value,
           document.getElementById('imageModel').value
         );
       }

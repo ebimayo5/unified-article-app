@@ -291,6 +291,46 @@ function uaNormalizeAnchorRelAttributes_(value) {
   });
 }
 
+function uaTestNormalizeAnchorRelAttributes() {
+  const cases = [
+    {
+      input: '<a href="https://example.com" target="_blank" rel="noopener" rel="nofollow sponsored noopener">CTA</a>',
+      expected: '<a href="https://example.com" target="_blank" rel="noopener nofollow sponsored">CTA</a>'
+    },
+    {
+      input: "<a href='https://example.com' rel='nofollow sponsored' rel='noopener'>CTA</a>",
+      expected: '<a href=\'https://example.com\' rel="nofollow sponsored noopener">CTA</a>'
+    },
+    {
+      input: '<a href="https://example.com" rel="nofollow nofollow sponsored">CTA</a>',
+      expected: '<a href="https://example.com" rel="nofollow sponsored">CTA</a>'
+    }
+  ];
+
+  cases.forEach(function(item, index) {
+    const before = uaFindPrePublishDuplicateRelLinks_(item.input);
+    const output = uaNormalizeAnchorRelAttributes_(item.input);
+    const after = uaFindPrePublishDuplicateRelLinks_(output);
+    if (!before.length) throw new Error('rel重複を検出できませんでした。case=' + (index + 1));
+    if (output !== item.expected) throw new Error('rel統合結果が不正です。case=' + (index + 1) + ' output=' + output);
+    if (after.length) throw new Error('rel統合後も重複が残っています。case=' + (index + 1));
+  });
+
+  const clean = '<a href="https://example.com" target="_blank" rel="nofollow sponsored noopener">CTA</a>';
+  if (uaNormalizeAnchorRelAttributes_(clean) !== clean) {
+    throw new Error('正常なrel属性を変更しました。');
+  }
+  if (uaFindPrePublishDuplicateRelLinks_(clean).length) {
+    throw new Error('正常なrel属性を重複判定しました。');
+  }
+
+  return {
+    ok: true,
+    testedCases: cases.length + 1,
+    normalizedExample: uaNormalizeAnchorRelAttributes_(cases[0].input)
+  };
+}
+
 function uaFindManagedAffiliateCtaFallbackIndex_(body) {
   const html = String(body || '');
   const h2Regex = /<h2\b[^>]*>([\s\S]*?)<\/h2>/gi;

@@ -675,7 +675,6 @@
             </div>
             <div id="autoPostingSummary" style="margin-top:8px; color:var(--text); line-height:1.6;">毎日4時ごろ・1日1記事。重大NG時は下書きで停止します。</div>
             <button class="primary" type="button" style="width:100%; margin-top:10px;" onclick="saveAutomaticPostingSettings(this)">自動投稿設定を保存</button>
-            <button class="secondary" type="button" style="width:100%; margin-top:8px;" onclick="sendAutomaticPostingTestNotification(this)">テスト通知を送る</button>
             <div id="autoPostingStatus" class="auto-posting-status">設定を読み込み中...</div>
             <button id="autoPostingResumeButton" class="danger hidden" type="button" style="margin-top:8px;" onclick="resumeAutomaticPosting(this)">停止位置から再開</button>
           </div>
@@ -950,19 +949,6 @@
           .uaResumeAutomaticPostingFromPanel(appType);
       }
 
-      function sendAutomaticPostingTestNotification(button) {
-        const appType = document.getElementById('appType').value;
-        const email = document.getElementById('autoPostingNotificationEmail').value.trim();
-        setBusy('テスト通知を送信しています...', button);
-        google.script.run
-          .withSuccessHandler(function(result) {
-            clearBusy();
-            setProgress('done');
-            setNotice(result && result.message ? result.message : 'テスト通知を送信しました。', false);
-          })
-          .withFailureHandler(fail)
-          .uaSendAutomaticPostingTestNotificationFromPanel(appType, email);
-      }
 
       function saveAutomaticPostingSettings(button) {
         const data = {

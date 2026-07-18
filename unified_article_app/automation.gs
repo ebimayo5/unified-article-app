@@ -264,7 +264,9 @@ function uaRunAutomaticPostingWorker() {
     uaWriteAutomaticPostingStatus_(appConfig.key, '処理中：' + job.keyword + ' / ' + uaGetAutomaticPostingStepLabel_(job.step), '');
 
     if (job.step === UA_AUTOMATION_STEP_READER_MIND) {
-      if (!String(data.readerMindMemo || '').trim()) uaRunReaderMindMemoFromPanel(data);
+      if (!String(data.readerMindMemo || '').trim()) {
+        uaRunReaderMindMemoFromPanel(Object.assign({}, data, { automaticPosting: true }));
+      }
       uaAdvanceAutomaticPostingJob_(job, UA_AUTOMATION_STEP_STRUCTURE, 60000);
       return;
     }

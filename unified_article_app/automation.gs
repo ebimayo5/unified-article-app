@@ -35,6 +35,59 @@ function uaOpenAutomaticPostingSettings() {
   SpreadsheetApp.getActiveSpreadsheet().setActiveSheet(sheet);
 }
 
+function uaGetAutomaticPostingSettingsForPanel() {
+  const sheet = uaEnsureAutomaticPostingSheet_();
+  const settings = uaReadAutomaticPostingSettings_();
+  const statusValues = sheet.getRange('B7:B9').getDisplayValues().map(function(row) {
+    return String(row[0] || '').trim();
+  });
+  const job = uaGetAutomaticPostingJob_();
+  return {
+    enabled: settings.enabled,
+    hour: 4,
+    dailyLimit: 1,
+    includeImages: settings.includeImages,
+    publishMode: settings.publishMode,
+    status: statusValues[0] || (settings.enabled ? '稼働中' : '停止中'),
+    lastUpdated: statusValues[1] || '',
+    lastError: statusValues[2] || '',
+    activeKeyword: job && job.status !== 'complete' ? String(job.keyword || '') : '',
+    activeStep: job && job.status !== 'complete' ? uaGetAutomaticPostingStepLabel_(job.step) : '',
+    activeJobStatus: job && job.status !== 'complete' ? String(job.status || '') : ''
+  };
+}
+
+function uaSaveAutomaticPostingSettingsFromPanel(data) {
+  const request = data || {};
+  const sheet = uaEnsureAutomaticPostingSheet_();
+  const enabled = request.enabled === true || String(request.enabled || '').toUpperCase() === 'ON';
+  const includeImages = request.includeImages !== false && String(request.includeImages || '') !== 'なし';
+  const publishMode = String(request.publishMode || '') === '公開まで' ? '公開まで' : '下書きまで';
+
+  sheet.getRange('B2:B6').setValues([[
+    enabled ? 'ON' : 'OFF'
+  ], [4], [1], [
+    includeImages ? 'あり' : 'なし'
+  ], [
+    publishMode
+  ]]);
+
+  if (enabled) {
+    uaInstallAutomaticPostingTrigger_();
+    uaWriteAutomaticPostingStatus_('稼働中：毎日午前4時ごろに1記事を開始します。', '');
+  } else {
+    uaDeleteAutomaticPostingTriggers_(UA_AUTOMATION_DAILY_HANDLER);
+    uaDeleteAutomaticPostingTriggers_(UA_AUTOMATION_WORKER_HANDLER);
+    uaWriteAutomaticPostingStatus_('停止中', '');
+  }
+
+  const result = uaGetAutomaticPostingSettingsForPanel();
+  result.message = enabled
+    ? '自動投稿設定を保存し、午前4時の実行を有効にしました。'
+    : '自動投稿設定を保存し、自動実行を停止しました。';
+  return result;
+}
+
 function uaDisableAutomaticPosting() {
   const sheet = uaEnsureAutomaticPostingSheet_();
   sheet.getRange('B2').setValue('OFF');
@@ -302,7 +355,7 @@ function uaEnsureAutomaticPostingSheet_() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   let sheet = ss.getSheetByName(UA_AUTOMATION_SHEET_NAME);
   if (!sheet) sheet = ss.insertSheet(UA_AUTOMATION_SHEET_NAME);
-  const existing = sheet.getRange('B2:B6').getDisplayValues().map(function(row) { return row[0]; });
+  const existing = sheet.getRange('B2:B9').getDisplayValues().map(function(row) { return row[0]; });
   const rows = [
     ['設定', '値', '説明'],
     ['自動運転', existing[0] || 'OFF', 'ONのときだけ実行'],
@@ -310,9 +363,9 @@ function uaEnsureAutomaticPostingSheet_() {
     ['1日の記事数', existing[2] || 1, '現在は1記事固定'],
     ['画像', existing[3] || 'あり', 'アイキャッチと本文図解'],
     ['WordPress到達点', existing[4] || '下書きまで', '公開まででも重大NG時は下書き停止'],
-    ['現在の状態', '', ''],
-    ['最後の更新', '', ''],
-    ['最後のエラー', '', '']
+    ['現在の状態', existing[5] || '', ''],
+    ['最後の更新', existing[6] || '', ''],
+    ['最後のエラー', existing[7] || '', '']
   ];
   sheet.getRange(1, 1, rows.length, 3).setValues(rows);
   sheet.getRange('B2').setDataValidation(SpreadsheetApp.newDataValidation().requireValueInList(['ON', 'OFF'], true).build());

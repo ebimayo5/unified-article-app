@@ -222,6 +222,38 @@
           </div>
           <textarea id="imageStylePrompt" class="notes-input" placeholder="手入力を選んだ場合の画風指定。例: 淡い色、人物なし、余白多め"></textarea>
         </div>
+
+        <div class="card">
+          <h2>自動投稿設定</h2>
+          <div class="row">
+            <div>
+              <label for="autoPostingEnabled">自動運転</label>
+              <select id="autoPostingEnabled">
+                <option value="ON">ON</option>
+                <option value="OFF">OFF</option>
+              </select>
+            </div>
+            <div>
+              <label for="autoPostingImages">画像</label>
+              <select id="autoPostingImages">
+                <option value="あり">あり</option>
+                <option value="なし">なし</option>
+              </select>
+            </div>
+          </div>
+          <div class="row">
+            <div><label for="autoPostingHour">開始時刻</label><input id="autoPostingHour" value="午前4時ごろ" readonly></div>
+            <div><label for="autoPostingDailyLimit">1日の記事数</label><input id="autoPostingDailyLimit" value="1記事" readonly></div>
+          </div>
+          <label for="autoPostingPublishMode">WordPress到達点</label>
+          <select id="autoPostingPublishMode">
+            <option value="下書きまで">下書きまで</option>
+            <option value="公開まで">投稿まで（公開）</option>
+          </select>
+          <div class="muted" style="margin-top:8px; line-height:1.6;">毎日午前4時ごろ・1日1記事。重大NGがある場合は公開せず下書きで停止します。</div>
+          <button class="primary" type="button" style="width:100%; margin-top:10px;" onclick="saveAutomaticPostingSettings(this)">自動投稿設定を保存</button>
+          <div id="autoPostingStatus" style="margin-top:9px; color:#d8f5e7; line-height:1.55; white-space:pre-line;">設定を読み込み中...</div>
+        </div>
       </aside>
 
       <main class="main">
@@ -431,7 +463,47 @@
           applyTheme();
           setProgress('done');
           setNotice('候補シートを開くか、行番号で記事行を呼び出してください。', false);
+          loadAutomaticPostingSettings();
         }).withFailureHandler(fail).uaGetWebAppBootData();
+      }
+
+      function loadAutomaticPostingSettings() {
+        google.script.run
+          .withSuccessHandler(renderAutomaticPostingSettings)
+          .withFailureHandler(function(error) {
+            const status = document.getElementById('autoPostingStatus');
+            if (status) status.textContent = '設定の読み込みに失敗しました。';
+          })
+          .uaGetAutomaticPostingSettingsForPanel();
+      }
+
+      function renderAutomaticPostingSettings(data) {
+        const settings = data || {};
+        document.getElementById('autoPostingEnabled').value = settings.enabled ? 'ON' : 'OFF';
+        document.getElementById('autoPostingImages').value = settings.includeImages === false ? 'なし' : 'あり';
+        document.getElementById('autoPostingPublishMode').value = settings.publishMode === '公開まで' ? '公開まで' : '下書きまで';
+        const parts = [settings.status || ''];
+        if (settings.activeKeyword) parts.push('処理中: ' + settings.activeKeyword + (settings.activeStep ? ' / ' + settings.activeStep : ''));
+        if (settings.lastError) parts.push('エラー: ' + settings.lastError);
+        document.getElementById('autoPostingStatus').textContent = parts.filter(Boolean).join('\n') || '状態なし';
+      }
+
+      function saveAutomaticPostingSettings(button) {
+        const data = {
+          enabled: document.getElementById('autoPostingEnabled').value === 'ON',
+          includeImages: document.getElementById('autoPostingImages').value === 'あり',
+          publishMode: document.getElementById('autoPostingPublishMode').value
+        };
+        setBusy('自動投稿設定を保存中...', button);
+        google.script.run
+          .withSuccessHandler(function(result) {
+            clearBusy();
+            setProgress('done');
+            renderAutomaticPostingSettings(result);
+            setNotice(result && result.message ? result.message : '自動投稿設定を保存しました。', false);
+          })
+          .withFailureHandler(fail)
+          .uaSaveAutomaticPostingSettingsFromPanel(data);
       }
 
       function fillSelect(id, options, selectedValue) {
@@ -480,7 +552,7 @@
       function bindAutoSaveControls() {
         document.querySelectorAll('input, textarea, select').forEach(function(el) {
           if (!el.id) return;
-          if (el.id === 'appType' || el.id === 'sourceType' || el.id === 'sourceRow' || el.id === 'candidateRow' || el.id === 'articleRow' || el.id === 'articleProvider' || el.id === 'readerMindProvider' || el.id === 'imageProvider' || el.id === 'imageModel' || el.id === 'imageStylePreset' || el.id === 'imageStylePrompt') return;
+          if (el.id === 'appType' || el.id === 'sourceType' || el.id === 'sourceRow' || el.id === 'candidateRow' || el.id === 'articleRow' || el.id === 'articleProvider' || el.id === 'readerMindProvider' || el.id === 'imageProvider' || el.id === 'imageModel' || el.id === 'imageStylePreset' || el.id === 'imageStylePrompt' || el.id.indexOf('autoPosting') === 0) return;
           el.addEventListener('input', scheduleAutoSave);
           el.addEventListener('change', scheduleAutoSave);
         });

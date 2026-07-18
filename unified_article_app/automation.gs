@@ -167,6 +167,57 @@ function uaResumeAutomaticPostingFromPanel(appType) {
   return result;
 }
 
+function uaSkipAutomaticPostingFromPanel(appType) {
+  const job = uaGetAutomaticPostingJob_();
+  if (!job) throw new Error('対象外にする自動投稿記事はありません。');
+  const appConfig = uaGetAutomationAppConfig_(job.appType);
+  const requestedType = String(appType || '').trim();
+  if (requestedType) {
+    const requestedConfig = uaGetAutomationAppConfig_(requestedType);
+    if (requestedConfig.key !== appConfig.key) {
+      throw new Error('対象外にできるのは' + appConfig.label + 'の記事です。' + appConfig.label + 'へ切り替えてください。');
+    }
+  }
+  if (String(job.status || '') !== 'error') {
+    throw new Error('対象外にできるエラー停止中の記事はありません。');
+  }
+
+  uaMarkSkippedAutomaticPostingCandidateHeld_(job, appConfig);
+  uaTryMarkAutomaticPostingRowStopped_(job);
+
+  const progress = uaGetAutomaticPostingDailyProgress_(job.date, appConfig.key);
+  if (progress.count > 0) {
+    progress.count--;
+    uaSaveAutomaticPostingDailyProgress_(progress, appConfig.key);
+  }
+
+  uaCompleteAutomaticPostingJob_(job, '対象外としてスキップ');
+  uaScheduleNextAutomaticPosting_(1000);
+  const result = uaGetAutomaticPostingSettingsForPanel(appConfig.label);
+  result.message = '「' + job.keyword + '」を候補シートの保留へ戻し、次の候補へ進みます。';
+  return result;
+}
+
+function uaMarkSkippedAutomaticPostingCandidateHeld_(job, appConfig) {
+  if (!appConfig || !appConfig.candidateSheetName) return false;
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(appConfig.candidateSheetName);
+  if (!sheet || sheet.getLastRow() < 2) return false;
+  uaEnsureCandidateSheetLayout_(sheet);
+  const values = sheet.getRange(2, 1, sheet.getLastRow() - 1, UA_CANDIDATE_COLUMNS.volume).getValues();
+  const keyword = String(job && job.keyword || '').trim();
+  for (let index = 0; index < values.length; index++) {
+    const rowKeyword = String(values[index][UA_CANDIDATE_COLUMNS.keyword - 1] || '').trim();
+    const status = String(values[index][UA_CANDIDATE_COLUMNS.status - 1] || '').trim();
+    if (rowKeyword === keyword && (status === UA_CANDIDATE_STATUS_SENT || status === UA_CANDIDATE_STATUS_WRITE)) {
+      sheet.getRange(index + 2, UA_CANDIDATE_COLUMNS.status).setValue(UA_CANDIDATE_STATUS_HOLD);
+      uaApplyCandidateSheetRules_(sheet);
+      SpreadsheetApp.flush();
+      return true;
+    }
+  }
+  return false;
+}
+
 function uaStartAutomaticPostingDaily() {
   uaStartAutomaticPostingForSite_('drive');
 }

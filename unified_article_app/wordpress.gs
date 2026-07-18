@@ -1,3 +1,26 @@
+const UA_DRIVE_WP_CATEGORY_DEFINITIONS = {
+  car_buying: {
+    name: '車選び・購入',
+    slug: 'car-buying'
+  },
+  entertainment: {
+    name: '車内エンタメ',
+    slug: 'shanai'
+  },
+  accessories: {
+    name: 'カー用品・カスタム',
+    slug: 'car-item'
+  },
+  maintenance: {
+    name: '維持費・メンテナンス',
+    slug: 'maintenance'
+  },
+  driving: {
+    name: '運転・制度',
+    slug: 'drive'
+  }
+};
+
 function uaCreateWpDraftFromWeb(data) {
   return uaCreateWpDraftFromPanel(data || {});
 }
@@ -73,7 +96,7 @@ function uaCreateWpDraftFromPanel(data) {
   const title = uaPickWpTitle_(rowData.titleIdeas);
   const slug = uaCleanWpSlug_(rowData.permalink);
   const tagIds = uaEnsureWpTagIds_(wpConfig, rowData.tags);
-  const categoryIds = uaGetWpCategoryIds_(wpConfig);
+  const categoryIds = uaResolveWpCategoryIds_(wpConfig, rowData, appConfig);
   const existingPostId = Number(rowData.wpPostId || 0);
 
   const payload = {
@@ -632,6 +655,207 @@ function uaSplitTags_(tagsText) {
   return tags;
 }
 
+function uaResolveWpCategoryIds_(wpConfig, rowData, appConfig) {
+  if (!appConfig || appConfig.key !== 'drive') {
+    return uaGetWpCategoryIds_(wpConfig);
+  }
+
+  const categoryKey = uaDetectDriveWpCategory_(rowData);
+  const definition = UA_DRIVE_WP_CATEGORY_DEFINITIONS[categoryKey];
+  if (!definition) {
+    throw new Error('WP category: DRIVE BASE category could not be determined.');
+  }
+
+  const categoryId = uaFindWpCategoryIdBySlug_(wpConfig, definition.slug);
+  if (!categoryId) {
+    throw new Error('WP category: "' + definition.name + '" (' + definition.slug + ') was not found in WordPress.');
+  }
+
+  return [categoryId];
+}
+
+function uaFindWpCategoryIdBySlug_(wpConfig, slug) {
+  const cleanSlug = String(slug || '').trim();
+  if (!cleanSlug) return 0;
+
+  const results = uaCallWordPressApi_(
+    wpConfig,
+    '/wp-json/wp/v2/categories?slug=' + encodeURIComponent(cleanSlug) + '&per_page=10&hide_empty=false',
+    'get'
+  );
+
+  if (!Array.isArray(results)) return 0;
+
+  for (let i = 0; i < results.length; i++) {
+    if (String(results[i] && results[i].slug || '').trim() === cleanSlug) {
+      return Number(results[i].id || 0);
+    }
+  }
+
+  return 0;
+}
+
+function uaDetectDriveWpCategory_(rowData) {
+  const data = rowData || {};
+  const topicText = [
+    data.mainInput,
+    data.titleIdeas,
+    data.tags
+  ].map(function(value) {
+    return String(value || '');
+  }).join('\n');
+
+  const scores = {
+    car_buying: 1,
+    entertainment: 0,
+    accessories: 0,
+    maintenance: 0,
+    driving: 0
+  };
+
+  uaAddWpCategoryScore_(scores, 'entertainment', topicText, [
+    [/(ナビ男くん|テレビキャンセラー|TVキャンセラー|後席モニター|フリップダウンモニター)/i, 30],
+    [/(カーナビ|純正ナビ|ナビ取付|ナビ取り付け|ナビが|ナビは|ナビを|ナビの)/i, 24],
+    [/(ディスプレイオーディオ|マツダコネクト|マツコネ|CarPlay|Android\s*Auto)/i, 24],
+    [/(HDMI|Fire\s*TV|車内エンタメ|カーオーディオ|スピーカー|音質)/i, 18],
+    [/(走行中[^\n]{0,20}(テレビ|TV)|テレビ[^\n]{0,20}(見れない|映らない|解除))/i, 18]
+  ]);
+
+  uaAddWpCategoryScore_(scores, 'accessories', topicText, [
+    [/(シンシェード|サンシェード|フロアマット|シートカバー|スマホホルダー)/i, 26],
+    [/(ボディカバー|ドライブレコーダー|ドラレコ|レーダー探知機|ルーフキャリア)/i, 24],
+    [/(スポイラー|エアロパーツ|ホイール|工具|キーケース|コンソールボックス|ドリンクホルダー)/i, 20],
+    [/(カー用品|カスタムパーツ|車中泊グッズ)/i, 16]
+  ]);
+
+  uaAddWpCategoryScore_(scores, 'maintenance', topicText, [
+    [/(タイヤ|バッテリー|エンジンオイル|オイル交換|車検|故障|修理|異音)/i, 24],
+    [/(洗車傷|洗車キズ|コーティング|錆|サビ|空気圧)/i, 22],
+    [/(維持費|メンテナンス|点検|エアコン|燃費|交換費用|寿命)/i, 14],
+    [/(洗車|車内清掃|掃除)/i, 12]
+  ]);
+
+  uaAddWpCategoryScore_(scores, 'driving', topicText, [
+    [/(普通免許|運転免許|免許証|道路交通法|交通違反|反則金|違反点数)/i, 28],
+    [/(車のナンバー|車ナンバー|ナンバープレート|希望ナンバー|車庫証明)/i, 26],
+    [/(安全運転|あおり運転|煽り運転|駐車違反|交通ルール|道路標識)/i, 22],
+    [/(雪道走行|高速道路|自動車税|税金)/i, 12]
+  ]);
+
+  uaAddWpCategoryScore_(scores, 'car_buying', topicText, [
+    [/(中古車|中古|購入|買って|買うなら|買い替え|乗り換え)/i, 18],
+    [/(残クレ|残価設定|カーリース|買取|査定|売却|下取り|リセール)/i, 18],
+    [/(後悔|やめとけ|いらない|がっかり|欠点|デメリット)/i, 12],
+    [/(評判|口コミ|ダサい|恥ずかしい|貧乏人|頭おかしい|危ない|やばい|売れない)/i, 10],
+    [/(グレード|年式|モデルチェンジ|納期|値引き|車種比較|選び方)/i, 8],
+    [/(価格|安い|高い|人気|何人乗り|後部座席|狭い|広い)/i, 5]
+  ]);
+
+  const strongestTopicScore = Math.max(
+    scores.car_buying,
+    scores.entertainment,
+    scores.accessories,
+    scores.maintenance,
+    scores.driving
+  );
+  if (strongestTopicScore <= 1) {
+    const projectCategory = uaGetDriveWpProjectCategory_(data.affiliateName);
+    if (projectCategory) return projectCategory;
+  }
+
+  const priority = ['entertainment', 'accessories', 'maintenance', 'driving', 'car_buying'];
+  let bestKey = 'car_buying';
+  let bestScore = scores.car_buying;
+
+  priority.forEach(function(key) {
+    if (scores[key] > bestScore) {
+      bestKey = key;
+      bestScore = scores[key];
+    }
+  });
+
+  return bestKey;
+}
+
+function uaAddWpCategoryScore_(scores, categoryKey, text, rules) {
+  (rules || []).forEach(function(rule) {
+    const pattern = rule && rule[0];
+    const weight = Number(rule && rule[1] || 0);
+    if (pattern && pattern.test(String(text || ''))) {
+      scores[categoryKey] += weight;
+    }
+  });
+}
+
+function uaGetDriveWpProjectCategory_(affiliateName) {
+  const name = String(affiliateName || '').trim();
+  if (!name) return '';
+  if (/ナビ男くん/.test(name)) return 'entertainment';
+  if (/(シンシェード|CARCLUB)/i.test(name)) return 'accessories';
+  if (/(ガリバー|MOTAカーリース|カーリース|買取査定|中古車)/i.test(name)) return 'car_buying';
+  return '';
+}
+
+function uaTestDriveWpCategoryRouting() {
+  const cases = [
+    [{ mainInput: 'マツダ やばい', titleIdeas: 'マツダ やばいの真相は？倒産不安と足回りを確認', affiliateName: 'ナビ男くん' }, 'car_buying'],
+    [{ mainInput: '新型シエンタ テレビキャンセラーおすすめ', affiliateName: 'ナビ男くん' }, 'entertainment'],
+    [{ mainInput: '車 サンシェード 効果 夏', affiliateName: 'シンシェード' }, 'accessories'],
+    [{ mainInput: 'トーヨータイヤ やばい', affiliateName: 'CARCLUB' }, 'maintenance'],
+    [{ mainInput: '旧普通免許 ずるい' }, 'driving'],
+    [{ mainInput: 'ベンツ Vクラス なぜ安い', titleIdeas: '中古で後悔しないための維持費・リセール・選び方' }, 'car_buying'],
+    [{ mainInput: 'ルーミー 買って よかった', affiliateName: 'ナビ男くん' }, 'car_buying'],
+    [{ mainInput: 'ソリオ 後部座席 3人', affiliateName: 'MOTAカーリース' }, 'car_buying'],
+    [{ mainInput: '記事テーマ未確定', affiliateName: 'ナビ男くん' }, 'entertainment']
+  ];
+
+  const results = cases.map(function(testCase) {
+    const actual = uaDetectDriveWpCategory_(testCase[0]);
+    return {
+      input: testCase[0].mainInput,
+      expected: testCase[1],
+      actual: actual,
+      ok: actual === testCase[1]
+    };
+  });
+  const failures = results.filter(function(result) { return !result.ok; });
+  if (failures.length > 0) {
+    throw new Error('WP category routing test failed: ' + JSON.stringify(failures));
+  }
+
+  return {
+    ok: true,
+    count: results.length,
+    results: results
+  };
+}
+
+function uaTestDriveWpCategoryWordPressResolution() {
+  const appConfig = UA_APP_TYPES.drive;
+  const wpConfig = uaGetWpConfig_(appConfig);
+  const results = Object.keys(UA_DRIVE_WP_CATEGORY_DEFINITIONS).map(function(key) {
+    const definition = UA_DRIVE_WP_CATEGORY_DEFINITIONS[key];
+    const id = uaFindWpCategoryIdBySlug_(wpConfig, definition.slug);
+    return {
+      key: key,
+      name: definition.name,
+      slug: definition.slug,
+      id: id,
+      ok: id > 0
+    };
+  });
+  const failures = results.filter(function(result) { return !result.ok; });
+  if (failures.length > 0) {
+    throw new Error('WP category resolution test failed: ' + JSON.stringify(failures));
+  }
+
+  return {
+    ok: true,
+    count: results.length,
+    results: results
+  };
+}
+
 function uaGetWpCategoryIds_(wpConfig) {
   return String(wpConfig.categoryIds || '')
     .split(/[,・後―s]+/)
@@ -676,3 +900,4 @@ function uaBuildWpEditUrl_(siteUrl, postId) {
 function uaTrimTrailingSlash_(value) {
   return String(value || '').trim().replace(/\/+$/, '');
 }
+

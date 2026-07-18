@@ -646,6 +646,8 @@ DRIVE BASE:
 <div class="wp-block-cocoon-blocks-button-wrap-1 aligncenter btn-wrap btn-wrap-block button-block btn-wrap-circle btn-wrap-shine has-text-color has-background has-cocoon-white-color has-teal-background-color has-custom-width cocoon-block-button__width-75"><a href="ここにアフィリエイトURL" target="_blank" rel="nofollow sponsored noopener">案件名で対応内容を確認する</a></div>
 <!-- /wp:cocoon-blocks/button-wrap-1 -->
 ```
+
+案件管理シートB列がURLのみの場合も、URL文字列を変更せずhrefへ設定し、本文生成後にシステム側で上記Cocoon囲みボタンを生成する。C列のショートコードを最優先し、B列がA8リンクHTMLの場合は自由テキストのプレースホルダーだけをCTA文言へ置換する。既存の具体的なCTA文言、href、計測画像は変更しない。
 - 例: `楽天でディテールブラシを比較する`
 - 例: `〇〇公式で対応範囲を確認する`
 - ただし「絶対おすすめ」「最安」「一番良い」などの断定や、購入を急がせる表現は使わない

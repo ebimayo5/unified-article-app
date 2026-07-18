@@ -313,6 +313,15 @@ function uaGetManagedAffiliateCtaSpec_(rowData) {
     };
   }
 
+  if (project.url && project.linkInput === project.url && /^https?:\/\/[^\s"'<>]+$/i.test(project.linkInput)) {
+    return {
+      type: 'url',
+      name: project.name,
+      url: project.url,
+      content: project.linkInput
+    };
+  }
+
   return null;
 }
 

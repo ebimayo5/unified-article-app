@@ -220,6 +220,12 @@ function uaBuildManagedAffiliateCtaBlock_(spec, ctaText) {
 
   if (spec.type === 'shortcode') {
     tagContent = String(spec.content || '').trim();
+  } else if (spec.type === 'url') {
+    const exactUrl = String(spec.content || '').trim();
+    if (!exactUrl || exactUrl !== String(spec.url || '').trim() || !/^https?:\/\/[^\s"'<>]+$/i.test(exactUrl)) {
+      throw new Error('案件管理シートのURLを安全に囲みボタンへ設定できません。B列のURLを確認してください。');
+    }
+    tagContent = '<a href="' + exactUrl + '" target="_blank" rel="nofollow sponsored noopener">' + uaEscapeHtml_(ctaText) + '</a>';
   } else {
     const sourceHtml = uaNormalizeAnchorRelAttributes_(uaNormalizeAffiliateCodeInput_(spec.content));
     const safeText = uaEscapeHtml_(ctaText);
@@ -251,6 +257,42 @@ function uaBuildManagedAffiliateCtaBlock_(spec, ctaText) {
     '<div class="wp-block-cocoon-blocks-button-wrap-1 aligncenter btn-wrap btn-wrap-block button-block btn-wrap-circle btn-wrap-shine has-text-color has-background has-cocoon-white-color has-teal-background-color has-custom-width cocoon-block-button__width-75">' + tagContent + '</div>',
     '<!-- /wp:cocoon-blocks/button-wrap-1 -->'
   ].join('\n');
+}
+
+function uaTestManagedAffiliateUrlCta() {
+  const cases = [
+    {
+      name: 'ナビ男くん',
+      url: 'https://px.a8.net/svt/ejp?a8mat=44Z0VG+70FT9U+4YGQ+BW0YB&a8ejpredirect=https%3A%2F%2Fnaviokun.ocnk.net%2F'
+    },
+    {
+      name: 'シンシェード',
+      url: 'https://px.a8.net/svt/ejp?a8mat=44Z0VG+6ZUDO2+5JIS+BW0YB&a8ejpredirect=https%3A%2F%2Fshinshade.com%2F'
+    }
+  ];
+
+  cases.forEach(function(item, index) {
+    const block = uaBuildManagedAffiliateCtaBlock_({
+      type: 'url',
+      name: item.name,
+      url: item.url,
+      content: item.url
+    }, item.name + 'で対応内容を確認する');
+    const anchor = /<div class="wp-block-cocoon-blocks-button-wrap-1[^>]*>([\s\S]*?)<\/div>/.exec(block);
+    const href = anchor && /<a\b[^>]*\bhref="([^"]+)"/i.exec(anchor[1]);
+    if (!href || href[1] !== item.url) {
+      throw new Error('B列URLが囲みボタンで改変されました。case=' + (index + 1));
+    }
+    if (uaFindPrePublishDuplicateRelLinks_(block).length) {
+      throw new Error('URL囲みボタンのrel属性が重複しています。case=' + (index + 1));
+    }
+  });
+
+  return {
+    ok: true,
+    testedCases: cases.length,
+    urlsPreserved: true
+  };
 }
 
 function uaIsAffiliateFreeTextPlaceholder_(value) {

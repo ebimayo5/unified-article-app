@@ -289,6 +289,31 @@
         border-color: #aed6c3;
       }
 
+      button.danger {
+        color: #fff;
+        background: var(--danger);
+        border-color: #8f1c13;
+      }
+
+      .auto-posting-status {
+        margin-top: 8px;
+        padding: 9px 10px;
+        border: 1px solid #8ed2ad;
+        border-radius: 6px;
+        color: var(--brand-dark);
+        background: #f2fff8;
+        font-weight: 800;
+        line-height: 1.55;
+        white-space: pre-line;
+      }
+
+      .auto-posting-status.error {
+        color: #8f1c13;
+        background: #fff1f0;
+        border-color: #f97066;
+        box-shadow: inset 4px 0 0 var(--danger);
+      }
+
       button:disabled {
         cursor: default;
         opacity: 0.62;
@@ -637,7 +662,8 @@
             </select>
             <div id="autoPostingSummary" style="margin-top:8px; color:var(--text); line-height:1.6;">毎日4時ごろ・1日1記事。重大NG時は下書きで停止します。</div>
             <button class="primary" type="button" style="width:100%; margin-top:10px;" onclick="saveAutomaticPostingSettings(this)">自動投稿設定を保存</button>
-            <div id="autoPostingStatus" style="margin-top:8px; color:var(--brand-dark); font-weight:800; white-space:pre-line;">設定を読み込み中...</div>
+            <div id="autoPostingStatus" class="auto-posting-status">設定を読み込み中...</div>
+            <button id="autoPostingResumeButton" class="danger hidden" type="button" style="margin-top:8px;" onclick="resumeAutomaticPosting(this)">停止位置から再開</button>
           </div>
 
           <div class="api-model-grid">
@@ -860,9 +886,14 @@
         if (!config || config.useWordPress === false) return;
         google.script.run
           .withSuccessHandler(renderAutomaticPostingSettings)
-          .withFailureHandler(function() {
+          .withFailureHandler(function(error) {
             const status = document.getElementById('autoPostingStatus');
-            if (status) status.textContent = '設定の読み込みに失敗しました。';
+            if (status) {
+              status.textContent = '設定の読み込みに失敗しました。\n' + (error && error.message ? error.message : '時間をおいて再読み込みしてください。');
+              status.classList.add('error');
+            }
+            const resumeButton = document.getElementById('autoPostingResumeButton');
+            if (resumeButton) resumeButton.classList.add('hidden');
           })
           .uaGetAutomaticPostingSettingsForPanel(appType);
       }
@@ -881,7 +912,26 @@
         const parts = [settings.status || ''];
         if (settings.activeKeyword) parts.push('処理中: ' + settings.activeKeyword + (settings.activeStep ? ' / ' + settings.activeStep : ''));
         if (settings.lastError) parts.push('エラー: ' + settings.lastError);
-        document.getElementById('autoPostingStatus').textContent = parts.filter(Boolean).join('\n') || '状態なし';
+        const status = document.getElementById('autoPostingStatus');
+        const hasError = Boolean(settings.lastError) || settings.activeJobStatus === 'error';
+        status.textContent = parts.filter(Boolean).join('\n') || '状態なし';
+        status.classList.toggle('error', hasError);
+        const resumeButton = document.getElementById('autoPostingResumeButton');
+        if (resumeButton) resumeButton.classList.toggle('hidden', !(hasError && settings.activeJobStatus === 'error'));
+      }
+
+      function resumeAutomaticPosting(button) {
+        const appType = document.getElementById('appType').value;
+        setBusy('停止位置から再開しています...', button);
+        google.script.run
+          .withSuccessHandler(function(result) {
+            clearBusy();
+            setProgress('done');
+            renderAutomaticPostingSettings(result);
+            setNotice(result && result.message ? result.message : '停止位置から再開しました。', false);
+          })
+          .withFailureHandler(fail)
+          .uaResumeAutomaticPostingFromPanel(appType);
       }
 
       function saveAutomaticPostingSettings(button) {
@@ -2077,3 +2127,4 @@ function saveProviders(button) {
     </script>
   </body>
 </html>
+

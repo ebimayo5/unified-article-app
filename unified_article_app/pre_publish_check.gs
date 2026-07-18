@@ -304,9 +304,11 @@ function uaBuildPrePublishRuleCheck_(rowData) {
   const titleNumberIssue = uaFindTitleNumberConsistencyIssue_(title, body);
   const currentSourceIssue = uaCheckCurrentOfficialSourceRequirement_(rowData, body);
   const affiliateDetourIssue = uaFindAffiliateDetourIssue_(rowData, body);
+  let siteFitIssue = null;
   let ymylNoticeSpec = null;
   try {
     const appConfig = uaGetAppConfigByLabel_(rowData && rowData.appType);
+    siteFitIssue = uaFindDeterministicKeywordSiteFitIssue_(rowData && rowData.mainInput, appConfig);
     ymylNoticeSpec = uaBuildYmylNoticeSpec_(rowData || {}, appConfig, body);
   } catch (e) {
     ymylNoticeSpec = null;
@@ -433,6 +435,9 @@ function uaBuildPrePublishRuleCheck_(rowData) {
   if (affiliateDetourIssue) {
     (affiliateDetourIssue.critical ? result.critical : result.warnings).push(affiliateDetourIssue.message);
   }
+  if (siteFitIssue) {
+    result.critical.push(uaBuildSiteFitStopMessage_(siteFitIssue, uaGetAppConfigByLabel_(rowData && rowData.appType)));
+  }
 
   if (body.indexOf('wp:cocoon-blocks/blogcard') !== -1 &&
       body.indexOf('wp-block-cocoon-blocks-blogcard') !== -1) {
@@ -529,9 +534,6 @@ function uaFindTitleNumberConsistencyIssue_(title, body) {
     : topic === '選' || topic === '項目' || topic === '個' || topic === '点' || topic === 'つ'
     ? /(おすすめ|チェック|ポイント|理由|原因|方法|手順|対策|コツ|特徴|メリット|デメリット|違い|比較|失敗|後悔|注意|選び方|確認)/
     : new RegExp(topic.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
-  const matchingHeadingIndexes = headings.map(function(item, index) {
-    return topicPattern.test(item.text) ? index : -1;
-  }).filter(function(index) { return index >= 0; });
   const expectedText = String(expected);
   const expectedFullWidthText = expectedText.replace(/[0-9]/g, function(char) {
     return String.fromCharCode(char.charCodeAt(0) + 65248);
@@ -539,6 +541,9 @@ function uaFindTitleNumberConsistencyIssue_(title, body) {
   const expectedHeadingPattern = new RegExp(
     '(?:' + expectedText + '|' + expectedFullWidthText + ')\\s*(?:つ|選|項目|個|点|ポイント|理由|方法|チェック|注意点|コツ|特徴|メリット|デメリット|対策|手順|原因|違い|失敗例)?'
   );
+  const matchingHeadingIndexes = headings.map(function(item, index) {
+    return topicPattern.test(item.text) && expectedHeadingPattern.test(item.text) ? index : -1;
+  }).filter(function(index) { return index >= 0; });
   matchingHeadingIndexes.sort(function(a, b) {
     const aText = String(headings[a].text || '');
     const bText = String(headings[b].text || '');
@@ -629,7 +634,7 @@ function uaFindAffiliateDetourIssue_(rowData, body) {
 function uaAssertWpDraftHardQualityGates_(rowData) {
   const check = uaBuildPrePublishRuleCheck_(rowData || {});
   const blockers = check.critical.filter(function(item) {
-    return /(タイトルは「|rel属性で重複|最新性が必要|最新決算が必要|専用章が長すぎ|紹介セットと案件CTAの両方)/.test(String(item || ''));
+    return /(タイトルは「|rel属性で重複|最新性が必要|最新決算が必要|専用章が長すぎ|紹介セットと案件CTAの両方|キーワードの検索意図が)/.test(String(item || ''));
   });
   if (blockers.length) {
     throw new Error('WordPress下書き作成を停止しました。' + blockers.join(' / '));
@@ -1152,3 +1157,4 @@ function uaFindPrePublishStrongClaims_(body) {
 
   return hits;
 }
+

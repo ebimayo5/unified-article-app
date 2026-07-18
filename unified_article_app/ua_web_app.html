@@ -16,6 +16,18 @@
         --soft-strong: #c5ead7;
         --ink: #082820;
         --chrome: #062c23;
+        --page-top: #e9f5ee;
+        --chrome-end: #0b4a39;
+        --chrome-border: #145d48;
+        --sidebar-card: rgba(13, 75, 58, 0.92);
+        --sidebar-card-border: #24795c;
+        --sidebar-heading-line: #3f9475;
+        --sidebar-muted: #d8f5e7;
+        --accent-start: #0c6b50;
+        --accent-end: #53c896;
+        --primary-top: #20b87d;
+        --primary-bottom: #0f8d5d;
+        --primary-border: #0f7a53;
         --danger: #b42318;
       }
 
@@ -23,7 +35,7 @@
 
       body {
         margin: 0;
-        background: linear-gradient(180deg, #e9f5ee 0, var(--bg) 260px);
+        background: linear-gradient(180deg, var(--page-top) 0, var(--bg) 260px);
         color: var(--text);
         font-family: Arial, "Hiragino Sans", "Yu Gothic", Meiryo, sans-serif;
         font-size: 14px;
@@ -32,17 +44,17 @@
       }
 
       .app { min-height: 100vh; display: grid; grid-template-columns: 320px 1fr; }
-      .sidebar { border-right: 1px solid #145d48; background: linear-gradient(180deg, var(--chrome), #0b4a39); color: #eefbf4; min-height: 100vh; padding: 16px; position: sticky; top: 0; box-shadow: 14px 0 34px rgba(6, 44, 35, 0.18); }
+      .sidebar { border-right: 1px solid var(--chrome-border); background: linear-gradient(180deg, var(--chrome), var(--chrome-end)); color: #eefbf4; min-height: 100vh; padding: 16px; position: sticky; top: 0; box-shadow: 14px 0 34px rgba(6, 44, 35, 0.18); }
       .main { min-width: 0; padding: 16px 20px 28px; }
-      .topbar { position: sticky; top: 0; z-index: 20; display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; padding: 13px 15px 15px; margin-bottom: 12px; background: linear-gradient(135deg, var(--chrome), #0b4a39); border: 1px solid #145d48; border-radius: 8px; box-shadow: 0 16px 38px rgba(6, 44, 35, 0.18); backdrop-filter: blur(8px); }
+      .topbar { position: sticky; top: 0; z-index: 20; display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; padding: 13px 15px 15px; margin-bottom: 12px; background: linear-gradient(135deg, var(--chrome), var(--chrome-end)); border: 1px solid var(--chrome-border); border-radius: 8px; box-shadow: 0 16px 38px rgba(6, 44, 35, 0.18); backdrop-filter: blur(8px); }
       h1 { margin: 0 0 4px; color: var(--ink); font-size: 22px; line-height: 1.2; letter-spacing: 0; }
       .sidebar h1 { color: #ffffff; }
       .topbar h1 { color: #ffffff; }
       .topbar .muted { color: #cdeee1; }
-      .sidebar label { color: #d8f5e7; }
-      .sidebar .card { background: rgba(13, 75, 58, 0.92); border-color: #24795c; box-shadow: inset 0 1px 0 rgba(255,255,255,0.06); }
-      .sidebar .card h2 { color: #ffffff; border-bottom-color: #3f9475; }
-      .sidebar .muted { color: #d8f5e7; }
+      .sidebar label { color: var(--sidebar-muted); }
+      .sidebar .card { background: var(--sidebar-card); border-color: var(--sidebar-card-border); box-shadow: inset 0 1px 0 rgba(255,255,255,0.06); }
+      .sidebar .card h2 { color: #ffffff; border-bottom-color: var(--sidebar-heading-line); }
+      .sidebar .muted { color: var(--sidebar-muted); }
       .sidebar input, .sidebar textarea, .sidebar select { background: #f7fffb; }
       .sidebar .api-grid { grid-template-columns: 1fr; }
       h2 { margin: 0 0 10px; padding-bottom: 8px; border-bottom: 1px solid var(--soft-strong); color: var(--brand-dark); font-size: 16px; letter-spacing: 0; }
@@ -54,12 +66,12 @@
       button { border: 1px solid transparent; border-radius: 7px; padding: 9px 12px; font: inherit; font-weight: 800; cursor: pointer; letter-spacing: 0; transition: transform 0.12s ease, box-shadow 0.12s ease, background 0.12s ease, border-color 0.12s ease; }
       button:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 7px 16px rgba(7, 84, 61, 0.12); }
       button:disabled { opacity: 0.58; cursor: default; }
-      .primary { color: #fff; background: linear-gradient(180deg, #20b87d, #0f8d5d); border-color: #0f7a53; box-shadow: inset 0 1px 0 rgba(255,255,255,0.22); }
+      .primary { color: #fff; background: linear-gradient(180deg, var(--primary-top), var(--primary-bottom)); border-color: var(--primary-border); box-shadow: inset 0 1px 0 rgba(255,255,255,0.22); }
       .secondary { color: var(--brand-dark); background: linear-gradient(180deg, #e9f8ef, #d7f0e3); border-color: #79c59f; }
       .neutral { color: var(--brand-dark); background: linear-gradient(180deg, #f7fcf9, #e8f5ee); border-color: #aed6c3; }
       .danger { color: #fff; background: var(--danger); }
       .card { margin-bottom: 12px; padding: 14px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); box-shadow: 0 12px 28px rgba(6, 44, 35, 0.08); position: relative; overflow: hidden; }
-      .main > .card::before, .main-grid > .card::before { content: ""; position: absolute; inset: 0 0 auto; height: 3px; background: linear-gradient(90deg, #0c6b50, var(--brand), #53c896); }
+      .main > .card::before, .main-grid > .card::before { content: ""; position: absolute; inset: 0 0 auto; height: 3px; background: linear-gradient(90deg, var(--accent-start), var(--brand), var(--accent-end)); }
       .status { min-width: 270px; padding: 10px 12px; border: 1px solid #8ed2ad; border-radius: 7px; background: #f2fff8; color: var(--brand-dark); font-size: 15px; font-weight: 800; }
       .status.working { color: #fff; background: var(--brand); border-color: var(--brand); animation: pulseStatus 1.1s ease-in-out infinite; }
       .status.working::before { content: ""; display: inline-block; width: 12px; height: 12px; margin-right: 8px; border: 2px solid rgba(255,255,255,0.42); border-top-color: #fff; border-radius: 50%; vertical-align: -2px; animation: spinStatus 0.75s linear infinite; }
@@ -131,6 +143,18 @@
         --soft-strong: #e6d0ad;
         --ink: #2b1b0f;
         --chrome: #2a170d;
+        --page-top: #f1e5d4;
+        --chrome-end: #5a3518;
+        --chrome-border: #7b5327;
+        --sidebar-card: rgba(78, 45, 22, 0.94);
+        --sidebar-card-border: #946737;
+        --sidebar-heading-line: #a97b49;
+        --sidebar-muted: #f2dfc5;
+        --accent-start: #6d421f;
+        --accent-end: #d2a25f;
+        --primary-top: #b98443;
+        --primary-bottom: #8b5b26;
+        --primary-border: #73481d;
       }
       .theme-brown .sidebar,
       .theme-brown .topbar {
@@ -138,6 +162,18 @@
         border-color: #7b5327;
         box-shadow: 14px 0 34px rgba(42, 23, 13, 0.18);
       }
+      .theme-brown input,
+      .theme-brown textarea,
+      .theme-brown select { border-color: #d6b98f; background: #fffdf9; }
+      .theme-brown input:focus,
+      .theme-brown textarea:focus,
+      .theme-brown select:focus { outline-color: rgba(155, 106, 47, 0.2); }
+      .theme-brown .secondary { background: linear-gradient(180deg, #f7ead7, #ecd5b5); border-color: #c89d66; }
+      .theme-brown .neutral { background: linear-gradient(180deg, #fffdf9, #f4e8d7); border-color: #d8bb94; }
+      .theme-brown .status:not(.working):not(.error) { border-color: #d1aa75; background: #fff8ed; }
+      .theme-brown .workflow-progress { border-color: #d8bb94; background: #fff8ed; }
+      .theme-brown .workflow-step { border-color: #e3ccb0; color: #705337; }
+      .theme-brown .copy-button { border-color: #d8bb94; background: #faf0e2; }
       .theme-brown .topbar {
         background: linear-gradient(135deg, var(--chrome), #5a3518);
         box-shadow: 0 16px 38px rgba(42, 23, 13, 0.2);
@@ -225,8 +261,8 @@
           <textarea id="imageStylePrompt" class="notes-input" placeholder="手入力を選んだ場合の画風指定。例: 淡い色、人物なし、余白多め"></textarea>
         </div>
 
-        <div class="card">
-          <h2>自動投稿設定</h2>
+        <div id="automaticPostingPanel" class="card">
+          <h2 id="automaticPostingHeading">自動投稿設定</h2>
           <div class="row">
             <div>
               <label for="autoPostingEnabled">自動運転</label>
@@ -470,17 +506,25 @@
       }
 
       function loadAutomaticPostingSettings() {
+        const appType = document.getElementById('appType').value;
+        const panel = document.getElementById('automaticPostingPanel');
+        const config = appConfigs.find(function(item) { return item.label === appType; });
+        if (panel) panel.classList.toggle('hidden', !config || config.useWordPress === false);
+        if (!config || config.useWordPress === false) return;
         google.script.run
           .withSuccessHandler(renderAutomaticPostingSettings)
           .withFailureHandler(function(error) {
             const status = document.getElementById('autoPostingStatus');
             if (status) status.textContent = '設定の読み込みに失敗しました。';
           })
-          .uaGetAutomaticPostingSettingsForPanel();
+          .uaGetAutomaticPostingSettingsForPanel(appType);
       }
 
       function renderAutomaticPostingSettings(data) {
         const settings = data || {};
+        if (settings.appType && settings.appType !== document.getElementById('appType').value) return;
+        const heading = document.getElementById('automaticPostingHeading');
+        if (heading) heading.textContent = (settings.siteLabel || document.getElementById('appType').value) + ' 自動投稿設定';
         document.getElementById('autoPostingEnabled').value = settings.enabled ? 'ON' : 'OFF';
         document.getElementById('autoPostingImages').value = settings.includeImages === false ? 'なし' : 'あり';
         document.getElementById('autoPostingPublishMode').value = settings.publishMode === '公開まで' ? '公開まで' : '下書きまで';
@@ -495,6 +539,7 @@
 
       function saveAutomaticPostingSettings(button) {
         const data = {
+          appType: document.getElementById('appType').value,
           enabled: document.getElementById('autoPostingEnabled').value === 'ON',
           includeImages: document.getElementById('autoPostingImages').value === 'あり',
           publishMode: document.getElementById('autoPostingPublishMode').value,
@@ -528,6 +573,7 @@
       function onAppTypeChange() {
         applyTheme();
         applyDefaultImageStyle();
+        loadAutomaticPostingSettings();
         if (loadedAppType && document.getElementById('appType').value !== loadedAppType) {
           clearLoadedArticleForm();
           setNotice('サイトを切り替えました。候補シートから行を反映してください。', false);
@@ -605,9 +651,11 @@
       function applyTheme() {
         const config = currentConfig();
         const app = document.getElementById('app');
-        app.classList.remove('theme-brown', 'theme-blue');
-        if (config && config.theme === 'brown') app.classList.add('theme-brown');
-        if (config && config.theme === 'blue') app.classList.add('theme-blue');
+        [app, document.body].forEach(function(target) {
+          target.classList.remove('theme-brown', 'theme-blue');
+          if (config && config.theme === 'brown') target.classList.add('theme-brown');
+          if (config && config.theme === 'blue') target.classList.add('theme-blue');
+        });
         document.getElementById('mainInputLabel').textContent = config && config.inputLabel ? config.inputLabel : 'メインキーワード / 案件指示書';
         updateCandidateVisibility(config);
         updateWpVisibility(config);
@@ -738,6 +786,7 @@
         fields.forEach(function(id) { const el = document.getElementById(id); if (el) el.value = data[id] || ''; });
         applyDefaultImageStyle();
         applyTheme();
+        loadAutomaticPostingSettings();
         parseRakutenControlsFromNotes();
         loadedAppType = data && data.appType ? data.appType : '';
         document.getElementById('subText').textContent = data.mainInput ? data.mainInput : '候補を選ぶと、ここに編集フォームが入ります。';

@@ -15,12 +15,20 @@
         --soft-strong: #c5ead7;
         --ink: #082820;
         --chrome: #062c23;
+        --page-top: #e9f5ee;
+        --chrome-end: #0b4a39;
+        --chrome-border: #145d48;
+        --accent-start: #0c6b50;
+        --accent-end: #53c896;
+        --primary-top: #20b87d;
+        --primary-bottom: #0f8d5d;
+        --primary-border: #0f7a53;
         --danger: #b42318;
       }
 
       body {
         margin: 0;
-        background: linear-gradient(180deg, #e9f5ee 0, var(--bg) 240px);
+        background: linear-gradient(180deg, var(--page-top) 0, var(--bg) 240px);
         color: var(--text);
         font-family: Arial, "Hiragino Sans", "Yu Gothic", Meiryo, sans-serif;
         font-size: 13px;
@@ -44,8 +52,8 @@
         gap: 12px;
         padding: 13px 15px;
         margin-bottom: 14px;
-        background: linear-gradient(135deg, var(--chrome), #0b4a39);
-        border: 1px solid #145d48;
+        background: linear-gradient(135deg, var(--chrome), var(--chrome-end));
+        border: 1px solid var(--chrome-border);
         border-radius: 8px;
         box-shadow: 0 16px 38px rgba(6, 44, 35, 0.18);
         backdrop-filter: blur(8px);
@@ -80,7 +88,7 @@
         position: absolute;
         inset: 0 0 auto;
         height: 3px;
-        background: linear-gradient(90deg, #0c6b50, var(--brand), #53c896);
+        background: linear-gradient(90deg, var(--accent-start), var(--brand), var(--accent-end));
       }
 
       .wide-grid {
@@ -264,8 +272,8 @@
 
       button.primary {
         color: #fff;
-        background: linear-gradient(180deg, #20b87d, #0f8d5d);
-        border-color: #0f7a53;
+        background: linear-gradient(180deg, var(--primary-top), var(--primary-bottom));
+        border-color: var(--primary-border);
         box-shadow: inset 0 1px 0 rgba(255,255,255,0.22);
       }
 
@@ -467,6 +475,14 @@
         --soft-strong: #e6d0ad;
         --ink: #2b1b0f;
         --chrome: #2a170d;
+        --page-top: #f1e5d4;
+        --chrome-end: #5a3518;
+        --chrome-border: #7b5327;
+        --accent-start: #6d421f;
+        --accent-end: #d2a25f;
+        --primary-top: #b98443;
+        --primary-bottom: #8b5b26;
+        --primary-border: #73481d;
       }
 
       .theme-brown .header {
@@ -474,6 +490,19 @@
         border-color: #7b5327;
         box-shadow: 0 16px 38px rgba(42, 23, 13, 0.2);
       }
+
+      .theme-brown h2 { border-bottom-color: #eadbc5; }
+      .theme-brown input,
+      .theme-brown textarea,
+      .theme-brown select { border-color: #d6b98f; background: #fffdf9; }
+      .theme-brown input:focus,
+      .theme-brown textarea:focus,
+      .theme-brown select:focus { outline-color: rgba(155, 106, 47, 0.2); }
+      .theme-brown button.secondary { background: linear-gradient(180deg, #f7ead7, #ecd5b5); border-color: #c89d66; }
+      .theme-brown button.neutral { background: linear-gradient(180deg, #fffdf9, #f4e8d7); border-color: #d8bb94; }
+      .theme-brown .action-group { border-color: #dcc8aa; background: linear-gradient(180deg, #fffdf9, #faf3e8); }
+      .theme-brown .status:not(.working):not(.error) { border-color: #d1aa75; background: #fff8ed; }
+      .theme-brown button.copy-button { border-color: #d8bb94; background: #faf0e2; }
 
       .theme-brown .title::after {
         content: "たくみパパ";
@@ -579,8 +608,8 @@
           </div>
           <textarea id="imageStylePrompt" placeholder="手入力を選んだ場合の画風指定。例: 淡い色、人物なし、余白多め"></textarea>
 
-          <div style="margin-top:14px; padding:12px; border:2px solid var(--brand); border-radius:8px; background:#ffffff; color:var(--text);">
-            <h2 style="margin-bottom:8px;">自動投稿設定</h2>
+          <div id="automaticPostingPanel" style="margin-top:14px; padding:12px; border:2px solid var(--brand); border-radius:8px; background:#ffffff; color:var(--text);">
+            <h2 id="automaticPostingHeading" style="margin-bottom:8px;">自動投稿設定</h2>
             <div class="row">
               <div>
                 <label for="autoPostingEnabled">自動運転</label>
@@ -824,17 +853,25 @@
       }
 
       function loadAutomaticPostingSettings() {
+        const appType = document.getElementById('appType').value;
+        const panel = document.getElementById('automaticPostingPanel');
+        const config = appConfigs.find(function(item) { return item.label === appType; });
+        if (panel) panel.classList.toggle('hidden', !config || config.useWordPress === false);
+        if (!config || config.useWordPress === false) return;
         google.script.run
           .withSuccessHandler(renderAutomaticPostingSettings)
           .withFailureHandler(function() {
             const status = document.getElementById('autoPostingStatus');
             if (status) status.textContent = '設定の読み込みに失敗しました。';
           })
-          .uaGetAutomaticPostingSettingsForPanel();
+          .uaGetAutomaticPostingSettingsForPanel(appType);
       }
 
       function renderAutomaticPostingSettings(data) {
         const settings = data || {};
+        if (settings.appType && settings.appType !== document.getElementById('appType').value) return;
+        const heading = document.getElementById('automaticPostingHeading');
+        if (heading) heading.textContent = (settings.siteLabel || document.getElementById('appType').value) + ' 自動投稿設定';
         document.getElementById('autoPostingEnabled').value = settings.enabled ? 'ON' : 'OFF';
         document.getElementById('autoPostingImages').value = settings.includeImages === false ? 'なし' : 'あり';
         document.getElementById('autoPostingPublishMode').value = settings.publishMode === '公開まで' ? '公開まで' : '下書きまで';
@@ -849,6 +886,7 @@
 
       function saveAutomaticPostingSettings(button) {
         const data = {
+          appType: document.getElementById('appType').value,
           enabled: document.getElementById('autoPostingEnabled').value === 'ON',
           includeImages: document.getElementById('autoPostingImages').value === 'あり',
           publishMode: document.getElementById('autoPostingPublishMode').value,
@@ -918,6 +956,7 @@
         });
         applyDefaultImageStyle();
         applyTheme();
+        loadAutomaticPostingSettings();
         parseRakutenControlsFromNotes();
         loadedAppType = data && data.appType ? data.appType : '';
         setNotice('選択行を読み込みました。', false);
@@ -936,6 +975,7 @@
       function onAppTypeChange() {
         applyTheme();
         applyDefaultImageStyle();
+        loadAutomaticPostingSettings();
         if (loadedAppType && document.getElementById('appType').value !== loadedAppType) {
           clearLoadedArticleForm();
           setNotice('サイトを切り替えました。候補シートから行を反映してください。', false);
@@ -1005,9 +1045,11 @@
         const selected = document.getElementById('appType').value;
         const config = appConfigs.find(function(item) { return item.label === selected; });
         const app = document.getElementById('app');
-        app.classList.remove('theme-brown', 'theme-blue');
-        if (config && config.theme === 'brown') app.classList.add('theme-brown');
-        if (config && config.theme === 'blue') app.classList.add('theme-blue');
+        [app, document.body].forEach(function(target) {
+          target.classList.remove('theme-brown', 'theme-blue');
+          if (config && config.theme === 'brown') target.classList.add('theme-brown');
+          if (config && config.theme === 'blue') target.classList.add('theme-blue');
+        });
         document.getElementById('mainInputLabel').textContent =
           config && config.inputLabel ? config.inputLabel : 'メインキーワード / 案件指示書';
         const isGeneric = config && config.key === 'general';

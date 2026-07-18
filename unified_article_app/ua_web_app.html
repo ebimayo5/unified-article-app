@@ -371,7 +371,7 @@
     <div id="imageGeneratorDialog" class="modal-backdrop hidden">
       <div class="modal image-prompt-modal">
         <p class="modal-title">画像プロンプト</p>
-        <p class="modal-text">AIが各画像の被写体と構図を設計しました。手動生成は1枚分ずつコピーしてください。API実行では設計済みの全プロンプトを使います。</p>
+        <p class="modal-text">タイトルとH2から各画像の役割と図解構成を作成しました。手動生成は1枚分ずつコピーしてください。画像生成では設計済みの全プロンプトを使います。</p>
         <div class="image-prompt-toolbar">
           <button id="imagePromptPrev" class="neutral image-prompt-nav" type="button" title="前の画像" aria-label="前の画像" onclick="changeImagePromptBlock(-1)">&larr;</button>
           <span id="imagePromptCounter" class="image-prompt-counter">1 / 1</span>
@@ -890,7 +890,7 @@
         google.script.run.withSuccessHandler(function(result) {
           if (window.uaFullWorkflowCancelled) return;
           if (!result || !result.imagePromptPack) {
-            failFullArticleWorkflow(new Error('画像設計AIからプロンプトが返りませんでした。'), '画像プロンプト設計');
+            failFullArticleWorkflow(new Error('画像プロンプトを作成できませんでした。'), '画像プロンプト設計');
             return;
           }
           payload.imagePromptPack = result.imagePromptPack;
@@ -1217,12 +1217,12 @@
           return;
         }
         const payload = buildImagePromptRequestPayload(data, title);
-        const opToken = setBusy('画像プロンプト作成 / AIが各画像の被写体と構図を設計中...', button);
+        const opToken = setBusy('画像プロンプト作成 / タイトルとH2から図解を設計中...', button);
         google.script.run.withSuccessHandler(function(result) {
           if (isOperationCancelled(opToken)) return;
           clearBusy();
           if (!result || !result.imagePromptPack) {
-            fail(new Error('画像設計AIからプロンプトが返りませんでした。'));
+            fail(new Error('画像プロンプトを作成できませんでした。'));
             return;
           }
           setImagePromptPack(result.imagePromptPack);

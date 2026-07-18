@@ -26,13 +26,6 @@ function onOpen() {
     .addItem('楽天バナーを本文へ追加', 'uaAddRakutenBannerToActiveRow')
     .addItem('内部リンクを本文へ追加', 'uaAddInternalLinkToActiveRow')
     .addItem('外部リンクを本文へ追加', 'uaAddExternalSourceLinkToActiveRow')
-    .addSeparator()
-    .addItem('本文生成をGeminiに切替', 'uaSetArticleProviderGemini')
-    .addItem('本文生成をOpenAIに切替', 'uaSetArticleProviderOpenAi')
-    .addItem('本文生成をClaudeに切替', 'uaSetArticleProviderClaude')
-    .addSeparator()
-    .addItem('読者心理をGeminiに切替', 'uaSetReaderMindProviderGemini')
-    .addItem('読者心理をOpenAIに切替', 'uaSetReaderMindProviderOpenAi')
     .addToUi();
 }
 
@@ -630,24 +623,10 @@ function uaGetAppConfigList() {
 function uaGetPanelOptions() {
   return {
     appConfigs: uaGetAppConfigList(),
-    articleProviders: [
-      { value: 'openai', label: 'OpenAI（本文向き）' },
-      { value: 'gemini', label: 'Gemini' },
-      { value: 'claude', label: 'Claude' }
-    ],
-    readerMindProviders: [
-      { value: 'gemini', label: 'Gemini（読者心理向き）' },
-      { value: 'openai', label: 'OpenAI' }
-    ],
-    imageProviders: [
-      { value: 'openai', label: 'OpenAI Images' },
-      { value: 'gemini', label: 'Gemini Nano Banana / Pro' }
-    ],
-    imageModels: uaGetImageModelOptions_(),
-    selectedArticleProvider: uaGetArticleProvider_(),
-    selectedReaderMindProvider: uaGetReaderMindProvider_(),
-    selectedImageProvider: uaGetImageProvider_(),
-    selectedImageModelValue: uaGetSelectedImageModelValue_()
+    textModels: uaGetOpenAiTextModelOptions_(),
+    imageModels: uaGetOpenAiImageModelOptions_(),
+    selectedTextModel: uaGetOpenAiModel_(),
+    selectedImageModel: uaGetOpenAiImageModel_()
   };
 }
 
@@ -680,6 +659,26 @@ function uaGetClaudeApiKey_() {
 function uaGetOpenAiModel_() {
   return PropertiesService.getScriptProperties().getProperty('OPENAI_MODEL') ||
     UA_DEFAULT_OPENAI_MODEL;
+}
+
+function uaAppendCurrentModelOption_(options, currentModel) {
+  const cleanCurrentModel = String(currentModel || '').trim();
+  const copiedOptions = (options || []).map(function(option) {
+    return { value: option.value, label: option.label };
+  });
+  const values = copiedOptions.map(function(option) { return option.value; });
+  if (cleanCurrentModel && values.indexOf(cleanCurrentModel) === -1) {
+    copiedOptions.push({ value: cleanCurrentModel, label: cleanCurrentModel + '（現在の設定）' });
+  }
+  return copiedOptions;
+}
+
+function uaGetOpenAiTextModelOptions_() {
+  return uaAppendCurrentModelOption_(UA_OPENAI_TEXT_MODEL_OPTIONS || [], uaGetOpenAiModel_());
+}
+
+function uaGetOpenAiImageModelOptions_() {
+  return uaAppendCurrentModelOption_(UA_OPENAI_IMAGE_MODEL_OPTIONS || [], uaGetOpenAiImageModel_());
 }
 
 function uaGetImageModelOptions_() {
@@ -722,31 +721,15 @@ function uaGetClaudeModel_() {
 }
 
 function uaGetArticleProvider_() {
-  const provider = String(PropertiesService.getScriptProperties().getProperty(UA_ARTICLE_PROVIDER_PROPERTY) || 'openai')
-    .toLowerCase()
-    .trim();
-
-  if (provider === 'gemini' || provider === 'claude') {
-    return provider;
-  }
-
   return 'openai';
 }
 
 function uaGetReaderMindProvider_() {
-  const provider = String(PropertiesService.getScriptProperties().getProperty(UA_READER_MIND_PROVIDER_PROPERTY) || 'gemini')
-    .toLowerCase()
-    .trim();
-
-  return provider === 'openai' ? 'openai' : 'gemini';
+  return 'openai';
 }
 
 function uaGetImageProvider_() {
-  const provider = String(PropertiesService.getScriptProperties().getProperty(UA_IMAGE_PROVIDER_PROPERTY) || 'openai')
-    .toLowerCase()
-    .trim();
-
-  return provider === 'gemini' ? 'gemini' : 'openai';
+  return 'openai';
 }
 
 function uaSetArticleProviderGemini() {
@@ -775,40 +758,34 @@ function uaSetReaderMindProviderOpenAi() {
 }
 
 function uaSetProvidersFromPanel(articleProvider, readerMindProvider, imageProvider, imageModelValue) {
-  const cleanArticleProvider = String(articleProvider || '').toLowerCase().trim();
-  const cleanReaderMindProvider = String(readerMindProvider || '').toLowerCase().trim();
-  const cleanImageProvider = String(imageProvider || '').toLowerCase().trim();
-  const cleanImageModelValue = String(imageModelValue || '').trim();
+  const legacyImageModel = String(imageModelValue || '').replace(/^openai:/, '');
+  return uaSetOpenAiModelsFromPanel(uaGetOpenAiModel_(), legacyImageModel || uaGetOpenAiImageModel_());
+}
 
-  if (cleanArticleProvider === 'gemini' || cleanArticleProvider === 'openai' || cleanArticleProvider === 'claude') {
-    PropertiesService.getScriptProperties().setProperty(UA_ARTICLE_PROVIDER_PROPERTY, cleanArticleProvider);
+function uaSetOpenAiModelsFromPanel(textModel, imageModel) {
+  const cleanTextModel = String(textModel || '').trim();
+  const cleanImageModel = String(imageModel || '').trim();
+  const allowedTextModels = uaGetOpenAiTextModelOptions_().map(function(option) { return option.value; });
+  const allowedImageModels = uaGetOpenAiImageModelOptions_().map(function(option) { return option.value; });
+
+  if (!cleanTextModel || allowedTextModels.indexOf(cleanTextModel) === -1) {
+    throw new Error('選択した文章モデルは保存できません。パネルを再読み込みしてください。');
+  }
+  if (!cleanImageModel || allowedImageModels.indexOf(cleanImageModel) === -1) {
+    throw new Error('選択した画像モデルは保存できません。パネルを再読み込みしてください。');
   }
 
-  if (cleanReaderMindProvider === 'gemini' || cleanReaderMindProvider === 'openai') {
-    PropertiesService.getScriptProperties().setProperty(UA_READER_MIND_PROVIDER_PROPERTY, cleanReaderMindProvider);
-  }
-
-  if (cleanImageProvider === 'openai' || cleanImageProvider === 'gemini') {
-    PropertiesService.getScriptProperties().setProperty(UA_IMAGE_PROVIDER_PROPERTY, cleanImageProvider);
-  }
-
-  const imageModelParts = cleanImageModelValue.split(':');
-  const imageModelProvider = imageModelParts.shift();
-  const imageModel = imageModelParts.join(':');
-  if (imageModelProvider === 'gemini' && imageModel) {
-    const allowedGeminiImageModels = (UA_GEMINI_IMAGE_MODEL_OPTIONS || []).map(function(option) { return option.value; });
-    if (allowedGeminiImageModels.indexOf(imageModel) !== -1) {
-      PropertiesService.getScriptProperties().setProperty('GEMINI_IMAGE_MODEL', imageModel);
-      PropertiesService.getScriptProperties().setProperty(UA_IMAGE_PROVIDER_PROPERTY, 'gemini');
-    }
-  }
+  const properties = PropertiesService.getScriptProperties();
+  properties.setProperty('OPENAI_MODEL', cleanTextModel);
+  properties.setProperty('OPENAI_IMAGE_MODEL', cleanImageModel);
+  properties.setProperty(UA_ARTICLE_PROVIDER_PROPERTY, 'openai');
+  properties.setProperty(UA_READER_MIND_PROVIDER_PROPERTY, 'openai');
+  properties.setProperty(UA_IMAGE_PROVIDER_PROPERTY, 'openai');
 
   return {
-    selectedArticleModel: uaGetSelectedArticleModelLabel_(),
-    selectedReaderMindModel: uaGetSelectedReaderMindModelLabel_(),
-    selectedImageModel: uaGetSelectedImageModelLabel_(),
-    selectedImageModelValue: uaGetSelectedImageModelValue_(),
-    message: '使用APIを更新しました。'
+    selectedTextModel: uaGetOpenAiModel_(),
+    selectedImageModel: uaGetOpenAiImageModel_(),
+    message: 'OpenAIのモデル設定を更新しました。'
   };
 }
 
@@ -1143,3 +1120,4 @@ function uaBuildRowData_(sheet, row) {
     selectedReaderMindModel: uaGetSelectedReaderMindModelLabel_()
   };
 }
+

@@ -874,12 +874,27 @@ function uaCountPrePublishImages_(body) {
 
 function uaFindPrePublishDuplicateRelLinks_(body) {
   const result = [];
-  const regex = /<a\b[^>]*\brel=["']([^"']+)["'][^>]*>/gi;
+  const regex = /<a\b[^>]*>/gi;
   let match;
   while ((match = regex.exec(String(body || ''))) !== null) {
-    const rels = String(match[1] || '').split(/\s+/).filter(Boolean);
+    const tag = String(match[0] || '');
+    const relPattern = /\s+rel\s*=\s*(["'])([\s\S]*?)\1/gi;
+    const relAttributes = [];
+    let relMatch;
+    while ((relMatch = relPattern.exec(tag)) !== null) {
+      relAttributes.push(String(relMatch[2] || ''));
+    }
+
+    if (relAttributes.length > 1) {
+      result.push('rel属性が' + relAttributes.length + '個あります');
+      continue;
+    }
+
+    const rels = relAttributes.length
+      ? relAttributes[0].split(/\s+/).filter(Boolean)
+      : [];
     const dupes = uaFindPrePublishDuplicateItems_(rels);
-    if (dupes.length) result.push(dupes.join(', '));
+    if (dupes.length) result.push('同じ値があります: ' + dupes.join(', '));
   }
   return result;
 }

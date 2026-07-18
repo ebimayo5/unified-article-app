@@ -287,7 +287,7 @@ function uaNormalizeAnchorRelAttributes_(value) {
     if (relValues.length === 0) return tag;
 
     const withoutRel = tag.replace(relPattern, '');
-    return withoutRel.replace(/\s*>$/, ' rel="' + relValues.join(' ') + '">');
+    return withoutRel.replace(/\s*(\/?)>$/, ' rel="' + relValues.join(' ') + '"$1>');
   });
 }
 

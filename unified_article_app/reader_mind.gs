@@ -18,6 +18,11 @@ function uaRunReaderMindMemoFromPanel(data) {
     throw new Error((appConfig.inputLabel || 'メインキーワード') + 'を入力してください。');
   }
 
+  const deterministicSiteFitIssue = uaFindDeterministicKeywordSiteFitIssue_(mainInput, appConfig);
+  if (deterministicSiteFitIssue) {
+    throw new Error(uaBuildSiteFitStopMessage_(deterministicSiteFitIssue, appConfig));
+  }
+
   const provider = uaGetReaderMindProvider_();
 
   if (provider === 'gemini' && !uaGetGeminiApiKey_()) {
@@ -49,13 +54,23 @@ function uaRunReaderMindMemoFromPanel(data) {
     throw new Error('読者心理メモの生成結果に必要な項目がありません。');
   }
 
+  const siteFit = uaNormalizeReaderMindSiteFit_(resultJson.site_fit);
+  if (!siteFit.status && data && data.automaticPosting) {
+    throw new Error('キーワードの検索意図とサイト適合を判定できなかったため、本文生成前で停止しました。候補シートのキーワードを確認してから再開してください。');
+  }
+  if (siteFit.status === 'off_topic' || (siteFit.status === 'ambiguous' && data && data.automaticPosting)) {
+    throw new Error(uaBuildSiteFitStopMessage_(siteFit, appConfig));
+  }
+
   sheet.getRange(row, UA_COLUMNS.readerMindMemo).setValue(uaFormatReaderMindMemoValue_(resultJson.reader_mind_memo));
   sheet.getRange(row, UA_COLUMNS.createdAt).setValue(new Date());
   sheet.getRange(row, UA_COLUMNS.generationModel).setValue(uaFormatModelLabel_(provider, result && result.model));
   SpreadsheetApp.flush();
 
   const nextData = uaBuildRowData_(sheet, row);
-  nextData.message = sources.length > 0
+  nextData.message = siteFit.status === 'ambiguous'
+    ? '検索意図とサイトの適合が曖昧です。記事化前に読者心理メモの「主な検索意図」を確認してください。'
+    : sources.length > 0
     ? '読者心理メモを作成しました。取得件数: ' + sources.length
     : '読者心理メモを作成しました。元データ取得なしのため、入力内容から推定しています。';
   return nextData;
@@ -113,6 +128,11 @@ ${mainInput}
 ${sourceText}
 
 【出力方針】
+・最初に検索キーワードの主な検索意図が記事タイプに適合するか判定する。
+・DRIVE BASEは、車選び、車種、運転、整備、洗車、車載機器、カーナビ、車内快適化など自動車領域を対象とする。「ナビ」という一語だけで車関連と決めず、固有の商品名・機能名、収集データ、共起語から判定する。
+・たくみパパは、家づくり、住宅設備、間取り、家事、収納、外構、防災など住宅・暮らし領域を対象とする。
+・同じ表記が別業界の固有名詞を指す場合や、収集データの大半が記事タイプと別領域の場合は off_topic とする。複数の検索意図が拮抗して判断できない場合は ambiguous とする。
+・off_topicでも実際の検索意図を勝手に車・住宅へ寄せず、収集データから読み取れる主な検索意図を正直に返す。
 ・本文でそのまま引用するためではなく、記事構成・導入文・FAQ・判断軸を作るためのメモにする。
 ・収集データがない、または少ない場合は、入力内容から検索意図を推定してよい。ただし、取得データ由来の具体事実として扱わない。
 ・収集データがない場合でも、顕在ニーズ、潜在ニーズ、読者の葛藤、導入文で拾う本音、見出し順のヒント、FAQ候補、判断軸は必ず出す。
@@ -131,6 +151,11 @@ ${sourceText}
 
 回答は必ず以下のJSON形式でのみ出力してください。
 {
+  "site_fit": {
+    "status": "fit | ambiguous | off_topic",
+    "primary_intent": "このキーワードで最も強い検索意図",
+    "reason": "記事タイプへの適合を判断した根拠"
+  },
   "reader_mind_memo": {
     "顕在ニーズ": ["..."],
     "潜在ニーズ": ["..."],
@@ -346,3 +371,4 @@ function uaFetchReaderMindHtml_(url) {
 
   return response.getContentText('UTF-8');
 }
+

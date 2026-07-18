@@ -76,15 +76,19 @@ function uaApplyPrePublishFixesOnceFromPanel(data) {
     appConfig,
     [rowData.titleIdeas, rowData.structureMemo, rowData.body].join(' ')
   );
+  const protectedBody = uaProtectPrePublishRevisionBody_(originalBody);
+  const revisionPromptRowData = Object.assign({}, rowData, { body: protectedBody.body });
   const result = uaCallArticleGenerationJson_(
-    uaBuildPrePublishRevisionPrompt_(rowData, originalReport, externalSourcesPrompt),
+    uaBuildPrePublishRevisionPrompt_(revisionPromptRowData, originalReport, externalSourcesPrompt),
     provider
   );
-  const revision = uaNormalizePrePublishRevision_(result && result.data, rowData);
-  const revisedBody = uaNormalizeAnchorRelAttributes_(uaApplyNaviokunIntroSet_(
+  let revision = uaNormalizePrePublishRevision_(result && result.data, rowData);
+  let revisedBody = uaNormalizeAnchorRelAttributes_(uaApplyNaviokunIntroSet_(
     uaApplyManagedAffiliateCta_(
       uaApplyYmylNotice_(
-        uaNormalizeFaqHeadingLevels_(uaFixGeneratedHtml_(revision.bodyHtml)),
+        uaNormalizeFaqHeadingLevels_(uaFixGeneratedHtml_(
+          uaRestorePrePublishProtectedBlocks_(revision.bodyHtml, protectedBody.blocks)
+        )),
         rowData,
         appConfig
       ),
@@ -101,7 +105,17 @@ function uaApplyPrePublishFixesOnceFromPanel(data) {
     .concat(uaGetYmylNoticeSourceUrls_(rowData, appConfig, revisedBody))
     .filter(Boolean);
 
-  uaValidatePrePublishRevision_(originalBody, revisedBody, allowedNewUrls);
+  let rejectedRevisionReason = '';
+  try {
+    uaValidatePrePublishRevision_(originalBody, revisedBody, allowedNewUrls);
+  } catch (revisionError) {
+    rejectedRevisionReason = revisionError && revisionError.message
+      ? revisionError.message
+      : String(revisionError || '安全検証に失敗しました。');
+    revision = uaBuildRejectedPrePublishRevisionFallback_(revision, rowData, rejectedRevisionReason);
+    revisedBody = originalBody;
+    uaValidatePrePublishRevision_(originalBody, revisedBody, allowedNewUrls);
+  }
 
   sheet.getRange(row, UA_COLUMNS.body, 1, 5).setValues([[
     revisedBody,
@@ -133,8 +147,75 @@ function uaApplyPrePublishFixesOnceFromPanel(data) {
   }
 
   const nextData = uaBuildRowData_(sheet, row);
-  nextData.message = '公開前チェックの指摘を文脈に沿って1回修正しました。';
+  nextData.message = rejectedRevisionReason
+    ? '自動修正案は保護要素を維持できなかったため不採用とし、元本文を維持して公開前チェックを通過しました。'
+    : '公開前チェックの指摘を文脈に沿って1回修正しました。';
   return nextData;
+}
+
+function uaBuildRejectedPrePublishRevisionFallback_(revision, rowData, reason) {
+  const source = revision && typeof revision === 'object' ? revision : {};
+  const original = rowData && typeof rowData === 'object' ? rowData : {};
+  const skippedSuggestions = Array.isArray(source.skippedSuggestions)
+    ? source.skippedSuggestions.slice()
+    : [];
+  skippedSuggestions.push({
+    target: '本文の自動修正案',
+    reason: '安全検証で不採用にし、元本文を維持しました: ' + String(reason || '保護要素を維持できませんでした。')
+  });
+  return {
+    bodyHtml: String(original.body || ''),
+    titleIdeas: String(original.titleIdeas || ''),
+    tags: String(original.tags || ''),
+    metaDescription: String(original.metaDescription || ''),
+    permalink: String(original.permalink || ''),
+    appliedChanges: [],
+    skippedSuggestions: skippedSuggestions,
+    manualConfirmationNeeded: Array.isArray(source.manualConfirmationNeeded)
+      ? source.manualConfirmationNeeded.slice()
+      : []
+  };
+}
+
+function uaProtectPrePublishRevisionBody_(body) {
+  let protectedBody = String(body || '');
+  const blocks = [];
+  const patterns = [
+    ['Cocoon情報ボックス', /<!--\s*wp:cocoon-blocks\/info-box\b[\s\S]*?<!--\s*\/wp:cocoon-blocks\/info-box\s*-->/gi],
+    ['この記事のポイント', /<!--\s*wp:cocoon-blocks\/tab-caption-box-1\b[\s\S]*?<!--\s*\/wp:cocoon-blocks\/tab-caption-box-1\s*-->/gi],
+    ['CTA', /<!--\s*wp:cocoon-blocks\/button-wrap-1\b[\s\S]*?<!--\s*\/wp:cocoon-blocks\/button-wrap-1\s*-->/gi],
+    ['本文画像', /<!--\s*wp:image\b[\s\S]*?<!--\s*\/wp:image\s*-->/gi],
+    ['Cocoonブログカード', /<!--\s*wp:cocoon-blocks\/blogcard\b[\s\S]*?<!--\s*\/wp:cocoon-blocks\/blogcard\s*-->/gi]
+  ];
+
+  patterns.forEach(function(spec) {
+    protectedBody = protectedBody.replace(spec[1], function(blockHtml) {
+      const placeholder = '<!-- UA_PROTECTED_BLOCK_' + String(blocks.length + 1).padStart(3, '0') + ' -->';
+      blocks.push({
+        placeholder: placeholder,
+        html: blockHtml,
+        label: spec[0]
+      });
+      return placeholder;
+    });
+  });
+
+  return { body: protectedBody, blocks: blocks };
+}
+
+function uaRestorePrePublishProtectedBlocks_(body, blocks) {
+  let restoredBody = String(body || '');
+  (blocks || []).forEach(function(block) {
+    const count = uaCountPrePublishToken_(restoredBody, block.placeholder);
+    if (count !== 1) {
+      throw new Error(
+        '自動修正案で保護中の' + block.label + 'の位置情報が' +
+        (count === 0 ? '消えました。' : '重複しました。')
+      );
+    }
+    restoredBody = restoredBody.replace(block.placeholder, block.html);
+  });
+  return restoredBody;
 }
 
 function uaBuildPrePublishRevisionPrompt_(rowData, checkReport, externalSourcesPrompt) {
@@ -151,6 +232,7 @@ function uaBuildPrePublishRevisionPrompt_(rowData, checkReport, externalSourcesP
     '案件が検索意図の中心から少し離れる場合は、案件のためだけのH2・H3や長い商品紹介章を作らず、既存の購入判断セクション内の1〜3段落に圧縮してください。変えにくい不満と後から調整できる不満など、記事の主題に沿う短い橋渡しは残してください。',
     'ナビ男くん案件では紹介セットと案件CTAの両方を必ず残してください。検索意図から少し離れる場合は、メインキーワード、読者の不安、対象車種、直前セクションの結論を読み、「なぜここでナビ男くんを確認するのか」が具体的に分かる橋渡しへ直してください。単なる「選択肢です」「確認してみましょう」だけの接続は禁止です。',
     '「この記事のポイント」はCocoon tab-caption-box-1、CTAはCocoon button-wrap-1、内部リンクは前置き文とCocoonブログカードの形式を守ってください。',
+    '本文中の <!-- UA_PROTECTED_BLOCK_数字 --> は、システムが保護している画像・リンク・CTAなどの位置を表します。文字列を変更・削除・複製・移動せず、必ず元の位置に1個だけ残してください。',
     'H2は「よくある質問」「まとめ」を含めて最大7個にしてください。H2が多い場合は近い論点を統合し、詳細をH3へ整理してください。',
     'FAQはH2「よくある質問」の直下にH3「Q. 質問」を置き、回答はp要素にしてください。FAQ内の質問にH4は使わないでください。',
     'タイトル案を直す場合は、メインキーワードを自然に含め、本文に根拠がある数字を使い、読者の悩みと読むメリットが伝わる魅力的な30〜32文字を目安にしてください。煽りや本文にない約束は禁止です。',
@@ -1064,4 +1146,3 @@ function uaFindPrePublishStrongClaims_(body) {
 
   return hits;
 }
-

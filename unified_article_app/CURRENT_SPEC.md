@@ -365,6 +365,9 @@ JSON例:
 
 スクリプトプロパティ:
 
+- `OPENAI_API_KEY`
+- `OPENAI_MODEL`
+- `OPENAI_IMAGE_MODEL`
 - `ARTICLE_PROVIDER`
 - `READER_MIND_PROVIDER`
 - `UA_RAKUTEN_APPLICATION_ID`
@@ -373,30 +376,16 @@ JSON例:
 - `UA_RAKUTEN_AFFILIATE_BANNER_HTML`
 - `UA_LOCAL_IMPORT_TOKEN`
 
-対応:
+通常運転:
 
-- OpenAI
-- Gemini
-- Claude
-
-現在の傾向:
-
-- 本文生成はOpenAIが安定して高品質
-- 読者心理メモはGeminiでも十分使える
-- Claudeはクレジット切れやAPI残高に注意
-
-Geminiモデル:
-
-- `models/gemini-3.5-flash`
-- `models/gemini-2.5-pro`
-
-OpenAIデフォルト:
-
-- `gpt-5.2`
-
-Claudeデフォルト:
-
-- `claude-sonnet-4-5-20250929`
+- 読者心理、構成、本文、公開前編集・チェック、自動修正をOpenAI APIへ統一する
+- 画像生成もOpenAI Imagesを使う
+- Gemini / Claudeの既存コードは互換性のため残すが、通常パネルには表示せず、自動的な代替先にも使わない
+- OpenAIでエラーになった場合は、別会社のAPIへ切り替えず停止し、自動投稿のエラー通知・再開処理へ渡す
+- パネルでは「OpenAI 文章モデル」と「OpenAI 画像モデル」を選択する。文章モデルはすべての文章生成工程で共通
+- 既存設定との互換性を優先し、文章モデルの初期値・未変更時は `gpt-5.2`、画像モデルは `gpt-image-2`
+- 文章モデル候補は `gpt-5.2`、`gpt-5.6-terra`、`gpt-5.6-sol`、`gpt-5.6-luna`
+- モデル変更時は既存の `OPENAI_API_KEY` を再利用し、キーそのものを画面やログへ表示しない
 
 ## WordPress
 
@@ -781,3 +770,4 @@ DRIVE BASE:
 3. たくみパパの記事で家電・住宅設備メーカー公式リンクが自然に入るか確認する
 4. READMEをこの仕様メモに合わせて整理する
 5. パネルUIの細かいサイズ感とボタン色を追加調整する
+

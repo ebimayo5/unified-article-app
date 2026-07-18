@@ -444,9 +444,19 @@ function uaFindTitleNumberConsistencyIssue_(title, body) {
   const matchingHeadingIndexes = headings.map(function(item, index) {
     return topicPattern.test(item.text) ? index : -1;
   }).filter(function(index) { return index >= 0; });
+  const expectedText = String(expected);
+  const expectedFullWidthText = expectedText.replace(/[0-9]/g, function(char) {
+    return String.fromCharCode(char.charCodeAt(0) + 65248);
+  });
+  const expectedHeadingPattern = new RegExp(
+    '(?:' + expectedText + '|' + expectedFullWidthText + ')\\s*(?:つ|選|項目|個|点|ポイント|理由|方法|チェック|注意点|コツ|特徴|メリット|デメリット|対策|手順|原因|違い|失敗例)?'
+  );
   matchingHeadingIndexes.sort(function(a, b) {
     const aText = String(headings[a].text || '');
     const bText = String(headings[b].text || '');
+    const aHasExpectedNumber = expectedHeadingPattern.test(aText) ? 1 : 0;
+    const bHasExpectedNumber = expectedHeadingPattern.test(bText) ? 1 : 0;
+    if (aHasExpectedNumber !== bHasExpectedNumber) return bHasExpectedNumber - aHasExpectedNumber;
     const aExact = preferredTerm && aText.indexOf(preferredTerm) !== -1 ? 1 : 0;
     const bExact = preferredTerm && bText.indexOf(preferredTerm) !== -1 ? 1 : 0;
     if (aExact !== bExact) return bExact - aExact;
@@ -465,7 +475,7 @@ function uaFindTitleNumberConsistencyIssue_(title, body) {
     }
   }
   const section = String(body || '').slice(target.end, sectionEnd);
-  const numberedHeadings = (section.match(/<h[3-4]\b[^>]*>\s*(?:<[^>]+>\s*)*[1-9１-９][.．、:：\s]/gi) || []).length;
+  const numberedHeadings = (section.match(/<h[3-4]\b[^>]*>\s*(?:<[^>]+>\s*)*(?:10|[1-9]|１０|[１-９])[.．、:：\s]/gi) || []).length;
   const listItems = (section.match(/<li\b/gi) || []).length;
   const actual = numberedHeadings || listItems;
 
@@ -1054,3 +1064,4 @@ function uaFindPrePublishStrongClaims_(body) {
 
   return hits;
 }
+

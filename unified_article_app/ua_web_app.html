@@ -299,6 +299,7 @@
           <button class="primary" type="button" style="width:100%; margin-top:10px;" onclick="saveAutomaticPostingSettings(this)">自動投稿設定を保存</button>
           <div id="autoPostingStatus" class="auto-posting-status">設定を読み込み中...</div>
           <button id="autoPostingResumeButton" class="danger hidden" type="button" style="width:100%; margin-top:8px;" onclick="resumeAutomaticPosting(this)">停止位置から再開</button>
+          <button id="autoPostingSkipButton" class="secondary hidden" type="button" style="width:100%; margin-top:8px;" onclick="skipAutomaticPosting(this)">この記事を対象外にして次へ</button>
         </div>
       </aside>
 
@@ -523,6 +524,8 @@
             }
             const resumeButton = document.getElementById('autoPostingResumeButton');
             if (resumeButton) resumeButton.classList.add('hidden');
+            const skipButton = document.getElementById('autoPostingSkipButton');
+            if (skipButton) skipButton.classList.add('hidden');
           })
           .uaGetAutomaticPostingSettingsForPanel(appType);
       }
@@ -549,6 +552,8 @@
         status.classList.toggle('error', hasError);
         const resumeButton = document.getElementById('autoPostingResumeButton');
         if (resumeButton) resumeButton.classList.toggle('hidden', !(hasError && settings.activeJobStatus === 'error'));
+        const skipButton = document.getElementById('autoPostingSkipButton');
+        if (skipButton) skipButton.classList.toggle('hidden', !(hasError && settings.activeJobStatus === 'error'));
       }
 
       function resumeAutomaticPosting(button) {
@@ -563,6 +568,21 @@
           })
           .withFailureHandler(fail)
           .uaResumeAutomaticPostingFromPanel(appType);
+      }
+
+      function skipAutomaticPosting(button) {
+        if (!window.confirm('このキーワードを保留へ戻し、現在の記事を対象外にして次の候補へ進みます。よろしいですか？')) return;
+        const appType = document.getElementById('appType').value;
+        setBusy('対象外にして次の候補へ進んでいます...', button);
+        google.script.run
+          .withSuccessHandler(function(result) {
+            clearBusy();
+            setProgress('done');
+            renderAutomaticPostingSettings(result);
+            setNotice(result && result.message ? result.message : '対象外にして次の候補へ進みます。', false);
+          })
+          .withFailureHandler(fail)
+          .uaSkipAutomaticPostingFromPanel(appType);
       }
 
       function saveAutomaticPostingSettings(button) {

@@ -11,6 +11,15 @@ const UA_GEMINI_MODELS = [
 
 const UA_DEFAULT_OPENAI_MODEL = 'gpt-5.2';
 const UA_DEFAULT_OPENAI_IMAGE_MODEL = 'gpt-image-2';
+const UA_OPENAI_TEXT_MODEL_OPTIONS = [
+  { value: 'gpt-5.2', label: 'GPT-5.2（現在の安定設定）' },
+  { value: 'gpt-5.6-terra', label: 'GPT-5.6 Terra（推奨・品質とコストのバランス）' },
+  { value: 'gpt-5.6-sol', label: 'GPT-5.6 Sol（最高品質）' },
+  { value: 'gpt-5.6-luna', label: 'GPT-5.6 Luna（コスト重視）' }
+];
+const UA_OPENAI_IMAGE_MODEL_OPTIONS = [
+  { value: 'gpt-image-2', label: 'GPT Image 2' }
+];
 const UA_DEFAULT_GEMINI_IMAGE_MODEL = 'models/gemini-3-pro-image-preview';
 const UA_GEMINI_IMAGE_MODEL_OPTIONS = [
   { value: 'models/gemini-3-pro-image-preview', label: 'Gemini Nano Banana Pro' },
@@ -163,3 +172,4 @@ const UA_HEADERS = [
   'WP入稿日時',
   '構成メモ'
 ];
+

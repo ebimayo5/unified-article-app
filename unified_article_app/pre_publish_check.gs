@@ -69,7 +69,7 @@ function uaApplyPrePublishFixesOnceFromPanel(data) {
     throw new Error('記事タイプを判定できません。対象行の記事タイプを確認してください。');
   }
 
-  const provider = uaGetArticleProvider_();
+  const provider = uaGetPrePublishRevisionProvider_();
   uaAssertArticleProviderReady_(provider);
   const externalSourcesPrompt = uaBuildExternalSourcesPrompt_(
     rowData.mainInput,
@@ -153,6 +153,10 @@ function uaApplyPrePublishFixesOnceFromPanel(data) {
   return nextData;
 }
 
+function uaGetPrePublishRevisionProvider_() {
+  return 'openai';
+}
+
 function uaBuildRejectedPrePublishRevisionFallback_(revision, rowData, reason) {
   const source = revision && typeof revision === 'object' ? revision : {};
   const original = rowData && typeof rowData === 'object' ? rowData : {};
@@ -224,6 +228,7 @@ function uaBuildPrePublishRevisionPrompt_(rowData, checkReport, externalSourcesP
     '最重要: 指摘に含まれる単語だけを見て一律置換しないでください。本文全体、前後の文、段落、見出しの役割、読者の検索意図を読んでから、修正が必要か判断してください。',
     '機械チェックの検出は修正候補であり、すべてを直す命令ではありません。質問文、引用、条件付き説明、手順、注意書き、保証・契約内容の説明として適切なら変更せず、skipped_suggestions に理由を残してください。',
     '元の意味と事実を変えず、必要な箇所だけを最小限に直してください。記事全体の書き直しは禁止です。',
+    '元本文は公開候補として一定品質に達している前提です。重大NGを解消する箇所と、明らかな誤り・重複だけを差分修正し、問題のない見出し、段落、具体例、導線、文章表現を整え直さないでください。要確認だけを理由に構成全体を変更するのは禁止です。',
     '事実、数値、制度、法規、安全、価格、保証、メーカー仕様、対応可否、URLを推測で作らないでください。根拠を確認できない指摘は本文で断定せず、manual_confirmation_needed に残してください。',
     '信頼性が必要な主張には、その内容に直接対応する公的機関・メーカー公式・店舗公式などの外部リンクを近くに置いてください。ただし、下記の外部出典候補または本文内に既にあるURLだけを使用し、URLを捏造しないでください。',
     '「最新」「現在」、経営、倒産、決算、法規、制度、価格など鮮度が必要なテーマでは、使用を許可する外部出典候補のうち自動検索された最新の公式資料を優先してください。資料名、公表日または確認時点、記事の判断に必要な具体的数値・条件を本文へ反映し、一般論だけで完成させないでください。',
@@ -236,7 +241,7 @@ function uaBuildPrePublishRevisionPrompt_(rowData, checkReport, externalSourcesP
     'H2は「よくある質問」「まとめ」を含めて基本6〜8個を目安にしてください。9個でも検索意図・判断材料・役割が明確に異なるなら、数だけを理由に統合しないでください。10個以上の場合は細分化しすぎていないか確認し、内容が重複するH2だけを統合して詳細をH3へ整理してください。6個未満でも、テーマが十分整理されているなら数合わせで不要なH2を増やさないでください。',
     'FAQはH2「よくある質問」の直下にH3「Q. 質問」を置き、回答はp要素にしてください。FAQ内の質問にH4は使わないでください。',
     'タイトル案を直す場合は、メインキーワードを自然に含め、本文に根拠がある数字を使い、読者の悩みと読むメリットが伝わる魅力的な30〜32文字を目安にしてください。煽りや本文にない約束は禁止です。',
-    'タイトルに「7つ」「5選」など項目数がある場合は、対応する本文の見出しまたはリスト項目を数え、必ず一致させてください。本文の内容を増やす根拠がなければタイトル側の数字を実数へ直してください。',
+    'タイトルに「7つ」「5選」など項目数があり本文の実数と一致しない場合は、本文項目を追加・削除・統合・並べ替えせず、タイトル側の数字だけを本文の実数へ直してください。実数を確実に判定できない場合は本文もタイトルも変更せず、manual_confirmation_needed に残してください。',
     'メタディスクリプションを直す場合は、メインキーワード、読者の悩み、記事で分かる具体的な判断材料、読むメリットを自然に含め、約120文字にしてください。単なる記事説明や煽り文句は禁止です。',
     '必ずJSONだけで返してください。body_htmlには修正後の本文HTML全文を省略せず入れてください。',
     '{"body_html":"...","title_ideas":"案1 / 案2 / 案3","tags":"...","meta_description":"...","permalink":"...","applied_changes":[{"target":"対象箇所","reason":"文脈上の理由","change":"実際の修正"}],"skipped_suggestions":[{"target":"対象箇所","reason":"文脈上適切なので見送った理由"}],"manual_confirmation_needed":[{"target":"対象箇所","reason":"確認が必要な理由"}]}',
@@ -704,11 +709,11 @@ function uaValidatePrePublishRevision_(beforeBody, afterBody, allowedNewUrls) {
   if (!after) {
     throw new Error('修正後の本文が空です。');
   }
-  if (before.length > 1000 && after.length < before.length * 0.65) {
-    throw new Error('修正後の本文が大幅に短くなったため、安全確認で停止しました。');
+  if (before.length > 1000 && after.length < before.length * 0.85) {
+    throw new Error('修正後の本文が15%以上短くなったため、大きな書き直しと判定して修正案を不採用にしました。');
   }
-  if (before.length > 1000 && after.length > before.length * 1.25 + 1200) {
-    throw new Error('修正後の本文が大幅に増えたため、安全確認で停止しました。');
+  if (before.length > 1000 && after.length > before.length * 1.15 + 600) {
+    throw new Error('修正後の本文が許容範囲を超えて増えたため、大きな書き直しと判定して修正案を不採用にしました。');
   }
 
   const protectedTokens = [

@@ -95,7 +95,7 @@ function uaCallGeminiJson_(promptText, maxOutputTokens, thinkingBudget) {
   throw new Error('Gemini APIが混雑しています。最後のエラー: ' + lastErrorMessage);
 }
 
-function uaCallOpenAiJson_(promptText, maxOutputTokens) {
+function uaCallOpenAiJson_(promptText, maxOutputTokens, options) {
   const apiKey = uaGetOpenAiApiKey_();
 
   if (!apiKey) {
@@ -123,6 +123,12 @@ function uaCallOpenAiJson_(promptText, maxOutputTokens) {
     },
     max_output_tokens: maxOutputTokens
   };
+
+  if (options && options.reasoningEffort) {
+    payload.reasoning = {
+      effort: options.reasoningEffort
+    };
+  }
 
   const response = UrlFetchApp.fetch('https://api.openai.com/v1/responses', {
     method: 'post',
@@ -389,3 +395,4 @@ function uaIsTemporaryApiError_(message) {
     text.indexOf('503') !== -1 ||
     text.indexOf('429') !== -1;
 }
+

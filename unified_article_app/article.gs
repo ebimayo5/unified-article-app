@@ -1228,10 +1228,40 @@ function uaSelectRakutenKeywordFallbackQuery_(keyword, appKey) {
 
   const productPattern = appKey === 'home'
     ? /(収納|チェスト|棚|ラック|マット|カーテン|照明|ライト|カメラ|エアコン|除湿機|サーキュレーター|物干し|掃除|ブラシ|防災|ゲート|スロープ|家電|家具)/
-    : /(カーナビ|ナビゲーション|アンドロイドナビ|ディスプレイオーディオ|ドラレコ|ドライブレコーダー|レーダー探知機|バックカメラ|モニター|HDMI|USB|スピーカー|スマホホルダー|サンシェード|フロアマット|シートマット|シートカバー|シートクッション|収納|ドリンクホルダー|ルーフキャリア|ポータブル電源|ジャンプスターター|バッテリー|タイヤ|ホイール|タイヤチェーン|洗車|クリーナー|コーティング|ワックス|カー用品|車中泊)/i;
+    : /(ブレーキパッド|カーナビ|ナビゲーション|アンドロイドナビ|ディスプレイオーディオ|ドラレコ|ドライブレコーダー|レーダー探知機|バックカメラ|モニター|HDMI|USB|スピーカー|スマホホルダー|サンシェード|フロアマット|シートマット|シートカバー|シートクッション|収納|ドリンクホルダー|ルーフキャリア|ポータブル電源|ジャンプスターター|バッテリー|タイヤ|ホイール|タイヤチェーン|洗車|クリーナー|コーティング|ワックス|カー用品|車中泊)/i;
 
   if (!productPattern.test(value)) return '';
-  return uaKeywordBasedRakutenQueries_(value, appKey)[0] || '';
+
+  const canonicalQueries = appKey === 'home'
+    ? [
+      { pattern: /ランドリー.*(?:収納|チェスト)|(?:収納|チェスト).*ランドリー/, query: 'ランドリーチェスト 防カビ' },
+      { pattern: /除湿機|除湿器/, query: '除湿機 コンパクト' },
+      { pattern: /サーキュレーター|部屋干し/, query: 'サーキュレーター 部屋干し' },
+      { pattern: /センサーライト/, query: 'センサーライト 屋外' },
+      { pattern: /見守り.*カメラ|カメラ.*見守り/, query: '見守りカメラ 家庭用' },
+      { pattern: /ベビーゲート/, query: 'ベビーゲート 階段' },
+      { pattern: /防災/, query: '防災用品 セット 家庭用' }
+    ]
+    : [
+      { pattern: /ブレーキパッド/, query: 'ブレーキパッド 車種適合' },
+      { pattern: /カーナビ|ナビゲーション|アンドロイドナビ/, query: 'カーナビ 車種適合' },
+      { pattern: /ディスプレイオーディオ/, query: 'ディスプレイオーディオ 車種適合' },
+      { pattern: /ドライブレコーダー|ドラレコ/, query: 'ドライブレコーダー 前後' },
+      { pattern: /バックカメラ/, query: 'バックカメラ 車種適合' },
+      { pattern: /スマホホルダー/, query: 'スマホホルダー 車' },
+      { pattern: /フロアマット|シートマット/, query: 'フロアマット 車種適合' },
+      { pattern: /ポータブル電源/, query: 'ポータブル電源 車中泊' },
+      { pattern: /ジャンプスターター/, query: 'ジャンプスターター 車 バッテリー' },
+      { pattern: /タイヤチェーン/, query: 'タイヤチェーン 車種適合' }
+    ];
+  const canonical = canonicalQueries.find(function(item) { return item.pattern.test(value); });
+  if (canonical) return canonical.query;
+
+  const cleaned = value
+    .replace(/どこが安い|どこで買う|どこに売ってる|おすすめ|ランキング|比較|口コミ|評判|後悔|デメリット|メリット|費用|工賃|価格|値段|交換/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return cleaned.length >= 2 ? cleaned : '';
 }
 
 function uaGetRakutenKeywordSuggestionsFromPanel(data) {
@@ -1302,7 +1332,7 @@ function uaGetRakutenKeywordSuggestions_(data) {
       addSuggestion(item.query);
     });
 
-  uaKeywordBasedRakutenQueries_(data && data.mainInput, appConfig.key).forEach(addSuggestion);
+  addSuggestion(uaSelectRakutenKeywordFallbackQuery_(data && data.mainInput, appConfig.key));
 
   return {
     suggestions: suggestions.slice(0, 5),

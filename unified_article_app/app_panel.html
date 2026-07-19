@@ -56,7 +56,7 @@
         border: 1px solid var(--chrome-border);
         border-radius: 8px;
         box-shadow: 0 16px 38px rgba(6, 44, 35, 0.18);
-        backdrop-filter: blur(8px);
+        isolation: isolate;
       }
 
       .title {
@@ -365,6 +365,7 @@
 
       .status {
         min-width: 220px;
+        max-width: min(72vw, 920px);
         padding: 10px 12px;
         background: #f2fff8;
         border: 1px solid #8ed2ad;
@@ -373,6 +374,8 @@
         font-size: 15px;
         font-weight: 800;
         line-height: 1.35;
+        overflow-wrap: anywhere;
+        contain: paint;
         box-shadow: 0 1px 4px rgba(16, 24, 40, 0.08);
       }
 
@@ -380,7 +383,7 @@
         color: #fff;
         background: var(--brand);
         border-color: var(--brand);
-        animation: pulseStatus 1.1s ease-in-out infinite;
+        animation: none;
       }
 
       .progress {
@@ -401,7 +404,7 @@
 
       .progress-bar.loading {
         width: 38%;
-        animation: progressMove 1.2s ease-in-out infinite;
+        animation: none;
       }
 
       .modal-backdrop {
@@ -2093,6 +2096,8 @@ function saveOpenAiModels(button) {
         meta.style.display = 'inline-block';
         meta.style.marginLeft = '10px';
         meta.style.opacity = '0.78';
+        meta.style.fontVariantNumeric = 'tabular-nums';
+        meta.style.whiteSpace = 'nowrap';
         const cancel = document.createElement('button');
         cancel.type = 'button';
         cancel.className = 'secondary';

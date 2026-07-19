@@ -1424,7 +1424,7 @@ function saveOpenAiModels(button) {
         const custom = document.getElementById('imageStylePrompt').value.trim();
         if (preset === 'softFree') return '柔らかいフリー素材風。淡い色、やさしい形、ブログ素材として使いやすい清潔なイラスト。';
         if (preset === 'custom') return custom || '手入力の指定。画像スタイル指定欄に書いた内容を優先する。';
-        return '最新アニメ風。現代的で高品質なアニメ調、清潔な線、自然な光、記事向けの見やすい構図。';
+        return '最新アニメ風。現代的で高品質なアニメ調、清潔で表情のある線画、自然な光と陰影、奥行き、洗練された配色。平面的な企業向けベクター素材、汎用フリー素材、クリップアート風にはしない。';
       }
 
       function buildNaturalImageLabel(title, mainInput, required) {

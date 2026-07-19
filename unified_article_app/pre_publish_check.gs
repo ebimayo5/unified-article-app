@@ -539,7 +539,7 @@ function uaFindTitleNumberConsistencyIssue_(title, body) {
     return String.fromCharCode(char.charCodeAt(0) + 65248);
   });
   const expectedHeadingPattern = new RegExp(
-    '(?:' + expectedText + '|' + expectedFullWidthText + ')\\s*(?:つ|選|項目|個|点|ポイント|理由|方法|チェック|注意点|コツ|特徴|メリット|デメリット|対策|手順|原因|違い|失敗例)?'
+    '(?:' + expectedText + '|' + expectedFullWidthText + ')\\s*(?:つ|選|項目|個|点|ポイント|理由|方法|チェック|注意点|コツ|特徴|メリット|デメリット|対策|手順|原因|違い|失敗例)'
   );
   const matchingHeadingIndexes = headings.map(function(item, index) {
     return topicPattern.test(item.text) && expectedHeadingPattern.test(item.text) ? index : -1;
@@ -1157,4 +1157,3 @@ function uaFindPrePublishStrongClaims_(body) {
 
   return hits;
 }
-

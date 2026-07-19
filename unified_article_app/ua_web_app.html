@@ -476,6 +476,7 @@
       let autoSaveInFlight = false;
       let isFillingForm = false;
       let loadedAppType = '';
+      let rakutenSuggestionRequestToken = 0;
       let trefaiPollTimer = null;
       let trefaiPollCount = 0;
       let trefaiPollStartedAt = 0;
@@ -831,6 +832,8 @@
 
       function fillForm(data) {
         isFillingForm = true;
+        rakutenSuggestionRequestToken += 1;
+        renderRakutenSuggestions([]);
         data = data || {};
         if (data.appType) document.getElementById('appType').value = data.appType;
         fields.forEach(function(id) { const el = document.getElementById(id); if (el) el.value = data[id] || ''; });
@@ -884,15 +887,21 @@
 
       function suggestRakutenKeywords(button) {
         syncRakutenControlsToNotes();
+        const requestToken = ++rakutenSuggestionRequestToken;
+        renderRakutenSuggestions([]);
         setBusy('楽天商品キーワード候補を取得中...', button);
         google.script.run
           .withSuccessHandler(function(result) {
+            if (requestToken !== rakutenSuggestionRequestToken) return;
             clearBusy();
             renderRakutenSuggestions(result && result.suggestions ? result.suggestions : []);
             setProgress('done');
             setNotice(result && result.message ? result.message : '商品検索キーワード候補を取得しました。', false);
           })
-          .withFailureHandler(fail)
+          .withFailureHandler(function(error) {
+            if (requestToken !== rakutenSuggestionRequestToken) return;
+            fail(error);
+          })
           .uaGetRakutenKeywordSuggestionsFromWeb(readForm());
       }
 

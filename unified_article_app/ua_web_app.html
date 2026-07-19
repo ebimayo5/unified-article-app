@@ -1269,12 +1269,12 @@
           '記事の内容理解を補完する画像にする。単なる一覧画像や装飾画像にしない。'
         ].join('\n- ');
         const layouts = [
-          '左右分割で「迷い」と「解決」を対比する構図',
-          '中央に主役、周囲に3つの確認ポイントを置く構図',
-          '上から下へ進む3ステップの流れ図',
-          '費用や条件をカード状に分解する構図',
-          '原因から対策へ矢印でつなぐ構図',
-          'チェックリストを斜め配置で見せる構図'
+          { type: '左右比較', instruction: '左右分割で「迷い」と「解決」を対比する構図' },
+          { type: '放射状ポイント', instruction: '中央に主役、周囲に3つの確認ポイントを置く構図' },
+          { type: '縦方向ステップ', instruction: '上から下へ進む3ステップの流れ図' },
+          { type: 'カードグリッド', instruction: '主役を左寄せにし、費用や条件を右側のカードへ段違いで配置する構図' },
+          { type: '原因→対策', instruction: '左下の原因から右上の対策へ矢印でつなぐ斜め構図' },
+          { type: '斜めチェックリスト', instruction: '主役を右下に置き、チェック項目を左上から斜め配置で見せる構図' }
         ];
         const lines = [];
         lines.push('以下の記事用に、画像を1枚ずつ生成してください。');
@@ -1291,6 +1291,7 @@
         lines.push('表示番号: 00（画像の右下隅に小さく入れる）');
         lines.push('画像の役割: 記事全体を代表するアイキャッチ画像。読者がクリックしたくなる第一印象を重視。');
         lines.push('記事タイトル: ' + articleTitle);
+        lines.push('構図タイプ: ワイドヒーロー');
         lines.push('構図: 記事テーマを象徴する大きな主役を中央に置き、周囲に不安・比較・解決の要素を控えめに配置。本文画像とは違う広い構図にする。');
         lines.push(eyecatchLabel
           ? '画像内テキスト: 「' + eyecatchLabel + '」だけを一字も省略せず入れる。記事タイトル全文は描かない。'
@@ -1298,6 +1299,8 @@
         targets.forEach(function(target, index) {
           const number = String(index + 1).padStart(2, '0');
           const sectionLabel = buildNaturalImageLabel(target.heading, mainInput, false);
+          const layout = layouts[index % layouts.length];
+          const previousLayoutType = index === 0 ? 'ワイドヒーロー' : layouts[(index - 1) % layouts.length].type;
           lines.push('');
           lines.push('【' + number + ' H2図解】');
           lines.push('画像タイプ: H2_SECTION');
@@ -1306,7 +1309,9 @@
           lines.push('判定: ' + (target.rank === 'A' ? '画像必須。理解補助に強く効く見出し。' : '画像があると良い見出し。'));
           lines.push('画像の役割: このH2の内容を読む前に、読者が要点を直感的につかめる補助図解。');
           lines.push('画像生成プロンプト: H2「' + target.heading + '」で扱う判断材料を、主役と2〜3個の視覚要素で直感的に理解できる1枚のブログ図解として描く。本文や見出し全文は画像内へ転載しない。');
-          lines.push('構図: ' + layouts[index % layouts.length]);
+          lines.push('構図タイプ: ' + layout.type);
+          lines.push('構図: ' + layout.instruction);
+          lines.push('連続回避: 直前の画像は「' + previousLayoutType + '」。同じ配置・視点・主役位置を繰り返さず、明確に別の構図にする。');
           lines.push(sectionLabel
             ? '画像内テキスト: 「' + sectionLabel + '」だけを一字も省略せず入れる。H2全文は描かない。'
             : '画像内テキスト: なし。H2や説明文を画像内に描かない。');
@@ -2083,4 +2088,3 @@
     </script>
   </body>
 </html>
-

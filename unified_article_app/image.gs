@@ -135,7 +135,7 @@ function uaFormatImagePromptPack_(planData, title, requestData, targets) {
     '- アイキャッチはタイトル由来の自然な見出しを入れる。H2図解は主見出しに加え、図解要素へ2〜3個の短い日本語ラベルを付けてよい。',
     '- 長文、H2全文、記事タイトル全文は描かない。短いラベルは単語や文節の途中で切らない。',
     '- 文字と主役は中央の安全範囲に置き、上下左右に15%以上の余白を取る。',
-    '- 実在ブランドのロゴ、正確な商品パッケージ、透かし、人物の特定可能な顔は入れない。',
+    '- 実在ブランドのロゴ、正確な商品パッケージ、透かしは入れない。人物を入れる場合は、目・鼻・口のある自然な顔と表情で描く。',
     ''
   ];
 
@@ -967,3 +967,4 @@ function uaAppendGeneratedImageMemo_(currentMemo, uploaded, provider, failures) 
 
   return [String(currentMemo || '').trim(), lines.join('\n')].filter(Boolean).join('\n\n');
 }
+

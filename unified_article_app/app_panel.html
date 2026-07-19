@@ -383,7 +383,8 @@
         color: #fff;
         background: var(--brand);
         border-color: var(--brand);
-        animation: none;
+        animation: pulseStatus 1.1s ease-in-out infinite;
+        will-change: opacity;
       }
 
       .progress {
@@ -404,7 +405,8 @@
 
       .progress-bar.loading {
         width: 38%;
-        animation: none;
+        animation: progressMove 1.2s ease-in-out infinite;
+        will-change: transform;
       }
 
       .modal-backdrop {

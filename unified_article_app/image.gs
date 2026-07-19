@@ -35,43 +35,90 @@ function uaCreateImagePromptPackFromPanel(data) {
 
 function uaBuildLegacyImagePromptPlan_(title, requestData, targets) {
   const mainInput = String(requestData && requestData.mainInput || '').trim();
+  let previousCompositionType = 'wide_hero';
   return {
     eyecatch: {
       visual_prompt: '記事「' + title + '」のテーマを象徴する大きな主役を中央に置き、読者の不安・比較・解決方向を周囲の少数要素で見せる。記事全体の価値が一目で伝わる、広がりのあるアイキャッチとして描く。H2一覧や細かなカード集にはしない。',
       short_label: uaBuildNaturalGeneratedImageLabel_(title, mainInput, true),
+      composition_type: 'ワイドヒーロー',
       composition: '主役を中央に大きく置き、タイトル由来の見出しを読みやすく配置する。周囲の図解要素は2〜3個に絞り、本文画像とは異なる広い構図にする。',
       avoid: '記事タイトル全文の転載、細かな一覧、同じ大きさのカードの羅列を避ける。'
     },
     sections: (targets || []).map(function(target, index) {
+      const composition = uaPickLegacyImageComposition_(target.heading, index, previousCompositionType);
+      const previousType = previousCompositionType;
+      previousCompositionType = composition.type;
       return {
         heading: target.heading,
         visual_prompt: uaBuildLegacySectionVisualPrompt_(target.heading),
         short_label: uaBuildNaturalGeneratedImageLabel_(target.heading, mainInput, false),
-        composition: uaPickLegacyImageLayout_(target.heading, index),
+        composition_type: composition.label,
+        previous_composition_type: previousType === 'wide_hero' ? 'ワイドヒーロー' : uaGetLegacyCompositionLabel_(previousType),
+        composition: composition.instruction,
         avoid: '長文、H2全文の転載、別のH2内容、細かなカードの大量配置を避ける。'
       };
     })
   };
 }
 
+function uaGetLegacyImageCompositions_() {
+  return [
+    { type: 'split_compare', label: '左右比較', instruction: '画面を左右に分けて2つの選択肢を対比し、中央下に判断軸を置く。' },
+    { type: 'diagonal_choice', label: '斜め対比', instruction: '左下の迷いから右上の結論へ斜めに視線を導き、選択肢を段差のある配置で見せる。' },
+    { type: 'horizontal_steps', label: '横方向ステップ', instruction: '左から右へ進む3ステップを、大きな絵と太い矢印でつなぐ。' },
+    { type: 'vertical_timeline', label: '縦方向タイムライン', instruction: '上から下へ進む3段階を、縦のラインと交互配置の図解要素で見せる。' },
+    { type: 'cause_solution', label: '原因→対策', instruction: '左側に原因、右側に対策を置き、対応関係を矢印でつなぐ。' },
+    { type: 'radial_points', label: '放射状ポイント', instruction: '中央の主役から周囲3方向へ確認ポイントを放射状に配置する。' },
+    { type: 'card_grid', label: 'カードグリッド', instruction: '主役を左寄せにし、右側へ費用や条件を示す3つ以内の図解カードを段違いで配置する。' },
+    { type: 'angled_checklist', label: '斜めチェックリスト', instruction: '主役を右下に置き、左上から斜めに並ぶ3つの確認項目へ視線を導く。' }
+  ];
+}
+
+function uaGetLegacyCompositionLabel_(type) {
+  const found = uaGetLegacyImageCompositions_().find(function(item) { return item.type === type; });
+  return found ? found.label : String(type || '別構図');
+}
+
+function uaPickLegacyImageComposition_(heading, index, previousType) {
+  const value = String(heading || '');
+  let preferredTypes;
+  if (/比較|違い|どっち|メリット|デメリット/.test(value)) {
+    preferredTypes = ['split_compare', 'diagonal_choice'];
+  } else if (/手順|流れ|方法|やり方|ステップ/.test(value)) {
+    preferredTypes = ['horizontal_steps', 'vertical_timeline'];
+  } else if (/原因|対策|理由|なぜ|解決/.test(value)) {
+    preferredTypes = ['cause_solution', 'diagonal_choice'];
+  } else if (/費用|価格|料金|工賃|相場|内訳/.test(value)) {
+    preferredTypes = ['card_grid', 'radial_points'];
+  } else if (/注意|チェック|選び方|判断|ポイント|向いて/.test(value)) {
+    preferredTypes = ['angled_checklist', 'radial_points'];
+  } else {
+    preferredTypes = ['radial_points', 'diagonal_choice', 'vertical_timeline', 'card_grid', 'angled_checklist'];
+  }
+  const orderedTypes = preferredTypes.slice(index % preferredTypes.length).concat(preferredTypes.slice(0, index % preferredTypes.length));
+  const pickedType = orderedTypes.find(function(type) { return type !== previousType; })
+    || uaGetLegacyImageCompositions_().find(function(item) { return item.type !== previousType; }).type;
+  return uaGetLegacyImageCompositions_().find(function(item) { return item.type === pickedType; });
+}
+
 function uaBuildLegacySectionVisualPrompt_(heading) {
   const value = String(heading || '');
   if (/比較|違い|どっち|メリット|デメリット/.test(value)) {
-    return 'H2「' + value + '」の違いを、左右の対比と中央の判断軸で理解できる図解にする。比較対象を大きく描き、それぞれ2〜3個の短い要点ラベルと視覚記号を添える。';
+    return 'H2「' + value + '」の違いと判断軸を理解できる図解にする。比較対象を大きく描き、それぞれ2〜3個の短い要点ラベルと視覚記号を添える。配置は指定された構図タイプに従う。';
   }
   if (/手順|流れ|方法|やり方|ステップ/.test(value)) {
-    return 'H2「' + value + '」の流れを、開始から完了まで3段階で追える図解にする。各段階は大きな絵と短いラベルで示し、矢印で自然に視線をつなぐ。';
+    return 'H2「' + value + '」の流れを、開始から完了まで3段階で追える図解にする。各段階は大きな絵と短いラベルで示し、指定された方向へ自然に視線をつなぐ。';
   }
   if (/原因|対策|理由|なぜ|解決/.test(value)) {
-    return 'H2「' + value + '」を、左側の原因から右側の対策へつながる図解にする。原因と対策を2〜3組に整理し、短いラベルと矢印で関係が一目で分かるようにする。';
+    return 'H2「' + value + '」の原因から対策への関係が分かる図解にする。原因と対策を2〜3組に整理し、短いラベルと視覚記号でつながりを示す。配置は指定された構図タイプに従う。';
   }
   if (/費用|価格|料金|工賃|相場|内訳/.test(value)) {
     return 'H2「' + value + '」の費用や条件を、主役と3つ以内の内訳要素で理解できる図解にする。金額そのものを捏造せず、費用項目と判断ポイントを短いラベルで示す。';
   }
   if (/注意|チェック|選び方|判断|ポイント|向いて/.test(value)) {
-    return 'H2「' + value + '」の判断材料を、中央の主役と3つの確認ポイントで理解できる図解にする。各ポイントは短い日本語ラベルと異なるアイコンで区別する。';
+    return 'H2「' + value + '」の判断材料を、主役と3つの確認ポイントで理解できる図解にする。各ポイントは短い日本語ラベルと異なるアイコンで区別し、配置は指定された構図タイプに従う。';
   }
-  return 'H2「' + value + '」の要点を、中央の主役と2〜3個の補助要素で直感的に理解できるブログ図解として描く。各要素には短い日本語ラベルを添え、文章を読まなくても関係が分かる構図にする。';
+  return 'H2「' + value + '」の要点を、主役と2〜3個の補助要素で直感的に理解できるブログ図解として描く。各要素には短い日本語ラベルを添え、配置は指定された構図タイプに従う。';
 }
 
 function uaPickLegacyImageLayout_(heading, index) {
@@ -147,6 +194,8 @@ function uaFormatImagePromptPack_(planData, title, requestData, targets) {
     title: title,
     visualPrompt: uaCleanImagePlanText_(eyecatch.visual_prompt, 500)
       || '記事「' + title + '」の中心的な悩みと判断軸を、象徴的な主役と状況が一目で分かる広い構図で描く。H2内容の一覧ではなく、記事を読みたくなる一つの場面として成立させる。',
+    compositionType: uaCleanImagePlanText_(eyecatch.composition_type, 60) || 'ワイドヒーロー',
+    previousCompositionType: '',
     composition: uaCleanImagePlanText_(eyecatch.composition, 240)
       || '大きな主役を中央に置き、周囲の要素は少数に絞り、タイトル用の余白を十分に残す。',
     shortLabel: uaNormalizeImagePlanLabel_(eyecatch.short_label)
@@ -165,6 +214,8 @@ function uaFormatImagePromptPack_(planData, title, requestData, targets) {
       title: '',
       visualPrompt: uaCleanImagePlanText_(sectionPlan.visual_prompt, 500)
         || 'H2「' + target.heading + '」の判断材料を、主役と2〜3個の具体的な視覚要素で直感的に理解できる1枚のブログ図解として描く。本文や見出し全文は画像内へ転載しない。',
+      compositionType: uaCleanImagePlanText_(sectionPlan.composition_type, 60) || 'ローテーション構図',
+      previousCompositionType: uaCleanImagePlanText_(sectionPlan.previous_composition_type, 60) || (index === 0 ? 'ワイドヒーロー' : '直前のH2図解'),
       composition: uaCleanImagePlanText_(sectionPlan.composition, 240)
         || uaPickGeneratedImageLayout_({ role: 'h2', displayIndex: number }),
       shortLabel: uaNormalizeImagePlanLabel_(sectionPlan.short_label),
@@ -189,7 +240,11 @@ function uaAppendImagePromptPackBlock_(lines, block) {
   if (block.title) lines.push('記事タイトル: ' + block.title);
   if (block.targetHeading) lines.push('対象H2: ' + block.targetHeading);
   lines.push('画像生成プロンプト: ' + block.visualPrompt);
+  lines.push('構図タイプ: ' + block.compositionType);
   lines.push('構図: ' + block.composition);
+  if (block.previousCompositionType) {
+    lines.push('連続回避: 直前の画像は「' + block.previousCompositionType + '」。同じ配置・視点・主役位置を繰り返さず、明確に別の構図にする。');
+  }
   lines.push(block.shortLabel
     ? '画像内メインテキスト: 「' + block.shortLabel + '」を一字も省略せず入れる。'
     : '画像内メインテキスト: なし。');
@@ -967,4 +1022,3 @@ function uaAppendGeneratedImageMemo_(currentMemo, uploaded, provider, failures) 
 
   return [String(currentMemo || '').trim(), lines.join('\n')].filter(Boolean).join('\n\n');
 }
-

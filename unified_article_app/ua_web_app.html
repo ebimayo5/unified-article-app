@@ -468,6 +468,7 @@
     </div>
 <script>
       const fields = ['row','mainInput','volume','affiliateName','affiliateUrl','affiliateNotes','competitorUrl1','competitorUrl2','competitorUrl3','readerMindMemo','status','generationModel','body','titleIdeas','tags','metaDescription','permalink','factCheckPoints','structureMemo','wpPostId','wpEditUrl','wpDraftedAt'];
+      const UA_FULL_WORKFLOW_RESUME_STORAGE_KEY = 'articleCompassFullWorkflowResumeV1';
       let appConfigs = [];
       let textModels = [];
       let imageModels = [];
@@ -834,8 +835,6 @@
 
       function fillForm(data) {
         isFillingForm = true;
-        window.uaFailedFullWorkflowIncludeImages = null;
-        showFullWorkflowResumeButton(false);
         rakutenSuggestionRequestToken += 1;
         renderRakutenSuggestions([]);
         data = data || {};
@@ -848,6 +847,7 @@
         loadedAppType = data && data.appType ? data.appType : '';
         document.getElementById('subText').textContent = data.mainInput ? data.mainInput : '候補を選ぶと、ここに編集フォームが入ります。';
         isFillingForm = false;
+        restoreFullWorkflowResumeState(data);
       }
 
       function parseRakutenControlsFromNotes() {
@@ -969,6 +969,7 @@
       function runFullArticleWorkflow(button, includeImages) {
         window.uaFullWorkflowCancelled = false;
         window.uaFailedFullWorkflowIncludeImages = null;
+        clearFullWorkflowResumeState();
         showFullWorkflowResumeButton(false);
         const steps = [
           { label: '読者心理メモ', server: 'uaRunReaderMindMemoFromWeb', tab: 'check' },
@@ -1001,6 +1002,7 @@
           setProgress('done');
           setNotice('1ボタン作成が完了しました。公開前チェック、文脈修正、WordPress反映まで完了しています。', false);
           showTab('check');
+          clearFullWorkflowResumeState();
           showFullWorkflowResumeButton(false);
           window.uaFullWorkflow = null;
           return;
@@ -1111,6 +1113,7 @@
         const flow = window.uaFullWorkflow;
         if (flow) renderWorkflowProgress(flow, flow.stepIndex || 0, 'error');
         window.uaFailedFullWorkflowIncludeImages = flow ? flow.includeImages !== false : true;
+        saveFullWorkflowResumeState(flow, stepLabel);
         window.uaFullWorkflow = null;
         const message = error && error.message ? error.message : String(error || '');
         fail(new Error('1ボタン作成 / ' + stepLabel + 'で停止しました: ' + message));
@@ -1121,6 +1124,63 @@
         const button = document.getElementById('fullWorkflowResumeButton');
         if (!button) return;
         button.classList.toggle('visible', !!visible);
+        if (visible) {
+          const panel = document.getElementById('workflowProgress');
+          if (panel) panel.classList.add('visible');
+        }
+      }
+
+      function readFullWorkflowResumeState() {
+        try {
+          const raw = window.localStorage.getItem(UA_FULL_WORKFLOW_RESUME_STORAGE_KEY);
+          if (!raw) return null;
+          const state = JSON.parse(raw);
+          if (!state || !state.appType || Number(state.row || 0) <= 1) return null;
+          if (Date.now() - Number(state.failedAt || 0) > 7 * 24 * 60 * 60 * 1000) {
+            window.localStorage.removeItem(UA_FULL_WORKFLOW_RESUME_STORAGE_KEY);
+            return null;
+          }
+          return state;
+        } catch (e) {
+          return null;
+        }
+      }
+
+      function saveFullWorkflowResumeState(flow, stepLabel) {
+        const state = {
+          appType: document.getElementById('appType').value,
+          row: Number(document.getElementById('row').value || 0),
+          mainInput: document.getElementById('mainInput').value || '',
+          includeImages: flow ? flow.includeImages !== false : true,
+          stepLabel: stepLabel || (flow && flow.steps && flow.steps[flow.stepIndex] && flow.steps[flow.stepIndex].label) || '',
+          failedAt: Date.now()
+        };
+        if (!state.appType || state.row <= 1) return;
+        try {
+          window.localStorage.setItem(UA_FULL_WORKFLOW_RESUME_STORAGE_KEY, JSON.stringify(state));
+        } catch (e) {}
+      }
+
+      function clearFullWorkflowResumeState() {
+        try { window.localStorage.removeItem(UA_FULL_WORKFLOW_RESUME_STORAGE_KEY); } catch (e) {}
+      }
+
+      function restoreFullWorkflowResumeState(data) {
+        window.uaFailedFullWorkflowIncludeImages = null;
+        showFullWorkflowResumeButton(false);
+        const state = readFullWorkflowResumeState();
+        const appType = String(data && data.appType || document.getElementById('appType').value || '');
+        const row = Number(data && data.row || document.getElementById('row').value || 0);
+        if (!state || state.appType !== appType || Number(state.row) !== row) return false;
+        window.uaFailedFullWorkflowIncludeImages = state.includeImages !== false;
+        const panel = document.getElementById('workflowProgress');
+        const head = document.getElementById('workflowProgressHead');
+        const steps = document.getElementById('workflowSteps');
+        if (panel) panel.classList.add('visible');
+        if (head) head.textContent = '前回の1ボタン作成が途中停止' + (state.stepLabel ? '：' + state.stepLabel : '');
+        if (steps) steps.innerHTML = '';
+        showFullWorkflowResumeButton(true);
+        return true;
       }
 
       function resumeFullArticleWorkflow(button) {
@@ -2023,6 +2083,7 @@
         if (window.uaFullWorkflow) {
           renderWorkflowProgress(window.uaFullWorkflow, window.uaFullWorkflow.stepIndex || 0, 'error');
           window.uaFailedFullWorkflowIncludeImages = window.uaFullWorkflow.includeImages !== false;
+          saveFullWorkflowResumeState(window.uaFullWorkflow, '途中停止');
         }
         window.uaFullWorkflow = null;
         if (window.uaImageGenerationTimer) {

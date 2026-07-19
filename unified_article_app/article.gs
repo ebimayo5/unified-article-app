@@ -1133,15 +1133,22 @@ function uaBuildRakutenAffiliateBanner_(body, rowData, appConfig) {
   }
 
   const categoryQueries = uaSelectRakutenCategoryQueries_(body, rowData, appConfig, query);
+  const selectionSeed = String(rowData && rowData.mainInput || '') + '|' + String(query || '');
+  const hasMainAffiliate = uaHasMainAffiliateProject_(rowData);
   let items = [];
 
-  if (categoryQueries.length > 0) {
-    items = uaFetchRakutenItemsByQueries_(categoryQueries, Math.min(3, categoryQueries.length));
+  if (!hasMainAffiliate) {
+    const keywordAndContextQueries = [query].concat(categoryQueries).filter(function(value, index, values) {
+      return value && values.indexOf(value) === index;
+    }).slice(0, 3);
+    items = uaFetchRakutenItemsByQueries_(keywordAndContextQueries, Math.min(3, keywordAndContextQueries.length), selectionSeed);
+  } else if (categoryQueries.length > 0) {
+    items = uaFetchRakutenItemsByQueries_(categoryQueries, Math.min(3, categoryQueries.length), selectionSeed);
   }
 
   if (items.length === 0) {
     const desiredCount = uaDecideRakutenItemCount_(body, rowData, appConfig, query);
-    items = uaFetchRakutenItems_(query, desiredCount);
+    items = uaFetchRakutenItems_(query, desiredCount, selectionSeed);
   }
 
   if (items.length > 0) {
@@ -1170,6 +1177,11 @@ function uaSelectRakutenProductQuery_(body, rowData, appConfig) {
 
   if (override && override[1]) {
     return override[1].trim();
+  }
+
+  if (!uaHasMainAffiliateProject_(rowData)) {
+    const keywordQuery = uaSelectRakutenKeywordFallbackQuery_(rowData && rowData.mainInput, appConfig && appConfig.key);
+    if (keywordQuery) return keywordQuery;
   }
 
   const text = [
@@ -1203,6 +1215,23 @@ function uaSelectRakutenProductQuery_(body, rowData, appConfig) {
   });
 
   return best ? best.query : '';
+}
+
+function uaHasMainAffiliateProject_(rowData) {
+  return !!String(rowData && rowData.affiliateName || '').trim() ||
+    !!String(rowData && rowData.affiliateUrl || '').trim();
+}
+
+function uaSelectRakutenKeywordFallbackQuery_(keyword, appKey) {
+  const value = String(keyword || '').replace(/\s+/g, ' ').trim();
+  if (!value) return '';
+
+  const productPattern = appKey === 'home'
+    ? /(収納|チェスト|棚|ラック|マット|カーテン|照明|ライト|カメラ|エアコン|除湿機|サーキュレーター|物干し|掃除|ブラシ|防災|ゲート|スロープ|家電|家具)/
+    : /(カーナビ|ナビゲーション|アンドロイドナビ|ディスプレイオーディオ|ドラレコ|ドライブレコーダー|レーダー探知機|バックカメラ|モニター|HDMI|USB|スピーカー|スマホホルダー|サンシェード|フロアマット|シートマット|シートカバー|シートクッション|収納|ドリンクホルダー|ルーフキャリア|ポータブル電源|ジャンプスターター|バッテリー|タイヤ|ホイール|タイヤチェーン|洗車|クリーナー|コーティング|ワックス|カー用品|車中泊)/i;
+
+  if (!productPattern.test(value)) return '';
+  return uaKeywordBasedRakutenQueries_(value, appKey)[0] || '';
 }
 
 function uaGetRakutenKeywordSuggestionsFromPanel(data) {
@@ -1466,7 +1495,7 @@ function uaSelectRakutenCategoryQueries_(body, rowData, appConfig, primaryQuery)
   return queries.slice(0, 3);
 }
 
-function uaFetchRakutenItemsByQueries_(queries, maxItems) {
+function uaFetchRakutenItemsByQueries_(queries, maxItems, selectionSeed) {
   const results = [];
   const seenUrls = {};
   const limit = Math.max(1, Math.min(3, Number(maxItems) || 3));
@@ -1474,7 +1503,7 @@ function uaFetchRakutenItemsByQueries_(queries, maxItems) {
   (queries || []).forEach(function(query) {
     if (results.length >= limit) return;
 
-    const items = uaFetchRakutenItems_(query, 1);
+    const items = uaFetchRakutenItems_(query, 1, String(selectionSeed || '') + '|' + query);
     items.forEach(function(item) {
       if (results.length >= limit) return;
       if (!item || !item.url || seenUrls[item.url]) return;
@@ -1625,7 +1654,7 @@ function uaDecideRakutenItemCount_(body, rowData, appConfig, query) {
   return 1;
 }
 
-function uaFetchRakutenItems_(query, maxItems) {
+function uaFetchRakutenItems_(query, maxItems, selectionSeed) {
   const applicationId = String(PropertiesService.getScriptProperties().getProperty('UA_RAKUTEN_APPLICATION_ID') || '').trim();
   const accessKey = String(PropertiesService.getScriptProperties().getProperty('UA_RAKUTEN_ACCESS_KEY') || '').trim();
 
@@ -1637,10 +1666,11 @@ function uaFetchRakutenItems_(query, maxItems) {
   const affiliateId = String(PropertiesService.getScriptProperties().getProperty('UA_RAKUTEN_AFFILIATE_ID') || '').trim();
   const refererUrl = uaGetRakutenRefererUrl_();
   const hits = Math.max(1, Math.min(3, Number(maxItems) || 1));
+  const candidateHits = Math.max(8, Math.min(20, hits * 5));
   const params = [
     'format=json',
     'formatVersion=2',
-    'hits=' + hits,
+    'hits=' + candidateHits,
     'imageFlag=1',
     'sort=standard',
     'applicationId=' + encodeURIComponent(applicationId),
@@ -1676,12 +1706,10 @@ function uaFetchRakutenItems_(query, maxItems) {
 
     const json = JSON.parse(responseText);
     const responseItems = json.items || json.Items || [];
-    const results = [];
+    const candidates = [];
     const seenUrls = {};
 
     responseItems.forEach(function(rawItem) {
-      if (results.length >= hits) return;
-
       const currentItem = rawItem && (rawItem.item || rawItem.Item || rawItem);
       if (!currentItem || !currentItem.itemName || !(currentItem.affiliateUrl || currentItem.itemUrl)) return;
 
@@ -1692,7 +1720,7 @@ function uaFetchRakutenItems_(query, maxItems) {
       const currentMediumImage = currentItem.mediumImageUrls &&
         currentItem.mediumImageUrls[0];
 
-      results.push({
+      candidates.push({
         name: currentItem.itemName,
         url: currentUrl,
         imageUrl: typeof currentMediumImage === 'string'
@@ -1701,11 +1729,16 @@ function uaFetchRakutenItems_(query, maxItems) {
       });
     });
 
-    if (results.length === 0) {
+    if (candidates.length === 0) {
       UA_LAST_RAKUTEN_STATUS = '讌ｽ螟ｩAPI縺ｮ蝠・刀蜿門ｾ・莉ｶ縺ｾ縺溘・URL荳崎ｶｳ縲よ､懃ｴ｢繧ｭ繝ｼ繝ｯ繝ｼ繝・ ' + query;
       return [];
     }
 
+    const results = [];
+    const start = uaStableRakutenSelectionOffset_(String(selectionSeed || query), candidates.length);
+    for (let offset = 0; offset < candidates.length && results.length < hits; offset += 1) {
+      results.push(candidates[(start + offset) % candidates.length]);
+    }
     return results;
 
     const items = json.items || json.Items || [];
@@ -1731,6 +1764,17 @@ function uaFetchRakutenItems_(query, maxItems) {
     UA_LAST_RAKUTEN_STATUS = '楽天API取得エラー: ' + e.toString();
     return [];
   }
+}
+
+function uaStableRakutenSelectionOffset_(seed, length) {
+  const size = Math.max(0, Number(length) || 0);
+  if (!size) return 0;
+  let hash = 2166136261;
+  String(seed || '').split('').forEach(function(char) {
+    hash ^= char.charCodeAt(0);
+    hash = Math.imul(hash, 16777619) >>> 0;
+  });
+  return hash % size;
 }
 
 function uaGetRakutenRefererUrl_() {
@@ -1849,6 +1893,14 @@ function uaShouldInsertRakutenAffiliateBanner_(body, rowData, appConfig) {
 
   if (notes.indexOf('楽天バナーあり') !== -1 || notes.indexOf('楽天あり') !== -1) {
     return true;
+  }
+
+  if (!uaHasMainAffiliateProject_(rowData)) {
+    const relatedQuery = uaSelectRakutenProductQuery_(body, rowData, appConfig);
+    if (relatedQuery) {
+      UA_LAST_RAKUTEN_STATUS = 'メイン案件なし・キーワード関連商品を優先: ' + relatedQuery;
+      return true;
+    }
   }
 
   const negativeKeywords = [
@@ -1999,4 +2051,3 @@ function uaFixGeneratedHtml_(html) {
 
   return text;
 }
-

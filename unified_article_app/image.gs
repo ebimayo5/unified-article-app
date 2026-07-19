@@ -155,7 +155,7 @@ function uaNormalizeImagePromptTargets_(suppliedTargets, body) {
 }
 
 function uaBuildImagePromptPlanStyle_(requestData) {
-  const preset = String(requestData && requestData.imageStylePreset || '').trim();
+  const preset = uaResolveImageStylePreset_(requestData);
   const custom = String(requestData && requestData.imageStylePrompt || '').trim();
   if (preset === 'softFree') {
     return '柔らかい日本のフリー素材風。親しみやすい形、淡い色、明るい背景、ブログで意味が一目で伝わる清潔なイラスト。既存素材の模倣はしない。';
@@ -163,7 +163,13 @@ function uaBuildImagePromptPlanStyle_(requestData) {
   if (preset === 'custom' && custom) {
     return custom.slice(0, 500);
   }
-  return '最新アニメ風。現代的で高品質な日本のアニメ調、清潔な線、自然な光、洗練された配色、記事向けに主役が明確な構図。特定作品の模倣はしない。';
+  return '最新アニメ風。現代的で高品質な日本のアニメ調、清潔で表情のある線画、自然な光と陰影、奥行き、洗練された配色、記事向けに主役が明確な構図。平面的な企業向けベクター素材、汎用フリー素材、クリップアート風にはしない。特定作品の模倣はしない。';
+}
+
+function uaResolveImageStylePreset_(data) {
+  const preset = String(data && data.imageStylePreset || '').trim();
+  if (preset === 'latestAnime' || preset === 'softFree' || preset === 'custom') return preset;
+  return String(data && data.appType || '').trim() === 'たくみパパ' ? 'softFree' : 'latestAnime';
 }
 
 function uaFormatImagePromptPack_(planData, title, requestData, targets) {
@@ -974,10 +980,10 @@ function uaBuildNaturalGeneratedImageLabel_(preferred, fallback, required) {
 }
 
 function uaBuildGeneratedImageStyleInstruction_(rowData) {
-  const preset = String(rowData && rowData.imageStylePreset || '').trim();
+  const preset = uaResolveImageStylePreset_(rowData);
   const custom = String(rowData && rowData.imageStylePrompt || '').trim();
   const presetMap = {
-    latestAnime: 'modern high-quality Japanese anime key visual style, clean line art, polished lighting, vivid but tasteful colors, article-friendly composition',
+    latestAnime: 'modern high-quality Japanese anime key visual style, expressive clean line art, polished natural lighting and shadows, visible depth, vivid but tasteful colors, article-friendly composition; never use flat corporate vector art, generic royalty-free stock illustration, or clip-art style',
     softFree: 'soft royalty-free stock illustration style, gentle colors, rounded shapes, friendly non-branded web media look, practical and approachable',
     custom: ''
   };
@@ -987,8 +993,12 @@ function uaBuildGeneratedImageStyleInstruction_(rowData) {
     parts.push(presetMap[preset]);
   }
 
-  if ((preset === 'custom' || !preset) && custom) {
+  if (preset === 'custom' && custom) {
     parts.push(custom.slice(0, 500));
+  }
+
+  if (preset === 'custom' && !custom) {
+    parts.push(presetMap.latestAnime);
   }
 
   return parts.join('. ');

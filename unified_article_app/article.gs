@@ -1084,11 +1084,7 @@ function uaCallArticleGenerationJson_(promptText, provider) {
   }
 
   if (provider === 'openai') {
-    // 本文生成は長文のため、既定の推論量だと Apps Script の実行時間上限に
-    // 達しやすい。出力上限は維持し、推論量だけ抑えて記事品質を保つ。
-    return uaCallOpenAiJson_(promptText, 16000, {
-      reasoningEffort: 'low'
-    });
+    return uaCallOpenAiJson_(promptText, 16000);
   }
 
   return uaCallGeminiJson_(promptText, 16000, 512);

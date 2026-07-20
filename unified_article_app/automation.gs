@@ -579,7 +579,7 @@ function uaSendAutomaticPostingErrorNotification_(job, appConfig, errorMessage) 
 
   const occurredAt = Utilities.formatDate(new Date(), UA_AUTOMATION_TIMEZONE, 'yyyy-MM-dd HH:mm:ss');
   const stepLabel = uaGetAutomaticPostingStepLabel_(job && job.step);
-  const webAppUrl = String(ScriptApp.getService().getUrl() || '').trim();
+  const webAppUrl = uaGetArticleWebAppUrl_();
   const spreadsheetUrl = SpreadsheetApp.getActiveSpreadsheet().getUrl();
   const bodyLines = [
     '自動投稿がエラーで停止しました。',
@@ -609,7 +609,7 @@ function uaSendAutomaticPostingTestNotificationFromPanel(appType, notificationEm
   const appConfig = uaGetAutomationAppConfig_(appType);
   const email = uaNormalizeAutomaticPostingNotificationEmail_(notificationEmail);
   if (!email) throw new Error('テスト通知の送信先メールを入力してください。');
-  const webAppUrl = String(ScriptApp.getService().getUrl() || '').trim();
+  const webAppUrl = uaGetArticleWebAppUrl_();
   const bodyLines = [
     'Article Compass Systemのテスト通知です。',
     'サイト: ' + appConfig.label,

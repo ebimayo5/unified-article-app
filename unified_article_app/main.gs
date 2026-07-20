@@ -342,7 +342,12 @@ function uaSetSheetAppOpenLink_(sheet, appConfig, row, sourceType) {
     sheet.insertColumnsAfter(sheet.getMaxColumns(), linkColumn - sheet.getMaxColumns());
   }
 
-  let targetUrl = uaGetArticleWebAppUrl_();
+  let targetUrl = String(UA_ARTICLE_WEB_APP_URL || '').trim();
+  try {
+    targetUrl = uaGetArticleWebAppUrl_();
+  } catch (error) {
+    if (!targetUrl) throw error;
+  }
   const selectedRow = Number(row || 0);
   let label = '▶ 行を選んでアプリで開く';
   if (selectedRow > 1) {

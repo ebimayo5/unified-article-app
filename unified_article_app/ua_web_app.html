@@ -83,6 +83,8 @@
       .progress-bar.loading { width: 38%; animation: progressMove 1.2s ease-in-out infinite; will-change: transform; }
       .workflow-progress { display: none; margin-top: 8px; padding: 8px; border: 1px solid #b7dccb; border-radius: 8px; background: #f7fffb; }
       .workflow-progress.visible { display: block; }
+      .workflow-progress.stopped { border-color: #f97066; background: #fff1f0; box-shadow: inset 4px 0 0 var(--danger); }
+      .workflow-progress.stopped .workflow-progress-head { color: #b42318; font-size: 14px; }
       .workflow-progress-head { color: var(--brand-dark); font-size: 12px; font-weight: 800; margin-bottom: 6px; }
       .workflow-steps { display: flex; flex-wrap: wrap; gap: 6px; }
       .workflow-step { max-width: 150px; padding: 5px 7px; border: 1px solid #cbe5d8; border-radius: 999px; background: #fff; color: #47665b; font-size: 11px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -91,7 +93,8 @@
       .workflow-step.current::after { content: ""; display: inline-block; width: 6px; height: 6px; margin-left: 6px; border-radius: 50%; background: currentColor; vertical-align: 1px; animation: workflowStepPulse 0.9s ease-in-out infinite; will-change: opacity, transform; }
       .workflow-step.error { color: #fff; background: var(--danger); border-color: var(--danger); }
       .workflow-resume { display: none; width: 100%; margin-top: 8px; }
-      .workflow-resume.visible { display: block; }
+      .workflow-resume.visible { display: block; padding: 12px 14px; border-color: #b42318; box-shadow: 0 5px 14px rgba(180,35,24,0.22); font-size: 15px; }
+      #status.stopped-status-field { color: #b42318; background: #fff1f0; border: 2px solid #f04438; box-shadow: inset 4px 0 0 #b42318; font-weight: 900; }
       .modal-backdrop { position: fixed; inset: 0; z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 18px; background: rgba(15, 23, 42, 0.42); }
       .modal { width: min(560px, 100%); border: 1px solid #b8ded6; border-radius: 10px; background: #fff; box-shadow: 0 18px 45px rgba(15, 23, 42, 0.22); padding: 18px; }
       .modal-title { margin: 0 0 8px; color: var(--brand-dark); font-size: 18px; font-weight: 800; }
@@ -317,7 +320,7 @@
           <div>
             <div id="notice" class="status">読み込み中...</div>
             <div class="progress"><div id="progressBar" class="progress-bar"></div></div>
-            <div id="workflowProgress" class="workflow-progress"><div id="workflowProgressHead" class="workflow-progress-head"></div><div id="workflowSteps" class="workflow-steps"></div><button id="fullWorkflowResumeButton" class="danger workflow-resume" type="button" onclick="resumeFullArticleWorkflow(this)">続きから再開</button></div>
+            <div id="workflowProgress" class="workflow-progress"><div id="workflowProgressHead" class="workflow-progress-head"></div><div id="workflowSteps" class="workflow-steps"></div><button id="fullWorkflowResumeButton" class="danger workflow-resume" type="button" onclick="resumeFullArticleWorkflow(this)">停止位置から再開</button></div>
           </div>
         </div>
 
@@ -1040,6 +1043,13 @@
         savePanelDisplayState();
       }
 
+      function setStoppedArticleUi(stopped) {
+        const statusField = document.getElementById('status');
+        const panel = document.getElementById('workflowProgress');
+        if (statusField) statusField.classList.toggle('stopped-status-field', !!stopped);
+        if (panel) panel.classList.toggle('stopped', !!stopped);
+      }
+
       function parseRakutenControlsFromNotes() {
         const notes = document.getElementById('affiliateNotes').value || '';
         const mode = document.getElementById('rakutenBannerMode');
@@ -1161,6 +1171,7 @@
         window.uaFailedFullWorkflowIncludeImages = null;
         clearFullWorkflowResumeState();
         showFullWorkflowResumeButton(false);
+        setStoppedArticleUi(false);
         const steps = [
           { label: '読者心理メモ', server: 'uaRunReaderMindMemoFromWeb', tab: 'check' },
           { label: '競合調査・構成案', server: 'uaRunArticleStructureFromWeb', tab: 'check', trefai: true },
@@ -1362,7 +1373,24 @@
         const state = readFullWorkflowResumeState();
         const appType = String(data && data.appType || document.getElementById('appType').value || '');
         const row = Number(data && data.row || document.getElementById('row').value || 0);
-        if (!state || state.appType !== appType || Number(state.row) !== row) return false;
+        const isStoppedRow = String(data && data.status || document.getElementById('status').value || '').indexOf('停止') !== -1;
+        setStoppedArticleUi(isStoppedRow);
+        if (!state || state.appType !== appType || Number(state.row) !== row) {
+          if (!isStoppedRow) {
+            if (!window.uaFullWorkflow) hideWorkflowProgress();
+            return false;
+          }
+          window.uaFailedFullWorkflowIncludeImages = true;
+          const stoppedPanel = document.getElementById('workflowProgress');
+          const stoppedHead = document.getElementById('workflowProgressHead');
+          const stoppedSteps = document.getElementById('workflowSteps');
+          if (stoppedPanel) stoppedPanel.classList.add('visible', 'stopped');
+          if (stoppedHead) stoppedHead.textContent = 'この記事は途中停止しています';
+          if (stoppedSteps) stoppedSteps.innerHTML = '';
+          showFullWorkflowResumeButton(true);
+          return true;
+        }
+        setStoppedArticleUi(true);
         window.uaFailedFullWorkflowIncludeImages = state.includeImages !== false;
         const panel = document.getElementById('workflowProgress');
         const head = document.getElementById('workflowProgressHead');
@@ -1781,7 +1809,7 @@
           meta.style.whiteSpace = 'nowrap';
           stopButton = document.createElement('button');
           stopButton.type = 'button';
-          stopButton.className = 'secondary';
+          stopButton.className = 'danger';
           stopButton.dataset.trefaiStop = '1';
           stopButton.style.width = 'auto';
           stopButton.style.marginLeft = '12px';
@@ -2325,7 +2353,7 @@
         meta.style.whiteSpace = 'nowrap';
         const cancel = document.createElement('button');
         cancel.type = 'button';
-        cancel.className = 'secondary';
+        cancel.className = 'danger';
         cancel.style.marginLeft = '12px';
         cancel.textContent = '途中停止';
         cancel.onclick = cancelActiveOperation;

@@ -675,6 +675,7 @@ function uaShowArticleWebAppLauncher_(url, message) {
     '<script>',
     'const targetUrl=' + scriptUrl + ';',
     'const opened=window.open(targetUrl,"ArticleCompassApp");',
+    'if(!opened){setTimeout(function(){document.getElementById("openApp").click();},120);}',
     'if(opened){setTimeout(function(){google.script.host.close();},500);}',
     '<\/script>',
     '</div>'

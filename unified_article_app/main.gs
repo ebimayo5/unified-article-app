@@ -1,31 +1,31 @@
 function onOpen() {
   uaRenameSpreadsheetFileIfLegacyName_();
 
-  SpreadsheetApp.getUi()
-    .createMenu('★Article Compass System')
-    .addItem('記事作成パネルを開く', 'uaShowArticleApp')
-    .addSeparator()
+  const ui = SpreadsheetApp.getUi();
+  const maintenanceMenu = ui
+    .createMenu('初期設定・メンテナンス')
     .addItem('アプリ表示にする', 'uaSetupAppView')
     .addItem('全列を表示する', 'uaShowAllColumns')
     .addSeparator()
-    .addItem('DRIVE BASE候補を開く', 'uaOpenDriveCandidateSheet')
-    .addItem('たくみパパ候補を開く', 'uaOpenHomeCandidateSheet')
     .addItem('案件管理シートを作る・整える', 'uaSetupAffiliateManagementSheet')
-    .addItem('「書く」候補を記事シートへ送る', 'uaMoveWriteCandidatesToArticleSheets')
     .addItem('記事/候補シートの表示ルールを整える', 'uaSetupArticleAndCandidateFormatting')
     .addItem('内部リンクシートを作る', 'uaSetupInternalLinkSheet')
     .addItem('内部リンク候補をサイトマップ更新', 'uaUpdateInternalLinksFromSitemaps')
     .addItem('外部出典シートを作る', 'uaSetupExternalSourceSheet')
-    .addItem('WordPress接続テスト', 'uaTestWordPressConnections')
-    .addSeparator()
-    .addItem('自動投稿を設定・有効化', 'uaSetupAutomaticPosting')
-    .addItem('自動投稿設定を開く', 'uaOpenAutomaticPostingSettings')
-    .addItem('自動投稿を停止', 'uaDisableAutomaticPosting')
+    .addItem('WordPress接続テスト', 'uaTestWordPressConnections');
+  const automaticPostingMenu = ui
+    .createMenu('自動投稿')
+    .addItem('設定を開く', 'uaOpenAutomaticPostingSettings')
     .addItem('停止位置から再開', 'uaResumeAutomaticPosting')
+    .addItem('自動投稿を停止', 'uaDisableAutomaticPosting');
+
+  ui
+    .createMenu('★Article Compass System')
+    .addItem('選択行をパネルに反映', 'uaOpenSelectedRowInArticlePanel')
+    .addItem('記事作成パネルを開く', 'uaShowArticleApp')
     .addSeparator()
-    .addItem('楽天バナーを本文へ追加', 'uaAddRakutenBannerToActiveRow')
-    .addItem('内部リンクを本文へ追加', 'uaAddInternalLinkToActiveRow')
-    .addItem('外部リンクを本文へ追加', 'uaAddExternalSourceLinkToActiveRow')
+    .addSubMenu(automaticPostingMenu)
+    .addSubMenu(maintenanceMenu)
     .addToUi();
 }
 
@@ -614,6 +614,24 @@ function uaShowArticleApp() {
   SpreadsheetApp.getUi().showModelessDialog(html, UA_APP_NAME);
 }
 
+function uaOpenSelectedRowInArticlePanel() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getActiveSheet();
+  const row = sheet.getActiveCell().getRow();
+  const candidateConfig = uaGetAppConfigByCandidateSheet_(sheet.getName());
+  const articleConfig = uaGetAppConfigByArticleSheet_(sheet.getName());
+
+  if (!candidateConfig && !articleConfig) {
+    SpreadsheetApp.getUi().alert('キーワード候補シートまたは記事管理シートで行を選択してください。');
+    return;
+  }
+  if (row <= 1) {
+    SpreadsheetApp.getUi().alert('見出しではなく、反映したいデータ行を選択してください。');
+    return;
+  }
+  uaShowArticleApp();
+}
+
 function uaGetAppConfigList() {
   return Object.keys(UA_APP_TYPES).map(function(key) {
     return UA_APP_TYPES[key];
@@ -997,35 +1015,13 @@ function uaGetInitialPanelData() {
   const candidateConfig = uaGetAppConfigByCandidateSheet_(sheet.getName());
 
   if (candidateConfig) {
-    return {
-      row: sheet.getActiveCell().getRow(),
-      appType: candidateConfig.label,
-      mainInput: '',
-      volume: '',
-      affiliateName: '',
-      affiliateUrl: '',
-      affiliateNotes: '',
-      competitorUrl1: '',
-      competitorUrl2: '',
-      competitorUrl3: '',
-      readerMindMemo: '',
-      status: '',
-      createdAt: '',
-      generationModel: '',
-      body: '',
-      titleIdeas: '',
-      tags: '',
-      metaDescription: '',
-      permalink: '',
-      factCheckPoints: '',
-      wpPostId: '',
-      wpEditUrl: '',
-      wpDraftedAt: '',
-      structureMemo: '',
-      selectedArticleModel: uaGetSelectedArticleModelLabel_(),
-      selectedReaderMindModel: uaGetSelectedReaderMindModelLabel_(),
-      message: '候補シートを開いています。キーワード行を選んで「選択行を反映」を押してください。'
-    };
+    const candidateRow = sheet.getActiveCell().getRow();
+    if (candidateRow <= 1) {
+      throw new Error('キーワード候補シートで、反映したいデータ行を選択してください。');
+    }
+    const data = uaCreateArticleFromCandidateRow_(sheet, candidateConfig, candidateRow);
+    data.message = String(data.message || '候補を記事管理シートへ転送しました。') + ' パネルへ自動反映しました。';
+    return data;
   }
 
   return uaGetActiveRowData();

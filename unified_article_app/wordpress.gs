@@ -641,7 +641,7 @@ function uaSplitTags_(tagsText) {
   const tags = [];
 
   String(tagsText || '')
-    .split(/[,・後―n]/)
+    .split(/[,，、\r\n]+/)
     .forEach(function(rawTag) {
       const tag = String(rawTag || '')
         .replace(/^#+/, '')
@@ -858,7 +858,7 @@ function uaTestDriveWpCategoryWordPressResolution() {
 
 function uaGetWpCategoryIds_(wpConfig) {
   return String(wpConfig.categoryIds || '')
-    .split(/[,・後―s]+/)
+    .split(/[,，、\s]+/)
     .map(function(id) {
       return Number(id);
     })

@@ -227,7 +227,7 @@
             <div class="actions" style="grid-template-columns:1fr 1fr; margin-top:10px;">
               <button class="primary" type="button" style="grid-column:1 / -1;" onclick="openSourceSheet(this)">&#12471;&#12540;&#12488;&#12434;&#38283;&#12367;</button>
             </div>
-            <div class="muted" style="margin-top:8px; line-height:1.5;">シートで行を選び、上部メニューの「★Article Compass System」→「選択行をパネルに反映」を押します。</div>
+            <div class="muted" style="margin-top:8px; line-height:1.5;">シートで行を選び、上部メニューの「★Article Compass System」→「選択行をアプリ画面に反映」を押します。</div>
             <details style="margin-top:10px;">
               <summary class="muted" style="cursor:pointer;">行番号で直接開く（予備）</summary>
               <label for="sourceRow">&#34892;&#30058;&#21495;&#12391;&#21453;&#26144;</label>
@@ -470,6 +470,7 @@
       </div>
     </div>
 <script>
+      window.name = 'ArticleCompassApp';
       const fields = ['row','mainInput','volume','affiliateName','affiliateUrl','affiliateNotes','competitorUrl1','competitorUrl2','competitorUrl3','readerMindMemo','status','generationModel','body','titleIdeas','tags','metaDescription','permalink','factCheckPoints','structureMemo','wpPostId','wpEditUrl','wpDraftedAt'];
       const UA_FULL_WORKFLOW_RESUME_STORAGE_KEY = 'articleCompassFullWorkflowResumeV1';
       const UA_PANEL_STATE_POINTER_KEY = 'articleCompassPanelStateCurrentV1';
@@ -517,7 +518,40 @@
           const restored = restorePanelDisplayState();
           if (!restored) setNotice('候補シートを開くか、行番号で記事行を呼び出してください。', false);
           loadAutomaticPostingSettings();
+          loadArticleRequestedFromUrl();
         }).withFailureHandler(fail).uaGetWebAppBootData();
+      }
+
+      function loadArticleRequestedFromUrl() {
+        if (!google.script.url || !google.script.url.getLocation) return;
+        google.script.url.getLocation(function(location) {
+          const params = location && location.parameter ? location.parameter : {};
+          const appType = String(params.appType || '').trim();
+          const row = Number(params.row || 0);
+          if (!appType || row <= 1) return;
+          const appSelect = document.getElementById('appType');
+          const hasAppType = Array.prototype.some.call(appSelect.options || [], function(option) {
+            return option.value === appType;
+          });
+          if (!hasAppType) {
+            setNotice('シートから指定されたサイトを確認できませんでした。', true);
+            return;
+          }
+          appSelect.value = appType;
+          const sourceType = document.getElementById('sourceType');
+          const sourceRow = document.getElementById('sourceRow');
+          if (sourceType) sourceType.value = 'article';
+          if (sourceRow) sourceRow.value = row;
+          applyTheme();
+          updateSourceControls();
+          setBusy('シートで選択した行を反映中...');
+          google.script.run.withSuccessHandler(function(data) {
+            clearBusy();
+            fillForm(data || {});
+            setProgress('done');
+            setNotice('シートで選択した行をアプリ画面へ反映しました。', false);
+          }).withFailureHandler(fail).uaGetArticleRowForWeb(appType, row);
+        });
       }
 
       function loadAutomaticPostingSettings() {

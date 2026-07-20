@@ -21,8 +21,8 @@ function onOpen() {
 
   ui
     .createMenu('★Article Compass System')
-    .addItem('選択行をパネルに反映', 'uaOpenSelectedRowInArticlePanel')
-    .addItem('記事作成パネルを開く', 'uaShowArticleApp')
+    .addItem('選択行をアプリ画面に反映', 'uaOpenSelectedRowInArticlePanel')
+    .addItem('アプリ画面を開く', 'uaOpenArticleWebApp')
     .addSeparator()
     .addSubMenu(automaticPostingMenu)
     .addSubMenu(maintenanceMenu)
@@ -629,7 +629,53 @@ function uaOpenSelectedRowInArticlePanel() {
     SpreadsheetApp.getUi().alert('見出しではなく、反映したいデータ行を選択してください。');
     return;
   }
-  uaShowArticleApp();
+  let data;
+  if (candidateConfig) {
+    data = uaCreateArticleFromCandidateRow_(sheet, candidateConfig, row);
+  } else {
+    data = uaBuildRowData_(sheet, row);
+  }
+  const webAppUrl = uaGetArticleWebAppUrl_();
+  const targetUrl = webAppUrl +
+    '?appType=' + encodeURIComponent(String(data.appType || '')) +
+    '&row=' + encodeURIComponent(String(data.row || row)) +
+    '&source=sheet';
+  uaShowArticleWebAppLauncher_(targetUrl, '選択行をアプリ画面へ反映します。');
+}
+
+function uaOpenArticleWebApp() {
+  uaShowArticleWebAppLauncher_(uaGetArticleWebAppUrl_(), 'アプリ画面を開きます。');
+}
+
+function uaGetArticleWebAppUrl_() {
+  const url = String(ScriptApp.getService().getUrl() || '').trim();
+  if (!url) {
+    throw new Error('アプリ画面のURLを取得できません。Webアプリのデプロイ設定を確認してください。');
+  }
+  return url;
+}
+
+function uaShowArticleWebAppLauncher_(url, message) {
+  const safeUrl = String(url || '');
+  const scriptUrl = JSON.stringify(safeUrl).replace(/</g, '\\u003c');
+  const linkUrl = safeUrl
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+  const html = HtmlService.createHtmlOutput([
+    '<div style="font-family:sans-serif;padding:18px;color:#173f35;">',
+    '<p style="font-weight:700;margin:0 0 12px;">' + String(message || 'アプリ画面を開きます。') + '</p>',
+    '<p style="font-size:13px;line-height:1.6;">自動で開かない場合は、下のボタンを押してください。</p>',
+    '<a id="openApp" href="' + linkUrl + '" target="ArticleCompassApp" style="display:block;padding:12px;text-align:center;background:#159365;color:#fff;text-decoration:none;border-radius:8px;font-weight:700;">アプリ画面へ移動</a>',
+    '<script>',
+    'const targetUrl=' + scriptUrl + ';',
+    'const opened=window.open(targetUrl,"ArticleCompassApp");',
+    'if(opened){setTimeout(function(){google.script.host.close();},500);}',
+    '<\/script>',
+    '</div>'
+  ].join('')).setWidth(380).setHeight(180);
+  SpreadsheetApp.getUi().showModelessDialog(html, 'Article Compass System');
 }
 
 function uaGetAppConfigList() {
@@ -1015,13 +1061,35 @@ function uaGetInitialPanelData() {
   const candidateConfig = uaGetAppConfigByCandidateSheet_(sheet.getName());
 
   if (candidateConfig) {
-    const candidateRow = sheet.getActiveCell().getRow();
-    if (candidateRow <= 1) {
-      throw new Error('キーワード候補シートで、反映したいデータ行を選択してください。');
-    }
-    const data = uaCreateArticleFromCandidateRow_(sheet, candidateConfig, candidateRow);
-    data.message = String(data.message || '候補を記事管理シートへ転送しました。') + ' パネルへ自動反映しました。';
-    return data;
+    return {
+      row: sheet.getActiveCell().getRow(),
+      appType: candidateConfig.label,
+      mainInput: '',
+      volume: '',
+      affiliateName: '',
+      affiliateUrl: '',
+      affiliateNotes: '',
+      competitorUrl1: '',
+      competitorUrl2: '',
+      competitorUrl3: '',
+      readerMindMemo: '',
+      status: '',
+      createdAt: '',
+      generationModel: '',
+      body: '',
+      titleIdeas: '',
+      tags: '',
+      metaDescription: '',
+      permalink: '',
+      factCheckPoints: '',
+      wpPostId: '',
+      wpEditUrl: '',
+      wpDraftedAt: '',
+      structureMemo: '',
+      selectedArticleModel: uaGetSelectedArticleModelLabel_(),
+      selectedReaderMindModel: uaGetSelectedReaderMindModelLabel_(),
+      message: '候補シートを開いています。キーワード行を選んで「選択行を反映」を押してください。'
+    };
   }
 
   return uaGetActiveRowData();

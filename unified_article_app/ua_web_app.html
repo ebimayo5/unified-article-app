@@ -225,14 +225,17 @@
               <option value="article">&#35352;&#20107;&#21270;&#12375;&#12383;&#35352;&#37682;</option>
             </select>
             <div class="actions" style="grid-template-columns:1fr 1fr; margin-top:10px;">
-              <button class="primary" type="button" onclick="openSourceSheet(this)">&#12471;&#12540;&#12488;&#12434;&#38283;&#12367;</button>
-              <button id="activeSourceRowButton" class="secondary" type="button" onclick="loadFromActiveSourceRow(this)">&#36984;&#25246;&#34892;&#12434;&#21453;&#26144;</button>
+              <button class="primary" type="button" style="grid-column:1 / -1;" onclick="openSourceSheet(this)">&#12471;&#12540;&#12488;&#12434;&#38283;&#12367;</button>
             </div>
-            <label for="sourceRow">&#34892;&#30058;&#21495;&#12391;&#21453;&#26144;</label>
-            <div class="row">
-              <input id="sourceRow" placeholder="&#20363;: 25">
-              <button class="neutral" type="button" onclick="loadFromSourceRow(this)">&#34892;&#30058;&#21495;&#12434;&#21453;&#26144;</button>
-            </div>
+            <div class="muted" style="margin-top:8px; line-height:1.5;">シートで行を選び、上部メニューの「★Article Compass System」→「選択行をパネルに反映」を押します。</div>
+            <details style="margin-top:10px;">
+              <summary class="muted" style="cursor:pointer;">行番号で直接開く（予備）</summary>
+              <label for="sourceRow">&#34892;&#30058;&#21495;&#12391;&#21453;&#26144;</label>
+              <div class="row">
+                <input id="sourceRow" placeholder="&#20363;: 25">
+                <button class="neutral" type="button" onclick="loadFromSourceRow(this)">&#34892;&#30058;&#21495;&#12434;&#21453;&#26144;</button>
+              </div>
+            </details>
           </div>
 
           <button class="secondary" type="button" style="width:100%; margin-top:10px;" onclick="createBlankArticle(this)">&#26032;&#35215;&#35352;&#20107;&#34892;&#12434;&#20316;&#12427;</button>

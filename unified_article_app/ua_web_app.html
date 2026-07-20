@@ -1373,7 +1373,9 @@
         const state = readFullWorkflowResumeState();
         const appType = String(data && data.appType || document.getElementById('appType').value || '');
         const row = Number(data && data.row || document.getElementById('row').value || 0);
-        const isStoppedRow = String(data && data.status || document.getElementById('status').value || '').indexOf('停止') !== -1;
+        const statusText = String(data && data.status || document.getElementById('status').value || '').trim();
+        const isStaleGeneratingRow = statusText === '記事生成中' && !window.uaFullWorkflow;
+        const isStoppedRow = statusText.indexOf('停止') !== -1 || isStaleGeneratingRow;
         setStoppedArticleUi(isStoppedRow);
         if (!state || state.appType !== appType || Number(state.row) !== row) {
           if (!isStoppedRow) {
@@ -1385,7 +1387,9 @@
           const stoppedHead = document.getElementById('workflowProgressHead');
           const stoppedSteps = document.getElementById('workflowSteps');
           if (stoppedPanel) stoppedPanel.classList.add('visible', 'stopped');
-          if (stoppedHead) stoppedHead.textContent = 'この記事は途中停止しています';
+          if (stoppedHead) stoppedHead.textContent = isStaleGeneratingRow
+            ? 'この記事は「記事生成中」のまま中断されています'
+            : 'この記事は途中停止しています';
           if (stoppedSteps) stoppedSteps.innerHTML = '';
           showFullWorkflowResumeButton(true);
           return true;

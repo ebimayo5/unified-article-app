@@ -1,4 +1,5 @@
 const UA_APP_NAME = 'Article Compass System';
+const UA_ARTICLE_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbzGbxQA5AuXH3MlUZSlfTjDn1hrpH4MnNNG0NVKty0wUz1Bd-4oVXbMQUBloQvd-HCm/exec';
 
 const UA_ARTICLE_PROVIDER_PROPERTY = 'ARTICLE_PROVIDER';
 const UA_READER_MIND_PROVIDER_PROPERTY = 'READER_MIND_PROVIDER';

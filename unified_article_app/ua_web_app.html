@@ -469,6 +469,8 @@
 <script>
       const fields = ['row','mainInput','volume','affiliateName','affiliateUrl','affiliateNotes','competitorUrl1','competitorUrl2','competitorUrl3','readerMindMemo','status','generationModel','body','titleIdeas','tags','metaDescription','permalink','factCheckPoints','structureMemo','wpPostId','wpEditUrl','wpDraftedAt'];
       const UA_FULL_WORKFLOW_RESUME_STORAGE_KEY = 'articleCompassFullWorkflowResumeV1';
+      const UA_PANEL_STATE_POINTER_KEY = 'articleCompassPanelStateCurrentV1';
+      const UA_PANEL_STATE_KEY_PREFIX = 'articleCompassPanelStateV1:';
       let appConfigs = [];
       let textModels = [];
       let imageModels = [];
@@ -492,9 +494,11 @@
       let imagePromptPackFull = '';
       let imagePromptBlocks = [];
       let imagePromptIndex = 0;
+      let panelStateSaveTimer = null;
 
       function init() {
         bindAutoSaveControls();
+        bindPanelStatePersistence();
         setBusy('アプリを読み込み中...');
         google.script.run.withSuccessHandler(function(data) {
           clearBusy();
@@ -507,7 +511,8 @@
           applyDefaultImageStyle();
           applyTheme();
           setProgress('done');
-          setNotice('候補シートを開くか、行番号で記事行を呼び出してください。', false);
+          const restored = restorePanelDisplayState();
+          if (!restored) setNotice('候補シートを開くか、行番号で記事行を呼び出してください。', false);
           loadAutomaticPostingSettings();
         }).withFailureHandler(fail).uaGetWebAppBootData();
       }
@@ -654,6 +659,7 @@
         applyDefaultImageStyle();
         document.getElementById('subText').textContent = '候補を選ぶと、ここに編集フォームが入ります。';
         isFillingForm = false;
+        try { window.localStorage.removeItem(UA_PANEL_STATE_POINTER_KEY); } catch (e) {}
       }
 
       function bindAutoSaveControls() {
@@ -663,6 +669,152 @@
           el.addEventListener('input', scheduleAutoSave);
           el.addEventListener('change', scheduleAutoSave);
         });
+      }
+
+      function bindPanelStatePersistence() {
+        document.querySelectorAll('input, textarea, select').forEach(function(el) {
+          if (!el.id || el.id.indexOf('autoPosting') === 0) return;
+          el.addEventListener('input', schedulePanelDisplayStateSave);
+          el.addEventListener('change', schedulePanelDisplayStateSave);
+        });
+        window.addEventListener('pagehide', function() {
+          if (window.uaFullWorkflow) {
+            saveFullWorkflowResumeState(window.uaFullWorkflow, '再読み込みで中断');
+          }
+          savePanelDisplayState();
+        });
+      }
+
+      function schedulePanelDisplayStateSave() {
+        if (isFillingForm) return;
+        window.clearTimeout(panelStateSaveTimer);
+        panelStateSaveTimer = window.setTimeout(savePanelDisplayState, 250);
+      }
+
+      function panelDisplayStateKey(appType, row) {
+        return UA_PANEL_STATE_KEY_PREFIX + encodeURIComponent(String(appType || '')) + ':' + Number(row || 0);
+      }
+
+      function savePanelDisplayState() {
+        window.clearTimeout(panelStateSaveTimer);
+        panelStateSaveTimer = null;
+        const appType = document.getElementById('appType').value;
+        const row = Number(document.getElementById('row').value || 0);
+        if (!appType || row <= 1) return false;
+        const values = {};
+        fields.forEach(function(id) {
+          const el = document.getElementById(id);
+          if (el) values[id] = el.value;
+        });
+        ['sourceType','sourceRow','textModel','imageModel','imageStylePreset','imageStylePrompt','rakutenBannerMode','rakutenProductKeyword'].forEach(function(id) {
+          const el = document.getElementById(id);
+          if (el) values[id] = el.value;
+        });
+        const activeTab = ['summary', 'body', 'check'].find(function(name) {
+          const tab = document.getElementById('tab' + capitalize(name));
+          return tab && tab.classList.contains('active');
+        }) || 'summary';
+        const notice = document.getElementById('notice');
+        const workflowPanel = document.getElementById('workflowProgress');
+        const workflowHead = document.getElementById('workflowProgressHead');
+        const workflowResume = document.getElementById('fullWorkflowResumeButton');
+        const state = {
+          savedAt: Date.now(),
+          appType: appType,
+          loadedAppType: loadedAppType || appType,
+          row: row,
+          values: values,
+          activeTab: activeTab,
+          noticeText: notice ? notice.textContent : '',
+          noticeError: !!(notice && notice.classList.contains('error')),
+          noticeWorking: !!(notice && notice.classList.contains('working')),
+          workflow: {
+            visible: !!(workflowPanel && workflowPanel.classList.contains('visible')),
+            head: workflowHead ? workflowHead.textContent : '',
+            resumeVisible: !!(workflowResume && workflowResume.classList.contains('visible')),
+            steps: Array.prototype.map.call(document.querySelectorAll('#workflowSteps .workflow-step'), function(item) {
+              return { text: item.textContent, className: item.className };
+            })
+          }
+        };
+        const key = panelDisplayStateKey(appType, row);
+        try {
+          const previousKey = window.localStorage.getItem(UA_PANEL_STATE_POINTER_KEY);
+          if (previousKey && previousKey !== key && previousKey.indexOf(UA_PANEL_STATE_KEY_PREFIX) === 0) {
+            window.localStorage.removeItem(previousKey);
+          }
+          window.localStorage.setItem(key, JSON.stringify(state));
+          window.localStorage.setItem(UA_PANEL_STATE_POINTER_KEY, key);
+          return true;
+        } catch (e) {
+          return false;
+        }
+      }
+
+      function readPanelDisplayState() {
+        try {
+          const key = window.localStorage.getItem(UA_PANEL_STATE_POINTER_KEY);
+          if (!key || key.indexOf(UA_PANEL_STATE_KEY_PREFIX) !== 0) return null;
+          const raw = window.localStorage.getItem(key);
+          if (!raw) return null;
+          const state = JSON.parse(raw);
+          if (!state || !state.appType || Number(state.row || 0) <= 1) return null;
+          if (Date.now() - Number(state.savedAt || 0) > 7 * 24 * 60 * 60 * 1000) {
+            window.localStorage.removeItem(key);
+            window.localStorage.removeItem(UA_PANEL_STATE_POINTER_KEY);
+            return null;
+          }
+          return state;
+        } catch (e) {
+          return null;
+        }
+      }
+
+      function restorePanelDisplayState() {
+        const state = readPanelDisplayState();
+        if (!state || !appConfigs.some(function(item) { return item.label === state.appType; })) return false;
+        isFillingForm = true;
+        document.getElementById('appType').value = state.appType;
+        const values = state.values || {};
+        fields.concat(['sourceType','sourceRow','textModel','imageModel','imageStylePreset','imageStylePrompt','rakutenBannerMode','rakutenProductKeyword']).forEach(function(id) {
+          const el = document.getElementById(id);
+          if (el && Object.prototype.hasOwnProperty.call(values, id)) el.value = values[id];
+        });
+        loadedAppType = state.loadedAppType || state.appType;
+        document.getElementById('subText').textContent = values.mainInput || '候補を選ぶと、ここに編集フォームが入ります。';
+        applyTheme();
+        updateSourceControls();
+        showTab(state.activeTab || 'summary');
+        isFillingForm = false;
+        restorePanelWorkflowSnapshot(state.workflow);
+        restoreFullWorkflowResumeState({ appType: state.appType, row: state.row });
+        if (state.noticeWorking) {
+          setNotice('再読み込み前の処理は中断されました。続きから再開してください。', true);
+          setProgress('error');
+        } else if (state.noticeText) {
+          setNotice(state.noticeText, state.noticeError);
+          setProgress(state.noticeError ? 'error' : 'done');
+        }
+        return true;
+      }
+
+      function restorePanelWorkflowSnapshot(workflow) {
+        if (!workflow || !workflow.visible) return;
+        const panel = document.getElementById('workflowProgress');
+        const head = document.getElementById('workflowProgressHead');
+        const steps = document.getElementById('workflowSteps');
+        if (panel) panel.classList.add('visible');
+        if (head) head.textContent = workflow.head || '';
+        if (steps) {
+          steps.innerHTML = '';
+          (workflow.steps || []).forEach(function(savedStep) {
+            const item = document.createElement('span');
+            item.className = /^workflow-step(?:\s|$)/.test(savedStep.className || '') ? savedStep.className : 'workflow-step';
+            item.textContent = savedStep.text || '';
+            steps.appendChild(item);
+          });
+        }
+        showFullWorkflowResumeButton(!!workflow.resumeVisible);
       }
 
       function scheduleAutoSave() {
@@ -848,6 +1000,7 @@
         document.getElementById('subText').textContent = data.mainInput ? data.mainInput : '候補を選ぶと、ここに編集フォームが入ります。';
         isFillingForm = false;
         restoreFullWorkflowResumeState(data);
+        savePanelDisplayState();
       }
 
       function parseRakutenControlsFromNotes() {
@@ -1128,6 +1281,7 @@
           const panel = document.getElementById('workflowProgress');
           if (panel) panel.classList.add('visible');
         }
+        schedulePanelDisplayStateSave();
       }
 
       function readFullWorkflowResumeState() {
@@ -1997,6 +2151,7 @@
           document.getElementById('panel' + capitalize(tab)).classList.toggle('hidden', tab !== name);
           document.getElementById('tab' + capitalize(tab)).classList.toggle('active', tab === name);
         });
+        schedulePanelDisplayStateSave();
       }
 
       function capitalize(value) { return value.charAt(0).toUpperCase() + value.slice(1); }
@@ -2050,6 +2205,7 @@
           item.title = step.label;
           stepsEl.appendChild(item);
         });
+        schedulePanelDisplayStateSave();
       }
 
       function hideWorkflowProgress() {
@@ -2198,9 +2354,11 @@
         clearBusy();
         setProgress('error');
         setNotice('処理に失敗しました: ' + (error && error.message ? error.message : error), true);
+        savePanelDisplayState();
       }
 
       init();
     </script>
   </body>
 </html>
+

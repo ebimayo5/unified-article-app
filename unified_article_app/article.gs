@@ -394,13 +394,24 @@ function uaFindManagedAffiliateCtaFallbackIndex_(body) {
 }
 
 function uaApplyNaviokunIntroSet_(body, rowData, appConfig) {
-  const html = String(body || '');
+  let html = String(body || '');
   if (!html || !appConfig || appConfig.key !== 'drive') return html;
-  if (html.indexOf('ナビ男くん') === -1) return html;
+  const isNaviokunAffiliate = /ナビ男くん/.test(String(rowData && rowData.affiliateName || ''));
+  const hadIntroSet = html.indexOf(UA_NAVIOKUN_INTRO_URL) !== -1 && /\[affi\s+id\s*=\s*7\s*\]/i.test(html);
+  if (!isNaviokunAffiliate && html.indexOf('ナビ男くん') === -1 && !hadIntroSet) return html;
 
-  const hasCompleteIntroSet = html.indexOf(UA_NAVIOKUN_INTRO_URL) !== -1 && /\[affi\s+id\s*=\s*7\s*\]/i.test(html);
-  if (hasCompleteIntroSet) {
-    return html;
+  html = uaRemoveNaviokunIntroSet_(html);
+  let ctaBounds = isNaviokunAffiliate ? uaFindNaviokunManagedCtaBounds_(html, rowData) : null;
+  if (ctaBounds) {
+    html = uaEnsureNaviokunBridgeBeforeCta_(html, ctaBounds.start, rowData);
+    ctaBounds = uaFindNaviokunManagedCtaBounds_(html, rowData);
+    if (ctaBounds) {
+      return [
+        html.slice(0, ctaBounds.start).trimEnd(),
+        uaBuildNaviokunIntroSetHtml_(),
+        html.slice(ctaBounds.start).trimStart()
+      ].filter(Boolean).join('\n\n');
+    }
   }
 
   const insertionIndex = uaFindNaviokunIntroInsertionIndex_(html);
@@ -410,6 +421,68 @@ function uaApplyNaviokunIntroSet_(body, rowData, appConfig) {
     introSet,
     html.slice(insertionIndex).trimStart()
   ].filter(Boolean).join('\n\n');
+}
+
+function uaRemoveNaviokunIntroSet_(body) {
+  let html = String(body || '');
+  const exactSet = uaBuildNaviokunIntroSetHtml_();
+  html = html.split(exactSet).join('');
+
+  let urlIndex = html.indexOf(UA_NAVIOKUN_INTRO_URL);
+  while (urlIndex !== -1) {
+    const start = html.lastIndexOf('<!-- wp:cocoon-blocks/info-box', urlIndex);
+    const endMarker = '<!-- /wp:cocoon-blocks/info-box -->';
+    const endStart = html.indexOf(endMarker, urlIndex);
+    if (start < 0 || endStart < 0) break;
+    const end = endStart + endMarker.length;
+    const block = html.slice(start, end);
+    if (block.indexOf('danger-box') === -1 || !/\[affi\s+id\s*=\s*7\s*\]/i.test(block)) break;
+    html = html.slice(0, start) + html.slice(end);
+    urlIndex = html.indexOf(UA_NAVIOKUN_INTRO_URL);
+  }
+  return html.replace(/\n{3,}/g, '\n\n').trim();
+}
+
+function uaFindNaviokunManagedCtaBounds_(body, rowData) {
+  const html = String(body || '');
+  const spec = uaGetManagedAffiliateCtaSpec_(rowData || {});
+  if (!spec || !/ナビ男くん/.test(String(spec.name || ''))) return null;
+  const markers = uaExtractUrlsFromAffiliateCode_(spec.content || '');
+  if (spec.url && markers.indexOf(spec.url) === -1) markers.push(spec.url);
+  if (spec.type === 'shortcode' && spec.content) markers.push(String(spec.content).trim());
+  const regex = /<!--\s*wp:cocoon-blocks\/button-wrap-1\b[\s\S]*?<!--\s*\/wp:cocoon-blocks\/button-wrap-1\s*-->/gi;
+  let match;
+  while ((match = regex.exec(html)) !== null) {
+    const block = String(match[0] || '');
+    const isTarget = markers.some(function(marker) {
+      return marker && (block.indexOf(marker) !== -1 || block.indexOf(String(marker).replace(/&/g, '&amp;')) !== -1);
+    });
+    if (isTarget) return { start: match.index, end: match.index + match[0].length, block: block };
+  }
+  return null;
+}
+
+function uaEnsureNaviokunBridgeBeforeCta_(body, ctaStart, rowData) {
+  const html = String(body || '');
+  const start = Math.max(0, Number(ctaStart || 0));
+  const previousH2 = html.lastIndexOf('<h2', start);
+  const contextStart = Math.max(previousH2 >= 0 ? previousH2 : 0, start - 1600);
+  const precedingText = html.slice(contextStart, start)
+    .replace(/<!--[^]*?-->/g, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (/ナビ男くん/.test(precedingText)) return html;
+
+  const bridgeText = uaIsNaviokunHighRelevanceTopic_(rowData)
+    ? '純正機能で足りない部分を後付けで補いたい場合は、車内エンタメの施工を扱うナビ男くんで、対応車種や施工内容を確認できます。'
+    : '購入後に変えにくい条件とは別に、ナビや映像環境など後付けで調整できる部分は、車内エンタメの施工を扱うナビ男くんで対応内容を確認できます。';
+  const bridgeBlock = [
+    '<!-- wp:paragraph -->',
+    '<p>' + bridgeText + '</p>',
+    '<!-- /wp:paragraph -->'
+  ].join('\n');
+  return [html.slice(0, start).trimEnd(), bridgeBlock, html.slice(start).trimStart()].filter(Boolean).join('\n\n');
 }
 
 function uaFindNaviokunIntroInsertionIndex_(body) {

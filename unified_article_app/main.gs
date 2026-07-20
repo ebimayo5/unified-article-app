@@ -648,9 +648,13 @@ function uaOpenArticleWebApp() {
 }
 
 function uaGetArticleWebAppUrl_() {
-  const url = String(ScriptApp.getService().getUrl() || '').trim();
+  const configuredUrl = String(PropertiesService.getScriptProperties().getProperty('UA_ARTICLE_WEB_APP_URL') || '').trim();
+  const url = configuredUrl || String(UA_ARTICLE_WEB_APP_URL || '').trim();
   if (!url) {
     throw new Error('アプリ画面のURLを取得できません。Webアプリのデプロイ設定を確認してください。');
+  }
+  if (!/^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/i.test(url)) {
+    throw new Error('アプリ画面のURLが正しくありません。Webアプリの本番URLを確認してください。');
   }
   return url;
 }

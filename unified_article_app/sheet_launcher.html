@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+    <style>
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        padding: 16px;
+        font-family: Arial, "Noto Sans JP", sans-serif;
+        color: #173f35;
+        background: #f4fbf7;
+      }
+      .card {
+        border: 1px solid #b9ddcf;
+        border-radius: 12px;
+        padding: 14px;
+        background: #fff;
+        box-shadow: 0 3px 12px rgba(15, 82, 65, 0.08);
+      }
+      h2 { margin: 0 0 8px; font-size: 18px; }
+      p { margin: 0 0 14px; font-size: 13px; line-height: 1.65; }
+      button, a {
+        display: block;
+        width: 100%;
+        border-radius: 9px;
+        padding: 13px 10px;
+        font-size: 14px;
+        font-weight: 700;
+        text-align: center;
+        text-decoration: none;
+        cursor: pointer;
+      }
+      button {
+        border: 0;
+        color: #fff;
+        background: #159365;
+      }
+      button:hover { background: #0f7d55; }
+      button:disabled { opacity: 0.62; cursor: wait; }
+      a {
+        margin-top: 9px;
+        border: 1px solid #93c8b5;
+        color: #176f52;
+        background: #eff9f4;
+      }
+      .status {
+        display: none;
+        margin-top: 12px;
+        border-radius: 8px;
+        padding: 10px;
+        font-size: 12px;
+        line-height: 1.55;
+        background: #eaf7f1;
+      }
+      .status.visible { display: block; }
+      .status.error { color: #9d261f; background: #fff0ef; }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <h2>Article Compass</h2>
+      <p>候補シートまたは記事管理シートで行を選び、下のボタンを押してください。</p>
+      <button id="openSelected" type="button" onclick="openSelectedRow()">選択行をアプリで開く</button>
+      <a href="<?!= webAppUrl ?>" target="ArticleCompassApp">アプリ画面だけ開く</a>
+      <div id="status" class="status"></div>
+    </div>
+
+    <script>
+      const WEB_APP_URL = <?!= JSON.stringify(webAppUrl) ?>;
+
+      function showStatus(message, isError) {
+        const status = document.getElementById('status');
+        status.textContent = message || '';
+        status.className = 'status visible' + (isError ? ' error' : '');
+      }
+
+      function openSelectedRow() {
+        const button = document.getElementById('openSelected');
+        const appWindow = window.open(WEB_APP_URL, 'ArticleCompassApp');
+        if (!appWindow) {
+          showStatus('ブラウザでポップアップがブロックされています。このシートではポップアップを許可してください。', true);
+          return;
+        }
+
+        button.disabled = true;
+        button.textContent = '選択行を確認中...';
+        showStatus('選択行をアプリへ反映しています。', false);
+        google.script.run
+          .withSuccessHandler(function(result) {
+            button.disabled = false;
+            button.textContent = '選択行をアプリで開く';
+            if (!result || !result.url) {
+              showStatus('アプリの移動先を確認できませんでした。', true);
+              return;
+            }
+            appWindow.location.replace(result.url);
+            appWindow.focus();
+            showStatus((result.mainInput || '選択した記事') + ' をアプリへ反映しました。', false);
+          })
+          .withFailureHandler(function(error) {
+            button.disabled = false;
+            button.textContent = '選択行をアプリで開く';
+            try { appWindow.close(); } catch (e) {}
+            showStatus(error && error.message ? error.message : String(error || '処理に失敗しました。'), true);
+          })
+          .uaPrepareSelectedRowAppLaunch();
+      }
+    </script>
+  </body>
+</html>

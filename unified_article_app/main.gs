@@ -1,9 +1,9 @@
 function onOpen() {
   uaRenameSpreadsheetFileIfLegacyName_();
   try {
-    uaSetupSheetAppOpenLinks_();
+    uaRemoveSheetAppOpenLinks_();
   } catch (error) {
-    console.error('Failed to prepare sheet app links: ' + error);
+    console.error('Failed to remove old sheet app links: ' + error);
   }
 
   const ui = SpreadsheetApp.getUi();
@@ -26,11 +26,18 @@ function onOpen() {
 
   ui
     .createMenu('★Article Compass System')
+    .addItem('アプリ操作ボタンを表示', 'uaShowSheetLauncherSidebar')
     .addItem('アプリ画面を開く', 'uaOpenArticleWebApp')
     .addSeparator()
     .addSubMenu(automaticPostingMenu)
     .addSubMenu(maintenanceMenu)
     .addToUi();
+
+  try {
+    uaShowSheetLauncherSidebar();
+  } catch (error) {
+    console.error('Failed to show app launcher sidebar: ' + error);
+  }
 }
 
 function uaRenameSpreadsheetFileIfLegacyName_() {
@@ -46,17 +53,9 @@ function onSelectionChange(e) {
   }
 
   const sheet = e.range.getSheet();
-  const candidateConfig = uaGetAppConfigByCandidateSheet_(sheet.getName());
-  const articleConfig = uaGetAppConfigByArticleSheet_(sheet.getName());
-  const appConfig = candidateConfig || articleConfig;
+  const appConfig = uaGetAppConfigByCandidateSheet_(sheet.getName());
 
   if (!appConfig || e.range.getRow() === 1) {
-    return;
-  }
-
-  uaSetSheetAppOpenLink_(sheet, appConfig, e.range.getRow(), candidateConfig ? 'candidate' : 'article');
-
-  if (!candidateConfig) {
     return;
   }
 
@@ -298,76 +297,27 @@ function uaGetManagedAffiliateUrls_(rowData) {
   });
 }
 
-function uaSetupSheetAppOpenLinks_() {
+function uaRemoveSheetAppOpenLinks_() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   Object.keys(UA_APP_TYPES).forEach(function(key) {
     const appConfig = UA_APP_TYPES[key];
     if (appConfig.candidateSheetName) {
       const candidateSheet = ss.getSheetByName(appConfig.candidateSheetName);
-      if (candidateSheet) uaSetSheetAppOpenLink_(candidateSheet, appConfig, 0, 'candidate');
+      if (candidateSheet) uaClearSheetAppOpenLink_(candidateSheet, UA_CANDIDATE_HEADERS.length + 1);
     }
     if (appConfig.articleSheetName) {
       const articleSheet = ss.getSheetByName(appConfig.articleSheetName);
-      if (articleSheet) uaSetSheetAppOpenLink_(articleSheet, appConfig, 0, 'article');
+      if (articleSheet) uaClearSheetAppOpenLink_(articleSheet, UA_ARTICLE_COLUMN_COUNT + 1);
     }
   });
-
-  const activeSheet = ss.getActiveSheet();
-  const activeRow = activeSheet.getActiveCell().getRow();
-  const candidateConfig = uaGetAppConfigByCandidateSheet_(activeSheet.getName());
-  const articleConfig = uaGetAppConfigByArticleSheet_(activeSheet.getName());
-  if (activeRow > 1 && (candidateConfig || articleConfig)) {
-    uaSetSheetAppOpenLink_(
-      activeSheet,
-      candidateConfig || articleConfig,
-      activeRow,
-      candidateConfig ? 'candidate' : 'article'
-    );
-  }
 }
 
-function uaRefreshSheetAppOpenLinks() {
-  uaSetupSheetAppOpenLinks_();
-  return {
-    success: true,
-    message: '各シート上部の「選択行をアプリで開く」ボタンを更新しました。'
-  };
-}
-
-function uaSetSheetAppOpenLink_(sheet, appConfig, row, sourceType) {
-  if (!sheet || !appConfig) return;
-  const isCandidate = sourceType === 'candidate';
-  const linkColumn = isCandidate ? UA_CANDIDATE_HEADERS.length + 1 : UA_ARTICLE_COLUMN_COUNT + 1;
-  if (sheet.getMaxColumns() < linkColumn) {
-    sheet.insertColumnsAfter(sheet.getMaxColumns(), linkColumn - sheet.getMaxColumns());
-  }
-
-  let targetUrl = String(UA_ARTICLE_WEB_APP_URL || '').trim();
-  try {
-    targetUrl = uaGetArticleWebAppUrl_();
-  } catch (error) {
-    if (!targetUrl) throw error;
-  }
-  const selectedRow = Number(row || 0);
-  let label = '▶ 行を選んでアプリで開く';
-  if (selectedRow > 1) {
-    targetUrl += '?appType=' + encodeURIComponent(String(appConfig.label || '')) +
-      (isCandidate ? '&candidateRow=' : '&row=') + encodeURIComponent(String(selectedRow)) +
-      '&source=sheet';
-    label = '▶ 選択行をアプリで開く';
-  }
-
-  const formula = '=HYPERLINK("' + String(targetUrl).replace(/"/g, '""') + '","' + label + '")';
-  const cell = sheet.getRange(1, linkColumn);
-  cell
-    .setFormula(formula)
-    .setBackground('#159365')
-    .setFontColor('#ffffff')
-    .setFontWeight('bold')
-    .setHorizontalAlignment('center')
-    .setVerticalAlignment('middle')
-    .setNote('先に対象のデータ行を選び、ここをクリックしてください。');
-  sheet.setColumnWidth(linkColumn, 220);
+function uaClearSheetAppOpenLink_(sheet, column) {
+  if (!sheet || sheet.getMaxColumns() < column) return;
+  const cell = sheet.getRange(1, column);
+  const formula = String(cell.getFormula() || '');
+  if (formula.indexOf('HYPERLINK') === -1 || formula.indexOf('/macros/s/') === -1) return;
+  cell.clearContent().clearNote().clearFormat();
 }
 
 function uaGetManagedAffiliateCtaSpec_(rowData) {
@@ -530,8 +480,6 @@ function uaEnsureArticleSheetLayout_(sheet) {
   sheet.getRange(1, 1, 1, UA_HEADERS.length).setValues([UA_HEADERS]);
   sheet.setFrozenRows(1);
   sheet.setFrozenColumns(2);
-  const appConfig = uaGetAppConfigByArticleSheet_(sheet.getName());
-  if (appConfig) uaSetSheetAppOpenLink_(sheet, appConfig, 0, 'article');
 }
 
 function uaApplyCandidateSheetRules_(sheet) {
@@ -672,8 +620,6 @@ function uaEnsureCandidateSheetLayout_(sheet) {
   sheet.getRange(1, 1, 1, UA_CANDIDATE_HEADERS.length).setValues([UA_CANDIDATE_HEADERS]);
   sheet.setFrozenRows(1);
   sheet.setFrozenColumns(4);
-  const appConfig = uaGetAppConfigByCandidateSheet_(sheet.getName());
-  if (appConfig) uaSetSheetAppOpenLink_(sheet, appConfig, 0, 'candidate');
 
   const lastRow = sheet.getLastRow();
   if (lastRow >= 2) {
@@ -703,6 +649,11 @@ function uaShowArticleApp() {
 }
 
 function uaOpenSelectedRowInArticlePanel() {
+  const result = uaPrepareSelectedRowAppLaunch();
+  uaShowArticleWebAppLauncher_(result.url, '選択行をアプリ画面へ反映します。');
+}
+
+function uaPrepareSelectedRowAppLaunch() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheet = ss.getActiveSheet();
   const row = sheet.getActiveCell().getRow();
@@ -728,7 +679,22 @@ function uaOpenSelectedRowInArticlePanel() {
     '?appType=' + encodeURIComponent(String(data.appType || '')) +
     '&row=' + encodeURIComponent(String(data.row || row)) +
     '&source=sheet';
-  uaShowArticleWebAppLauncher_(targetUrl, '選択行をアプリ画面へ反映します。');
+  return {
+    success: true,
+    url: targetUrl,
+    appType: data.appType || '',
+    row: Number(data.row || row),
+    mainInput: data.mainInput || ''
+  };
+}
+
+function uaShowSheetLauncherSidebar() {
+  const template = HtmlService.createTemplateFromFile('sheet_launcher');
+  template.webAppUrl = uaGetArticleWebAppUrl_();
+  const html = template
+    .evaluate()
+    .setTitle('Article Compass');
+  SpreadsheetApp.getUi().showSidebar(html);
 }
 
 function uaOpenArticleWebApp() {
@@ -749,6 +715,11 @@ function uaGetArticleWebAppUrl_() {
 
 function uaShowArticleWebAppLauncher_(url, message) {
   const safeUrl = String(url || '');
+  const opensSelectedRow = String(message || '').indexOf('選択行') !== -1;
+  const buttonLabel = opensSelectedRow ? '選択行をアプリで開く' : 'アプリ画面を開く';
+  const helpText = opensSelectedRow
+    ? '下の緑ボタンを押すと、選択行をアプリへ反映します。'
+    : '下の緑ボタンを押すと、アプリ画面を開きます。';
   const scriptUrl = JSON.stringify(safeUrl).replace(/</g, '\\u003c');
   const linkUrl = safeUrl
     .replace(/&/g, '&amp;')
@@ -758,12 +729,11 @@ function uaShowArticleWebAppLauncher_(url, message) {
   const html = HtmlService.createHtmlOutput([
     '<div style="font-family:sans-serif;padding:18px;color:#173f35;">',
     '<p style="font-weight:700;margin:0 0 12px;">' + String(message || 'アプリ画面を開きます。') + '</p>',
-    '<p style="font-size:13px;line-height:1.6;">自動で開かない場合は、下のボタンを押してください。</p>',
-    '<a id="openApp" href="' + linkUrl + '" target="ArticleCompassApp" style="display:block;padding:12px;text-align:center;background:#159365;color:#fff;text-decoration:none;border-radius:8px;font-weight:700;">アプリ画面へ移動</a>',
+    '<p style="font-size:13px;line-height:1.6;">' + helpText + '</p>',
+    '<a id="openApp" href="' + linkUrl + '" target="ArticleCompassApp" style="display:block;padding:14px;text-align:center;background:#159365;color:#fff;text-decoration:none;border-radius:8px;font-weight:700;">' + buttonLabel + '</a>',
     '<script>',
     'const targetUrl=' + scriptUrl + ';',
     'const opened=window.open(targetUrl,"ArticleCompassApp");',
-    'if(!opened){setTimeout(function(){document.getElementById("openApp").click();},120);}',
     'if(opened){setTimeout(function(){google.script.host.close();},500);}',
     '<\/script>',
     '</div>'

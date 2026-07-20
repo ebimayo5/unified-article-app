@@ -173,4 +173,3 @@ const UA_HEADERS = [
   'WP入稿日時',
   '構成メモ'
 ];
-

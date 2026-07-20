@@ -530,7 +530,8 @@
         google.script.url.getLocation(function(location) {
           const params = location && location.parameter ? location.parameter : {};
           const appType = String(params.appType || '').trim();
-          const row = Number(params.row || 0);
+          const candidateRow = Number(params.candidateRow || 0);
+          const row = Number(params.row || candidateRow || 0);
           if (!appType || row <= 1) return;
           const appSelect = document.getElementById('appType');
           const hasAppType = Array.prototype.some.call(appSelect.options || [], function(option) {
@@ -543,17 +544,22 @@
           appSelect.value = appType;
           const sourceType = document.getElementById('sourceType');
           const sourceRow = document.getElementById('sourceRow');
-          if (sourceType) sourceType.value = 'article';
+          if (sourceType) sourceType.value = candidateRow > 1 ? 'candidate' : 'article';
           if (sourceRow) sourceRow.value = row;
           applyTheme();
           updateSourceControls();
           setBusy('シートで選択した行を反映中...');
-          google.script.run.withSuccessHandler(function(data) {
+          const runner = google.script.run.withSuccessHandler(function(data) {
             clearBusy();
             fillForm(data || {});
             setProgress('done');
             setNotice('シートで選択した行をアプリ画面へ反映しました。', false);
-          }).withFailureHandler(fail).uaGetArticleRowForWeb(appType, row);
+          }).withFailureHandler(fail);
+          if (candidateRow > 1) {
+            runner.uaCreateArticleFromCandidateForWeb(appType, candidateRow);
+          } else {
+            runner.uaGetArticleRowForWeb(appType, row);
+          }
         });
       }
 
@@ -2430,4 +2436,3 @@
     </script>
   </body>
 </html>
-

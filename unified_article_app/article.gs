@@ -2154,4 +2154,3 @@ function uaFixGeneratedHtml_(html) {
 
   return text;
 }
-

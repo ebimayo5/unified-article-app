@@ -453,4 +453,3 @@ ${affiliatePrompt}
 ${uaCommonOutputRules_()}
 `;
 }
-

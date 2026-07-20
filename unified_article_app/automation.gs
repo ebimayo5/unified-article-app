@@ -821,4 +821,3 @@ function uaTestAutomaticPostingLogic() {
   if (uaNormalizeAutomaticPostingInteger_(3, 1, 5, 1) !== 3) throw new Error('記事数変更テスト失敗');
   return { ok: true, tested: ['1日1〜5記事', '0〜23時', '画像あり', '下書き/公開分岐', '再開段階'] };
 }
-

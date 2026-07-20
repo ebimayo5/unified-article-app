@@ -128,4 +128,3 @@ function uaSetFactCheckPointsWithLinks_(sheet, rowNumber, text) {
 
   range.setRichTextValue(builder.build());
 }
-

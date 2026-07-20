@@ -900,4 +900,3 @@ function uaBuildWpEditUrl_(siteUrl, postId) {
 function uaTrimTrailingSlash_(value) {
   return String(value || '').trim().replace(/\/+$/, '');
 }
-

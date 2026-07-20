@@ -1,5 +1,10 @@
 function onOpen() {
   uaRenameSpreadsheetFileIfLegacyName_();
+  try {
+    uaSetupSheetAppOpenLinks_();
+  } catch (error) {
+    console.error('Failed to prepare sheet app links: ' + error);
+  }
 
   const ui = SpreadsheetApp.getUi();
   const maintenanceMenu = ui
@@ -21,7 +26,6 @@ function onOpen() {
 
   ui
     .createMenu('★Article Compass System')
-    .addItem('選択行をアプリ画面に反映', 'uaOpenSelectedRowInArticlePanel')
     .addItem('アプリ画面を開く', 'uaOpenArticleWebApp')
     .addSeparator()
     .addSubMenu(automaticPostingMenu)
@@ -42,9 +46,17 @@ function onSelectionChange(e) {
   }
 
   const sheet = e.range.getSheet();
-  const appConfig = uaGetAppConfigByCandidateSheet_(sheet.getName());
+  const candidateConfig = uaGetAppConfigByCandidateSheet_(sheet.getName());
+  const articleConfig = uaGetAppConfigByArticleSheet_(sheet.getName());
+  const appConfig = candidateConfig || articleConfig;
 
   if (!appConfig || e.range.getRow() === 1) {
+    return;
+  }
+
+  uaSetSheetAppOpenLink_(sheet, appConfig, e.range.getRow(), candidateConfig ? 'candidate' : 'article');
+
+  if (!candidateConfig) {
     return;
   }
 
@@ -286,6 +298,73 @@ function uaGetManagedAffiliateUrls_(rowData) {
   });
 }
 
+function uaSetupSheetAppOpenLinks_() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  Object.keys(UA_APP_TYPES).forEach(function(key) {
+    const appConfig = UA_APP_TYPES[key];
+    if (appConfig.candidateSheetName) {
+      const candidateSheet = ss.getSheetByName(appConfig.candidateSheetName);
+      if (candidateSheet) uaSetSheetAppOpenLink_(candidateSheet, appConfig, 0, 'candidate');
+    }
+    if (appConfig.articleSheetName) {
+      const articleSheet = ss.getSheetByName(appConfig.articleSheetName);
+      if (articleSheet) uaSetSheetAppOpenLink_(articleSheet, appConfig, 0, 'article');
+    }
+  });
+
+  const activeSheet = ss.getActiveSheet();
+  const activeRow = activeSheet.getActiveCell().getRow();
+  const candidateConfig = uaGetAppConfigByCandidateSheet_(activeSheet.getName());
+  const articleConfig = uaGetAppConfigByArticleSheet_(activeSheet.getName());
+  if (activeRow > 1 && (candidateConfig || articleConfig)) {
+    uaSetSheetAppOpenLink_(
+      activeSheet,
+      candidateConfig || articleConfig,
+      activeRow,
+      candidateConfig ? 'candidate' : 'article'
+    );
+  }
+}
+
+function uaRefreshSheetAppOpenLinks() {
+  uaSetupSheetAppOpenLinks_();
+  return {
+    success: true,
+    message: '各シート上部の「選択行をアプリで開く」ボタンを更新しました。'
+  };
+}
+
+function uaSetSheetAppOpenLink_(sheet, appConfig, row, sourceType) {
+  if (!sheet || !appConfig) return;
+  const isCandidate = sourceType === 'candidate';
+  const linkColumn = isCandidate ? UA_CANDIDATE_HEADERS.length + 1 : UA_ARTICLE_COLUMN_COUNT + 1;
+  if (sheet.getMaxColumns() < linkColumn) {
+    sheet.insertColumnsAfter(sheet.getMaxColumns(), linkColumn - sheet.getMaxColumns());
+  }
+
+  let targetUrl = uaGetArticleWebAppUrl_();
+  const selectedRow = Number(row || 0);
+  let label = '▶ 行を選んでアプリで開く';
+  if (selectedRow > 1) {
+    targetUrl += '?appType=' + encodeURIComponent(String(appConfig.label || '')) +
+      (isCandidate ? '&candidateRow=' : '&row=') + encodeURIComponent(String(selectedRow)) +
+      '&source=sheet';
+    label = '▶ 選択行をアプリで開く';
+  }
+
+  const formula = '=HYPERLINK("' + String(targetUrl).replace(/"/g, '""') + '","' + label + '")';
+  const cell = sheet.getRange(1, linkColumn);
+  cell
+    .setFormula(formula)
+    .setBackground('#159365')
+    .setFontColor('#ffffff')
+    .setFontWeight('bold')
+    .setHorizontalAlignment('center')
+    .setVerticalAlignment('middle')
+    .setNote('先に対象のデータ行を選び、ここをクリックしてください。');
+  sheet.setColumnWidth(linkColumn, 220);
+}
+
 function uaGetManagedAffiliateCtaSpec_(rowData) {
   const name = String(rowData && rowData.affiliateName || '').trim();
   if (!name) return null;
@@ -446,6 +525,8 @@ function uaEnsureArticleSheetLayout_(sheet) {
   sheet.getRange(1, 1, 1, UA_HEADERS.length).setValues([UA_HEADERS]);
   sheet.setFrozenRows(1);
   sheet.setFrozenColumns(2);
+  const appConfig = uaGetAppConfigByArticleSheet_(sheet.getName());
+  if (appConfig) uaSetSheetAppOpenLink_(sheet, appConfig, 0, 'article');
 }
 
 function uaApplyCandidateSheetRules_(sheet) {
@@ -586,6 +667,8 @@ function uaEnsureCandidateSheetLayout_(sheet) {
   sheet.getRange(1, 1, 1, UA_CANDIDATE_HEADERS.length).setValues([UA_CANDIDATE_HEADERS]);
   sheet.setFrozenRows(1);
   sheet.setFrozenColumns(4);
+  const appConfig = uaGetAppConfigByCandidateSheet_(sheet.getName());
+  if (appConfig) uaSetSheetAppOpenLink_(sheet, appConfig, 0, 'candidate');
 
   const lastRow = sheet.getLastRow();
   if (lastRow >= 2) {
@@ -1189,4 +1272,3 @@ function uaBuildRowData_(sheet, row) {
     selectedReaderMindModel: uaGetSelectedReaderMindModelLabel_()
   };
 }
-

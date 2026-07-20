@@ -371,4 +371,3 @@ function uaFetchReaderMindHtml_(url) {
 
   return response.getContentText('UTF-8');
 }
-

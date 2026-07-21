@@ -2,8 +2,9 @@ function onOpen() {
   uaRenameSpreadsheetFileIfLegacyName_();
   try {
     uaRemoveSheetAppOpenLinks_();
+    uaSetupSheetHeaderAppLinks_();
   } catch (error) {
-    console.error('Failed to remove old sheet app links: ' + error);
+    console.error('Failed to prepare sheet app links: ' + error);
   }
 
   const ui = SpreadsheetApp.getUi();
@@ -33,11 +34,6 @@ function onOpen() {
     .addSubMenu(maintenanceMenu)
     .addToUi();
 
-  try {
-    uaShowSheetLauncherSidebar();
-  } catch (error) {
-    console.error('Failed to show app launcher sidebar: ' + error);
-  }
 }
 
 function uaRenameSpreadsheetFileIfLegacyName_() {
@@ -53,9 +49,17 @@ function onSelectionChange(e) {
   }
 
   const sheet = e.range.getSheet();
-  const appConfig = uaGetAppConfigByCandidateSheet_(sheet.getName());
+  const candidateConfig = uaGetAppConfigByCandidateSheet_(sheet.getName());
+  const articleConfig = uaGetAppConfigByArticleSheet_(sheet.getName());
+  const appConfig = candidateConfig || articleConfig;
 
   if (!appConfig || e.range.getRow() === 1) {
+    return;
+  }
+
+  uaSetSheetHeaderAppLink_(sheet, appConfig, e.range.getRow(), candidateConfig ? 'candidate' : 'article');
+
+  if (!candidateConfig) {
     return;
   }
 
@@ -312,6 +316,59 @@ function uaRemoveSheetAppOpenLinks_() {
   });
 }
 
+function uaSetupSheetHeaderAppLinks_() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  Object.keys(UA_APP_TYPES).forEach(function(key) {
+    const appConfig = UA_APP_TYPES[key];
+    if (appConfig.candidateSheetName) {
+      const candidateSheet = ss.getSheetByName(appConfig.candidateSheetName);
+      if (candidateSheet) uaSetSheetHeaderAppLink_(candidateSheet, appConfig, 0, 'candidate');
+    }
+    if (appConfig.articleSheetName) {
+      const articleSheet = ss.getSheetByName(appConfig.articleSheetName);
+      if (articleSheet) uaSetSheetHeaderAppLink_(articleSheet, appConfig, 0, 'article');
+    }
+  });
+
+  const activeSheet = ss.getActiveSheet();
+  const activeRow = activeSheet.getActiveCell().getRow();
+  const candidateConfig = uaGetAppConfigByCandidateSheet_(activeSheet.getName());
+  const articleConfig = uaGetAppConfigByArticleSheet_(activeSheet.getName());
+  if (activeRow > 1 && (candidateConfig || articleConfig)) {
+    uaSetSheetHeaderAppLink_(
+      activeSheet,
+      candidateConfig || articleConfig,
+      activeRow,
+      candidateConfig ? 'candidate' : 'article'
+    );
+  }
+}
+
+function uaSetSheetHeaderAppLink_(sheet, appConfig, row, sourceType) {
+  if (!sheet || !appConfig) return;
+  const isCandidate = sourceType === 'candidate';
+  const selectedRow = Number(row || 0);
+  let targetUrl = String(UA_ARTICLE_WEB_APP_URL || '').trim();
+  if (selectedRow > 1) {
+    targetUrl += '?appType=' + encodeURIComponent(String(appConfig.label || '')) +
+      (isCandidate ? '&candidateRow=' : '&row=') + encodeURIComponent(String(selectedRow)) +
+      '&source=sheet';
+  }
+  const label = selectedRow > 1
+    ? '▶ 選択行をアプリで開く'
+    : '▶ 行を選んでアプリで開く';
+  const formula = '=HYPERLINK("' + String(targetUrl).replace(/"/g, '""') + '","' + label + '")';
+  sheet.getRange(1, 1)
+    .setFormula(formula)
+    .setBackground('#159365')
+    .setFontColor('#ffffff')
+    .setFontWeight('bold')
+    .setHorizontalAlignment('center')
+    .setVerticalAlignment('middle')
+    .setNote('先に対象のデータ行を選び、このボタンを押してください。');
+  sheet.setColumnWidth(1, 210);
+}
+
 function uaClearSheetAppOpenLink_(sheet, column) {
   if (!sheet || sheet.getMaxColumns() < column) return;
   const cell = sheet.getRange(1, column);
@@ -480,6 +537,8 @@ function uaEnsureArticleSheetLayout_(sheet) {
   sheet.getRange(1, 1, 1, UA_HEADERS.length).setValues([UA_HEADERS]);
   sheet.setFrozenRows(1);
   sheet.setFrozenColumns(2);
+  const appConfig = uaGetAppConfigByArticleSheet_(sheet.getName());
+  if (appConfig) uaSetSheetHeaderAppLink_(sheet, appConfig, 0, 'article');
 }
 
 function uaApplyCandidateSheetRules_(sheet) {
@@ -620,6 +679,8 @@ function uaEnsureCandidateSheetLayout_(sheet) {
   sheet.getRange(1, 1, 1, UA_CANDIDATE_HEADERS.length).setValues([UA_CANDIDATE_HEADERS]);
   sheet.setFrozenRows(1);
   sheet.setFrozenColumns(4);
+  const appConfig = uaGetAppConfigByCandidateSheet_(sheet.getName());
+  if (appConfig) uaSetSheetHeaderAppLink_(sheet, appConfig, 0, 'candidate');
 
   const lastRow = sheet.getLastRow();
   if (lastRow >= 2) {

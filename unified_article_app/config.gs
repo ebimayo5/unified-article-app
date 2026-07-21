@@ -38,6 +38,7 @@ const UA_CANDIDATE_STATUS_WRITE = '書く';
 const UA_CANDIDATE_STATUS_SENT = '転送済み';
 const UA_CANDIDATE_STATUS_HOLD = '保留';
 const UA_CANDIDATE_LEGACY_STATUS_SENT = '記事化済み';
+const UA_NO_AFFILIATE_NAME = '案件無し';
 
 const UA_CANDIDATE_COLUMNS = {
   status: 1,

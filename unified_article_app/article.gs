@@ -1291,7 +1291,8 @@ function uaSelectRakutenProductQuery_(body, rowData, appConfig) {
 }
 
 function uaHasMainAffiliateProject_(rowData) {
-  return !!String(rowData && rowData.affiliateName || '').trim() ||
+  if (uaIsNoAffiliateName_(rowData && rowData.affiliateName)) return false;
+  return !!uaNormalizeAffiliateName_(rowData && rowData.affiliateName) ||
     !!String(rowData && rowData.affiliateUrl || '').trim();
 }
 

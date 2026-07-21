@@ -3,6 +3,7 @@ function onOpen() {
   try {
     uaRemoveSheetAppOpenLinks_();
     uaSetupSheetHeaderAppLinks_();
+    uaEnsureAffiliateManagementSheet_(SpreadsheetApp.getActiveSpreadsheet());
   } catch (error) {
     console.error('Failed to prepare sheet app links: ' + error);
   }
@@ -212,7 +213,7 @@ function uaBuildArticleRowFromCandidate_(keyword, volume, appConfig, affiliate) 
 }
 
 function uaGetAffiliateProjectByName_(affiliateName) {
-  const cleanName = String(affiliateName || '').trim();
+  const cleanName = uaNormalizeAffiliateName_(affiliateName);
   if (!cleanName) {
     return { name: '', url: '', linkInput: '', shortcode: '', notes: '' };
   }
@@ -221,7 +222,7 @@ function uaGetAffiliateProjectByName_(affiliateName) {
 }
 
 function uaReadAffiliateProjectByName_(affiliateName, required) {
-  const cleanName = String(affiliateName || '').trim();
+  const cleanName = uaNormalizeAffiliateName_(affiliateName);
   if (!cleanName) return null;
 
   const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(UA_AFFILIATE_SHEET_NAME);
@@ -378,7 +379,7 @@ function uaClearSheetAppOpenLink_(sheet, column) {
 }
 
 function uaGetManagedAffiliateCtaSpec_(rowData) {
-  const name = String(rowData && rowData.affiliateName || '').trim();
+  const name = uaNormalizeAffiliateName_(rowData && rowData.affiliateName);
   if (!name) return null;
 
   const project = uaReadAffiliateProjectByName_(name, false);
@@ -640,11 +641,36 @@ function uaEnsureAffiliateManagementSheet_(ss) {
   sheet.getRange(1, 1, 1, UA_AFFILIATE_HEADERS.length)
     .setFontWeight('bold')
     .setBackground('#d9ead3');
+  uaEnsureNoAffiliateOption_(sheet);
   sheet.setColumnWidth(UA_AFFILIATE_COLUMNS.name, 180);
   sheet.setColumnWidth(UA_AFFILIATE_COLUMNS.url, 360);
   sheet.setColumnWidth(UA_AFFILIATE_COLUMNS.shortcode, 220);
   sheet.setColumnWidth(UA_AFFILIATE_COLUMNS.notes, 360);
   return sheet;
+}
+
+function uaEnsureNoAffiliateOption_(sheet) {
+  const lastRow = sheet.getLastRow();
+  const names = lastRow >= 2
+    ? sheet.getRange(2, UA_AFFILIATE_COLUMNS.name, lastRow - 1, 1).getDisplayValues()
+    : [];
+  const exists = names.some(function(row) {
+    return uaIsNoAffiliateName_(row[0]);
+  });
+  if (exists) return;
+
+  let targetRow = 0;
+  names.some(function(row, index) {
+    if (String(row[0] || '').trim()) return false;
+    targetRow = index + 2;
+    return true;
+  });
+  if (!targetRow) targetRow = Math.max(lastRow + 1, 2);
+  if (targetRow > sheet.getMaxRows()) {
+    sheet.insertRowsAfter(sheet.getMaxRows(), targetRow - sheet.getMaxRows());
+  }
+  sheet.getRange(targetRow, 1, 1, UA_AFFILIATE_HEADERS.length)
+    .setValues([[UA_NO_AFFILIATE_NAME, '', '', '']]);
 }
 
 function uaEnsureCandidateSheetLayout_(sheet) {
@@ -1230,12 +1256,13 @@ function uaSaveActiveRowData(data) {
 
   uaEnsureArticleSheetLayout_(sheet);
 
+  const noAffiliateSelected = uaIsNoAffiliateName_(data && data.affiliateName);
   const values = [
     data.appType || (sheetConfig && sheetConfig.label) || '',
     data.mainInput || '',
     data.volume || '',
-    data.affiliateName || '',
-    data.affiliateUrl || '',
+    uaNormalizeAffiliateName_(data.affiliateName),
+    noAffiliateSelected ? '' : (data.affiliateUrl || ''),
     data.affiliateNotes || '',
     data.competitorUrl1 || '',
     data.competitorUrl2 || '',
@@ -1284,7 +1311,7 @@ function uaBuildRowData_(sheet, row) {
     appType: appType,
     mainInput: values[UA_COLUMNS.mainInput - 1] || '',
     volume: values[UA_COLUMNS.volume - 1] || '',
-    affiliateName: values[UA_COLUMNS.affiliateName - 1] || '',
+    affiliateName: uaNormalizeAffiliateName_(values[UA_COLUMNS.affiliateName - 1]),
     affiliateUrl: values[UA_COLUMNS.affiliateUrl - 1] || '',
     affiliateNotes: values[UA_COLUMNS.affiliateNotes - 1] || '',
     competitorUrl1: values[UA_COLUMNS.competitorUrl1 - 1] || '',

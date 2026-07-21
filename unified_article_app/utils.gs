@@ -128,3 +128,11 @@ function uaSetFactCheckPointsWithLinks_(sheet, rowNumber, text) {
 
   range.setRichTextValue(builder.build());
 }
+function uaIsNoAffiliateName_(value) {
+  return String(value || '').trim() === UA_NO_AFFILIATE_NAME;
+}
+
+function uaNormalizeAffiliateName_(value) {
+  const name = String(value || '').trim();
+  return uaIsNoAffiliateName_(name) ? '' : name;
+}

@@ -24,8 +24,9 @@ function uaBuildArticlePrompt_(rowData, appConfig) {
 }
 
 function uaBuildAffiliatePrompt_(rowData) {
-  const name = String(rowData.affiliateName || '').trim();
-  const url = String(rowData.affiliateUrl || '').trim();
+  const noAffiliateSelected = uaIsNoAffiliateName_(rowData.affiliateName);
+  const name = uaNormalizeAffiliateName_(rowData.affiliateName);
+  const url = noAffiliateSelected ? '' : String(rowData.affiliateUrl || '').trim();
   const notes = String(rowData.affiliateNotes || '').trim();
   const managedCta = uaGetManagedAffiliateCtaSpec_(rowData);
 

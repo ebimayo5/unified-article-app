@@ -616,19 +616,49 @@ function uaFindAffiliateDetourIssue_(rowData, body) {
   if (!name || !body || input.indexOf(name) !== -1) return null;
   if (/ナビ男くん/.test(name) && uaIsNaviokunHighRelevanceTopic_(rowData)) return null;
 
-  const sections = String(body).split(/(?=<h2\b)/i);
-  const section = sections.find(function(item) { return item.indexOf(name) !== -1; });
-  if (!section) return null;
-  const textLength = uaStripPrePublishHtml_(section).length;
-  const subHeadingCount = (section.match(/<h[3-4]\b/gi) || []).length;
+  const html = String(body);
+  const headingRegex = /<h([2-4])\b[^>]*>([\s\S]*?)<\/h\1>/gi;
+  const dedicatedSections = [];
+  let headingMatch;
+
+  while ((headingMatch = headingRegex.exec(html)) !== null) {
+    const level = Number(headingMatch[1]);
+    const headingText = uaStripPrePublishHtml_(headingMatch[2]);
+    if (headingText.indexOf(name) === -1) continue;
+
+    const start = headingMatch.index;
+    let end = html.length;
+    const followingHeadingRegex = /<h([2-4])\b[^>]*>[\s\S]*?<\/h\1>/gi;
+    followingHeadingRegex.lastIndex = headingRegex.lastIndex;
+    let followingMatch;
+    while ((followingMatch = followingHeadingRegex.exec(html)) !== null) {
+      if (Number(followingMatch[1]) <= level) {
+        end = followingMatch.index;
+        break;
+      }
+    }
+
+    dedicatedSections.push({
+      level: level,
+      html: html.slice(start, end)
+    });
+  }
+
+  if (dedicatedSections.length === 0) return null;
+
+  const longestSection = dedicatedSections.reduce(function(longest, current) {
+    return uaStripPrePublishHtml_(current.html).length > uaStripPrePublishHtml_(longest.html).length
+      ? current
+      : longest;
+  });
+  const textLength = uaStripPrePublishHtml_(longestSection.html).length;
+  const subHeadingCount = (longestSection.html.match(/<h[3-4]\b/gi) || []).length -
+    (longestSection.level >= 3 ? 1 : 0);
 
   if (textLength > 900 || subHeadingCount > 1) {
     return { critical: true, message: '案件「' + name + '」が検索意図の中心から離れているのに、専用章が長すぎます。新しいH2/H3で広げず、既存の購入判断セクション内の1〜3段落と案件CTAに圧縮してください。' };
   }
-  if (textLength > 550 || subHeadingCount > 0) {
-    return { critical: false, message: '案件「' + name + '」の説明がやや長い可能性があります。検索意図から少し離れる場合は短い橋渡しに留めてください。' };
-  }
-  return null;
+  return { critical: false, message: '案件「' + name + '」の専用見出しがあります。検索意図から少し離れる場合は、既存の購入判断セクション内の短い橋渡しに留めてください。' };
 }
 
 function uaAssertWpDraftHardQualityGates_(rowData) {

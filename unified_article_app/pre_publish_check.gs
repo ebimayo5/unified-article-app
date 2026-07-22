@@ -240,7 +240,7 @@ function uaBuildPrePublishRevisionPrompt_(rowData, checkReport, externalSourcesP
     '本文中の <!-- UA_PROTECTED_BLOCK_数字 --> は、システムが保護している画像・リンク・CTAなどの位置を表します。文字列を変更・削除・複製・移動せず、必ず元の位置に1個だけ残してください。',
     'H2は「よくある質問」「まとめ」を含めて基本6〜8個を目安にしてください。9個でも検索意図・判断材料・役割が明確に異なるなら、数だけを理由に統合しないでください。10個以上の場合は細分化しすぎていないか確認し、内容が重複するH2だけを統合して詳細をH3へ整理してください。6個未満でも、テーマが十分整理されているなら数合わせで不要なH2を増やさないでください。',
     'FAQはH2「よくある質問」の直下にH3「Q. 質問」を置き、回答はp要素にしてください。FAQ内の質問にH4は使わないでください。',
-    'タイトル案を直す場合は、メインキーワードを自然に含め、本文に根拠がある数字を使い、読者の悩みと読むメリットが伝わる魅力的な30〜32文字を目安にしてください。煽りや本文にない約束は禁止です。',
+    'タイトル案を直す場合は、メインキーワードの主要語を自然な日本語として含めてください。検索語を一字一句そのまま連結せず、助詞・疑問形・語順を整え、「何の記事か」と「なぜ読むのか」が同時に分かる30〜32文字を目安にします。数字は本文に根拠があり具体性が増す案だけに使い、3案すべてへ機械的に入れません。先頭案をSEOと読者訴求を最も自然に両立した第一候補にし、煽りや本文にない約束は禁止です。',
     'タイトルに「7つ」「5選」など項目数があり本文の実数と一致しない場合は、本文項目を追加・削除・統合・並べ替えせず、タイトル側の数字だけを本文の実数へ直してください。実数を確実に判定できない場合は本文もタイトルも変更せず、manual_confirmation_needed に残してください。',
     'メタディスクリプションを直す場合は、メインキーワード、読者の悩み、記事で分かる具体的な判断材料、読むメリットを自然に含め、約120文字にしてください。単なる記事説明や煽り文句は禁止です。',
     '必ずJSONだけで返してください。body_htmlには修正後の本文HTML全文を省略せず入れてください。',
@@ -343,11 +343,8 @@ function uaBuildPrePublishRuleCheck_(rowData) {
     result.ok.push('タイトルは32文字前後です。');
   }
   const mainInput = String(rowData && rowData.mainInput || '').trim();
-  if (title && mainInput && title.indexOf(mainInput) === -1) {
-    result.warnings.push('タイトルにメインキーワードがそのまま含まれていません。文脈上自然に入るか確認してください。');
-  }
-  if (title && !/[0-9０-９]/.test(title)) {
-    result.warnings.push('タイトルに数字がありません。本文内容に合う理由数・注意点数・確認項目数を自然に使えるか確認してください。');
+  if (title && mainInput && !uaTitleCoversMainKeyword_(title, mainInput)) {
+    result.warnings.push('タイトルにメインキーワードの主要語が不足しています。検索語をそのまま連結せず、自然な日本語で主題を残してください。');
   }
   if (titleNumberIssue) {
     result.critical.push(titleNumberIssue);
@@ -497,6 +494,34 @@ function uaBuildPrePublishRuleCheck_(rowData) {
   else result.warnings.push('WordPress下書きIDがありません。WP貼り付け後の反映確認は未実施です。');
 
   return result;
+}
+
+function uaNormalizeTitleKeywordText_(value) {
+  let text = String(value || '');
+  if (typeof text.normalize === 'function') text = text.normalize('NFKC');
+  return text
+    .toLowerCase()
+    .replace(/[\s　"'「」『』【】（）()・:：!?！？｜|／\\/.,，。・_-]/g, '');
+}
+
+function uaTitleCoversMainKeyword_(title, mainInput) {
+  const normalizedTitle = uaNormalizeTitleKeywordText_(title);
+  const parts = String(mainInput || '')
+    .trim()
+    .split(/[\s　]+/)
+    .map(uaNormalizeTitleKeywordText_)
+    .filter(function(part, index, list) {
+      return part.length >= 2 && list.indexOf(part) === index;
+    });
+
+  if (!normalizedTitle || parts.length === 0) return true;
+  if (parts.length === 1) return normalizedTitle.indexOf(parts[0]) !== -1;
+
+  const matchedCount = parts.filter(function(part) {
+    return normalizedTitle.indexOf(part) !== -1;
+  }).length;
+  const requiredCount = Math.ceil(parts.length * 0.67);
+  return normalizedTitle.indexOf(parts[0]) !== -1 && matchedCount >= requiredCount;
 }
 
 function uaFindTitleNumberConsistencyIssue_(title, body) {
@@ -682,7 +707,7 @@ function uaBuildPrePublishEditorPrompt_(rowData, ruleCheck) {
     '重視する観点: 元の意図を変えない。事実を作らない。不確かな情報は断定しない。AIっぽい定型表現を減らす。読者の迷い、不安、次の行動が自然につながっているか見る。タイトル、導入、構成、具体性、読みやすさ、SEO、独自性、CTA、信頼性を見る。',
     '単語だけを検出して問題扱いしないでください。必ず前後の文、段落、見出し、記事全体の意図を読み、質問、引用、条件付き説明、手順、注意書き、保証・契約内容として適切な表現は修正対象にしないでください。',
     '法規、安全、数値、価格、保証、メーカー仕様、対応可否など信頼性が必要な主張は、内容に対応する外部出典リンクが近くにあるか確認してください。URLを推測して修正案へ書かず、確認できない場合は手動確認事項として示してください。',
-    'タイトルはメインキーワードと本文に根拠がある数字を自然に使い、30〜32文字程度で読者の悩みと読むメリットが伝わるか確認してください。メタディスクリプションは約120文字で、単なる記事説明ではなく具体的な判断材料と読むメリットが伝わるか確認してください。',
+    'タイトルはメインキーワードの主要語を自然な日本語として含み、「何の記事か」と「なぜ読むのか」が30〜32文字程度で伝わるか確認してください。検索語を助詞なしで並べただけの形は低評価にします。数字は本文に根拠があり具体性が増す場合だけ評価し、数字がないこと自体は問題にしません。メタディスクリプションは約120文字で、単なる記事説明ではなく具体的な判断材料と読むメリットが伝わるか確認してください。',
     'H2は「よくある質問」「まとめ」を含め基本6〜8個を目安にしてください。9個でも役割が明確に異なるなら問題扱いせず、数だけを理由に統合しないでください。10個以上では細分化を重点確認し、検索意図や説明内容が重複するH2だけを統合候補にしてください。6個未満でも、数合わせで不要なH2を追加しないでください。',
     '楽天バナー、案件CTA、公式リンクなど次の導線がない用品紹介や、記事の判断に不要な商品名の羅列がないか確認してください。',
     '必ずJSONだけで返してください。形式:',

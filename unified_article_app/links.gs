@@ -825,14 +825,21 @@ function uaRequiresFreshOfficialSourceSearch_(mainInput) {
   return /(最新|現在|今後|倒産|経営|決算|業績|赤字|黒字|利益|財務|負債|資金繰り|キャッシュフロー|株価|法令|法律|違反|規制|制度|補助金|税制|保険|保証|リコール|改善対策|安全基準|価格|料金|相場)/i.test(String(mainInput || ''));
 }
 
+function uaRequiresFreshOfficialSourceSearchFromContext_(contextText) {
+  return /(最新|現在|今後|倒産|経営|決算|業績|赤字|黒字|利益|財務|負債|資金繰り|キャッシュフロー|株価|法令|法律|違反|規制|制度|補助金|税制|リコール|改善対策)/i.test(String(contextText || ''));
+}
+
 function uaIsFinanceFreshnessTopic_(value) {
   return /(倒産|経営|決算|業績|赤字|黒字|利益|財務|負債|資金繰り|キャッシュフロー|株価)/i.test(String(value || ''));
 }
 
 function uaDiscoverCurrentOfficialSources_(mainInput, appConfig, contextText) {
   const input = String(mainInput || '').trim();
-  const topicText = [input, contextText].join(' ');
-  if (!input || !uaRequiresFreshOfficialSourceSearch_(topicText)) return [];
+  const context = String(contextText || '');
+  const topicText = [input, context].join(' ');
+  const requiresFreshSearch = uaRequiresFreshOfficialSourceSearch_(input) ||
+    uaRequiresFreshOfficialSourceSearchFromContext_(context);
+  if (!input || !requiresFreshSearch) return [];
   if (typeof uaFetchSearchResultUrls_ !== 'function' || typeof uaFetchCompetitorPageInfos_ !== 'function') return [];
 
   const queries = [input + ' 最新 公式'];

@@ -71,17 +71,87 @@ function uaApplyPrePublishFixesOnceFromPanel(data) {
 
   const provider = uaGetPrePublishRevisionProvider_();
   uaAssertArticleProviderReady_(provider);
-  const externalSourcesPrompt = uaBuildExternalSourcesPrompt_(
-    rowData.mainInput,
-    appConfig,
-    [rowData.titleIdeas, rowData.structureMemo, rowData.body].join(' ')
-  );
   const protectedBody = uaProtectPrePublishRevisionBody_(originalBody);
   const revisionPromptRowData = Object.assign({}, rowData, { body: protectedBody.body });
-  const result = uaCallOpenAiJson_(
-    uaBuildPrePublishPatchPrompt_(revisionPromptRowData, originalReport, externalSourcesPrompt),
-    6000
-  );
+  const backgroundStateKey = uaGetPrePublishBackgroundStateKey_(sheet, row);
+  const revisionFingerprint = uaBuildPrePublishRevisionFingerprint_(rowData, originalReport);
+  let backgroundState = uaLoadPrePublishBackgroundState_(backgroundStateKey);
+  let externalSourcesPrompt = '';
+  let resumedBackgroundRequest = false;
+
+  if (backgroundState && backgroundState.fingerprint !== revisionFingerprint) {
+    uaClearPrePublishBackgroundState_(backgroundStateKey);
+    backgroundState = null;
+  }
+
+  if (backgroundState && uaIsExpiredPrePublishBackgroundState_(backgroundState)) {
+    uaClearPrePublishBackgroundState_(backgroundStateKey);
+    backgroundState = null;
+  }
+
+  let backgroundResponse;
+  if (backgroundState && backgroundState.responseId) {
+    try {
+      backgroundResponse = uaRetrieveOpenAiBackgroundJson_(backgroundState.responseId);
+      resumedBackgroundRequest = true;
+    } catch (retrieveError) {
+      if (Number(retrieveError && retrieveError.statusCode) === 404) {
+        uaClearPrePublishBackgroundState_(backgroundStateKey);
+        backgroundState = null;
+      } else {
+        throw retrieveError;
+      }
+    }
+  }
+
+  if (!backgroundState) {
+    externalSourcesPrompt = uaBuildExternalSourcesPrompt_(
+      rowData.mainInput,
+      appConfig,
+      [rowData.titleIdeas, rowData.structureMemo, rowData.body].join(' ')
+    );
+    backgroundResponse = uaStartOpenAiBackgroundJson_(
+      uaBuildPrePublishPatchPrompt_(revisionPromptRowData, originalReport, externalSourcesPrompt),
+      6000
+    );
+    backgroundState = {
+      responseId: String(backgroundResponse.id || ''),
+      fingerprint: revisionFingerprint,
+      startedAt: new Date().toISOString()
+    };
+    uaSavePrePublishBackgroundState_(backgroundStateKey, backgroundState);
+  }
+
+  let result;
+  try {
+    result = uaPollPrePublishBackgroundResult_(
+      backgroundResponse,
+      resumedBackgroundRequest ? 150000 : 0
+    );
+  } catch (backgroundError) {
+    if (uaIsTerminalPrePublishBackgroundError_(backgroundError)) {
+      uaClearPrePublishBackgroundState_(backgroundStateKey);
+    }
+    throw backgroundError;
+  }
+
+  if (!result) {
+    const pendingError = new Error(
+      'OpenAIで指摘修正を継続中です。処理IDは保存済みです。' +
+      '2〜3分後に「続きから再開」を押してください。同じ修正処理の続きから確認します。'
+    );
+    pendingError.uaBackgroundPending = true;
+    throw pendingError;
+  }
+  uaClearPrePublishBackgroundState_(backgroundStateKey);
+
+  if (!externalSourcesPrompt) {
+    externalSourcesPrompt = uaBuildExternalSourcesPrompt_(
+      rowData.mainInput,
+      appConfig,
+      [rowData.titleIdeas, rowData.structureMemo, rowData.body].join(' ')
+    );
+  }
   let revision = uaNormalizePrePublishPatchRevision_(
     result && result.data,
     rowData,
@@ -159,6 +229,91 @@ function uaApplyPrePublishFixesOnceFromPanel(data) {
 
 function uaGetPrePublishRevisionProvider_() {
   return 'openai';
+}
+
+function uaGetPrePublishBackgroundStateKey_(sheet, row) {
+  const spreadsheetId = sheet && sheet.getParent ? sheet.getParent().getId() : '';
+  const sheetName = sheet && sheet.getName ? sheet.getName() : '';
+  return 'UA_PREPUB_BG_' + uaHashPrePublishText_([
+    spreadsheetId,
+    sheetName,
+    String(row || '')
+  ].join('|')).slice(0, 32);
+}
+
+function uaBuildPrePublishRevisionFingerprint_(rowData, report) {
+  const source = rowData && typeof rowData === 'object' ? rowData : {};
+  return uaHashPrePublishText_([
+    String(source.mainInput || ''),
+    String(source.body || ''),
+    String(source.titleIdeas || ''),
+    String(source.tags || ''),
+    String(source.metaDescription || ''),
+    String(source.permalink || ''),
+    String(report || '')
+  ].join('\n---UA-PREPUBLISH---\n'));
+}
+
+function uaHashPrePublishText_(value) {
+  const bytes = Utilities.computeDigest(
+    Utilities.DigestAlgorithm.SHA_256,
+    String(value || ''),
+    Utilities.Charset.UTF_8
+  );
+  return bytes.map(function(byte) {
+    const normalized = byte < 0 ? byte + 256 : byte;
+    return ('0' + normalized.toString(16)).slice(-2);
+  }).join('');
+}
+
+function uaLoadPrePublishBackgroundState_(key) {
+  const raw = PropertiesService.getScriptProperties().getProperty(key);
+  if (!raw) {
+    return null;
+  }
+  try {
+    const state = JSON.parse(raw);
+    return state && typeof state === 'object' ? state : null;
+  } catch (e) {
+    PropertiesService.getScriptProperties().deleteProperty(key);
+    return null;
+  }
+}
+
+function uaSavePrePublishBackgroundState_(key, state) {
+  PropertiesService.getScriptProperties().setProperty(key, JSON.stringify(state || {}));
+}
+
+function uaIsExpiredPrePublishBackgroundState_(state) {
+  const startedAt = Date.parse(String(state && state.startedAt || ''));
+  return !isNaN(startedAt) && Date.now() - startedAt > 9 * 60 * 1000;
+}
+
+function uaClearPrePublishBackgroundState_(key) {
+  PropertiesService.getScriptProperties().deleteProperty(key);
+}
+
+function uaPollPrePublishBackgroundResult_(initialResponse, waitMilliseconds) {
+  let response = initialResponse;
+  const deadline = Date.now() + Math.max(0, Number(waitMilliseconds) || 0);
+
+  while (true) {
+    const normalized = uaNormalizeOpenAiBackgroundJson_(response);
+    if (!normalized.pending) {
+      return normalized;
+    }
+    if (Date.now() >= deadline) {
+      return null;
+    }
+    Utilities.sleep(5000);
+    response = uaRetrieveOpenAiBackgroundJson_(normalized.responseId);
+  }
+}
+
+function uaIsTerminalPrePublishBackgroundError_(error) {
+  const message = error && error.message ? error.message : String(error || '');
+  return message.indexOf('バックグラウンド修正が完了しませんでした') !== -1 ||
+    message.indexOf('修正結果の本文が返りませんでした') !== -1;
 }
 
 function uaBuildRejectedPrePublishRevisionFallback_(revision, rowData, reason) {

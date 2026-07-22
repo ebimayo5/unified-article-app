@@ -1172,7 +1172,7 @@
         }).uaRunArticleFromWeb(readForm());
       }
 
-      function runFullArticleWorkflow(button, includeImages) {
+      function runFullArticleWorkflow(button, includeImages, startIndex) {
         window.uaFullWorkflowCancelled = false;
         window.uaFailedFullWorkflowIncludeImages = null;
         clearFullWorkflowResumeState();
@@ -1190,14 +1190,18 @@
         steps.push({ label: '公開前チェック', server: 'uaRunPrePublishCheckFromWeb', tab: 'check', alwaysRun: true });
         steps.push({ label: '指摘修正（1回）', server: 'uaApplyPrePublishFixesOnceFromWeb', tab: 'check', alwaysRun: true });
         steps.push({ label: 'WPへ修正版反映', server: 'uaCreateWpDraftFromWeb', tab: 'summary', alwaysRun: true });
+        const safeStartIndex = Math.max(0, Math.min(
+          steps.length - 1,
+          Number(startIndex) || 0
+        ));
         window.uaFullWorkflow = {
           button: button,
-          stepIndex: 0,
+          stepIndex: safeStartIndex,
           includeImages: includeImages !== false,
           steps: steps
         };
-        renderWorkflowProgress(window.uaFullWorkflow, 0, 'running');
-        runFullArticleWorkflowStep(0);
+        renderWorkflowProgress(window.uaFullWorkflow, safeStartIndex, 'running');
+        runFullArticleWorkflowStep(safeStartIndex);
       }
       function runFullArticleWorkflowStep(index, seedData) {
         const flow = window.uaFullWorkflow;
@@ -1360,6 +1364,7 @@
           row: Number(document.getElementById('row').value || 0),
           mainInput: document.getElementById('mainInput').value || '',
           includeImages: flow ? flow.includeImages !== false : true,
+          stepIndex: flow ? Number(flow.stepIndex || 0) : 0,
           stepLabel: stepLabel || (flow && flow.steps && flow.steps[flow.stepIndex] && flow.steps[flow.stepIndex].label) || '',
           failedAt: Date.now()
         };
@@ -1416,6 +1421,7 @@
         const includeImages = window.uaFailedFullWorkflowIncludeImages !== false;
         const appType = document.getElementById('appType').value;
         const row = Number(document.getElementById('row').value || 0);
+        const resumeState = readFullWorkflowResumeState();
         if (!appType || row <= 1) {
           setNotice('再開する記事行を確認できません。記事を選び直してください。', true);
           return;
@@ -1425,7 +1431,12 @@
         google.script.run.withSuccessHandler(function(data) {
           clearBusy();
           fillForm(data || {});
-          runFullArticleWorkflow(button, includeImages);
+          const resumeIndex = resumeState &&
+            resumeState.appType === appType &&
+            Number(resumeState.row) === row
+            ? Number(resumeState.stepIndex || 0)
+            : 0;
+          runFullArticleWorkflow(button, includeImages, resumeIndex);
         }).withFailureHandler(function(error) {
           fail(error);
           window.uaFailedFullWorkflowIncludeImages = includeImages;

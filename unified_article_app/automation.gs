@@ -405,6 +405,20 @@ function uaRunAutomaticPostingWorker() {
     throw new Error('不明な自動処理段階です: ' + job.step);
   } catch (e) {
     const job = uaGetAutomaticPostingJob_();
+    if (job && job.step === UA_AUTOMATION_STEP_REVISION && e && e.uaBackgroundPending) {
+      job.status = 'running';
+      job.lastError = '';
+      job.updatedAt = new Date().toISOString();
+      uaSaveAutomaticPostingJob_(job);
+      const waitingConfig = uaGetAutomationAppConfig_(job.appType);
+      uaWriteAutomaticPostingStatus_(
+        waitingConfig.key,
+        '処理中: ' + job.keyword + ' / OpenAIの修正結果待ち',
+        ''
+      );
+      uaScheduleAutomaticPostingWorker_(120000);
+      return;
+    }
     if (job) {
       job.status = 'error';
       job.lastError = e && e.message ? e.message : String(e || '');

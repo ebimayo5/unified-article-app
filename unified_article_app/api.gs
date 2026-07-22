@@ -154,6 +154,140 @@ function uaCallOpenAiJson_(promptText, maxOutputTokens) {
   };
 }
 
+function uaStartOpenAiBackgroundJson_(promptText, maxOutputTokens) {
+  const apiKey = uaGetOpenAiApiKey_();
+
+  if (!apiKey) {
+    throw new Error('OpenAI APIキーが設定されていません。');
+  }
+
+  const model = uaGetOpenAiModel_();
+  const payload = {
+    model: model,
+    input: [
+      {
+        role: 'user',
+        content: [
+          {
+            type: 'input_text',
+            text: promptText
+          }
+        ]
+      }
+    ],
+    text: {
+      format: {
+        type: 'json_object'
+      }
+    },
+    max_output_tokens: maxOutputTokens,
+    background: true
+  };
+
+  const response = UrlFetchApp.fetch('https://api.openai.com/v1/responses', {
+    method: 'post',
+    contentType: 'application/json',
+    headers: {
+      Authorization: 'Bearer ' + apiKey
+    },
+    payload: JSON.stringify(payload),
+    muteHttpExceptions: true
+  });
+
+  const json = uaParseOpenAiHttpResponse_(response, 'バックグラウンド修正の開始');
+  if (!json.id) {
+    throw new Error('OpenAIから処理IDが返りませんでした。');
+  }
+
+  return json;
+}
+
+function uaRetrieveOpenAiBackgroundJson_(responseId) {
+  const apiKey = uaGetOpenAiApiKey_();
+  if (!apiKey) {
+    throw new Error('OpenAI APIキーが設定されていません。');
+  }
+
+  const id = String(responseId || '').trim();
+  if (!id) {
+    throw new Error('OpenAIの処理IDがありません。');
+  }
+
+  const response = UrlFetchApp.fetch(
+    'https://api.openai.com/v1/responses/' + encodeURIComponent(id),
+    {
+      method: 'get',
+      headers: {
+        Authorization: 'Bearer ' + apiKey
+      },
+      muteHttpExceptions: true
+    }
+  );
+
+  return uaParseOpenAiHttpResponse_(response, 'バックグラウンド修正の確認');
+}
+
+function uaParseOpenAiHttpResponse_(response, operationLabel) {
+  const statusCode = response.getResponseCode();
+  const responseText = response.getContentText();
+  let json = null;
+
+  try {
+    json = JSON.parse(responseText);
+  } catch (e) {
+    json = null;
+  }
+
+  if (statusCode < 200 || statusCode >= 300) {
+    const detail = json && json.error && json.error.message
+      ? json.error.message
+      : responseText;
+    const error = new Error('OpenAI APIエラー（' + String(operationLabel || '処理') + '）: ' + detail);
+    error.statusCode = statusCode;
+    throw error;
+  }
+
+  if (!json) {
+    throw new Error('OpenAIの応答を読み取れませんでした。');
+  }
+  return json;
+}
+
+function uaNormalizeOpenAiBackgroundJson_(json) {
+  const source = json && typeof json === 'object' ? json : {};
+  const status = String(source.status || '').toLowerCase();
+
+  if (status === 'queued' || status === 'in_progress') {
+    return {
+      pending: true,
+      status: status,
+      responseId: String(source.id || '')
+    };
+  }
+
+  if (status !== 'completed') {
+    const detail = source.error && source.error.message
+      ? source.error.message
+      : (source.incomplete_details && source.incomplete_details.reason
+        ? source.incomplete_details.reason
+        : status || 'unknown');
+    throw new Error('OpenAIのバックグラウンド修正が完了しませんでした（' + detail + '）。');
+  }
+
+  const outputText = uaExtractOpenAiText_(source);
+  if (!outputText) {
+    throw new Error('OpenAIから修正結果の本文が返りませんでした。');
+  }
+
+  return {
+    pending: false,
+    status: status,
+    responseId: String(source.id || ''),
+    model: String(source.model || uaGetOpenAiModel_()),
+    data: JSON.parse(uaStripJsonFence_(outputText))
+  };
+}
+
 function uaCallOpenAiImage_(promptText, options) {
   const apiKey = uaGetOpenAiApiKey_();
 
@@ -389,4 +523,3 @@ function uaIsTemporaryApiError_(message) {
     text.indexOf('503') !== -1 ||
     text.indexOf('429') !== -1;
 }
-

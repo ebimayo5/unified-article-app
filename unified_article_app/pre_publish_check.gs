@@ -78,11 +78,15 @@ function uaApplyPrePublishFixesOnceFromPanel(data) {
   );
   const protectedBody = uaProtectPrePublishRevisionBody_(originalBody);
   const revisionPromptRowData = Object.assign({}, rowData, { body: protectedBody.body });
-  const result = uaCallArticleGenerationJson_(
-    uaBuildPrePublishRevisionPrompt_(revisionPromptRowData, originalReport, externalSourcesPrompt),
-    provider
+  const result = uaCallOpenAiJson_(
+    uaBuildPrePublishPatchPrompt_(revisionPromptRowData, originalReport, externalSourcesPrompt),
+    6000
   );
-  let revision = uaNormalizePrePublishRevision_(result && result.data, rowData);
+  let revision = uaNormalizePrePublishPatchRevision_(
+    result && result.data,
+    rowData,
+    protectedBody.body
+  );
   let revisedBody = uaNormalizeAnchorRelAttributes_(uaApplyNaviokunIntroSet_(
     uaApplyManagedAffiliateCta_(
       uaApplyYmylNotice_(
@@ -269,6 +273,40 @@ function uaBuildPrePublishRevisionPrompt_(rowData, checkReport, externalSourcesP
   ].join('\n');
 }
 
+function uaBuildPrePublishPatchPrompt_(rowData, checkReport, externalSourcesPrompt) {
+  return [
+    'あなたはプロの編集者兼コピーライターです。公開前チェック結果を受けて、記事を1回だけ差分修正してください。',
+    '本文全体と前後の文脈を読んでください。ただし本文全文を書き直したり返したりせず、実際に変更が必要な箇所だけを body_edits で返してください。',
+    '元本文は一定品質に達している前提です。問題のない見出し、段落、具体例、画像、リンク、CTA、ブログカード、WordPressブロックは変更しません。',
+    '機械チェックの指摘は修正候補です。質問、引用、条件付き説明など文脈上適切なら変更せず、skipped_suggestions に理由を残してください。',
+    'body_edits は最大8件です。find には元本文から完全一致する連続文字列をそのままコピーし、記事内で1回だけ現れる十分な長さにしてください。replace には置換後の文字列を書きます。',
+    'find と replace に <!-- UA_PROTECTED_BLOCK_数字 --> を含めてはいけません。保護ブロックの位置・内容は変更しません。',
+    '事実、数値、制度、法規、安全、価格、保証、メーカー仕様、対応可否、URLを推測で作らないでください。確認できない内容は manual_confirmation_needed に残してください。',
+    'タイトル案は、メインキーワードの主要語を自然な日本語として含め、案1をSEOと読者訴求の両立案、案2を疑問・不安への回答案、案3を読後の判断・価値が分かる案にします。検索語を助詞なしで並べず、数字は本文に根拠があり有効な案だけに使います。',
+    'メタディスクリプションは約120文字で、読者の悩み、具体的な判断材料、読むメリットが自然に伝わるようにします。',
+    '必ずJSONだけを返してください。形式:',
+    '{"body_edits":[{"find":"元本文に1回だけある完全一致文字列","replace":"修正後文字列","reason":"修正理由"}],"title_ideas":"案1 / 案2 / 案3","tags":"...","meta_description":"...","permalink":"...","skipped_suggestions":[{"target":"...","reason":"..."}],"manual_confirmation_needed":[{"target":"...","reason":"..."}]}',
+    '',
+    '【記事情報】',
+    '記事タイプ: ' + String(rowData.appType || ''),
+    'メインキーワード: ' + String(rowData.mainInput || ''),
+    '案件名: ' + String(rowData.affiliateName || ''),
+    'タイトル案: ' + String(rowData.titleIdeas || ''),
+    'メタディスクリプション: ' + String(rowData.metaDescription || ''),
+    'タグ: ' + String(rowData.tags || ''),
+    'パーマリンク: ' + String(rowData.permalink || ''),
+    '',
+    '【使用を許可する外部出典候補】',
+    String(externalSourcesPrompt || '').slice(0, 6000),
+    '',
+    '【公開前チェック結果】',
+    String(checkReport || '').slice(0, 14000),
+    '',
+    '【本文HTML全文】',
+    String(rowData.body || '')
+  ].join('\n');
+}
+
 function uaNormalizePrePublishRevision_(raw, rowData) {
   const data = raw && typeof raw === 'object' ? raw : {};
   const bodyHtml = String(data.body_html || data.body || '').trim();
@@ -284,6 +322,74 @@ function uaNormalizePrePublishRevision_(raw, rowData) {
     appliedChanges: Array.isArray(data.applied_changes) ? data.applied_changes : [],
     skippedSuggestions: Array.isArray(data.skipped_suggestions) ? data.skipped_suggestions : [],
     manualConfirmationNeeded: Array.isArray(data.manual_confirmation_needed) ? data.manual_confirmation_needed : []
+  };
+}
+
+function uaNormalizePrePublishPatchRevision_(raw, rowData, protectedBody) {
+  const data = raw && typeof raw === 'object' ? raw : {};
+  const editResult = uaApplyPrePublishPatchEdits_(
+    String(protectedBody || ''),
+    Array.isArray(data.body_edits) ? data.body_edits : []
+  );
+  const skippedSuggestions = (Array.isArray(data.skipped_suggestions)
+    ? data.skipped_suggestions.slice()
+    : []).concat(editResult.skippedSuggestions);
+  const manualConfirmationNeeded = Array.isArray(data.manual_confirmation_needed)
+    ? data.manual_confirmation_needed.slice()
+    : [];
+
+  return {
+    bodyHtml: editResult.bodyHtml,
+    titleIdeas: String(data.title_ideas || data.titleIdeas || rowData.titleIdeas || '').trim(),
+    tags: String(data.tags || rowData.tags || '').trim(),
+    metaDescription: String(data.meta_description || data.metaDescription || rowData.metaDescription || '').trim(),
+    permalink: String(data.permalink || data.slug || rowData.permalink || '').trim(),
+    appliedChanges: editResult.appliedChanges,
+    skippedSuggestions: skippedSuggestions,
+    manualConfirmationNeeded: manualConfirmationNeeded
+  };
+}
+
+function uaApplyPrePublishPatchEdits_(body, edits) {
+  let revisedBody = String(body || '');
+  const appliedChanges = [];
+  const skippedSuggestions = [];
+
+  (edits || []).slice(0, 8).forEach(function(edit, index) {
+    const source = edit && typeof edit === 'object' ? edit : {};
+    const findText = String(source.find || '');
+    const replaceText = String(source.replace || '');
+    const reason = String(source.reason || '公開前チェックの指摘修正');
+    const target = '本文差分' + (index + 1);
+
+    if (findText.length < 12) {
+      skippedSuggestions.push({ target: target, reason: '置換元が短すぎるため、誤置換防止で適用しませんでした。' });
+      return;
+    }
+    if (/UA_PROTECTED_BLOCK_\d+/.test(findText) || /UA_PROTECTED_BLOCK_\d+/.test(replaceText)) {
+      skippedSuggestions.push({ target: target, reason: '保護中の画像・CTA・リンクを含むため適用しませんでした。' });
+      return;
+    }
+
+    const occurrenceCount = revisedBody.split(findText).length - 1;
+    if (occurrenceCount !== 1) {
+      skippedSuggestions.push({
+        target: target,
+        reason: occurrenceCount === 0
+          ? '置換元が本文と完全一致しないため適用しませんでした。'
+          : '置換元が本文内に複数あるため、誤置換防止で適用しませんでした。'
+      });
+      return;
+    }
+
+    revisedBody = revisedBody.replace(findText, replaceText);
+    appliedChanges.push({ target: target, reason: reason, change: replaceText });
+  });
+
+  return {
+    bodyHtml: revisedBody,
+    appliedChanges: appliedChanges,
+    skippedSuggestions: skippedSuggestions
   };
 }
 

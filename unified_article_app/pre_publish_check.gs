@@ -588,6 +588,7 @@ function uaBuildPrePublishRuleCheck_(rowData) {
   const h2List = uaExtractPrePublishH2List_(body);
   const faqHeadingIssues = uaFindPrePublishFaqHeadingIssues_(body);
   const relDuplicates = uaFindPrePublishDuplicateRelLinks_(body);
+  const malformedHtmlAttributes = uaFindPrePublishMalformedHtmlAttributes_(body);
   const unbalancedBlocks = uaFindPrePublishUnbalancedBlocks_(body);
   const reliabilityClaims = uaFindPrePublishReliabilityClaims_(body);
   const externalSourceLinkCount = uaCountPrePublishExternalSourceLinks_(body, rowData);
@@ -713,6 +714,9 @@ function uaBuildPrePublishRuleCheck_(rowData) {
 
   relDuplicates.forEach(function(item) {
     result.critical.push('CTA/リンクのrel属性で重複があります: ' + item);
+  });
+  malformedHtmlAttributes.forEach(function(item) {
+    result.critical.push('HTML属性の引用符が閉じていません: ' + item);
   });
 
   if (currentSourceIssue && currentSourceIssue.message) {
@@ -1345,6 +1349,23 @@ function uaFindPrePublishDuplicateRelLinks_(body) {
     if (dupes.length) result.push('同じ値があります: ' + dupes.join(', '));
   }
   return result;
+}
+
+function uaFindPrePublishMalformedHtmlAttributes_(body) {
+  const html = String(body || '').replace(/<!--[\s\S]*?-->/g, '');
+  const tags = html.match(/<(?:a|img|div|span|p|figure|table|thead|tbody|tr|th|td|ul|ol|li)\b[^>]*>/gi) || [];
+  const issues = [];
+  const doubleQuoted = /\b(alt|src|href|rel|target|width|height|border|class|style)\s*=\s*"[^"]*>/i;
+  const singleQuoted = /\b(alt|src|href|rel|target|width|height|border|class|style)\s*=\s*'[^']*>/i;
+
+  tags.forEach(function(tag) {
+    const match = doubleQuoted.exec(tag) || singleQuoted.exec(tag);
+    if (!match) return;
+    const label = String(match[1] || '属性').toLowerCase();
+    const issue = '<' + String(tag.match(/^<([a-z0-9-]+)/i) && tag.match(/^<([a-z0-9-]+)/i)[1] || 'tag') + '> の ' + label;
+    if (issues.indexOf(issue) === -1) issues.push(issue);
+  });
+  return issues;
 }
 
 function uaFindPrePublishUnbalancedBlocks_(body) {

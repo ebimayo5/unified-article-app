@@ -263,8 +263,14 @@ function uaNormalizeAffiliateCodeInput_(value) {
 
   if (looksQuoted) {
     text = text.slice(1, -1).replace(/""/g, '"').trim();
-  } else if (/<a\b/i.test(text) && text.indexOf('""') !== -1) {
-    text = text.replace(/""/g, '"');
+  } else if (
+    /<a\b/i.test(text) &&
+    /\b(?:href|rel|target|src|width|height|border|alt)\s*=\s*""[^"]*""/i.test(text)
+  ) {
+    text = text.replace(
+      /=\s*""([^"]*?)""(?=\s|>)/g,
+      '="$1"'
+    );
   }
 
   return text;

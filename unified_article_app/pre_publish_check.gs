@@ -69,22 +69,25 @@ function uaApplyPrePublishFixesOnceFromPanel(data) {
     throw new Error('記事タイプを判定できません。対象行の記事タイプを確認してください。');
   }
 
+  const backgroundStateKey = uaGetPrePublishBackgroundStateKey_(sheet, row);
+  const currentRuleCheck = uaBuildPrePublishRuleCheck_(rowData);
+  if (uaCanSkipPrePublishAiRevision_(currentRuleCheck, originalReport)) {
+    uaClearPrePublishBackgroundState_(backgroundStateKey);
+    const skippedData = uaBuildRowData_(sheet, row);
+    skippedData.message = '重大NGがなく編集評価も公開可能水準のため、APIを追加消費せず指摘修正を省略しました。';
+    return skippedData;
+  }
+
   const provider = uaGetPrePublishRevisionProvider_();
   uaAssertArticleProviderReady_(provider);
   const protectedBody = uaProtectPrePublishRevisionBody_(originalBody);
   const revisionPromptRowData = Object.assign({}, rowData, { body: protectedBody.body });
-  const backgroundStateKey = uaGetPrePublishBackgroundStateKey_(sheet, row);
   const revisionFingerprint = uaBuildPrePublishRevisionFingerprint_(rowData, originalReport);
   let backgroundState = uaLoadPrePublishBackgroundState_(backgroundStateKey);
   let externalSourcesPrompt = '';
   let resumedBackgroundRequest = false;
 
   if (backgroundState && backgroundState.fingerprint !== revisionFingerprint) {
-    uaClearPrePublishBackgroundState_(backgroundStateKey);
-    backgroundState = null;
-  }
-
-  if (backgroundState && uaIsExpiredPrePublishBackgroundState_(backgroundState)) {
     uaClearPrePublishBackgroundState_(backgroundStateKey);
     backgroundState = null;
   }
@@ -96,12 +99,21 @@ function uaApplyPrePublishFixesOnceFromPanel(data) {
       resumedBackgroundRequest = true;
     } catch (retrieveError) {
       if (Number(retrieveError && retrieveError.statusCode) === 404) {
-        uaClearPrePublishBackgroundState_(backgroundStateKey);
-        backgroundState = null;
+        throw new Error(
+          '保存済みのOpenAI修正結果は取得期限を過ぎています。' +
+          '重複課金を防ぐため、新しい修正依頼は自動送信していません。'
+        );
       } else {
         throw retrieveError;
       }
     }
+  }
+
+  if (backgroundState && !backgroundState.responseId) {
+    throw new Error(
+      '前回のOpenAI送信は開始応答を保存できないまま終了しました。' +
+      '重複課金を防ぐため、この修正依頼は自動再送していません。'
+    );
   }
 
   if (!backgroundState) {
@@ -110,15 +122,19 @@ function uaApplyPrePublishFixesOnceFromPanel(data) {
       appConfig,
       [rowData.titleIdeas, rowData.structureMemo, rowData.body].join(' ')
     );
+    backgroundState = {
+      responseId: '',
+      fingerprint: revisionFingerprint,
+      startedAt: new Date().toISOString(),
+      phase: 'starting'
+    };
+    uaSavePrePublishBackgroundState_(backgroundStateKey, backgroundState);
     backgroundResponse = uaStartOpenAiBackgroundJson_(
       uaBuildPrePublishPatchPrompt_(revisionPromptRowData, originalReport, externalSourcesPrompt),
       6000
     );
-    backgroundState = {
-      responseId: String(backgroundResponse.id || ''),
-      fingerprint: revisionFingerprint,
-      startedAt: new Date().toISOString()
-    };
+    backgroundState.responseId = String(backgroundResponse.id || '');
+    backgroundState.phase = 'queued';
     uaSavePrePublishBackgroundState_(backgroundStateKey, backgroundState);
   }
 
@@ -231,6 +247,20 @@ function uaGetPrePublishRevisionProvider_() {
   return 'openai';
 }
 
+function uaCanSkipPrePublishAiRevision_(ruleCheck, report) {
+  const criticalCount = ruleCheck && Array.isArray(ruleCheck.critical)
+    ? ruleCheck.critical.length
+    : 0;
+  if (criticalCount > 0) {
+    return false;
+  }
+
+  const text = String(report || '');
+  const scoreMatch = text.match(/(?:点数|score)\s*[:：]\s*(\d{1,3})/i);
+  const score = scoreMatch ? Number(scoreMatch[1]) : 0;
+  return score >= 80;
+}
+
 function uaGetPrePublishBackgroundStateKey_(sheet, row) {
   const spreadsheetId = sheet && sheet.getParent ? sheet.getParent().getId() : '';
   const sheetName = sheet && sheet.getName ? sheet.getName() : '';
@@ -249,8 +279,7 @@ function uaBuildPrePublishRevisionFingerprint_(rowData, report) {
     String(source.titleIdeas || ''),
     String(source.tags || ''),
     String(source.metaDescription || ''),
-    String(source.permalink || ''),
-    String(report || '')
+    String(source.permalink || '')
   ].join('\n---UA-PREPUBLISH---\n'));
 }
 

@@ -54,9 +54,15 @@ function onSelectionChange(e) {
   const articleConfig = uaGetAppConfigByArticleSheet_(sheet.getName());
   const appConfig = candidateConfig || articleConfig;
 
-  if (!appConfig || e.range.getRow() === 1) {
+  if (!appConfig) {
     return;
   }
+
+  if (e.range.getRow() === 1 && e.range.getColumn() === 1) {
+    uaQueueSelectedRowForOpenApp_(sheet);
+    return;
+  }
+  if (e.range.getRow() === 1) return;
 
   uaSetSheetHeaderAppLink_(sheet, appConfig, e.range.getRow(), candidateConfig ? 'candidate' : 'article');
 
@@ -355,25 +361,88 @@ function uaSetSheetHeaderAppLink_(sheet, appConfig, row, sourceType) {
   if (!sheet || !appConfig) return;
   const isCandidate = sourceType === 'candidate';
   const selectedRow = Number(row || 0);
-  let targetUrl = String(UA_ARTICLE_WEB_APP_URL || '').trim();
   if (selectedRow > 1) {
-    targetUrl += '?appType=' + encodeURIComponent(String(appConfig.label || '')) +
-      (isCandidate ? '&candidateRow=' : '&row=') + encodeURIComponent(String(selectedRow)) +
-      '&source=sheet';
+    PropertiesService.getScriptProperties().setProperty(
+      'UA_SHEET_SELECTION_V1_' + String(sheet.getSheetId()),
+      JSON.stringify({
+        appType: String(appConfig.label || ''),
+        row: selectedRow,
+        candidateRow: isCandidate ? selectedRow : 0,
+        selectedAt: new Date().getTime()
+      })
+    );
   }
   const label = selectedRow > 1
-    ? '▶ 選択行をアプリで開く'
-    : '▶ 行を選んでアプリで開く';
-  const formula = '=HYPERLINK("' + String(targetUrl).replace(/"/g, '""') + '","' + label + '")';
+    ? '▶ 選択行をアプリに反映'
+    : '▶ 行を選んでアプリに反映';
   sheet.getRange(1, 1)
-    .setFormula(formula)
+    .setValue(label)
     .setBackground('#159365')
     .setFontColor('#ffffff')
     .setFontWeight('bold')
     .setHorizontalAlignment('center')
     .setVerticalAlignment('middle')
-    .setNote('先に対象のデータ行を選び、このボタンを押してください。');
+    .setNote('先に対象のデータ行を選び、このセルを押すと、開いているアプリ画面へ反映します。');
   sheet.setColumnWidth(1, 210);
+}
+
+function uaQueueSelectedRowForOpenApp_(sheet) {
+  if (!sheet) return;
+  const properties = PropertiesService.getScriptProperties();
+  const raw = properties.getProperty('UA_SHEET_SELECTION_V1_' + String(sheet.getSheetId()));
+  let selected;
+  try {
+    selected = raw ? JSON.parse(raw) : null;
+  } catch (error) {
+    selected = null;
+  }
+  if (!selected || !selected.appType || Number(selected.row || 0) <= 1) {
+    SpreadsheetApp.getActiveSpreadsheet().toast(
+      '先に反映したいデータ行を選んでください。',
+      'Article Compass System',
+      4
+    );
+    return;
+  }
+  const now = new Date().getTime();
+  const request = {
+    id: now + '-' + Math.random().toString(36).slice(2),
+    appType: String(selected.appType || ''),
+    row: Number(selected.row || 0),
+    candidateRow: Number(selected.candidateRow || 0),
+    requestedAt: now
+  };
+  properties.setProperty('UA_PENDING_SHEET_HANDOFF_V1', JSON.stringify(request));
+  SpreadsheetApp.getActiveSpreadsheet().toast(
+    '選択行を開いているアプリ画面へ反映します。',
+    'Article Compass System',
+    4
+  );
+}
+
+function uaGetPendingSheetHandoffForWeb(lastRequestId) {
+  const raw = PropertiesService.getScriptProperties().getProperty('UA_PENDING_SHEET_HANDOFF_V1');
+  if (!raw) return null;
+  let request;
+  try {
+    request = JSON.parse(raw);
+  } catch (error) {
+    return null;
+  }
+  if (!request || !request.id || request.id === String(lastRequestId || '')) return null;
+  if (new Date().getTime() - Number(request.requestedAt || 0) > 120000) return null;
+  return request;
+}
+
+function uaGetLatestSheetHandoffIdForWeb() {
+  const raw = PropertiesService.getScriptProperties().getProperty('UA_PENDING_SHEET_HANDOFF_V1');
+  if (!raw) return '';
+  try {
+    const request = JSON.parse(raw);
+    return String(request && request.id || '');
+  } catch (error) {
+    return '';
+  }
 }
 
 function uaClearSheetAppOpenLink_(sheet, column) {

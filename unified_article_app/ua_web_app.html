@@ -230,7 +230,7 @@
             <div class="actions" style="grid-template-columns:1fr 1fr; margin-top:10px;">
               <button class="primary" type="button" style="grid-column:1 / -1;" onclick="openSourceSheet(this)">&#12471;&#12540;&#12488;&#12434;&#38283;&#12367;</button>
             </div>
-            <div class="muted" style="margin-top:8px; line-height:1.5;">シートで対象行を選び、左上A1の緑色ボタン「▶ 選択行をアプリで開く」を押します。</div>
+            <div class="muted" style="margin-top:8px; line-height:1.5;">シートで対象行を選び、左上A1の緑色ボタン「▶ 選択行をアプリに反映」を押します。</div>
             <details style="margin-top:10px;">
               <summary class="muted" style="cursor:pointer;">行番号で直接開く（予備）</summary>
               <label for="sourceRow">&#34892;&#30058;&#21495;&#12391;&#21453;&#26144;</label>
@@ -478,6 +478,10 @@
       const UA_FULL_WORKFLOW_RESUME_STORAGE_KEY = 'articleCompassFullWorkflowResumeV1';
       const UA_PANEL_STATE_POINTER_KEY = 'articleCompassPanelStateCurrentV1';
       const UA_PANEL_STATE_KEY_PREFIX = 'articleCompassPanelStateV1:';
+      const UA_APP_HANDOFF_CHANNEL_NAME = 'articleCompassAppHandoffV1';
+      const UA_APP_HANDOFF_STORAGE_KEY = 'articleCompassAppHandoffEventV1';
+      const UA_APP_PRIMARY_LOCK_NAME = 'articleCompassPrimaryAppV1';
+      const UA_APP_INSTANCE_ID = String(Date.now()) + '-' + Math.random().toString(36).slice(2);
       let appConfigs = [];
       let textModels = [];
       let imageModels = [];
@@ -502,8 +506,20 @@
       let imagePromptBlocks = [];
       let imagePromptIndex = 0;
       let panelStateSaveTimer = null;
+      let appBootReady = false;
+      let appHandoffAccepted = false;
+      let appHandoffChannel = null;
+      let pendingAppHandoffRequestId = '';
+      let lastHandledAppHandoffRequestId = '';
+      let isPrimaryApp = !(window.navigator && window.navigator.locks && window.navigator.locks.request);
+      let sheetHandoffPollTimer = null;
+      let sheetHandoffPollInFlight = false;
+      let lastSheetHandoffRequestId = '';
+      let sheetHandoffPollExpiresAt = 0;
 
       function init() {
+        setupPrimaryAppLock();
+        setupAppHandoff();
         bindAutoSaveControls();
         bindPanelStatePersistence();
         setBusy('アプリを読み込み中...');
@@ -520,47 +536,211 @@
           setProgress('done');
           const restored = restorePanelDisplayState();
           if (!restored) setNotice('候補シートを開くか、行番号で記事行を呼び出してください。', false);
+          appBootReady = true;
           loadAutomaticPostingSettings();
           loadArticleRequestedFromUrl();
         }).withFailureHandler(fail).uaGetWebAppBootData();
       }
 
-      function loadArticleRequestedFromUrl() {
+      function setupPrimaryAppLock() {
+        if (!window.navigator || !window.navigator.locks || !window.navigator.locks.request) return;
+        window.navigator.locks.request(UA_APP_PRIMARY_LOCK_NAME, function() {
+          isPrimaryApp = true;
+          return new Promise(function(resolve) {
+            window.addEventListener('pagehide', function() {
+              isPrimaryApp = false;
+              resolve();
+            }, { once: true });
+          });
+        }).catch(function() {
+          isPrimaryApp = true;
+        });
+      }
+
+      function setupAppHandoff() {
+        if (typeof window.BroadcastChannel === 'function') {
+          try {
+            appHandoffChannel = new window.BroadcastChannel(UA_APP_HANDOFF_CHANNEL_NAME);
+            appHandoffChannel.onmessage = function(event) {
+              handleAppHandoffMessage(event && event.data);
+            };
+          } catch (e) {
+            appHandoffChannel = null;
+          }
+        }
+
+        window.addEventListener('storage', function(event) {
+          if (!event || event.key !== UA_APP_HANDOFF_STORAGE_KEY || !event.newValue) return;
+          try {
+            handleAppHandoffMessage(JSON.parse(event.newValue));
+          } catch (e) {}
+        });
+
         if (!google.script.url || !google.script.url.getLocation) return;
         google.script.url.getLocation(function(location) {
-          const params = location && location.parameter ? location.parameter : {};
-          const appType = String(params.appType || '').trim();
-          const candidateRow = Number(params.candidateRow || 0);
-          const row = Number(params.row || candidateRow || 0);
-          if (!appType || row <= 1) return;
-          const appSelect = document.getElementById('appType');
-          const hasAppType = Array.prototype.some.call(appSelect.options || [], function(option) {
-            return option.value === appType;
-          });
-          if (!hasAppType) {
-            setNotice('シートから指定されたサイトを確認できませんでした。', true);
-            return;
-          }
-          appSelect.value = appType;
-          const sourceType = document.getElementById('sourceType');
-          const sourceRow = document.getElementById('sourceRow');
-          if (sourceType) sourceType.value = candidateRow > 1 ? 'candidate' : 'article';
-          if (sourceRow) sourceRow.value = row;
-          applyTheme();
-          updateSourceControls();
-          setBusy('シートで選択した行を反映中...');
-          const runner = google.script.run.withSuccessHandler(function(data) {
-            clearBusy();
-            fillForm(data || {});
-            setProgress('done');
-            setNotice('シートで選択した行をアプリ画面へ反映しました。', false);
-          }).withFailureHandler(fail);
-          if (candidateRow > 1) {
-            runner.uaCreateArticleFromCandidateForWeb(appType, candidateRow);
-          } else {
-            runner.uaGetArticleRowForWeb(appType, row);
-          }
+          const params = normalizeArticleLocationParams(location && location.parameter);
+          if (params.source !== 'sheet' || !params.appType || params.row <= 1) return;
+          requestExistingAppHandoff(params);
         });
+      }
+
+      function startSheetHandoffPolling() {
+        stopSheetHandoffPolling();
+        sheetHandoffPollExpiresAt = Date.now() + 10 * 60 * 1000;
+        google.script.run
+          .withSuccessHandler(function(latestRequestId) {
+            lastSheetHandoffRequestId = String(latestRequestId || '');
+            pollSheetHandoff();
+            sheetHandoffPollTimer = window.setInterval(pollSheetHandoff, 1500);
+          })
+          .withFailureHandler(function() {
+            sheetHandoffPollExpiresAt = 0;
+          })
+          .uaGetLatestSheetHandoffIdForWeb();
+        window.addEventListener('pagehide', function() {
+          stopSheetHandoffPolling();
+        }, { once: true });
+      }
+
+      function stopSheetHandoffPolling() {
+        if (sheetHandoffPollTimer) window.clearInterval(sheetHandoffPollTimer);
+        sheetHandoffPollTimer = null;
+        sheetHandoffPollInFlight = false;
+        sheetHandoffPollExpiresAt = 0;
+      }
+
+      function pollSheetHandoff() {
+        if (!appBootReady || !isPrimaryApp || sheetHandoffPollInFlight) return;
+        if (!sheetHandoffPollExpiresAt || Date.now() > sheetHandoffPollExpiresAt) {
+          stopSheetHandoffPolling();
+          return;
+        }
+        sheetHandoffPollInFlight = true;
+        google.script.run
+          .withSuccessHandler(function(request) {
+            sheetHandoffPollInFlight = false;
+            if (!request || !request.id) return;
+            lastSheetHandoffRequestId = String(request.id);
+            stopSheetHandoffPolling();
+            loadArticleFromLocationParams({
+              appType: request.appType,
+              row: request.row,
+              candidateRow: request.candidateRow,
+              source: 'sheet'
+            });
+            try { window.focus(); } catch (e) {}
+          })
+          .withFailureHandler(function() {
+            sheetHandoffPollInFlight = false;
+          })
+          .uaGetPendingSheetHandoffForWeb(lastSheetHandoffRequestId);
+      }
+
+      function normalizeArticleLocationParams(params) {
+        const source = params || {};
+        const candidateRow = Number(source.candidateRow || 0);
+        const articleRow = Number(source.row || 0);
+        return {
+          appType: String(source.appType || '').trim(),
+          candidateRow: candidateRow,
+          row: Number(articleRow || candidateRow || 0),
+          source: String(source.source || '').trim()
+        };
+      }
+
+      function sendAppHandoffMessage(message) {
+        const payload = Object.assign({}, message || {}, {
+          senderId: UA_APP_INSTANCE_ID,
+          sentAt: Date.now(),
+          nonce: Math.random().toString(36).slice(2)
+        });
+        if (appHandoffChannel) {
+          try { appHandoffChannel.postMessage(payload); } catch (e) {}
+        }
+        try {
+          window.localStorage.setItem(UA_APP_HANDOFF_STORAGE_KEY, JSON.stringify(payload));
+          window.localStorage.removeItem(UA_APP_HANDOFF_STORAGE_KEY);
+        } catch (e) {}
+      }
+
+      function requestExistingAppHandoff(params) {
+        pendingAppHandoffRequestId = UA_APP_INSTANCE_ID + ':' + Date.now();
+        sendAppHandoffMessage({
+          type: 'open-row-request',
+          requestId: pendingAppHandoffRequestId,
+          params: params
+        });
+      }
+
+      function handleAppHandoffMessage(message) {
+        const data = message || {};
+        if (!data.type || data.senderId === UA_APP_INSTANCE_ID) return;
+
+        if (data.type === 'open-row-accepted') {
+          if (!pendingAppHandoffRequestId || data.requestId !== pendingAppHandoffRequestId) return;
+          appHandoffAccepted = true;
+          pendingAppHandoffRequestId = '';
+          window.setTimeout(function() {
+            try { window.close(); } catch (e) {}
+          }, 120);
+          return;
+        }
+
+        if (data.type !== 'open-row-request' || !appBootReady || !isPrimaryApp) return;
+        if (!data.requestId || data.requestId === lastHandledAppHandoffRequestId) return;
+        const params = normalizeArticleLocationParams(data.params);
+        if (!params.appType || params.row <= 1) return;
+
+        lastHandledAppHandoffRequestId = data.requestId;
+        sendAppHandoffMessage({
+          type: 'open-row-accepted',
+          requestId: data.requestId
+        });
+        loadArticleFromLocationParams(params);
+        try { window.focus(); } catch (e) {}
+      }
+
+      function loadArticleRequestedFromUrl() {
+        if (appHandoffAccepted) return;
+        if (!google.script.url || !google.script.url.getLocation) return;
+        google.script.url.getLocation(function(location) {
+          if (appHandoffAccepted) return;
+          loadArticleFromLocationParams(normalizeArticleLocationParams(location && location.parameter));
+        });
+      }
+
+      function loadArticleFromLocationParams(params) {
+        const appType = String(params && params.appType || '').trim();
+        const candidateRow = Number(params && params.candidateRow || 0);
+        const row = Number(params && params.row || candidateRow || 0);
+        if (!appType || row <= 1) return;
+        const appSelect = document.getElementById('appType');
+        const hasAppType = Array.prototype.some.call(appSelect.options || [], function(option) {
+          return option.value === appType;
+        });
+        if (!hasAppType) {
+          setNotice('シートから指定されたサイトを確認できませんでした。', true);
+          return;
+        }
+        appSelect.value = appType;
+        const sourceType = document.getElementById('sourceType');
+        const sourceRow = document.getElementById('sourceRow');
+        if (sourceType) sourceType.value = candidateRow > 1 ? 'candidate' : 'article';
+        if (sourceRow) sourceRow.value = row;
+        applyTheme();
+        updateSourceControls();
+        setBusy('シートで選択した行を反映中...');
+        const runner = google.script.run.withSuccessHandler(function(data) {
+          clearBusy();
+          fillForm(data || {});
+          setProgress('done');
+          setNotice('シートで選択した行をアプリ画面へ反映しました。', false);
+        }).withFailureHandler(fail);
+        if (candidateRow > 1) {
+          runner.uaCreateArticleFromCandidateForWeb(appType, candidateRow);
+        } else {
+          runner.uaGetArticleRowForWeb(appType, row);
+        }
       }
 
       function loadAutomaticPostingSettings() {
@@ -964,7 +1144,10 @@
         const runner = google.script.run.withSuccessHandler(function(result) {
           clearBusy();
           setProgress('done');
-          if (result && result.url) window.open(result.url, '_blank');
+          if (result && result.url) {
+            startSheetHandoffPolling();
+            window.open(result.url, '_blank');
+          }
           setNotice(result && result.message ? result.message : '\u30b7\u30fc\u30c8\u3092\u958b\u304d\u307e\u3057\u305f\u3002', false);
         }).withFailureHandler(fail);
         if (source === 'article') {

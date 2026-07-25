@@ -47,14 +47,18 @@ function uaBuildLegacyImagePromptPlan_(title, requestData, targets) {
     sections: (targets || []).map(function(target, index) {
       const composition = uaPickLegacyImageComposition_(target.heading, index, previousCompositionType);
       const previousType = previousCompositionType;
+      const promisedItemCount = uaExtractPromisedImageItemCount_(target.heading);
+      const itemSourceLabels = uaExtractNumberedImageItemSources_(target.text, promisedItemCount);
       previousCompositionType = composition.type;
       return {
         heading: target.heading,
-        visual_prompt: uaBuildLegacySectionVisualPrompt_(target.heading),
+        visual_prompt: uaBuildLegacySectionVisualPrompt_(target.heading, target.text),
         short_label: uaBuildNaturalGeneratedImageLabel_(target.heading, mainInput, false),
         composition_type: composition.label,
         previous_composition_type: previousType === 'wide_hero' ? 'ワイドヒーロー' : uaGetLegacyCompositionLabel_(previousType),
-        composition: composition.instruction,
+        composition: uaAdaptImageCompositionForPromisedCount_(composition.instruction, promisedItemCount),
+        promised_item_count: promisedItemCount,
+        item_source_labels: itemSourceLabels,
         avoid: '長文、H2全文の転載、別のH2内容、細かなカードの大量配置を避ける。'
       };
     })
@@ -101,8 +105,19 @@ function uaPickLegacyImageComposition_(heading, index, previousType) {
   return uaGetLegacyImageCompositions_().find(function(item) { return item.type === pickedType; });
 }
 
-function uaBuildLegacySectionVisualPrompt_(heading) {
+function uaBuildLegacySectionVisualPrompt_(heading, sectionText) {
   const value = String(heading || '');
+  const promisedItemCount = uaExtractPromisedImageItemCount_(value);
+  if (promisedItemCount) {
+    const itemSources = uaExtractNumberedImageItemSources_(sectionText, promisedItemCount);
+    return 'H2「' + value + '」が約束する' + promisedItemCount +
+      '項目を、番号付きの異なる図解要素としてすべて省略せず描く。主役と' +
+      promisedItemCount + '項目の対応が一目で分かるようにし、各項目へ2〜8文字程度の短い日本語ラベルを1つずつ付ける。' +
+      (itemSources.length
+        ? 'ラベルは次の本文項目を短く要約する: ' + itemSources.join(' / ') + '。'
+        : '項目の意味はH2の内容から自然に区別する。') +
+      '配置は指定された構図タイプに従い、細かなカードの寄せ集めにはしない。';
+  }
   if (/比較|違い|どっち|メリット|デメリット/.test(value)) {
     return 'H2「' + value + '」の違いと判断軸を理解できる図解にする。比較対象を大きく描き、それぞれ2〜3個の短い要点ラベルと視覚記号を添える。配置は指定された構図タイプに従う。';
   }
@@ -119,6 +134,57 @@ function uaBuildLegacySectionVisualPrompt_(heading) {
     return 'H2「' + value + '」の判断材料を、主役と3つの確認ポイントで理解できる図解にする。各ポイントは短い日本語ラベルと異なるアイコンで区別し、配置は指定された構図タイプに従う。';
   }
   return 'H2「' + value + '」の要点を、主役と2〜3個の補助要素で直感的に理解できるブログ図解として描く。各要素には短い日本語ラベルを添え、配置は指定された構図タイプに従う。';
+}
+
+function uaExtractPromisedImageItemCount_(heading) {
+  const normalized = String(heading || '').replace(/[０-９]/g, function(character) {
+    return String(character.charCodeAt(0) - 0xFEE0);
+  });
+  const digitMatch = normalized.match(/(?:^|[^\d])(\d{1,2})\s*(?:つ|選|項目|ポイント|手順|ステップ|パターン|理由|原因|方法|コツ|注意点|チェック)/);
+  let count = digitMatch ? Number(digitMatch[1]) : 0;
+
+  if (!count) {
+    const kanjiMap = {
+      一: 1, 二: 2, 三: 3, 四: 4, 五: 5,
+      六: 6, 七: 7, 八: 8, 九: 9, 十: 10
+    };
+    const kanjiMatch = normalized.match(/(?:^|[^一二三四五六七八九十])([一二三四五六七八九十])\s*(?:つ|選|項目|ポイント|手順|ステップ|パターン|理由|原因|方法|コツ|注意点|チェック)/);
+    count = kanjiMatch ? Number(kanjiMap[kanjiMatch[1]] || 0) : 0;
+  }
+
+  return count >= 2 && count <= 12 ? count : 0;
+}
+
+function uaExtractNumberedImageItemSources_(sectionText, expectedCount) {
+  const count = Number(expectedCount || 0);
+  if (!count) return [];
+
+  const text = String(sectionText || '').replace(/\s+/g, ' ').trim();
+  const regex = /(?:^|\s)(\d{1,2})\s*[\)）.．:：]\s*(.*?)(?=\s+\d{1,2}\s*[\)）.．:：]\s*|$)/g;
+  const items = [];
+  let match;
+
+  while ((match = regex.exec(text)) !== null && items.length < count) {
+    const number = Number(match[1] || 0);
+    if (number !== items.length + 1) continue;
+    const source = String(match[2] || '')
+      .split(/[。！？\n]/)[0]
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 36);
+    if (source) items.push(number + '. ' + source);
+  }
+
+  return items.length === count ? items : [];
+}
+
+function uaAdaptImageCompositionForPromisedCount_(composition, promisedItemCount) {
+  const count = Number(promisedItemCount || 0);
+  const base = String(composition || '').trim();
+  if (!count) return base;
+
+  return base.replace(/3つ/g, count + 'つ').replace(/3項目/g, count + '項目') +
+    ' ' + count + '項目すべてを番号付きの異なるアイコンまたはチェック要素として読み順が分かるように配置する。';
 }
 
 function uaPickLegacyImageLayout_(heading, index) {
@@ -185,7 +251,7 @@ function uaFormatImagePromptPack_(planData, title, requestData, targets) {
     '【共通ルール】',
     '- 横長16:9。ここに書かれた各ブロックは、それぞれ別の1枚として生成する。',
     '- 1枚へ複数ブロック、画像一覧、コラージュ、設計表を混ぜない。',
-    '- アイキャッチはタイトル由来の自然な見出しを入れる。H2図解は主見出しに加え、図解要素へ2〜3個の短い日本語ラベルを付けてよい。',
+    '- アイキャッチはタイトル由来の自然な見出しを入れる。通常のH2図解は主見出しに加え、図解要素へ2〜3個の短い日本語ラベルを付けてよい。ただし「○つ・○選・○項目・○ポイント」など数を約束するH2は例外で、その数と図解要素・ラベル数を必ず一致させる。',
     '- 長文、H2全文、記事タイトル全文は描かない。短いラベルは単語や文節の途中で切らない。',
     '- 文字と主役は中央の安全範囲に置き、上下左右に15%以上の余白を取る。',
     '- 実在ブランドのロゴ、正確な商品パッケージ、透かしは入れない。人物を入れる場合は、目・鼻・口のある自然な顔と表情で描く。',
@@ -211,6 +277,12 @@ function uaFormatImagePromptPack_(planData, title, requestData, targets) {
 
   (targets || []).forEach(function(target, index) {
     const sectionPlan = uaFindImageSectionPlan_(sectionPlans, target.heading, index);
+    const promisedItemCount = Number(
+      sectionPlan.promised_item_count || uaExtractPromisedImageItemCount_(target.heading)
+    ) || 0;
+    const itemSourceLabels = Array.isArray(sectionPlan.item_source_labels)
+      ? sectionPlan.item_source_labels
+      : uaExtractNumberedImageItemSources_(target.text, promisedItemCount);
     const number = String(index + 1).padStart(2, '0');
     uaAppendImagePromptPackBlock_(lines, {
       heading: '【生成' + (index + 2) + '/' + total + ' H2図解】',
@@ -219,12 +291,17 @@ function uaFormatImagePromptPack_(planData, title, requestData, targets) {
       targetHeading: target.heading,
       title: '',
       visualPrompt: uaCleanImagePlanText_(sectionPlan.visual_prompt, 500)
-        || 'H2「' + target.heading + '」の判断材料を、主役と2〜3個の具体的な視覚要素で直感的に理解できる1枚のブログ図解として描く。本文や見出し全文は画像内へ転載しない。',
+        || uaBuildLegacySectionVisualPrompt_(target.heading, target.text),
       compositionType: uaCleanImagePlanText_(sectionPlan.composition_type, 60) || 'ローテーション構図',
       previousCompositionType: uaCleanImagePlanText_(sectionPlan.previous_composition_type, 60) || (index === 0 ? 'ワイドヒーロー' : '直前のH2図解'),
       composition: uaCleanImagePlanText_(sectionPlan.composition, 240)
-        || uaPickGeneratedImageLayout_({ role: 'h2', displayIndex: number }),
+        || uaAdaptImageCompositionForPromisedCount_(
+          uaPickGeneratedImageLayout_({ role: 'h2', displayIndex: number }),
+          promisedItemCount
+        ),
       shortLabel: uaNormalizeImagePlanLabel_(sectionPlan.short_label),
+      promisedItemCount: promisedItemCount,
+      itemSourceLabels: itemSourceLabels,
       avoid: uaCleanImagePlanText_(sectionPlan.avoid, 220)
     });
   });
@@ -254,9 +331,17 @@ function uaAppendImagePromptPackBlock_(lines, block) {
   lines.push(block.shortLabel
     ? '画像内メインテキスト: 「' + block.shortLabel + '」を一字も省略せず入れる。'
     : '画像内メインテキスト: なし。');
+  if (block.promisedItemCount) {
+    lines.push('図解項目数: ' + block.promisedItemCount + '個。対象H2が約束する数と一致させ、全項目を省略せず別々の図解要素で示す。');
+    if (Array.isArray(block.itemSourceLabels) && block.itemSourceLabels.length === block.promisedItemCount) {
+      lines.push('図解項目の元情報: ' + block.itemSourceLabels.join(' / '));
+    }
+  }
   lines.push(block.type === 'EYECATCH'
     ? '補助テキスト: 必要なら記事テーマを補う短い日本語を1つだけ添える。長文は入れない。'
-    : '図解ラベル: 図解要素に対応する2〜8文字程度の短い日本語を2〜3個まで入れる。長文やH2全文は入れない。');
+    : (block.promisedItemCount
+      ? '図解ラベル: 各図解要素に対応する2〜8文字程度の短い日本語を' + block.promisedItemCount + '個入れる。項目の統合・省略・水増しはせず、長文やH2全文は入れない。'
+      : '図解ラベル: 図解要素に対応する2〜8文字程度の短い日本語を2〜3個まで入れる。長文やH2全文は入れない。'));
   if (block.avoid) lines.push('この画像で避けるもの: ' + block.avoid);
   lines.push('');
 }
@@ -724,6 +809,12 @@ function uaBuildGeneratedImagePromptFromPromptPackBlock_(block, rowData, title, 
     heading: section && section.heading || ''
   };
   const blockText = String(block && block.text || '');
+  const promisedItemCount = section
+    ? uaExtractPromisedImageItemCount_(section.heading)
+    : 0;
+  const itemSourceLabels = section
+    ? uaExtractNumberedImageItemSources_(section.text, promisedItemCount)
+    : [];
   const explicitLabel = uaExtractImagePromptPackLabel_(blockText);
   const explicitlyNoLabel = /^\s*(?:画像内メインテキスト|画像内テキスト|Image text|Short label)\s*[:：]\s*(?:なし|none)(?:\s|[。.、]|$)/im.test(blockText);
   const shortLabel = explicitlyNoLabel
@@ -745,7 +836,15 @@ function uaBuildGeneratedImagePromptFromPromptPackBlock_(block, rowData, title, 
     common.push('Render this main Japanese headline exactly: "' + shortLabel + '".');
     common.push('The main headline is complete. Do not omit any character. Use one or two lines and break only at a natural phrase boundary.');
     if (section) {
-      common.push('Also add two or three short Japanese infographic labels derived only from the H2 topic. Each label must be 2 to 8 characters, attached to a visible diagram element, and never a full sentence.');
+      if (promisedItemCount) {
+        common.push('The H2 explicitly promises ' + promisedItemCount + ' items. Show exactly ' + promisedItemCount + ' separate numbered diagram elements and exactly ' + promisedItemCount + ' short Japanese labels. Do not merge, omit, or invent items.');
+        common.push('Each label must be 2 to 8 Japanese characters, attached to its corresponding visible element, and never a full sentence.');
+        if (itemSourceLabels.length === promisedItemCount) {
+          common.push('Source items to summarize into the labels: ' + itemSourceLabels.join(' / '));
+        }
+      } else {
+        common.push('Also add two or three short Japanese infographic labels derived only from the H2 topic. Each label must be 2 to 8 characters, attached to a visible diagram element, and never a full sentence.');
+      }
     } else {
       common.push('You may add at most one short supporting Japanese phrase derived from the article theme. Do not repeat the full article title.');
     }
@@ -861,6 +960,10 @@ function uaBuildGeneratedImagePrompt_(task, rowData) {
   const baseTitle = task.title || uaPickWpTitle_(rowData.titleIdeas) || rowData.mainInput || '記事';
   const layout = uaPickGeneratedImageLayout_(task);
   const shortLabel = uaBuildGeneratedImageShortLabel_(task, rowData);
+  const promisedItemCount = task.role === 'h2'
+    ? uaExtractPromisedImageItemCount_(task.heading)
+    : 0;
+  const itemSourceLabels = uaExtractNumberedImageItemSources_(task.text, promisedItemCount);
   const common = [
     'Create one high-quality 16:9 Japanese blog illustration for an article.',
     'Make it useful for reader comprehension, not a generic decorative stock image.',
@@ -880,6 +983,12 @@ function uaBuildGeneratedImagePrompt_(task, rowData) {
     common.push('The main headline is complete. Do not omit any character. Use one or two lines and break only at a natural phrase boundary.');
     if (task.role === 'eyecatch') {
       common.push('You may add at most one short supporting Japanese phrase derived from the article theme. Do not repeat the full article title.');
+    } else if (promisedItemCount) {
+      common.push('The H2 explicitly promises ' + promisedItemCount + ' items. Show exactly ' + promisedItemCount + ' separate numbered diagram elements and exactly ' + promisedItemCount + ' short Japanese labels. Do not merge, omit, or invent items.');
+      common.push('Each label must be 2 to 8 Japanese characters and attached to its corresponding visible element.');
+      if (itemSourceLabels.length === promisedItemCount) {
+        common.push('Source items to summarize into the labels: ' + itemSourceLabels.join(' / '));
+      }
     } else {
       common.push('Also add two or three short Japanese infographic labels derived only from the H2 heading. Each label must be 2 to 8 characters and attached to a visible diagram element.');
     }

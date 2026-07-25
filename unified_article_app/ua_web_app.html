@@ -394,7 +394,6 @@
               <div class="actions">
                 <button class="secondary" onclick="generateImagePromptPack(this)">&#30011;&#20687;&#12503;&#12525;&#12531;&#12503;&#12488;&#20316;&#25104;</button>
                 <button id="wpDraftButton" class="primary" onclick="createWpDraft(this)">WP&#12408;&#19979;&#26360;&#12365;</button>
-                <button class="secondary" onclick="runPrePublishCheck(this)">&#20844;&#38283;&#21069;&#12481;&#12455;&#12483;&#12463;</button>
                 <button class="primary" onclick="runPrePublishFixAndWp(this)">&#12481;&#12455;&#12483;&#12463;&#20462;&#27491;&#8594;WP&#21453;&#26144;</button>
                 <button class="neutral" onclick="markPosted(this)">&#25237;&#31295;&#28168;&#12415;&#12395;&#12377;&#12427;</button>
               </div>
@@ -404,7 +403,7 @@
           <div class="tabs">
             <button id="tabSummary" class="tab active" onclick="showTab('summary')">概要</button>
             <button id="tabBody" class="tab" onclick="showTab('body')">本文</button>
-            <button id="tabCheck" class="tab" onclick="showTab('check')">確認</button>
+            <button id="tabCheck" class="tab" onclick="showTab('check')">確認・修正記録</button>
           </div>
 
           <div id="panelSummary">
@@ -432,7 +431,7 @@
           </div>
 
           <div id="panelCheck" class="hidden">
-            <div class="field-head"><label for="factCheckPoints">要確認ポイント</label><button class="copy-button" type="button" onclick="copyField('factCheckPoints', '要確認ポイント')">コピー</button></div>
+            <div class="field-head"><label for="factCheckPoints">公開前チェック・修正記録</label><button class="copy-button" type="button" onclick="copyField('factCheckPoints', '公開前チェック・修正記録')">コピー</button></div>
             <textarea id="factCheckPoints" class="body-preview check-preview"></textarea>
             <div class="field-head"><label for="structureMemo">構成メモ</label><button class="copy-button" type="button" onclick="copyField('structureMemo', '構成メモ')">コピー</button></div>
             <textarea id="structureMemo" class="body-preview structure-preview"></textarea>

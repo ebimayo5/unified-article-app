@@ -73,8 +73,14 @@ function uaApplyPrePublishFixesOnceFromPanel(data) {
   const currentRuleCheck = uaBuildPrePublishRuleCheck_(rowData);
   if (uaCanSkipPrePublishAiRevision_(currentRuleCheck, originalReport)) {
     uaClearPrePublishBackgroundState_(backgroundStateKey);
+    const skippedReport = uaFormatPrePublishSkippedRevisionReport_(
+      currentRuleCheck,
+      originalReport
+    );
+    uaSetFactCheckPointsWithLinks_(sheet, row, skippedReport);
+    SpreadsheetApp.flush();
     const skippedData = uaBuildRowData_(sheet, row);
-    skippedData.message = '重大NGがなく編集評価も公開可能水準のため、APIを追加消費せず指摘修正を省略しました。';
+    skippedData.message = '修正箇所はありません。重大NGがなく編集評価も公開可能水準のため、APIを追加消費せず修正を省略しました。確認・修正記録へ保存しています。';
     return skippedData;
   }
 
@@ -1233,6 +1239,25 @@ function uaFormatPrePublishRevisionReport_(revision, ruleCheck, modelLabel, orig
   return lines.join('\n');
 }
 
+function uaFormatPrePublishSkippedRevisionReport_(ruleCheck, originalReport) {
+  const lines = [
+    '【公開前チェック・修正記録】',
+    '実行: ' + Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm:ss'),
+    '処理結果: 修正なし',
+    '理由: 重大NGがなく編集評価も公開可能水準のため、追加APIを使う修正を省略',
+    '',
+    '【実際に修正した箇所】',
+    '・なし',
+    '',
+    '▼機械チェック',
+    'NG: ' + ruleCheck.critical.length + '件 / 要確認: ' + ruleCheck.warnings.length + '件 / OK: ' + ruleCheck.ok.length + '件',
+    '',
+    '▼公開前チェック結果',
+    String(originalReport || '').slice(0, 20000)
+  ];
+  return lines.join('\n');
+}
+
 function uaPushPrePublishChangeList_(lines, title, values, changeKey) {
   const list = Array.isArray(values) ? values : [];
   lines.push('【' + title + '】');
@@ -1245,9 +1270,14 @@ function uaPushPrePublishChangeList_(lines, title, values, changeKey) {
       lines.push('・' + item);
       return;
     }
-    const parts = [String(item && item.target || '対象不明'), String(item && item.reason || '')];
-    if (changeKey && item && item[changeKey]) parts.push(String(item[changeKey]));
-    lines.push('・' + parts.filter(Boolean).join('｜'));
+    const target = String(item && item.target || '対象不明');
+    const reason = String(item && item.reason || '').trim();
+    const change = changeKey && item && item[changeKey]
+      ? String(item[changeKey]).trim()
+      : '';
+    lines.push('・修正対象: ' + target);
+    if (reason) lines.push('  理由: ' + reason);
+    if (change) lines.push('  変更内容: ' + change);
   });
 }
 

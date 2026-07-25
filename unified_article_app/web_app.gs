@@ -265,7 +265,7 @@ function uaGetCandidateSheetUrlForWeb(appTypeLabel) {
 
   return {
     url: ss.getUrl() + '#gid=' + sheet.getSheetId(),
-    message: appConfig.label + 'の候補シートを開きます。行を選んだらWebアプリに戻って「スプシの選択行を反映」を押してください。'
+    message: appConfig.label + 'のキーワード候補シートを開きました。記事にする行を選び、A1の「▶ 選択行をアプリに反映」を押してください。アプリ画面へ戻り、選択行が反映されます。'
   };
 }
 

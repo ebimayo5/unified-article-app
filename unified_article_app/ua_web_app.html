@@ -1161,16 +1161,36 @@
       }
       function openSourceSheet(button) {
         const source = currentSourceType();
+        let pendingSheetWindow = null;
+        try {
+          pendingSheetWindow = window.open('about:blank', 'ArticleCompassSourceSheet');
+          if (pendingSheetWindow) pendingSheetWindow.focus();
+        } catch (e) {
+          pendingSheetWindow = null;
+        }
         setBusy(source === 'article' ? '\u8a18\u4e8b\u5316\u3057\u305f\u8a18\u9332\u30b7\u30fc\u30c8\u3092\u958b\u3044\u3066\u3044\u307e\u3059...' : '\u30ad\u30fc\u30ef\u30fc\u30c9\u5019\u88dc\u30b7\u30fc\u30c8\u3092\u958b\u3044\u3066\u3044\u307e\u3059...', button);
         const runner = google.script.run.withSuccessHandler(function(result) {
           clearBusy();
           setProgress('done');
           if (result && result.url) {
             startSheetHandoffPolling();
-            sourceSheetWindow = window.open(result.url, 'ArticleCompassSourceSheet');
+            if (pendingSheetWindow && !pendingSheetWindow.closed) {
+              pendingSheetWindow.location.replace(result.url);
+              pendingSheetWindow.focus();
+              sourceSheetWindow = pendingSheetWindow;
+            } else {
+              sourceSheetWindow = window.open(result.url, 'ArticleCompassSourceSheet');
+            }
+            if (!sourceSheetWindow) {
+              setNotice('\u30b7\u30fc\u30c8\u3092\u958b\u3051\u307e\u305b\u3093\u3067\u3057\u305f\u3002\u30d6\u30e9\u30a6\u30b6\u3067\u30dd\u30c3\u30d7\u30a2\u30c3\u30d7\u3092\u8a31\u53ef\u3057\u3066\u3001\u3082\u3046\u4e00\u5ea6\u300c\u30b7\u30fc\u30c8\u3092\u958b\u304f\u300d\u3092\u62bc\u3057\u3066\u304f\u3060\u3055\u3044\u3002', true);
+              return;
+            }
           }
           setNotice(result && result.message ? result.message : '\u30b7\u30fc\u30c8\u3092\u958b\u304d\u307e\u3057\u305f\u3002', false);
-        }).withFailureHandler(fail);
+        }).withFailureHandler(function(error) {
+          if (pendingSheetWindow && !pendingSheetWindow.closed) pendingSheetWindow.close();
+          fail(error);
+        });
         if (source === 'article') {
           runner.uaGetArticleSheetUrlForWeb(document.getElementById('appType').value);
         } else {

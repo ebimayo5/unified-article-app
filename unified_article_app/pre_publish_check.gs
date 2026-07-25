@@ -422,6 +422,8 @@ function uaBuildPrePublishRevisionPrompt_(rowData, checkReport, externalSourcesP
     '「最新」「現在」、経営、倒産、決算、法規、制度、価格など鮮度が必要なテーマでは、使用を許可する外部出典候補のうち自動検索された最新の公式資料を優先してください。資料名、公表日または確認時点、記事の判断に必要な具体的数値・条件を本文へ反映し、一般論だけで完成させないでください。',
     '既存の画像、リンク、楽天広告、アフィリエイトCTA、Cocoonブログカード、YMYL注意書き、WordPressブロックコメントと属性は削除・変更しないでください。',
     '商品名や用品紹介は、楽天バナー、案件CTA、公式リンクなど読者が次に確認できる導線があり、記事の判断に必要な場合だけ残してください。導線のない商品名の羅列は増やさず、選び方・適合条件・確認項目へ置き換えてください。',
+    '用品・道具・アイテム・グッズ・商品候補だけを扱う独立H2は、読者の判断に必要で、紹介用品と一致する楽天バナーが同じH2内にある場合だけ残してください。楽天バナーがない場合は新しいリンクを作らず、そのH2だけを外して有用な内容を既存の関連H2へ1〜3段落で統合してください。',
+    '楽天バナーがある用品H2でも、バナーの商品カテゴリと本文で紹介する用品が一致しない場合は、見出しを残すために無関係な商品説明を増やさないでください。検索意図に必要な用品だけへ絞り、対応しない補足は既存章へ統合してください。',
     '案件が検索意図の中心から少し離れる場合は、案件のためだけのH2・H3や長い商品紹介章を作らず、既存の購入判断セクション内の1〜3段落に圧縮してください。変えにくい不満と後から調整できる不満など、記事の主題に沿う短い橋渡しは残してください。',
     'ナビ男くん案件では紹介セットと案件CTAの両方を必ず残してください。検索意図から少し離れる場合は、メインキーワード、読者の不安、対象車種、直前セクションの結論を読み、「なぜここでナビ男くんを確認するのか」が具体的に分かる橋渡しへ直してください。単なる「選択肢です」「確認してみましょう」だけの接続は禁止です。',
     '「この記事のポイント」はCocoon tab-caption-box-1、CTAはCocoon button-wrap-1、内部リンクは前置き文とCocoonブログカードの形式を守ってください。',
@@ -595,6 +597,7 @@ function uaBuildPrePublishRuleCheck_(rowData) {
   const titleNumberIssue = uaFindTitleNumberConsistencyIssue_(title, body);
   const currentSourceIssue = uaCheckCurrentOfficialSourceRequirement_(rowData, body);
   const affiliateDetourIssue = uaFindAffiliateDetourIssue_(rowData, body);
+  const standaloneProductSectionsWithoutRakuten = uaFindPrePublishStandaloneProductSectionsWithoutRakuten_(body);
   let siteFitIssue = null;
   let ymylNoticeSpec = null;
   try {
@@ -615,6 +618,7 @@ function uaBuildPrePublishRuleCheck_(rowData) {
       imageCount: uaCountPrePublishImages_(body),
       reliabilityClaimCount: reliabilityClaims.length,
       externalSourceLinkCount: externalSourceLinkCount,
+      standaloneProductSectionWithoutRakutenCount: standaloneProductSectionsWithoutRakuten.length,
       ymylNoticeRequired: !!ymylNoticeSpec,
       hasWpPost: wpPostId > 0
     }
@@ -726,6 +730,12 @@ function uaBuildPrePublishRuleCheck_(rowData) {
   if (affiliateDetourIssue) {
     (affiliateDetourIssue.critical ? result.critical : result.warnings).push(affiliateDetourIssue.message);
   }
+  standaloneProductSectionsWithoutRakuten.forEach(function(title) {
+    result.critical.push(
+      '用品専用H2「' + title + '」の中に、紹介用品と対応する楽天バナーがありません。' +
+      'このH2が読者の判断に不可欠なら楽天バナーを同じH2内へ入れ、補足にすぎない場合はH2を外して既存の関連章へ1〜3段落で統合してください。'
+    );
+  });
   if (siteFitIssue) {
     result.critical.push(uaBuildSiteFitStopMessage_(siteFitIssue, uaGetAppConfigByLabel_(rowData && rowData.appType)));
   }
@@ -788,6 +798,39 @@ function uaBuildPrePublishRuleCheck_(rowData) {
   else result.warnings.push('WordPress下書きIDがありません。WP貼り付け後の反映確認は未実施です。');
 
   return result;
+}
+
+function uaFindPrePublishStandaloneProductSectionsWithoutRakuten_(body) {
+  const html = String(body || '');
+  const headings = [];
+  const headingPattern = /<h2\b[^>]*>([\s\S]*?)<\/h2>/gi;
+  let match;
+
+  while ((match = headingPattern.exec(html)) !== null) {
+    headings.push({
+      title: uaStripPrePublishHtml_(match[1]).replace(/\s+/g, ' ').trim(),
+      start: match.index,
+      contentStart: headingPattern.lastIndex
+    });
+  }
+
+  const dedicatedProductHeadingPattern =
+    /(?:用品|道具|アイテム|グッズ|商品(?:候補|紹介|選び)|おすすめ(?:用品|道具|アイテム|グッズ|商品)|用意すると|揃えておきたい|準備しておきたい|あると便利|あると助かる|備えておきたい)/;
+  const rakutenPattern =
+    /(?:openapi\.rakuten|hb\.afl\.rakuten|rakuten\.co\.jp|楽天(?:市場)?で(?:比較|確認)|楽天バナー)/i;
+  const issues = [];
+
+  headings.forEach(function(item, index) {
+    if (!item.title || /^(?:よくある質問|まとめ)/.test(item.title)) return;
+    if (!dedicatedProductHeadingPattern.test(item.title)) return;
+    const end = index + 1 < headings.length ? headings[index + 1].start : html.length;
+    const sectionHtml = html.slice(item.contentStart, end);
+    if (!rakutenPattern.test(sectionHtml)) {
+      issues.push(item.title);
+    }
+  });
+
+  return issues;
 }
 
 function uaNormalizeTitleKeywordText_(value) {
@@ -1003,7 +1046,7 @@ function uaBuildPrePublishEditorPrompt_(rowData, ruleCheck) {
     '法規、安全、数値、価格、保証、メーカー仕様、対応可否など信頼性が必要な主張は、内容に対応する外部出典リンクが近くにあるか確認してください。URLを推測して修正案へ書かず、確認できない場合は手動確認事項として示してください。',
     'タイトルはメインキーワードの主要語を自然な日本語として含み、「何の記事か」と「なぜ読むのか」が30〜32文字程度で伝わるか確認してください。検索語を助詞なしで並べただけの形は低評価にします。数字は本文に根拠があり具体性が増す場合だけ評価し、数字がないこと自体は問題にしません。メタディスクリプションは約120文字で、単なる記事説明ではなく具体的な判断材料と読むメリットが伝わるか確認してください。',
     'H2は「よくある質問」「まとめ」を含め基本6〜8個を目安にしてください。9個でも役割が明確に異なるなら問題扱いせず、数だけを理由に統合しないでください。10個以上では細分化を重点確認し、検索意図や説明内容が重複するH2だけを統合候補にしてください。6個未満でも、数合わせで不要なH2を追加しないでください。',
-    '楽天バナー、案件CTA、公式リンクなど次の導線がない用品紹介や、記事の判断に不要な商品名の羅列がないか確認してください。',
+    '用品・道具・アイテム・グッズ・商品候補だけを扱う独立H2は、読者の判断に必要で、紹介用品と一致する楽天バナーが同じH2内にある場合だけ適切です。楽天バナーがない用品専用H2、バナーと紹介用品が一致しないH2、記事の判断に不要な商品名の羅列は重大な問題として指摘してください。補足として有用な用品情報は既存の関連H2へ1〜3段落で統合する提案にしてください。',
     '必ずJSONだけで返してください。形式:',
     '{"score":85,"verdict":"軽微修正で公開可","target":"想定読者","goodPoints":["..."],"warnings":["..."],"criticalIssues":["..."],"suggestedFixes":[{"target":"対象箇所","reason":"理由","suggestion":"修正案"}],"ratings":{"titleAppeal":4,"introStrength":4,"targetClarity":4,"structureClarity":4,"specificity":4,"readability":4,"lowAiSmell":4,"warmth":4,"seoBasics":4,"uniqueness":3,"ctaDesign":4,"reliability":4}}',
     '機械チェック結果:',

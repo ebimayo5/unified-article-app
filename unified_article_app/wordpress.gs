@@ -551,6 +551,7 @@ function uaGetWpPostContentText_(post) {
 
 function uaCallWordPressApi_(wpConfig, path, method, payload) {
   const url = wpConfig.siteUrl + path;
+  const requestMethod = String(method || 'get').toUpperCase();
   const headers = {
     Authorization: 'Basic ' + Utilities.base64Encode(wpConfig.username + ':' + wpConfig.appPassword),
     Accept: 'application/json',
@@ -578,18 +579,86 @@ function uaCallWordPressApi_(wpConfig, path, method, payload) {
     json = text ? JSON.parse(text) : {};
   } catch (e) {
     if (statusCode === 403 && /^<!DOCTYPE|^<html/i.test(String(text || '').trim())) {
-      throw new Error('WP API: server returned a 403 HTML response.');
+      throw new Error(uaBuildWordPressHttpErrorMessage_(
+        statusCode,
+        requestMethod,
+        path,
+        text,
+        true
+      ));
     }
 
-    throw new Error('WP API: response was not JSON.');
+    throw new Error(uaBuildWordPressHttpErrorMessage_(
+      statusCode,
+      requestMethod,
+      path,
+      text,
+      false
+    ));
   }
 
   if (statusCode < 200 || statusCode >= 300) {
     const message = json && json.message ? json.message : text;
-    throw new Error('WP API: request failed.');
+    throw new Error(
+      uaBuildWordPressHttpErrorMessage_(statusCode, requestMethod, path, message, false)
+    );
   }
 
   return json;
+}
+
+function uaBuildWordPressHttpErrorMessage_(statusCode, method, path, responseText, isHtml) {
+  const stage = uaDescribeWordPressApiStage_(path, method);
+  const responseBody = String(responseText || '');
+  const titleMatch = String(responseText || '').match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+  const htmlTitle = titleMatch
+    ? String(titleMatch[1] || '').replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim()
+    : '';
+  const isSiteGuardWaf = /SiteGuard\s+Lite/i.test(responseBody) ||
+    /閲覧できません\s*\(Forbidden access\)/i.test(responseBody);
+  const detail = !isHtml
+    ? String(responseText || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 180)
+    : htmlTitle;
+  const parts = [
+    'WordPressの' + stage + 'が拒否されました',
+    'HTTP ' + statusCode,
+    method + ' ' + uaGetSafeWordPressApiPath_(path)
+  ];
+
+  if (detail) {
+    parts.push(detail);
+  }
+
+  if (Number(statusCode) === 403 && isHtml) {
+    parts.push(isSiteGuardWaf
+      ? 'ConoHa WINGのWAFによる誤検知です。WING→サイト管理→サイトセキュリティ→WAF→ログで、この時刻の検知を「除外」してから停止位置より再開してください'
+      : 'WordPress側のWAF・セキュリティ機能による遮断の可能性があります');
+  }
+
+  return parts.join(' / ');
+}
+
+function uaDescribeWordPressApiStage_(path, method) {
+  const cleanPath = String(path || '');
+  const cleanMethod = String(method || 'GET').toUpperCase();
+
+  if (/\/users\/me(?:\?|$)/.test(cleanPath)) return '接続認証確認';
+  if (/\/tags(?:\/|\?|$)/.test(cleanPath)) {
+    return cleanMethod === 'GET' ? 'タグ確認' : 'タグ作成';
+  }
+  if (/\/categories(?:\/|\?|$)/.test(cleanPath)) return 'カテゴリ確認';
+  if (/\/media(?:\/|\?|$)/.test(cleanPath)) {
+    return cleanMethod === 'GET' ? '画像確認' : '画像送信';
+  }
+  if (/\/posts(?:\/|\?|$)/.test(cleanPath)) {
+    return cleanMethod === 'GET' ? '下書き確認' : '本文送信';
+  }
+
+  return 'API通信';
+}
+
+function uaGetSafeWordPressApiPath_(path) {
+  return String(path || '').replace(/([?&](?:search)=)[^&]*/gi, '$1…');
 }
 
 function uaEnsureWpTagIds_(wpConfig, tagsText) {

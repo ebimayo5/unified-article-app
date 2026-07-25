@@ -357,20 +357,17 @@ function uaSetupSheetHeaderAppLinks_() {
   }
 }
 
+function uaSetupSheetHeaderActionButtons() {
+  uaSetupSheetHeaderAppLinks_();
+  return { success: true };
+}
+
 function uaSetSheetHeaderAppLink_(sheet, appConfig, row, sourceType) {
   if (!sheet || !appConfig) return;
   const isCandidate = sourceType === 'candidate';
   const selectedRow = Number(row || 0);
   if (selectedRow > 1) {
-    PropertiesService.getScriptProperties().setProperty(
-      'UA_SHEET_SELECTION_V1_' + String(sheet.getSheetId()),
-      JSON.stringify({
-        appType: String(appConfig.label || ''),
-        row: selectedRow,
-        candidateRow: isCandidate ? selectedRow : 0,
-        selectedAt: new Date().getTime()
-      })
-    );
+    uaRememberSheetSelection_(sheet, appConfig, selectedRow, isCandidate);
   }
   const label = selectedRow > 1
     ? '▶ 選択行をアプリに反映'
@@ -384,6 +381,74 @@ function uaSetSheetHeaderAppLink_(sheet, appConfig, row, sourceType) {
     .setVerticalAlignment('middle')
     .setNote('先に対象のデータ行を選び、このセルを押すと、開いているアプリ画面へ反映します。');
   sheet.setColumnWidth(1, 210);
+  sheet.setRowHeight(1, 32);
+  uaEnsureSheetHeaderActionButton_(sheet);
+}
+
+function uaEnsureSheetHeaderActionButton_(sheet) {
+  if (!sheet) return;
+  const buttonTitle = 'Article Compass: 選択行をアプリに反映';
+  const images = sheet.getImages();
+  for (let index = 0; index < images.length; index += 1) {
+    const image = images[index];
+    if (String(image.getAltTextTitle() || '') !== buttonTitle) continue;
+    image
+      .setAnchorCell(sheet.getRange(1, 1))
+      .setAnchorCellXOffset(0)
+      .setAnchorCellYOffset(0)
+      .setWidth(210)
+      .setHeight(32)
+      .assignScript('uaQueueSelectedRowFromButton');
+    return;
+  }
+  const buttonImageUrl = 'https://raw.githubusercontent.com/ebimayo5/unified-article-app/main/unified_article_app/sheet-handoff-button.png';
+  sheet.insertImage(buttonImageUrl, 1, 1)
+    .setAltTextTitle(buttonTitle)
+    .setAltTextDescription('選択中の行を、開いているArticle Compassアプリへ反映します。')
+    .setWidth(210)
+    .setHeight(32)
+    .assignScript('uaQueueSelectedRowFromButton');
+  return;
+
+  const pngBase64 = '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';
+  const blob = Utilities.newBlob(Utilities.base64Decode(pngBase64), 'image/png', 'article-compass-row-button.png');
+  sheet.insertImage(blob, 1, 1)
+    .setAltTextTitle(buttonTitle)
+    .setAltTextDescription('選択中の行を、開いているArticle Compassアプリへ反映します。')
+    .setWidth(210)
+    .setHeight(32)
+    .assignScript('uaQueueSelectedRowFromButton');
+}
+
+function uaQueueSelectedRowFromButton() {
+  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = spreadsheet.getActiveSheet();
+  const row = sheet.getActiveCell().getRow();
+  const candidateConfig = uaGetAppConfigByCandidateSheet_(sheet.getName());
+  const articleConfig = uaGetAppConfigByArticleSheet_(sheet.getName());
+  const appConfig = candidateConfig || articleConfig;
+  if (!appConfig || row <= 1) {
+    spreadsheet.toast(
+      '先に反映したいデータ行を選んでください。',
+      'Article Compass System',
+      4
+    );
+    return;
+  }
+  uaRememberSheetSelection_(sheet, appConfig, row, Boolean(candidateConfig));
+  uaQueueSelectedRowForOpenApp_(sheet);
+}
+
+function uaRememberSheetSelection_(sheet, appConfig, row, isCandidate) {
+  PropertiesService.getScriptProperties().setProperty(
+    'UA_SHEET_SELECTION_V1_' + String(sheet.getSheetId()),
+    JSON.stringify({
+      appType: String(appConfig.label || ''),
+      row: Number(row || 0),
+      candidateRow: isCandidate ? Number(row || 0) : 0,
+      selectedAt: new Date().getTime()
+    })
+  );
 }
 
 function uaQueueSelectedRowForOpenApp_(sheet) {

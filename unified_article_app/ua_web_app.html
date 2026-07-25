@@ -1039,10 +1039,20 @@
           setNotice('再読み込み前の処理は中断されました。続きから再開してください。', true);
           setProgress('error');
         } else if (state.noticeText) {
-          setNotice(state.noticeText, state.noticeError);
+          setNotice(normalizeRestoredNoticeText(state.noticeText), state.noticeError);
           setProgress(state.noticeError ? 'error' : 'done');
         }
         return true;
+      }
+
+      function normalizeRestoredNoticeText(message) {
+        const text = String(message || '');
+        const legacyCandidateGuide = /の候補シートを開きます。行を選んだらWebアプリに戻って「スプシの選択行を反映」を押してください。/;
+        if (!legacyCandidateGuide.test(text)) return text;
+        return text.replace(
+          legacyCandidateGuide,
+          'のキーワード候補シートを開きました。記事にする行を選び、A1の「▶ 選択行をアプリに反映」を押してください。アプリ画面へ戻り、選択行が反映されます。'
+        );
       }
 
       function restorePanelWorkflowSnapshot(workflow) {

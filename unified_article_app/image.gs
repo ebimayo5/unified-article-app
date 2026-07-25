@@ -203,10 +203,17 @@ function uaPickLegacyImageLayout_(heading, index) {
 
 function uaNormalizeImagePromptTargets_(suppliedTargets, body) {
   const supplied = Array.isArray(suppliedTargets) ? suppliedTargets : [];
+  const bodySections = uaExtractImageSectionsFromBody_(body);
   const normalized = supplied.map(function(item) {
+    const heading = uaNormalizeHeadingText_(item && item.heading || '');
+    const bodySection = bodySections.find(function(section) {
+      return uaNormalizeHeadingText_(section && section.heading || '') === heading;
+    });
     return {
-      heading: uaNormalizeHeadingText_(item && item.heading || ''),
-      text: uaNormalizeHeadingText_(item && item.text || '').slice(0, 900),
+      heading: heading,
+      text: bodySection
+        ? bodySection.text
+        : uaNormalizeHeadingText_(item && item.text || '').slice(0, 4000),
       rank: String(item && item.rank || 'B').toUpperCase() === 'A' ? 'A' : 'B'
     };
   }).filter(function(item) {
@@ -217,7 +224,7 @@ function uaNormalizeImagePromptTargets_(suppliedTargets, body) {
     return normalized.slice(0, 6);
   }
 
-  return uaPickGeneratedImageSections_(uaExtractImageSectionsFromBody_(body)).slice(0, 6);
+  return uaPickGeneratedImageSections_(bodySections).slice(0, 6);
 }
 
 function uaBuildImagePromptPlanStyle_(requestData) {
@@ -928,7 +935,7 @@ function uaExtractImageSectionsFromBody_(bodyHtml) {
     const sectionHtml = body.slice(item.index, next ? next.index : body.length);
     return {
       heading: item.heading,
-      text: uaNormalizeHeadingText_(sectionHtml).slice(0, 900),
+      text: uaNormalizeHeadingText_(sectionHtml).slice(0, 4000),
       rank: uaClassifyGeneratedImageNeed_(item.heading + '\n' + sectionHtml)
     };
   });

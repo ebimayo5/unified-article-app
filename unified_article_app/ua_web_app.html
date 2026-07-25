@@ -538,6 +538,7 @@
           const restored = restorePanelDisplayState();
           if (!restored) setNotice('候補シートを開くか、行番号で記事行を呼び出してください。', false);
           appBootReady = true;
+          initializeSheetHandoffWatcher();
           loadAutomaticPostingSettings();
           loadArticleRequestedFromUrl();
         }).withFailureHandler(fail).uaGetWebAppBootData();
@@ -601,6 +602,26 @@
         window.addEventListener('pagehide', function() {
           stopSheetHandoffPolling();
         }, { once: true });
+      }
+
+      function initializeSheetHandoffWatcher() {
+        google.script.run
+          .withSuccessHandler(function(latestRequestId) {
+            lastSheetHandoffRequestId = String(latestRequestId || '');
+          })
+          .withFailureHandler(function() {})
+          .uaGetLatestSheetHandoffIdForWeb();
+
+        window.addEventListener('focus', checkSheetHandoffAfterReturningToApp);
+        document.addEventListener('visibilitychange', function() {
+          if (!document.hidden) checkSheetHandoffAfterReturningToApp();
+        });
+      }
+
+      function checkSheetHandoffAfterReturningToApp() {
+        if (!appBootReady || !isPrimaryApp || sheetHandoffPollInFlight) return;
+        sheetHandoffPollExpiresAt = Date.now() + 30 * 1000;
+        pollSheetHandoff();
       }
 
       function stopSheetHandoffPolling() {

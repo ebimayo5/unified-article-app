@@ -516,6 +516,7 @@
       let sheetHandoffPollInFlight = false;
       let lastSheetHandoffRequestId = '';
       let sheetHandoffPollExpiresAt = 0;
+      let sourceSheetWindow = null;
 
       function init() {
         setupPrimaryAppLock();
@@ -628,12 +629,32 @@
               candidateRow: request.candidateRow,
               source: 'sheet'
             });
-            try { window.focus(); } catch (e) {}
+            returnToAppAfterSheetHandoff();
           })
           .withFailureHandler(function() {
             sheetHandoffPollInFlight = false;
           })
           .uaGetPendingSheetHandoffForWeb(lastSheetHandoffRequestId);
+      }
+
+      function returnToAppAfterSheetHandoff() {
+        const openedSheet = sourceSheetWindow;
+        try {
+          if (openedSheet && !openedSheet.closed) openedSheet.blur();
+          window.focus();
+          if (window.top && typeof window.top.focus === 'function') window.top.focus();
+        } catch (e) {}
+
+        window.setTimeout(function() {
+          try {
+            if (openedSheet && !openedSheet.closed) openedSheet.close();
+          } catch (e) {}
+          try {
+            window.focus();
+            if (window.top && typeof window.top.focus === 'function') window.top.focus();
+          } catch (e) {}
+          sourceSheetWindow = null;
+        }, 400);
       }
 
       function normalizeArticleLocationParams(params) {
@@ -1146,7 +1167,7 @@
           setProgress('done');
           if (result && result.url) {
             startSheetHandoffPolling();
-            window.open(result.url, '_blank');
+            sourceSheetWindow = window.open(result.url, 'ArticleCompassSourceSheet');
           }
           setNotice(result && result.message ? result.message : '\u30b7\u30fc\u30c8\u3092\u958b\u304d\u307e\u3057\u305f\u3002', false);
         }).withFailureHandler(fail);

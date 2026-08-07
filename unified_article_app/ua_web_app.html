@@ -1506,8 +1506,38 @@
           runFullArticleWorkflowStep(index + 1, data);
         }).withFailureHandler(function(error) {
           if (isOperationCancelled(opToken) || window.uaFullWorkflowCancelled) return;
+          if (step.server === 'uaApplyPrePublishFixesOnceFromWeb' && isPendingPrePublishRevisionError(error)) {
+            schedulePendingPrePublishRevisionRetry(flow, index, currentData);
+            return;
+          }
           failFullArticleWorkflow(error, step.label);
         })[step.server](currentData);
+      }
+
+      function isPendingPrePublishRevisionError(error) {
+        const message = error && error.message ? error.message : String(error || '');
+        return message.indexOf('OpenAIで指摘修正を継続中') !== -1 &&
+          message.indexOf('処理IDは保存済み') !== -1;
+      }
+
+      function schedulePendingPrePublishRevisionRetry(flow, index, currentData) {
+        if (!flow || window.uaFullWorkflowCancelled) return;
+        clearBusy();
+        flow.pendingRevisionChecks = Number(flow.pendingRevisionChecks || 0) + 1;
+        renderWorkflowProgress(flow, index, 'running');
+        const retryToken = beginCancelableOperation(
+          'OpenAIの修正完了を待っています。20秒後に自動で続きを確認します...',
+          flow.button
+        );
+        updateBusyProgress(
+          'OpenAIの修正処理は継続中です。',
+          '20秒後に保存済みの処理IDを自動確認 / 新しい修正依頼は送信しません'
+        );
+        window.setTimeout(function() {
+          if (isOperationCancelled(retryToken) || window.uaFullWorkflowCancelled || window.uaFullWorkflow !== flow) return;
+          clearBusy();
+          runFullArticleWorkflowStep(index, currentData || readForm());
+        }, 20000);
       }
 
       function isFullWorkflowStepAlreadyDone(step, data) {

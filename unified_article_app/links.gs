@@ -825,6 +825,18 @@ function uaRequiresFreshOfficialSourceSearch_(mainInput) {
   return /(最新|現在|今後|倒産|経営|決算|業績|赤字|黒字|利益|財務|負債|資金繰り|キャッシュフロー|株価|法令|法律|違反|規制|制度|補助金|税制|保険|保証|リコール|改善対策|安全基準|価格|料金|相場)/i.test(String(mainInput || ''));
 }
 
+function uaRequiresStrictOfficialSource_(value) {
+  return /(最新|現在|今後|倒産|経営|決算|業績|赤字|黒字|利益|財務|負債|資金繰り|キャッシュフロー|株価|法令|法律|違反|規制|制度|補助金|税制|保険|保証|リコール|改善対策|安全基準)/i.test(String(value || ''));
+}
+
+function uaIsMarketFreshnessTopic_(value) {
+  return /(価格|料金|相場)/i.test(String(value || ''));
+}
+
+function uaIsUsedVehicleMarketTopic_(value) {
+  return /(中古車|中古\s*(?:自動車|カー)|認定中古車|車両価格|支払総額)/i.test(String(value || ''));
+}
+
 function uaRequiresFreshOfficialSourceSearchFromContext_(contextText) {
   return /(最新|現在|今後|倒産|経営|決算|業績|赤字|黒字|利益|財務|負債|資金繰り|キャッシュフロー|株価|法令|法律|違反|規制|制度|補助金|税制|リコール|改善対策)/i.test(String(contextText || ''));
 }
@@ -843,6 +855,11 @@ function uaDiscoverCurrentOfficialSources_(mainInput, appConfig, contextText) {
   if (typeof uaFetchSearchResultUrls_ !== 'function' || typeof uaFetchCompetitorPageInfos_ !== 'function') return [];
 
   const queries = [input + ' 最新 公式'];
+  if (uaIsMarketFreshnessTopic_(topicText)) queries.unshift(input + ' 現在 価格 公式');
+  if (uaIsUsedVehicleMarketTopic_(topicText)) {
+    queries.unshift(input + ' 認定中古車 公式');
+    queries.push(input + ' 中古車 相場 現在');
+  }
   if (uaIsFinanceFreshnessTopic_(topicText)) queries.unshift(input + ' 最新 決算 IR 公式');
 
   const urls = [];

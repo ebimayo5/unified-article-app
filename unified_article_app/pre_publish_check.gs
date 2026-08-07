@@ -949,6 +949,9 @@ function uaCheckCurrentOfficialSourceRequirement_(rowData, body) {
   const topicText = [input, rowData && rowData.titleIdeas, rowData && rowData.structureMemo].join(' ');
   if (!uaRequiresFreshOfficialSourceSearch_(topicText)) return null;
 
+  const requiresStrictOfficial = uaRequiresStrictOfficialSource_(topicText);
+  const requiresCurrentMarketSource = uaIsMarketFreshnessTopic_(topicText);
+
   const html = String(body || '');
   const links = html.match(/<a\b[^>]*href=["'][^"']+["'][^>]*>[\s\S]*?<\/a>/gi) || [];
   const hasOfficialLink = links.some(function(tag) {
@@ -956,11 +959,24 @@ function uaCheckCurrentOfficialSourceRequirement_(rowData, body) {
     const url = String(urlMatch && urlMatch[1] || '').toLowerCase();
     const text = uaStripPrePublishHtml_(tag);
     if (/(ebimayo5\.com|px\.a8\.net|rakuten)/i.test(url)) return false;
-    return /\.(?:go|lg)\.jp(?:\/|$)/i.test(url) || /(公式|公的|省|庁|自治体|メーカー|IR|投資家)/i.test(text);
+    return /\.(?:go|lg)\.jp(?:\/|$)/i.test(url) ||
+      /(aftc\.or\.jp|kokusen\.go\.jp|giroj\.or\.jp|jaf\.or\.jp)/i.test(url) ||
+      /(公式|公的|省|庁|自治体|メーカー|IR|投資家|公正取引協議会|国民生活センター|損害保険料率算出機構)/i.test(text);
   });
 
-  if (!hasOfficialLink) {
+  const hasCurrentMarketLink = links.some(function(tag) {
+    const urlMatch = tag.match(/href=["']([^"']+)["']/i);
+    const url = String(urlMatch && urlMatch[1] || '').toLowerCase();
+    if (/(ebimayo5\.com|px\.a8\.net|rakuten)/i.test(url)) return false;
+    return /(preowned\.|certified|usedcar|carsensor\.net|goo-net\.com|aftc\.or\.jp)/i.test(url);
+  });
+
+  if (requiresStrictOfficial && !hasOfficialLink) {
     return { critical: true, message: '最新性が必要なテーマですが、内容に直接対応する公式・公的リンクがありません。自動検索で信頼できる最新資料を取得できるまで公開しないでください。' };
+  }
+
+  if (requiresCurrentMarketSource && !hasOfficialLink && !hasCurrentMarketLink) {
+    return { critical: true, message: '価格・相場の最新性が必要ですが、公式在庫または信頼できる現在の市場資料がありません。最新の価格条件を確認できるリンクを追加してください。' };
   }
 
   if (uaIsFinanceFreshnessTopic_(topicText)) {
@@ -975,7 +991,9 @@ function uaCheckCurrentOfficialSourceRequirement_(rowData, body) {
     }
   }
 
-  return { critical: false, message: '最新性が必要なテーマに、公式・公的リンクがあります。' };
+  return { critical: false, message: requiresCurrentMarketSource
+    ? '価格・相場の確認に使える公式・信頼資料があります。'
+    : '最新性が必要なテーマに、公式・公的リンクがあります。' };
 }
 
 function uaFindAffiliateDetourIssue_(rowData, body) {

@@ -574,7 +574,17 @@ function uaApplyPrePublishPatchEdits_(body, edits) {
       return;
     }
 
-    revisedBody = revisedBody.replace(findText, replaceText);
+    const candidateBody = revisedBody.replace(findText, replaceText);
+    const candidateBlockIssues = uaFindPrePublishUnbalancedBlocks_(candidateBody);
+    if (candidateBlockIssues.length) {
+      skippedSuggestions.push({
+        target: target,
+        reason: '置換後にWordPressブロックの開始・終了が合わなくなるため、安全のため適用しませんでした: ' + candidateBlockIssues.join(' / ')
+      });
+      return;
+    }
+
+    revisedBody = candidateBody;
     appliedChanges.push({ target: target, reason: reason, change: replaceText });
   });
 

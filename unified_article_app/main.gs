@@ -58,10 +58,6 @@ function onSelectionChange(e) {
     return;
   }
 
-  if (e.range.getRow() === 1 && e.range.getColumn() === 1) {
-    uaQueueSelectedRowForOpenApp_(sheet);
-    return;
-  }
   if (e.range.getRow() === 1) return;
 
   uaSetSheetHeaderAppLink_(sheet, appConfig, e.range.getRow(), candidateConfig ? 'candidate' : 'article');

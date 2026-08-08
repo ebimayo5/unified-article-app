@@ -944,7 +944,10 @@ function uaPickWpTitle_(titleIdeas) {
   }
 
   const first = text
-    .split(/\s*[\/・｜|\n]/)[0]
+    // Title ideas are joined with a spaced slash (" / "). Japanese titles
+    // commonly contain "・" and "｜", so those characters must remain part
+    // of the selected title.
+    .split(/\s+(?:\/|／)\s+|\r?\n/)[0]
     .replace(/^案\s*\d+\s*[:：・\-]?\s*/i, '')
     .trim();
 

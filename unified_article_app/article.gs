@@ -935,13 +935,19 @@ function uaAddRakutenBannerForContext_(context) {
     throw new Error('本文が空です。先に本文を生成してください。');
   }
 
+  let sourceBody = context.body;
+  let replacedExisting = false;
   if (uaHasRakutenBanner_(context.body)) {
-    throw new Error('本文内に楽天バナーらしきリンクがすでにあります。重複を避けるため追加しません。');
+    sourceBody = uaRemoveGeneratedRakutenBanner_(context.body);
+    replacedExisting = sourceBody !== context.body;
+    if (!replacedExisting) {
+      throw new Error('本文内に手動追加された楽天リンクがあります。自動判定では安全に置き換えられないため停止しました。');
+    }
   }
 
   UA_LAST_RAKUTEN_STATUS = '';
 
-  if (!uaShouldInsertRakutenAffiliateBanner_(context.body, context.rowData, context.appConfig)) {
+  if (!uaShouldInsertRakutenAffiliateBanner_(sourceBody, context.rowData, context.appConfig)) {
     const reason = UA_LAST_RAKUTEN_STATUS || '楽天バナー挿入対象外です。';
     uaAppendFactCheckPoint_(context.sheet, context.row, '・楽天バナー後入れ未実行｜' + reason);
     return {
@@ -949,7 +955,7 @@ function uaAddRakutenBannerForContext_(context) {
     };
   }
 
-  const block = uaBuildRakutenFollowupBlock_(context.body, context.rowData, context.appConfig);
+  const block = uaBuildRakutenFollowupBlock_(sourceBody, context.rowData, context.appConfig);
 
   if (!block) {
     const reason = UA_LAST_RAKUTEN_STATUS || '楽天バナーを作成できませんでした。';
@@ -959,13 +965,60 @@ function uaAddRakutenBannerForContext_(context) {
     };
   }
 
-  const nextBody = uaInsertRakutenBlockIntoBody_(context.body, block, context.rowData, context.appConfig);
+  const nextBody = uaInsertRakutenBlockIntoBody_(sourceBody, block, context.rowData, context.appConfig);
   context.sheet.getRange(context.row, UA_COLUMNS.body).setValue(nextBody);
-  uaAppendFactCheckPoint_(context.sheet, context.row, '・楽天バナー後入れ｜既存本文に小リライトとして追加済み');
+  uaAppendFactCheckPoint_(context.sheet, context.row, replacedExisting
+    ? '・楽天バナー再選定｜既存の自動生成バナーを削除し、現在のキーワードで置換済み'
+    : '・楽天バナー後入れ｜既存本文に小リライトとして追加済み');
 
   const nextData = uaBuildRowData_(context.sheet, context.row);
-  nextData.message = '楽天バナーを本文へ追加しました。本文生成APIは使っていません。';
+  nextData.message = replacedExisting
+    ? '楽天バナーを現在のキーワードで再選定して置き換えました。本文生成APIは使っていません。'
+    : '楽天バナーを本文へ追加しました。本文生成APIは使っていません。';
   return nextData;
+}
+
+function uaRefreshRakutenBannerForArticleRow_(appConfig, row) {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(appConfig.articleSheetName);
+  if (!sheet) {
+    throw new Error('記事管理シートが見つかりません: ' + appConfig.articleSheetName);
+  }
+
+  const context = uaGetRakutenRowContext_(sheet, row);
+  const sourceBody = uaRemoveGeneratedRakutenBanner_(context.body);
+  if (sourceBody === context.body && uaHasRakutenBanner_(context.body)) {
+    throw new Error('手動追加された楽天リンクは自動更新できません。');
+  }
+
+  const nextBody = uaApplyRakutenAffiliateBanner_(sourceBody, context.rowData, context.appConfig);
+  if (!uaHasRakutenBanner_(nextBody)) {
+    throw new Error('楽天バナーを再生成できませんでした: ' + (UA_LAST_RAKUTEN_STATUS || '原因不明'));
+  }
+  sheet.getRange(row, UA_COLUMNS.body).setValue(nextBody);
+  uaAppendFactCheckPoint_(sheet, row, '・楽天バナー再選定｜既存の自動生成バナーを削除し、現在の主役商品で置換済み');
+  const refreshed = uaBuildRowData_(sheet, row);
+  const postId = Number(refreshed.wpPostId || 0);
+
+  if (postId > 0) {
+    const wpConfig = uaGetWpConfig_(appConfig);
+    uaCallWordPressApi_(
+      wpConfig,
+      '/wp-json/wp/v2/posts/' + encodeURIComponent(postId),
+      'post',
+      { content: refreshed.body }
+    );
+  }
+
+  return {
+    ok: true,
+    row: row,
+    postId: postId,
+    message: '楽天バナーを現在の主役商品で再選定し、シートとWordPressへ反映しました。'
+  };
+}
+
+function uaRefreshTakumiSunshadeRakutenBanner() {
+  return uaRefreshRakutenBannerForArticleRow_(UA_APP_TYPES.home, 14);
 }
 
 function uaGetRakutenActiveRowContext_() {
@@ -1127,6 +1180,13 @@ function uaHasRakutenBanner_(body) {
     text.indexOf('hb.afl.rakuten') !== -1 ||
     text.indexOf('rakuten.co.jp') !== -1 ||
     text.indexOf('rel=\'nofollow sponsored\'') !== -1 && text.indexOf('楽天') !== -1;
+}
+
+function uaRemoveGeneratedRakutenBanner_(body) {
+  return String(body || '').replace(
+    /(?:<h2[^>]*>\s*関連アイテムも選択肢に入れる\s*<\/h2>\s*<p>本文の対策を読んで[\s\S]*?<\/p>\s*)?<p>本文の対策を実際に試すための商品候補[\s\S]*?<!-- \/wp:html -->\s*/gi,
+    ''
+  ).trim();
 }
 
 function uaAppendFactCheckPoint_(sheet, row, line) {
@@ -1310,13 +1370,14 @@ function uaSelectRakutenKeywordFallbackQuery_(keyword, appKey) {
   if (!value) return '';
 
   const productPattern = appKey === 'home'
-    ? /(収納|チェスト|棚|ラック|マット|カーテン|照明|ライト|カメラ|エアコン|除湿機|サーキュレーター|物干し|掃除|ブラシ|防災|ゲート|スロープ|家電|家具)/
+    ? /(サンシェード|日よけ|収納|チェスト|棚|ラック|マット|カーテン|照明|ライト|カメラ|エアコン|除湿機|サーキュレーター|物干し|掃除|ブラシ|防災|ゲート|スロープ|家電|家具)/
     : /(ブレーキパッド|カーナビ|ナビゲーション|アンドロイドナビ|ディスプレイオーディオ|ドラレコ|ドライブレコーダー|レーダー探知機|バックカメラ|モニター|HDMI|USB|スピーカー|スマホホルダー|サンシェード|フロアマット|シートマット|シートカバー|シートクッション|収納|ドリンクホルダー|ルーフキャリア|ポータブル電源|ジャンプスターター|バッテリー|タイヤ|ホイール|タイヤチェーン|洗車|クリーナー|コーティング|ワックス|カー用品|車中泊)/i;
 
   if (!productPattern.test(value)) return '';
 
   const canonicalQueries = appKey === 'home'
     ? [
+      { pattern: /サンシェード|日よけ/, query: 'サンシェード ベランダ 日よけ' },
       { pattern: /ランドリー.*(?:収納|チェスト)|(?:収納|チェスト).*ランドリー/, query: 'ランドリーチェスト 防カビ' },
       { pattern: /除湿機|除湿器/, query: '除湿機 コンパクト' },
       { pattern: /サーキュレーター|部屋干し/, query: 'サーキュレーター 部屋干し' },
@@ -1463,6 +1524,7 @@ function uaPrioritizedRakutenQueriesFromBody_(text, appKey) {
 
   if (appKey === 'home') {
     [
+      { query: 'サンシェード ベランダ 日よけ', words: ['サンシェード', '日よけシェード'] },
       { query: '除湿機 コンパクト', words: ['除湿機', '除湿器'] },
       { query: 'サーキュレーター 部屋干し', words: ['サーキュレーター', '部屋干し'] },
       { query: '湿度計 室内', words: ['湿度計'] },
@@ -1484,6 +1546,14 @@ function uaContextualRakutenQueries_(text, appKey) {
   const value = String(text || '');
 
   if (appKey === 'home') {
+    if (value.indexOf('サンシェード') !== -1 || value.indexOf('日よけシェード') !== -1) {
+      return [
+        'サンシェード ベランダ 日よけ',
+        'サンシェード 固定金具 屋外',
+        'サンシェード ベランダ 収納式'
+      ];
+    }
+
     if ((value.indexOf('ランドリー') !== -1 || value.indexOf('脱衣') !== -1 || value.indexOf('洗面') !== -1) &&
       (value.indexOf('チェスト') !== -1 || value.indexOf('収納') !== -1)) {
       return [
@@ -1584,6 +1654,12 @@ function uaSelectRakutenCategoryQueries_(body, rowData, appConfig, primaryQuery)
   }
 
   if (appKey === 'home') {
+    if (hasAny(['サンシェード', '日よけシェード'])) {
+      add('サンシェード ベランダ 日よけ');
+      add('サンシェード 固定金具 屋外');
+      add('サンシェード ベランダ 収納式');
+    }
+
     if (hasAny(['除湿機', '除湿器', '湿気対策', '衣類乾燥'])) {
       add('除湿機 コンパクト');
     }
@@ -1695,6 +1771,7 @@ function uaDriveRakutenProductCandidates_() {
 
 function uaHomeRakutenProductCandidates_() {
   return [
+    { query: 'サンシェード ベランダ 日よけ', keywords: ['サンシェード', '日よけシェード', '強風対策'] },
     { query: '除湿機 コンパクト', keywords: ['カビ', '湿気', '除湿', 'ランドリー', '脱衣所', '洗面所'] },
     { query: 'サーキュレーター 部屋干し', keywords: ['換気', '部屋干し', 'サーキュレーター', '湿気', 'ランドリー'] },
     { query: 'ランドリーチェスト 防カビ', keywords: ['ランドリー チェスト', 'ランドリーチェスト', 'カビない', '防カビ'] },
@@ -1825,6 +1902,7 @@ function uaFetchRakutenItems_(query, maxItems, selectionSeed) {
     responseItems.forEach(function(rawItem) {
       const currentItem = rawItem && (rawItem.item || rawItem.Item || rawItem);
       if (!currentItem || !currentItem.itemName || !(currentItem.affiliateUrl || currentItem.itemUrl)) return;
+      if (!uaIsRakutenItemRelevant_(currentItem.itemName, query)) return;
 
       const currentUrl = currentItem.affiliateUrl || currentItem.itemUrl;
       if (seenUrls[currentUrl]) return;
@@ -1877,6 +1955,109 @@ function uaFetchRakutenItems_(query, maxItems, selectionSeed) {
     UA_LAST_RAKUTEN_STATUS = '楽天API取得エラー: ' + e.toString();
     return [];
   }
+}
+
+function uaIsRakutenItemRelevant_(itemName, query) {
+  const name = String(itemName || '').replace(/[\s　]+/g, '').toLowerCase();
+  const queryText = String(query || '').replace(/[\s　]+/g, '').toLowerCase();
+  if (!name || !queryText) return false;
+
+  if ((queryText.indexOf('サンシェード') !== -1 || queryText.indexOf('日よけ') !== -1) &&
+    (queryText.indexOf('ベランダ') !== -1 || queryText.indexOf('屋外') !== -1)) {
+    const vehicleOnlyTerms = ['車用', '車載', '自動車', 'カー用品', 'フロントガラス', 'サイドウィンドウ', '後部座席'];
+    if (vehicleOnlyTerms.some(function(value) { return name.indexOf(value) !== -1; })) return false;
+  }
+
+  const synonymGroups = [
+    ['サンシェード', '日よけ', '日除け', 'シェード'],
+    ['収納ボックス', '収納ケース', 'ストレージボックス'],
+    ['ランドリーチェスト', 'ランドリー収納', 'ランドリーボックス', 'チェスト'],
+    ['除湿機', '除湿器'],
+    ['サーキュレーター'],
+    ['湿度計'],
+    ['シートクッション', 'カーシートクッション'],
+    ['ガラスクリーナー'],
+    ['カーシャンプー'],
+    ['マイクロファイバークロス', 'マイクロファイバー'],
+    ['ドライブレコーダー', 'ドラレコ'],
+    ['レーダー探知機'],
+    ['スマホホルダー'],
+    ['防災用品', '防災セット'],
+    ['センサーライト'],
+    ['室外機カバー'],
+    ['室内物干し'],
+    ['ベビーゲート'],
+    ['スロープ'],
+    ['配線カバー'],
+    ['滑り止めマット'],
+    ['排水口ブラシ'],
+    ['可動棚']
+  ];
+
+  for (let i = 0; i < synonymGroups.length; i++) {
+    const group = synonymGroups[i].map(function(value) {
+      return value.replace(/[\s　]+/g, '').toLowerCase();
+    });
+    if (group.some(function(value) { return queryText.indexOf(value) !== -1; })) {
+      return group.some(function(value) { return name.indexOf(value) !== -1; });
+    }
+  }
+
+  const stopWords = {
+    '車': true,
+    '住宅': true,
+    '家庭用': true,
+    '屋外': true,
+    '室内': true,
+    'コンパクト': true,
+    '防カビ': true,
+    '部屋干し': true,
+    '前後': true,
+    '車種適合': true,
+    'セット': true,
+    '強風': true,
+    '対策': true,
+    '日よけ': true,
+    'ベランダ': true,
+    '玄関': true,
+    '浴室': true,
+    '洗車': true,
+    '掃除': true
+  };
+  const coreTerms = String(query || '')
+    .split(/[\s　]+/)
+    .map(function(value) { return value.trim().toLowerCase(); })
+    .filter(function(value) { return value.length >= 2 && !stopWords[value]; });
+
+  if (coreTerms.length === 0) return false;
+  return coreTerms.some(function(value) {
+    return name.indexOf(value.replace(/[\s　]+/g, '')) !== -1;
+  });
+}
+
+function uaTestRakutenPrimaryProductRouting() {
+  const homeConfig = { key: 'home' };
+  const sunshadeRow = {
+    mainInput: 'サンシェード 強風対策',
+    affiliateName: '案件無し',
+    affiliateNotes: '楽天バナーあり',
+    readerMindMemo: '強風時に外しやすく収納できるサンシェードを安全に使いたい'
+  };
+  const query = uaSelectRakutenProductQuery_('', sunshadeRow, homeConfig);
+  const categories = uaSelectRakutenCategoryQueries_('', sunshadeRow, homeConfig, query);
+  const checks = [
+    { name: 'sunshade query', ok: query === 'サンシェード ベランダ 日よけ', actual: query },
+    { name: 'sunshade category first', ok: categories[0] === 'サンシェード ベランダ 日よけ', actual: categories },
+    { name: 'reject mailbox', ok: !uaIsRakutenItemRelevant_('北欧デザイン メールボックス 郵便ポスト', '収納ボックス 住宅') },
+    { name: 'accept sunshade', ok: uaIsRakutenItemRelevant_('撥水シェード ベランダ用 日よけ 2m', 'サンシェード ベランダ 日よけ') },
+    { name: 'reject car sunshade for home', ok: !uaIsRakutenItemRelevant_('車用カーテン 吸盤式サンシェード カー用品', 'サンシェード ベランダ 収納式') },
+    { name: 'accept storage box', ok: uaIsRakutenItemRelevant_('ふた付き収納ケース 大容量', '収納ボックス 住宅') }
+  ];
+  const failures = checks.filter(function(check) { return !check.ok; });
+  if (failures.length > 0) {
+    throw new Error('Rakuten primary product routing test failed: ' + JSON.stringify(failures));
+  }
+  return { ok: true, count: checks.length, checks: checks };
 }
 
 function uaStableRakutenSelectionOffset_(seed, length) {

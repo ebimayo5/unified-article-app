@@ -165,8 +165,6 @@ function uaApplyPrePublishFixesOnceFromPanel(data) {
     pendingError.uaBackgroundPending = true;
     throw pendingError;
   }
-  uaClearPrePublishBackgroundState_(backgroundStateKey);
-
   if (!externalSourcesPrompt) {
     externalSourcesPrompt = uaBuildExternalSourcesPrompt_(
       rowData.mainInput,
@@ -242,6 +240,10 @@ function uaApplyPrePublishFixesOnceFromPanel(data) {
     );
   }
 
+  // Keep the completed OpenAI response ID until every validation and sheet write
+  // succeeds. If a later check stops the workflow, resume from the same response
+  // instead of starting and billing a duplicate revision request.
+  uaClearPrePublishBackgroundState_(backgroundStateKey);
   const nextData = uaBuildRowData_(sheet, row);
   nextData.message = rejectedRevisionReason
     ? '自動修正案は保護要素を維持できなかったため不採用とし、元本文を維持して公開前チェックを通過しました。'

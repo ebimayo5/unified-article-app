@@ -21,6 +21,25 @@ const UA_DRIVE_WP_CATEGORY_DEFINITIONS = {
   }
 };
 
+const UA_HOME_WP_CATEGORY_DEFINITIONS = {
+  home_building: {
+    name: '①家づくり・間取り',
+    slug: 'kosodate'
+  },
+  equipment_housework: {
+    name: '②住宅設備・家事',
+    slug: 'kajiraku'
+  },
+  storage_goods: {
+    name: '③収納・暮らし用品',
+    slug: 'shuunou'
+  },
+  home_safety: {
+    name: '④住まいの悩み・安全',
+    slug: 'kurashi'
+  }
+};
+
 function uaCreateWpDraftFromWeb(data) {
   return uaCreateWpDraftFromPanel(data || {});
 }
@@ -725,14 +744,24 @@ function uaSplitTags_(tagsText) {
 }
 
 function uaResolveWpCategoryIds_(wpConfig, rowData, appConfig) {
-  if (!appConfig || appConfig.key !== 'drive') {
+  if (!appConfig) {
     return uaGetWpCategoryIds_(wpConfig);
   }
 
-  const categoryKey = uaDetectDriveWpCategory_(rowData);
-  const definition = UA_DRIVE_WP_CATEGORY_DEFINITIONS[categoryKey];
+  let categoryKey = '';
+  let definition = null;
+  if (appConfig.key === 'drive') {
+    categoryKey = uaDetectDriveWpCategory_(rowData);
+    definition = UA_DRIVE_WP_CATEGORY_DEFINITIONS[categoryKey];
+  } else if (appConfig.key === 'home') {
+    categoryKey = uaDetectHomeWpCategory_(rowData);
+    definition = UA_HOME_WP_CATEGORY_DEFINITIONS[categoryKey];
+  } else {
+    return uaGetWpCategoryIds_(wpConfig);
+  }
+
   if (!definition) {
-    throw new Error('WP category: DRIVE BASE category could not be determined.');
+    throw new Error('WP category: category could not be determined for ' + appConfig.label + '.');
   }
 
   const categoryId = uaFindWpCategoryIdBySlug_(wpConfig, definition.slug);
@@ -741,6 +770,149 @@ function uaResolveWpCategoryIds_(wpConfig, rowData, appConfig) {
   }
 
   return [categoryId];
+}
+
+function uaDetectHomeWpCategory_(rowData) {
+  const data = rowData || {};
+  const topicText = [
+    data.mainInput,
+    data.titleIdeas,
+    data.tags,
+    data.readerMindMemo
+  ].map(function(value) {
+    return String(value || '');
+  }).join('\n');
+
+  const scores = {
+    home_building: 1,
+    equipment_housework: 0,
+    storage_goods: 0,
+    home_safety: 0
+  };
+
+  uaAddWpCategoryScore_(scores, 'home_building', topicText, [
+    [/(注文住宅|新築|家を建て|家づくり|マイホーム|ハウスメーカー|工務店|住宅展示場|展示場|地鎮祭|建築中|土地|旗竿地|外構)/i, 26],
+    [/(間取り|回遊動線|生活動線|家事動線|建具|床材|壁紙|クロス|玄関|階段|吹き抜け|コンセント|照明|温白色)/i, 24],
+    [/(窓|日当たり|南西向き|南東向き|隣の家|隣家|駐車場|子供部屋|リビング|寝室|洗面台|対面キッチン|キッチン.{0,12}(配置|通路|向かい合わせ)|防水パン)/i, 18],
+    [/(リフォーム|リノベーション|フラワーボックス|ロールスクリーン|カーテン.{0,10}(天井付け|正面付け))/i, 14]
+  ]);
+
+  uaAddWpCategoryScore_(scores, 'equipment_housework', topicText, [
+    [/(冷蔵庫|冷凍庫|エアコン|霧ヶ峰|室外機|乾太くん|食洗機|洗濯機|浴室乾燥|除湿機|サーキュレーター|掃除機|布団乾燥機|炊飯器|電子レンジ|給湯|エコキュート|換気扇|ミラブル|シャワー)/i, 26],
+    [/(掃除|洗濯|物干し|干せる|部屋干し|排水口|排水溝|水切りネット|トイレブラシ|アイロン|魚焼きグリル|家事|時短)/i, 22],
+    [/(電気代|放熱|フィルター|カビ|結露|お手入れ|メンテナンス)/i, 12]
+  ]);
+
+  uaAddWpCategoryScore_(scores, 'storage_goods', topicText, [
+    [/(収納|片付け|チェスト|棚|カラーボックス|クローゼット|押入れ|靴箱|シューズボックス|ラック|パントリー)/i, 28],
+    [/(配線カバー|段ボール|ダンボール|タオル掛け|ドアハンガー|パジャマ収納|リモコンカバー|ソファ|ビーズクッション|家具|インテリア)/i, 24],
+    [/(マット|ラグ|スリッパ|カーテン|突っ張り棒|ニトリ|無印|ダイソー|100均|百均)/i, 14]
+  ]);
+
+  uaAddWpCategoryScore_(scores, 'home_safety', topicText, [
+    [/(セコム|ホームセキュリティ|防犯|防災|空き巣|火災|地震)/i, 30],
+    [/(強風|台風|サンシェード|よしず|防音|音漏れ|声.{0,12}(聞こえる|響く)|筒抜け|騒音)/i, 26],
+    [/(安全|危険|事故|侵入防止|ゴキブリ|害虫|防虫|ヤブガラシ|カビ|結露)/i, 18],
+    [/(家族|子育て|共働き|車いす|介護|猫|犬|ペット|近所|隣家)/i, 12]
+  ]);
+
+  const priority = ['home_safety', 'equipment_housework', 'storage_goods', 'home_building'];
+  let bestKey = 'home_building';
+  let bestScore = scores.home_building;
+  priority.forEach(function(key) {
+    if (scores[key] > bestScore) {
+      bestKey = key;
+      bestScore = scores[key];
+    }
+  });
+
+  return bestKey;
+}
+
+function uaTestHomeWpCategoryRouting() {
+  const cases = [
+    [{ mainInput: '南西向き やめとけ' }, 'home_building'],
+    [{ mainInput: '子供部屋 仕切り ニトリ' }, 'home_building'],
+    [{ mainInput: '冷蔵庫 側面 マグネット 大丈夫' }, 'equipment_housework'],
+    [{ mainInput: '霧ヶ峰 みまもり機能 電気代' }, 'equipment_housework'],
+    [{ mainInput: '流せるトイレブラシ やめた' }, 'equipment_housework'],
+    [{ mainInput: 'ランドリー チェスト カビない' }, 'storage_goods'],
+    [{ mainInput: '人をダメにするソファ 無印' }, 'storage_goods'],
+    [{ mainInput: '配線カバー ダイソー' }, 'storage_goods'],
+    [{ mainInput: 'セコムホームセキュリティ 値段' }, 'home_safety'],
+    [{ mainInput: '2階の声 1階に聞こえる' }, 'home_safety'],
+    [{ mainInput: 'サンシェード 強風対策' }, 'home_safety']
+  ];
+
+  const results = cases.map(function(testCase) {
+    const actual = uaDetectHomeWpCategory_(testCase[0]);
+    return {
+      input: testCase[0].mainInput,
+      expected: testCase[1],
+      actual: actual,
+      ok: actual === testCase[1]
+    };
+  });
+  const failures = results.filter(function(result) { return !result.ok; });
+  if (failures.length > 0) {
+    throw new Error('Home WP category routing test failed: ' + JSON.stringify(failures));
+  }
+
+  return {
+    ok: true,
+    count: results.length,
+    results: results
+  };
+}
+
+function uaOptimizeHomeWpCategories() {
+  const appConfig = UA_APP_TYPES.home;
+  const wpConfig = uaGetWpConfig_(appConfig);
+  const categoryIds = {};
+  Object.keys(UA_HOME_WP_CATEGORY_DEFINITIONS).forEach(function(key) {
+    const definition = UA_HOME_WP_CATEGORY_DEFINITIONS[key];
+    const id = uaFindWpCategoryIdBySlug_(wpConfig, definition.slug);
+    if (!id) {
+      throw new Error('WP category: "' + definition.name + '" (' + definition.slug + ') was not found in WordPress.');
+    }
+    categoryIds[key] = id;
+  });
+
+  const assignments = {
+    home_building: [414, 248, 122, 111, 272, 193, 99, 317, 85, 50, 476],
+    equipment_housework: [369, 309, 143, 400, 502, 485, 254, 179, 315],
+    storage_goods: [433, 246, 115],
+    home_safety: [149, 456, 386, 230, 520]
+  };
+  const results = [];
+  Object.keys(assignments).forEach(function(key) {
+    assignments[key].forEach(function(postId) {
+      const post = uaCallWordPressApi_(
+        wpConfig,
+        '/wp-json/wp/v2/posts/' + encodeURIComponent(postId),
+        'post',
+        { categories: [categoryIds[key]] }
+      );
+      results.push({
+        postId: postId,
+        category: UA_HOME_WP_CATEGORY_DEFINITIONS[key].name,
+        categoryId: categoryIds[key],
+        ok: Number(post && post.id || 0) === postId
+      });
+    });
+  });
+
+  const failures = results.filter(function(result) { return !result.ok; });
+  if (failures.length > 0) {
+    throw new Error('Home WP category reassignment failed: ' + JSON.stringify(failures));
+  }
+
+  return {
+    ok: true,
+    count: results.length,
+    categoryIds: categoryIds,
+    results: results
+  };
 }
 
 function uaFindWpCategoryIdBySlug_(wpConfig, slug) {

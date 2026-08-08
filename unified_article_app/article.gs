@@ -1,6 +1,15 @@
 let UA_LAST_RAKUTEN_STATUS = '';
 const UA_NAVIOKUN_INTRO_URL = 'https://ebimayo5.com/archives/naviokun-reputation/';
 
+function uaRemoveRedundantAffiliateDisclosure_(body) {
+  // Cocoon displays the site's affiliate disclosure automatically. Keep the
+  // generated article body free of a second, CTA-local disclosure paragraph.
+  return String(body || '').replace(
+    /<p\b[^>]*>\s*(?:<strong\b[^>]*>)?\s*(?:PR[：:]\s*)?本記事(?:には|に|は)アフィリエイト広告を含みます。?\s*(?:<\/strong>)?\s*<\/p>\s*/gi,
+    ''
+  );
+}
+
 function uaRunArticleFromPanel(data) {
   uaSaveActiveRowData(data || {});
 
@@ -50,7 +59,7 @@ function uaRunArticleFromPanel(data) {
       throw new Error('生成結果に必要な項目がありません。');
     }
 
-    const body = uaNormalizeAnchorRelAttributes_(uaApplyRakutenAffiliateBanner_(
+    const body = uaRemoveRedundantAffiliateDisclosure_(uaNormalizeAnchorRelAttributes_(uaApplyRakutenAffiliateBanner_(
       uaApplyNaviokunIntroSet_(
         uaApplyManagedAffiliateCta_(
           uaApplyYmylNotice_(
@@ -66,7 +75,7 @@ function uaRunArticleFromPanel(data) {
       ),
       rowData,
       appConfig
-    ));
+    )));
     const metaDescription = resultJson.meta_description ||
       resultJson.metaDescription ||
       '';

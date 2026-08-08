@@ -80,11 +80,11 @@ function uaCreateWpDraftFromPanel(data) {
     throw new Error('WP draft: title candidates are empty.');
   }
 
-  const wpBody = uaNormalizeAnchorRelAttributes_(uaApplyNaviokunIntroSet_(
-    uaApplyManagedAffiliateCta_(rowData.body, rowData, appConfig),
+  const wpBody = uaRemoveRedundantAffiliateDisclosure_(uaNormalizeAnchorRelAttributes_(uaApplyNaviokunIntroSet_(
+    uaApplyManagedAffiliateCta_(uaRemoveRedundantAffiliateDisclosure_(rowData.body), rowData, appConfig),
     rowData,
     appConfig
-  ));
+  )));
   if (wpBody !== String(rowData.body || '')) {
     sheet.getRange(row, UA_COLUMNS.body).setValue(wpBody);
     rowData.body = wpBody;

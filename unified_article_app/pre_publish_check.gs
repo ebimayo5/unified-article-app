@@ -71,9 +71,17 @@ function uaApplyPrePublishFixesOnceFromPanel(data) {
 
   const backgroundStateKey = uaGetPrePublishBackgroundStateKey_(sheet, row);
   const currentRuleCheck = uaBuildPrePublishRuleCheck_(rowData);
-  if (uaHasCompletedPrePublishAiRevisionReport_(originalReport)) {
+  const currentRevisionFingerprint = uaBuildPrePublishRevisionFingerprint_(rowData, originalReport);
+  const completedStateKey = uaGetPrePublishCompletedStateKey_(sheet, row);
+  const completedFingerprint = uaLoadPrePublishCompletedFingerprint_(completedStateKey);
+  if (completedFingerprint && completedFingerprint !== currentRevisionFingerprint) {
+    uaClearPrePublishCompletedFingerprint_(completedStateKey);
+  }
+  if (completedFingerprint === currentRevisionFingerprint ||
+      uaHasCompletedPrePublishAiRevisionReport_(originalReport)) {
     // The revised body and report are already persisted. Re-run only the local
     // checks on resume; never create another paid revision request for this row.
+    uaSavePrePublishCompletedFingerprint_(completedStateKey, currentRevisionFingerprint);
     uaClearPrePublishBackgroundState_(backgroundStateKey);
     if (currentRuleCheck.critical.length) {
       throw new Error(
@@ -102,7 +110,7 @@ function uaApplyPrePublishFixesOnceFromPanel(data) {
   uaAssertArticleProviderReady_(provider);
   const protectedBody = uaProtectPrePublishRevisionBody_(originalBody);
   const revisionPromptRowData = Object.assign({}, rowData, { body: protectedBody.body });
-  const revisionFingerprint = uaBuildPrePublishRevisionFingerprint_(rowData, originalReport);
+  const revisionFingerprint = currentRevisionFingerprint;
   let backgroundState = uaLoadPrePublishBackgroundState_(backgroundStateKey);
   let externalSourcesPrompt = '';
   let resumedBackgroundRequest = false;
@@ -236,6 +244,10 @@ function uaApplyPrePublishFixesOnceFromPanel(data) {
   SpreadsheetApp.flush();
 
   const revisedRowData = uaBuildRowData_(sheet, row);
+  uaSavePrePublishCompletedFingerprint_(
+    completedStateKey,
+    uaBuildPrePublishRevisionFingerprint_(revisedRowData, originalReport)
+  );
   const ruleCheck = uaBuildPrePublishRuleCheck_(revisedRowData);
   const modelLabel = uaFormatModelLabel_(provider, result && result.model);
   const revisionReport = uaFormatPrePublishRevisionReport_(
@@ -295,6 +307,22 @@ function uaGetPrePublishBackgroundStateKey_(sheet, row) {
     sheetName,
     String(row || '')
   ].join('|')).slice(0, 32);
+}
+
+function uaGetPrePublishCompletedStateKey_(sheet, row) {
+  return uaGetPrePublishBackgroundStateKey_(sheet, row).replace('UA_PREPUB_BG_', 'UA_PREPUB_DONE_');
+}
+
+function uaLoadPrePublishCompletedFingerprint_(key) {
+  return String(PropertiesService.getScriptProperties().getProperty(key) || '');
+}
+
+function uaSavePrePublishCompletedFingerprint_(key, fingerprint) {
+  PropertiesService.getScriptProperties().setProperty(key, String(fingerprint || ''));
+}
+
+function uaClearPrePublishCompletedFingerprint_(key) {
+  PropertiesService.getScriptProperties().deleteProperty(key);
 }
 
 function uaBuildPrePublishRevisionFingerprint_(rowData, report) {

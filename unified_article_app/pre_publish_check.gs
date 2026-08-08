@@ -71,6 +71,20 @@ function uaApplyPrePublishFixesOnceFromPanel(data) {
 
   const backgroundStateKey = uaGetPrePublishBackgroundStateKey_(sheet, row);
   const currentRuleCheck = uaBuildPrePublishRuleCheck_(rowData);
+  if (uaHasCompletedPrePublishAiRevisionReport_(originalReport)) {
+    // The revised body and report are already persisted. Re-run only the local
+    // checks on resume; never create another paid revision request for this row.
+    uaClearPrePublishBackgroundState_(backgroundStateKey);
+    if (currentRuleCheck.critical.length) {
+      throw new Error(
+        '保存済みの修正結果を再検査しましたが、NGが' + currentRuleCheck.critical.length +
+        '件残っているためWordPress反映前で停止しました。確認タブを見てください。'
+      );
+    }
+    const reusedData = uaBuildRowData_(sheet, row);
+    reusedData.message = '保存済みの修正結果を再検査しました。OpenAIへの再送信は行っていません。';
+    return reusedData;
+  }
   if (uaCanSkipPrePublishAiRevision_(currentRuleCheck, originalReport)) {
     uaClearPrePublishBackgroundState_(backgroundStateKey);
     const skippedReport = uaFormatPrePublishSkippedRevisionReport_(
@@ -267,6 +281,10 @@ function uaCanSkipPrePublishAiRevision_(ruleCheck, report) {
   const scoreMatch = text.match(/(?:点数|score)\s*[:：]\s*(\d{1,3})/i);
   const score = scoreMatch ? Number(scoreMatch[1]) : 0;
   return score >= 80;
+}
+
+function uaHasCompletedPrePublishAiRevisionReport_(report) {
+  return String(report || '').indexOf('【公開前チェック修正（1回）】') !== -1;
 }
 
 function uaGetPrePublishBackgroundStateKey_(sheet, row) {
@@ -702,7 +720,9 @@ function uaBuildPrePublishRuleCheck_(rowData) {
     result.ok.push('FAQの質問見出しはH3です。');
   }
 
-  if (body.indexOf('wp:cocoon-blocks/tab-caption-box-1') !== -1 &&
+  const hasCocoonPointBox = body.indexOf('wp:cocoon-blocks/tab-caption-box-1') !== -1 ||
+    body.indexOf('wp-block-cocoon-blocks-tab-caption-box-1') !== -1;
+  if (hasCocoonPointBox &&
       body.indexOf('この記事のポイント') !== -1) {
     result.ok.push('「この記事のポイント」はCocoon tab-caption-box-1形式です。');
   } else {

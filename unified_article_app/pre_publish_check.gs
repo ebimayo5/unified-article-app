@@ -1486,7 +1486,10 @@ function uaFindPrePublishUnbalancedBlocks_(body) {
   const result = [];
   blockNames.forEach(function(name) {
     const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const openCount = (text.match(new RegExp('<!--\\s*wp:' + escaped + '\\b', 'g')) || []).length;
+    // Match the complete block name. A word boundary is not sufficient here:
+    // `wp:list-item` also has a boundary after `list`, which made each list item
+    // look like another `wp:list` opening block.
+    const openCount = (text.match(new RegExp('<!--\\s*wp:' + escaped + '(?=\\s|-->)', 'g')) || []).length;
     const closeCount = (text.match(new RegExp('<!--\\s*/wp:' + escaped + '\\s*-->', 'g')) || []).length;
     if (openCount !== closeCount) {
       result.push(name + '（開始' + openCount + ' / 終了' + closeCount + '）');

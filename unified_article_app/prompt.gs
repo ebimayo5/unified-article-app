@@ -1,6 +1,6 @@
 function uaBuildArticlePrompt_(rowData, appConfig) {
   const internalLinksPrompt = appConfig && appConfig.useInternalLinks
-    ? uaBuildInternalLinksPrompt_(rowData.mainInput, appConfig)
+    ? uaBuildInternalLinksPrompt_(rowData.mainInput, appConfig, rowData)
     : '';
   const externalSourcesPrompt = uaBuildExternalSourcesPrompt_(
     rowData.mainInput,
@@ -12,15 +12,15 @@ function uaBuildArticlePrompt_(rowData, appConfig) {
   const preparedStructurePrompt = uaBuildPreparedStructurePrompt_(rowData);
   const readerMindMemo = String(rowData.readerMindMemo || '').trim();
 
+  let promptText;
   if (appConfig.key === 'home') {
-    return uaBuildHomeArticlePrompt_(rowData, affiliatePrompt, competitorPrompt, preparedStructurePrompt, internalLinksPrompt, externalSourcesPrompt, readerMindMemo);
+    promptText = uaBuildHomeArticlePrompt_(rowData, affiliatePrompt, competitorPrompt, preparedStructurePrompt, internalLinksPrompt, externalSourcesPrompt, readerMindMemo);
+  } else if (appConfig.key === 'general') {
+    promptText = uaBuildGeneralArticlePrompt_(rowData, affiliatePrompt, competitorPrompt, preparedStructurePrompt, externalSourcesPrompt, readerMindMemo);
+  } else {
+    promptText = uaBuildDriveArticlePrompt_(rowData, affiliatePrompt, competitorPrompt, preparedStructurePrompt, internalLinksPrompt, externalSourcesPrompt, readerMindMemo);
   }
-
-  if (appConfig.key === 'general') {
-    return uaBuildGeneralArticlePrompt_(rowData, affiliatePrompt, competitorPrompt, preparedStructurePrompt, externalSourcesPrompt, readerMindMemo);
-  }
-
-  return uaBuildDriveArticlePrompt_(rowData, affiliatePrompt, competitorPrompt, preparedStructurePrompt, internalLinksPrompt, externalSourcesPrompt, readerMindMemo);
+  return promptText + '\n\n' + uaBuildAutomaticArticlePolicyPrompt_(rowData, appConfig);
 }
 
 function uaBuildAffiliatePrompt_(rowData) {

@@ -35,8 +35,10 @@ function uaRunReaderMindMemoFromPanel(data) {
 
   const sourceQuery = uaBuildReaderMindSearchQuery_(mainInput, appConfig);
   let sources;
+  let paaQuestions = [];
 
   try {
+    paaQuestions = uaFetchGooglePaaQuestions_(sourceQuery, 6);
     sources = uaFetchReaderMindSources_(sourceQuery, UA_READER_MIND_MAX_RESULTS);
   } catch (e) {
     if (uaIsReaderMindFetchTimeout_(e)) {
@@ -46,7 +48,7 @@ function uaRunReaderMindMemoFromPanel(data) {
     throw e;
   }
 
-  const promptText = uaBuildReaderMindMemoPrompt_(mainInput, appConfig, sources);
+  const promptText = uaBuildReaderMindMemoPrompt_(mainInput, appConfig, sources, paaQuestions);
   const result = uaCallReaderMindJson_(promptText, provider);
   const resultJson = result && result.data;
 
@@ -103,7 +105,7 @@ function uaBuildReaderMindSearchQuery_(mainInput, appConfig) {
   return text.slice(0, 80);
 }
 
-function uaBuildReaderMindMemoPrompt_(mainInput, appConfig, sources) {
+function uaBuildReaderMindMemoPrompt_(mainInput, appConfig, sources, paaQuestions) {
   const sourceText = sources.length === 0
     ? '今回はQ&Aサイト等の元データを取得できませんでした。入力内容、記事タイプ、一般的な検索意図から推定してください。ただし、本文で事実として使える具体情報は増やさず、推定であることを前提に安全側で整理してください。'
     : sources.map(function(source, index) {
@@ -127,6 +129,9 @@ ${mainInput}
 【収集データ】
 ${sourceText}
 
+【Googleの関連質問】
+${uaBuildPaaPromptText_(paaQuestions)}
+
 【出力方針】
 ・最初に検索キーワードの主な検索意図が記事タイプに適合するか判定する。
 ・DRIVE BASEは、車選び、車種、運転、整備、洗車、車載機器、カーナビ、車内快適化など自動車領域を対象とする。「ナビ」という一語だけで車関連と決めず、固有の商品名・機能名、収集データ、共起語から判定する。
@@ -136,6 +141,8 @@ ${sourceText}
 ・本文でそのまま引用するためではなく、記事構成・導入文・FAQ・判断軸を作るためのメモにする。
 ・収集データがない、または少ない場合は、入力内容から検索意図を推定してよい。ただし、取得データ由来の具体事実として扱わない。
 ・収集データがない場合でも、顕在ニーズ、潜在ニーズ、読者の葛藤、導入文で拾う本音、見出し順のヒント、FAQ候補、判断軸は必ず出す。
+・「Googleの関連質問」に実質問がある場合は、検索意図と合うものを「PAA実質問」に原文の意味を変えず入れる。重複や主題から外れる質問は除く。
+・PAA実質問だけでFAQに必要な論点が足りない場合は、Q&Aサイト等の収集データと読者心理から「FAQ候補」を補完する。PAAを取得できないことだけを理由に停止しない。
 ・特定の口コミを一般論として断定しない。
 ・古い情報、個人の特殊事情、根拠が弱い金額や制度は「本文で事実として使わない方がよいもの」に分ける。
 ・どのキーワードでも使えるように、表面的な要望だけでなく、読者の葛藤、潜在ニーズ、本文で深掘りすると刺さる判断軸まで整理する。
@@ -162,6 +169,7 @@ ${sourceText}
     "読者の葛藤": ["..."],
     "導入文で拾う本音": ["..."],
     "見出し順のヒント": ["..."],
+    "PAA実質問": ["..."],
     "FAQ候補": ["..."],
     "記事で深掘りすると刺さる判断軸": ["..."],
     "主役にしない補足テーマ": ["..."],

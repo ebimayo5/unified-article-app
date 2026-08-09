@@ -608,6 +608,8 @@ ${rowData.mainInput}
 
 検索ボリューム: ${rowData.volume || '未入力'}
 
+${uaBuildAutomaticArticlePolicyPrompt_(rowData, appConfig)}
+
 読者心理メモ:
 ${rowData.readerMindMemo || '未入力'}
 

@@ -1,4 +1,4 @@
-function uaBuildInternalLinksPrompt_(mainInput, appConfig) {
+function uaBuildInternalLinksPrompt_(mainInput, appConfig, rowData) {
   if (!appConfig || !appConfig.useInternalLinks) {
     return `
 内部リンク:
@@ -6,7 +6,8 @@ function uaBuildInternalLinksPrompt_(mainInput, appConfig) {
 `;
   }
 
-  const candidates = uaGetInternalLinkCandidates_(mainInput, appConfig);
+  const candidates = uaGetInternalLinkCandidates_(mainInput, appConfig, rowData);
+  const topicCluster = uaInferTopicCluster_(mainInput, appConfig);
 
   if (candidates.length === 0) {
     return `
@@ -33,6 +34,7 @@ function uaBuildInternalLinksPrompt_(mainInput, appConfig) {
   return `
 内部リンク:
 以下は、このサイト内の関連記事候補です。
+この記事の自動判定クラスターは「${topicCluster.label}」です。同じクラスターを優先しつつ、読者の次の疑問に直接つながる候補だけを使ってください。
 候補がある場合は、関連性が高いものを本文中に1個以上入れる前提で検討してください。
 ただし、読者の次の悩みにつながらない候補は無理に入れないでください。
 内部リンクは1〜3個まで入れてください。
@@ -344,7 +346,7 @@ function uaGetExistingInternalLinkMap_(sheet) {
   return map;
 }
 
-function uaGetInternalLinkCandidates_(mainInput, appConfig) {
+function uaGetInternalLinkCandidates_(mainInput, appConfig, rowData) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheet = ss.getSheetByName(UA_INTERNAL_LINK_SHEET_NAME);
 
@@ -369,7 +371,7 @@ function uaGetInternalLinkCandidates_(mainInput, appConfig) {
         priority: row[10] || ''
       };
 
-      data.score = uaScoreInternalLink_(mainInput, appConfig, data);
+      data.score = uaScoreInternalLink_(mainInput, appConfig, data, rowData);
       return data;
     })
     .filter(function(item) {
@@ -401,7 +403,7 @@ function uaIsSameInternalLinkSite_(item, appConfig) {
     (key && site.indexOf(key) !== -1);
 }
 
-function uaScoreInternalLink_(mainInput, appConfig, data) {
+function uaScoreInternalLink_(mainInput, appConfig, data, rowData) {
   const key = uaNormalizeForScore_(mainInput);
   const expandedTerms = uaGetInternalLinkExpandedTerms_(mainInput, appConfig);
   const queryTerms = uaGetInternalLinkQueryTerms_(mainInput);
@@ -442,6 +444,17 @@ function uaScoreInternalLink_(mainInput, appConfig, data) {
   if (String(data.priority).indexOf('中') !== -1) score += 1;
   if (data.isCore) score += 3;
   if (data.isManualKeep) score += 1;
+
+  const sourceCluster = uaInferTopicCluster_(mainInput, appConfig);
+  const candidateCluster = uaInferTopicCluster_([
+    data.title,
+    data.description,
+    data.intro,
+    data.keywords,
+    data.usage
+  ].join(' '), appConfig);
+  if (sourceCluster.key === candidateCluster.key) score += 4;
+  if (data.isCore && sourceCluster.key === candidateCluster.key) score += 2;
 
   return score;
 }
@@ -1213,7 +1226,7 @@ function uaPickInternalLinkForBody_(rowData, appConfig, body) {
     rowData && rowData.mainInput,
     rowData && rowData.readerMindMemo,
     body
-  ].join(' '), appConfig);
+  ].join(' '), appConfig, rowData);
 
   for (let i = 0; i < candidates.length; i++) {
     if (String(body || '').indexOf(candidates[i].url) === -1) {

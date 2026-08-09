@@ -119,7 +119,7 @@ function uaRunArticleFromWeb(data) {
 }
 
 function uaApplyManagedAffiliateCta_(body, rowData, appConfig) {
-  const html = String(body || '');
+  const html = uaRelocateManagedAffiliateTokenByContext_(String(body || ''), rowData, appConfig);
   const spec = uaGetManagedAffiliateCtaSpec_(rowData);
   if (!html || !spec) return html;
 

@@ -792,7 +792,10 @@ function uaBuildPrePublishRuleCheck_(rowData) {
   });
 
   if (currentSourceIssue && currentSourceIssue.message) {
-    (currentSourceIssue.critical ? result.critical : result.ok).push(currentSourceIssue.message);
+    const sourceIssueBucket = currentSourceIssue.critical
+      ? result.critical
+      : (currentSourceIssue.warning ? result.warnings : result.ok);
+    sourceIssueBucket.push(currentSourceIssue.message);
   }
 
   if (affiliateDetourIssue) {
@@ -1008,11 +1011,10 @@ function uaFindTitleNumberConsistencyIssue_(title, body) {
 
 function uaCheckCurrentOfficialSourceRequirement_(rowData, body) {
   const input = String(rowData && rowData.mainInput || '');
-  const topicText = [input, rowData && rowData.titleIdeas, rowData && rowData.structureMemo].join(' ');
-  if (!uaRequiresFreshOfficialSourceSearch_(topicText)) return null;
-
-  const requiresStrictOfficial = uaRequiresStrictOfficialSource_(topicText);
-  const requiresCurrentMarketSource = uaIsMarketFreshnessTopic_(topicText);
+  const titleTopicText = [input, rowData && rowData.titleIdeas].join(' ');
+  const requiresStrictOfficial = uaRequiresStrictOfficialSource_(titleTopicText);
+  const requiresCurrentMarketSource = uaIsPrimaryMarketFreshnessIntent_(input);
+  const requiresFinanceSource = uaIsFinanceFreshnessTopic_(titleTopicText);
 
   const html = String(body || '');
   const links = html.match(/<a\b[^>]*href=["'][^"']+["'][^>]*>[\s\S]*?<\/a>/gi) || [];
@@ -1033,6 +1035,22 @@ function uaCheckCurrentOfficialSourceRequirement_(rowData, body) {
     return /(preowned\.|certified|usedcar|carsensor\.net|goo-net\.com|aftc\.or\.jp)/i.test(url);
   });
 
+  // 構成案や本文に価格の補足があるだけで、記事全体を「価格・相場記事」と誤判定しない。
+  // 主題ではない価格情報は停止ではなく警告にし、確認時点の明記を促す。
+  if (!requiresStrictOfficial && !requiresCurrentMarketSource && !requiresFinanceSource) {
+    const plainBody = uaStripPrePublishHtml_(html);
+    const hasSupplementalPriceClaim = /(?:価格|料金|費用|値段|相場|本体|工事費|設置費)[^。\n]{0,80}(?:[0-9０-９][0-9０-９,，.．]*\s*(?:万|千)?円)/i.test(plainBody) ||
+      /(?:[0-9０-９][0-9０-９,，.．]*\s*(?:万|千)?円)[^。\n]{0,80}(?:価格|料金|費用|値段|相場|本体|工事費|設置費)/i.test(plainBody);
+    if (hasSupplementalPriceClaim && !hasOfficialLink && !hasCurrentMarketLink) {
+      return {
+        critical: false,
+        warning: true,
+        message: '価格は記事の主題ではなく補足情報です。公開停止はしませんが、金額を断定する場合は確認時点を明記し、変動する可能性も添えてください。'
+      };
+    }
+    return null;
+  }
+
   if (requiresStrictOfficial && !hasOfficialLink) {
     return { critical: true, message: '最新性が必要なテーマですが、内容に直接対応する公式・公的リンクがありません。自動検索で信頼できる最新資料を取得できるまで公開しないでください。' };
   }
@@ -1041,7 +1059,7 @@ function uaCheckCurrentOfficialSourceRequirement_(rowData, body) {
     return { critical: true, message: '価格・相場の最新性が必要ですが、公式在庫または信頼できる現在の市場資料がありません。最新の価格条件を確認できるリンクを追加してください。' };
   }
 
-  if (uaIsFinanceFreshnessTopic_(topicText)) {
+  if (requiresFinanceSource) {
     const hasFinanceIrLink = links.some(function(tag) {
       const urlMatch = tag.match(/href=["']([^"']+)["']/i);
       return /(investor|investors|\/ir(?:\/|$)|financial|result|securities|決算)/i.test(String(urlMatch && urlMatch[1] || ''));
@@ -1056,6 +1074,13 @@ function uaCheckCurrentOfficialSourceRequirement_(rowData, body) {
   return { critical: false, message: requiresCurrentMarketSource
     ? '価格・相場の確認に使える公式・信頼資料があります。'
     : '最新性が必要なテーマに、公式・公的リンクがあります。' };
+}
+
+function uaIsPrimaryMarketFreshnessIntent_(mainInput) {
+  const input = String(mainInput || '');
+  if (/(価格|料金|費用|値段|相場|いくら)/i.test(input)) return true;
+  return /(中古車?|認定中古車)[\s　]*(?:が)?(?:安い理由|安い|最安|価格|相場|支払総額)/i.test(input) ||
+    /(?:安い理由|最安|支払総額)[\s　]*(?:中古車?|認定中古車)/i.test(input);
 }
 
 function uaFindAffiliateDetourIssue_(rowData, body) {

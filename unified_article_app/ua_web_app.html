@@ -94,6 +94,8 @@
       .workflow-step.error { color: #fff; background: var(--danger); border-color: var(--danger); }
       .workflow-resume { display: none; width: 100%; margin-top: 8px; }
       .workflow-resume.visible { display: block; padding: 12px 14px; border-color: #b42318; box-shadow: 0 5px 14px rgba(180,35,24,0.22); font-size: 15px; }
+      .workflow-market-continue { display: none; width: 100%; margin-top: 8px; color: #713b00; background: #fff3cd; border-color: #e0a800; }
+      .workflow-market-continue.visible { display: block; padding: 12px 14px; box-shadow: 0 5px 14px rgba(224,168,0,0.22); font-size: 14px; font-weight: 900; }
       #status.stopped-status-field { color: #b42318; background: #fff1f0; border: 2px solid #f04438; box-shadow: inset 4px 0 0 #b42318; font-weight: 900; }
       .modal-backdrop { position: fixed; inset: 0; z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 18px; background: rgba(15, 23, 42, 0.42); }
       .modal { width: min(560px, 100%); border: 1px solid #b8ded6; border-radius: 10px; background: #fff; box-shadow: 0 18px 45px rgba(15, 23, 42, 0.22); padding: 18px; }
@@ -320,7 +322,7 @@
           <div>
             <div id="notice" class="status">読み込み中...</div>
             <div class="progress"><div id="progressBar" class="progress-bar"></div></div>
-            <div id="workflowProgress" class="workflow-progress"><div id="workflowProgressHead" class="workflow-progress-head"></div><div id="workflowSteps" class="workflow-steps"></div><button id="fullWorkflowResumeButton" class="danger workflow-resume" type="button" onclick="resumeFullArticleWorkflow(this)">停止位置から再開</button></div>
+            <div id="workflowProgress" class="workflow-progress"><div id="workflowProgressHead" class="workflow-progress-head"></div><div id="workflowSteps" class="workflow-steps"></div><button id="fullWorkflowResumeButton" class="danger workflow-resume" type="button" onclick="resumeFullArticleWorkflow(this)">停止位置から再開</button><button id="fullWorkflowMarketContinueButton" class="workflow-market-continue" type="button" onclick="continueUnverifiedMarketFreshnessDraft(this)">価格情報を確認してWP下書きへ進む</button></div>
           </div>
         </div>
 
@@ -1426,11 +1428,12 @@
         }).uaRunArticleFromWeb(readForm());
       }
 
-      function runFullArticleWorkflow(button, includeImages, startIndex) {
+      function runFullArticleWorkflow(button, includeImages, startIndex, allowUnverifiedMarketFreshnessDraft) {
         window.uaFullWorkflowCancelled = false;
         window.uaFailedFullWorkflowIncludeImages = null;
         clearFullWorkflowResumeState();
         showFullWorkflowResumeButton(false);
+        showFullWorkflowMarketContinueButton(false);
         setStoppedArticleUi(false);
         const steps = [
           { label: '読者心理メモ', server: 'uaRunReaderMindMemoFromWeb', tab: 'check' },
@@ -1452,6 +1455,7 @@
           button: button,
           stepIndex: safeStartIndex,
           includeImages: includeImages !== false,
+          allowUnverifiedMarketFreshnessDraft: !!allowUnverifiedMarketFreshnessDraft,
           steps: steps
         };
         renderWorkflowProgress(window.uaFullWorkflow, safeStartIndex, 'running');
@@ -1469,6 +1473,7 @@
           showTab('check');
           clearFullWorkflowResumeState();
           showFullWorkflowResumeButton(false);
+          showFullWorkflowMarketContinueButton(false);
           window.uaFullWorkflow = null;
           return;
         }
@@ -1488,6 +1493,10 @@
         if (step.custom === 'images') {
           runFullArticleWorkflowImages(label, flow.button, index, currentData);
           return;
+        }
+        const requestData = Object.assign({}, currentData);
+        if (step.server === 'uaCreateWpDraftFromWeb' && flow.allowUnverifiedMarketFreshnessDraft) {
+          requestData.allowUnverifiedMarketFreshnessDraft = true;
         }
         const opToken = beginCancelableOperation(label + '\u4e2d...', flow.button);
         google.script.run.withSuccessHandler(function(data) {
@@ -1511,7 +1520,7 @@
             return;
           }
           failFullArticleWorkflow(error, step.label);
-        })[step.server](currentData);
+        })[step.server](requestData);
       }
 
       function isPendingPrePublishRevisionError(error) {
@@ -1608,11 +1617,14 @@
         const flow = window.uaFullWorkflow;
         if (flow) renderWorkflowProgress(flow, flow.stepIndex || 0, 'error');
         window.uaFailedFullWorkflowIncludeImages = flow ? flow.includeImages !== false : true;
+        const message = error && error.message ? error.message : String(error || '');
+        const canContinueUnverifiedMarketFreshness = message.indexOf('価格・相場の最新性が必要') !== -1;
+        if (flow) flow.canContinueUnverifiedMarketFreshness = canContinueUnverifiedMarketFreshness;
         saveFullWorkflowResumeState(flow, stepLabel);
         window.uaFullWorkflow = null;
-        const message = error && error.message ? error.message : String(error || '');
         fail(new Error('1ボタン作成 / ' + stepLabel + 'で停止しました: ' + message));
         showFullWorkflowResumeButton(true);
+        showFullWorkflowMarketContinueButton(canContinueUnverifiedMarketFreshness);
       }
 
       function showFullWorkflowResumeButton(visible) {
@@ -1624,6 +1636,12 @@
           if (panel) panel.classList.add('visible');
         }
         schedulePanelDisplayStateSave();
+      }
+
+      function showFullWorkflowMarketContinueButton(visible) {
+        const button = document.getElementById('fullWorkflowMarketContinueButton');
+        if (!button) return;
+        button.classList.toggle('visible', !!visible);
       }
 
       function readFullWorkflowResumeState() {
@@ -1650,6 +1668,7 @@
           includeImages: flow ? flow.includeImages !== false : true,
           stepIndex: flow ? Number(flow.stepIndex || 0) : 0,
           stepLabel: stepLabel || (flow && flow.steps && flow.steps[flow.stepIndex] && flow.steps[flow.stepIndex].label) || '',
+          canContinueUnverifiedMarketFreshness: !!(flow && flow.canContinueUnverifiedMarketFreshness),
           failedAt: Date.now()
         };
         if (!state.appType || state.row <= 1) return;
@@ -1660,11 +1679,13 @@
 
       function clearFullWorkflowResumeState() {
         try { window.localStorage.removeItem(UA_FULL_WORKFLOW_RESUME_STORAGE_KEY); } catch (e) {}
+        showFullWorkflowMarketContinueButton(false);
       }
 
       function restoreFullWorkflowResumeState(data) {
         window.uaFailedFullWorkflowIncludeImages = null;
         showFullWorkflowResumeButton(false);
+        showFullWorkflowMarketContinueButton(false);
         const state = readFullWorkflowResumeState();
         const appType = String(data && data.appType || document.getElementById('appType').value || '');
         const row = Number(data && data.row || document.getElementById('row').value || 0);
@@ -1698,6 +1719,7 @@
         if (head) head.textContent = '前回の1ボタン作成が途中停止' + (state.stepLabel ? '：' + state.stepLabel : '');
         if (steps) steps.innerHTML = '';
         showFullWorkflowResumeButton(true);
+        showFullWorkflowMarketContinueButton(!!state.canContinueUnverifiedMarketFreshness);
         return true;
       }
 
@@ -1711,6 +1733,7 @@
           return;
         }
         showFullWorkflowResumeButton(false);
+        showFullWorkflowMarketContinueButton(false);
         setBusy('再開位置を確認中...', button);
         google.script.run.withSuccessHandler(function(data) {
           clearBusy();
@@ -1720,11 +1743,36 @@
             Number(resumeState.row) === row
             ? Number(resumeState.stepIndex || 0)
             : 0;
-          runFullArticleWorkflow(button, includeImages, resumeIndex);
+          runFullArticleWorkflow(button, includeImages, resumeIndex, false);
         }).withFailureHandler(function(error) {
           fail(error);
           window.uaFailedFullWorkflowIncludeImages = includeImages;
           showFullWorkflowResumeButton(true);
+        }).uaGetArticleRowForWeb(appType, row);
+      }
+
+      function continueUnverifiedMarketFreshnessDraft(button) {
+        const includeImages = window.uaFailedFullWorkflowIncludeImages !== false;
+        const appType = document.getElementById('appType').value;
+        const row = Number(document.getElementById('row').value || 0);
+        const resumeState = readFullWorkflowResumeState();
+        if (!resumeState || !resumeState.canContinueUnverifiedMarketFreshness || !appType || row <= 1) {
+          setNotice('価格情報を確認して続行できる停止状態を確認できません。記事を読み込み直してください。', true);
+          return;
+        }
+        showFullWorkflowResumeButton(false);
+        showFullWorkflowMarketContinueButton(false);
+        setBusy('価格情報を手動確認済みとしてWP下書きを準備しています...', button);
+        google.script.run.withSuccessHandler(function(data) {
+          clearBusy();
+          fillForm(data || {});
+          const resumeIndex = Number(resumeState.stepIndex || 0);
+          runFullArticleWorkflow(button, includeImages, resumeIndex, true);
+        }).withFailureHandler(function(error) {
+          fail(error);
+          window.uaFailedFullWorkflowIncludeImages = includeImages;
+          showFullWorkflowResumeButton(true);
+          showFullWorkflowMarketContinueButton(true);
         }).uaGetArticleRowForWeb(appType, row);
       }
       function pickFirstTitleIdea() {

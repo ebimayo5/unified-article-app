@@ -109,7 +109,10 @@ function uaCreateWpDraftFromPanel(data) {
     rowData.body = wpBody;
   }
 
-  uaAssertWpDraftHardQualityGates_(rowData);
+  const allowedUnverifiedMarketFreshnessDraft = !!(data && data.allowUnverifiedMarketFreshnessDraft);
+  uaAssertWpDraftHardQualityGates_(rowData, {
+    allowUnverifiedMarketFreshnessDraft: allowedUnverifiedMarketFreshnessDraft
+  });
 
   const wpConfig = uaGetWpConfig_(appConfig);
   const title = uaPickWpTitle_(rowData.titleIdeas);
@@ -177,6 +180,9 @@ function uaCreateWpDraftFromPanel(data) {
   nextData.message = updatedExistingDraft
     ? 'WordPressの既存下書きを更新しました。'
     : 'WordPress下書きを作成しました。';
+  if (allowedUnverifiedMarketFreshnessDraft) {
+    nextData.message += ' 価格・相場の資料不足は手動確認済みとして下書きへ進めました。公開前に金額と確認時点を確認してください。';
+  }
   return nextData;
 }
 

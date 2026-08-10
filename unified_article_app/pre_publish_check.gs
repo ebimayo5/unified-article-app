@@ -1134,9 +1134,13 @@ function uaFindAffiliateDetourIssue_(rowData, body) {
   return { critical: false, message: '案件「' + name + '」の専用見出しがあります。検索意図から少し離れる場合は、既存の購入判断セクション内の短い橋渡しに留めてください。' };
 }
 
-function uaAssertWpDraftHardQualityGates_(rowData) {
+function uaAssertWpDraftHardQualityGates_(rowData, options) {
   const check = uaBuildPrePublishRuleCheck_(rowData || {});
+  const allowUnverifiedMarketFreshnessDraft = !!(options && options.allowUnverifiedMarketFreshnessDraft);
   const blockers = check.critical.filter(function(item) {
+    if (allowUnverifiedMarketFreshnessDraft && /価格・相場の最新性が必要/.test(String(item || ''))) {
+      return false;
+    }
     return /(タイトルは「|rel属性で重複|最新性が必要|最新決算が必要|専用章が長すぎ|紹介セットと案件CTAの両方|キーワードの検索意図が)/.test(String(item || ''));
   });
   if (blockers.length) {

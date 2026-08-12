@@ -1368,7 +1368,7 @@ function uaBuildRakutenAffiliateBanner_(body, rowData, appConfig) {
 
   if (items.length > 0) {
     const bannerLabel = categoryQueries.length >= 2 ? '' : query;
-    return uaBuildRakutenItemBannerHtml_(items, bannerLabel, productPlan);
+    return uaBuildRakutenItemBannerHtml_(items, bannerLabel, productPlan, appConfig);
   }
 
   const fallbackHtml = String(PropertiesService.getScriptProperties().getProperty('UA_RAKUTEN_AFFILIATE_BANNER_HTML') || '').trim();
@@ -2285,7 +2285,7 @@ function uaBuildRakutenSingleItemBannerHtml_(item, query) {
   ].filter(Boolean).join('\n');
 }
 
-function uaBuildRakutenItemBannerHtml_(items, query, productPlan) {
+function uaBuildRakutenItemBannerHtml_(items, query, productPlan, appConfig) {
   items = (items || []).slice(0, 3);
 
   if (items.length === 0) {
@@ -2317,7 +2317,7 @@ function uaBuildRakutenItemBannerHtml_(items, query, productPlan) {
     ? '条件に合う場合は、下の商品候補で価格と仕様を見比べられます。'
     : '条件に合う場合は、下の商品候補で価格と仕様を確認できます。';
   const leadText = '<p>' + ctaReason + benefit + compareAction + ' 条件に合わなければ、無理に購入する必要はありません。</p>';
-  const amazonButton = uaBuildAmazonSearchButton_(plan, query || productLabel);
+  const amazonButton = uaBuildAmazonSearchButton_(plan, query || productLabel, appConfig);
 
   return [
     leadText,
@@ -2331,9 +2331,9 @@ function uaBuildRakutenItemBannerHtml_(items, query, productPlan) {
   ].filter(Boolean).join('\n');
 }
 
-function uaBuildAmazonSearchButton_(productPlan, fallbackQuery) {
+function uaBuildAmazonSearchButton_(productPlan, fallbackQuery, appConfig) {
   const plan = uaNormalizeProductPlan_(productPlan);
-  const associateTag = String(PropertiesService.getScriptProperties().getProperty('UA_AMAZON_ASSOCIATE_TAG') || '').trim();
+  const associateTag = uaGetAmazonAssociateTag_(appConfig);
   if (!associateTag) return '';
 
   const query = String(plan && (plan.marketQuery || plan.primaryProduct) || fallbackQuery || '').trim();
@@ -2345,6 +2345,30 @@ function uaBuildAmazonSearchButton_(productPlan, fallbackQuery) {
     '<a href=\'' + uaEscapeHtml_(url) + '\' target=\'_blank\' rel=\'nofollow sponsored noopener\' style=\'display:inline-block;background:#ff9900;color:#111;text-decoration:none;font-weight:700;border-radius:6px;padding:10px 16px;\'>同じ条件の商品をAmazonで確認する</a>',
     '</p>'
   ].join('');
+}
+
+function uaGetAmazonAssociateTag_(appConfig) {
+  const props = PropertiesService.getScriptProperties();
+  return uaResolveAmazonAssociateTag_(appConfig, function(key) {
+    return props.getProperty(key);
+  });
+}
+
+function uaResolveAmazonAssociateTag_(appConfig, propertyReader) {
+  const reader = typeof propertyReader === 'function' ? propertyReader : function() { return ''; };
+  const appKey = String(appConfig && appConfig.key || '').trim().toUpperCase();
+  const sitePropertyKey = appKey === 'DRIVE'
+    ? 'UA_AMAZON_ASSOCIATE_TAG_DRIVE'
+    : appKey === 'HOME'
+      ? 'UA_AMAZON_ASSOCIATE_TAG_HOME'
+      : '';
+
+  if (sitePropertyKey) {
+    const siteTag = String(reader(sitePropertyKey) || '').trim();
+    if (siteTag) return siteTag;
+  }
+
+  return String(reader('UA_AMAZON_ASSOCIATE_TAG') || '').trim();
 }
 
 function uaNormalizeRakutenAffiliateBanner_(bannerHtml) {

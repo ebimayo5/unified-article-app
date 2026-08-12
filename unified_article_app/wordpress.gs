@@ -23,7 +23,7 @@ const UA_DRIVE_WP_CATEGORY_DEFINITIONS = {
 
 const UA_HOME_WP_CATEGORY_DEFINITIONS = {
   home_building: {
-    name: '①家づくり・間取り',
+    name: '①家づくり・リフォーム',
     slug: 'kosodate'
   },
   equipment_housework: {

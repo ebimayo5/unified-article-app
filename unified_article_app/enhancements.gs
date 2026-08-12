@@ -25,6 +25,9 @@ function uaGetAutomaticArticlePolicy_(rowData, appConfig) {
   const input = String(rowData && rowData.mainInput || '');
   const articleType = uaDetectAutomaticArticleType_(input);
   const cluster = uaInferTopicCluster_(input, appConfig);
+  const revenuePolicy = key === 'home'
+    ? uaGetHomeRevenuePolicy_(rowData)
+    : null;
 
   return {
     articleType: articleType,
@@ -32,7 +35,8 @@ function uaGetAutomaticArticlePolicy_(rowData, appConfig) {
     h2Guide: defaults.h2Guide,
     faqMin: defaults.faqMin,
     faqMax: defaults.faqMax,
-    internalLinkMax: defaults.internalLinkMax
+    internalLinkMax: defaults.internalLinkMax,
+    revenuePolicy: revenuePolicy
   };
 }
 
@@ -73,7 +77,7 @@ function uaGetAutomaticArticleTypeInstructions_(articleType) {
 
 function uaBuildAutomaticArticlePolicyPrompt_(rowData, appConfig) {
   const policy = uaGetAutomaticArticlePolicy_(rowData, appConfig);
-  return [
+  const lines = [
     '【システム自動判定（追加入力不要）】',
     '記事型: ' + policy.articleType.label,
     'トピッククラスター: ' + policy.cluster.label,
@@ -83,7 +87,57 @@ function uaBuildAutomaticArticlePolicyPrompt_(rowData, appConfig) {
     '参考情報: このキーワード用に自動取得した上位URL・公式情報だけを今回の記事の判断材料にする。別記事で取得したURLや未確認情報を流用しない。',
     '案件導線: 案件名と案件注意点を各H2の内容に照合し、読者が次の選択肢を必要とする最も関連性の高い節へ置く。関連性が弱い場合は新しい案件専用H2を作らない。',
     '内部リンク: 「' + policy.cluster.label + '」と同じテーマの記事を優先し、読者の次の疑問に直接つながる候補だけを使う。'
-  ].join('\n');
+  ];
+  if (policy.revenuePolicy) {
+    lines.push('たくみパパの収益導線: ' + policy.revenuePolicy.label + '。' + policy.revenuePolicy.instruction);
+  }
+  return lines.join('\n');
+}
+
+function uaGetHomeRevenuePolicy_(rowData) {
+  const data = rowData || {};
+  const input = uaNormalizeForScore_(data.mainInput);
+  const affiliateName = String(data.affiliateName || '');
+  const affiliateNotes = String(data.affiliateNotes || '');
+  const affiliateText = [affiliateName, affiliateNotes].join(' ');
+  const isSekisuiReferral = /積水ハウス/.test(affiliateText) || /積水ハウス.{0,12}(紹介|紹介制度)/.test(input);
+  const isHouseBuildingTopic = /(注文住宅|新築|家を建て|家づくり|マイホーム|ハウスメーカー|工務店|住宅展示場|土地探し|間取り|積水ハウス)/i.test(input);
+  const hasProductDecisionIntent = /(後悔|デメリット|いらない|必要|カビ|錆びる|落ちる|壊れやすい|臭い|邪魔|入らない|代用)/i.test(input);
+  const hasProductConversionIntent = /(どっち|どちら|比較|違い|口コミ|評判|サイズ|大きさ|おすすめ|選び方|どこで買う|どこに売ってる)/i.test(input);
+
+  if (isSekisuiReferral) {
+    return {
+      key: 'sekisui_referral',
+      label: '積水ハウス紹介制度につなぐ家づくり核記事',
+      instruction: '積水ハウスを押し売りせず、家づくり条件と相談前の確認点を整理したうえで紹介制度へつなぐ。住宅成約まで距離がある高単価案件なので、無関係な暮らし用品記事からは誘導しない。'
+    };
+  }
+  if (isHouseBuildingTopic) {
+    return {
+      key: 'house_research',
+      label: '家づくり集客・信頼形成記事',
+      instruction: '新築・リフォームの判断材料を優先し、商品を無理に売らない。検索意図に合う場合だけ積水ハウス紹介制度の核記事または関連する家づくり記事へ内部リンクする。'
+    };
+  }
+  if (hasProductConversionIntent) {
+    return {
+      key: 'product_conversion',
+      label: '暮らし用品の成約記事',
+      instruction: '条件別の比較、買わなくてよい人、購入前確認を示したうえで、実際に選べる商品候補とAmazon・楽天等の購入先へ明確につなぐ。CTA前に、なぜその商品を確認するのかを具体的に書く。'
+    };
+  }
+  if (hasProductDecisionIntent) {
+    return {
+      key: 'product_decision',
+      label: '暮らし用品の購入判断記事',
+      instruction: '必要な人・不要な人を分け、商品購入が有効な解決策の場合は選び方と商品候補まで示す。押し売りはせず、結論を「家庭による」だけで終わらせない。'
+    };
+  }
+  return {
+    key: 'living_traffic',
+    label: '暮らし改善の集客記事',
+    instruction: '悩みの解決を優先し、商品が直接の解決策になる場合だけ購入判断記事または商品候補へつなぐ。出口のない記事にはせず、次に読む関連記事か確認行動を示す。'
+  };
 }
 
 function uaInferTopicCluster_(input, appConfig) {
@@ -257,5 +311,17 @@ function uaTestAutomaticArticleEnhancements() {
   const moved = uaRelocateManagedAffiliateTokenByContext_(sample, { affiliateName: 'ナビ専門店', affiliateNotes: 'ナビ モニター 後付け' }, drive);
   if (moved.indexOf('[UA_AFFILIATE_CTA') < moved.indexOf('購入後のナビ対策')) throw new Error('案件CTAの見出し照合テストに失敗しました。');
 
-  return { ok: true, articleTypes: cases.length, paaQuestions: paa.length, affiliateRelocation: true };
+  const homeRevenueCases = [
+    [{ mainInput: '冷蔵庫マット 後悔' }, 'product_decision'],
+    [{ mainInput: 'ランドリーチェスト 口コミ' }, 'product_conversion'],
+    [{ mainInput: '積水ハウス 紹介制度' }, 'sekisui_referral'],
+    [{ mainInput: '新築 間取り 後悔' }, 'house_research'],
+    [{ mainInput: '洗面所 収納 悩み' }, 'living_traffic']
+  ];
+  homeRevenueCases.forEach(function(item) {
+    const actual = uaGetHomeRevenuePolicy_(item[0]);
+    if (actual.key !== item[1]) throw new Error('たくみパパ収益導線の判定に失敗: ' + item[0].mainInput + ' / ' + actual.key);
+  });
+
+  return { ok: true, articleTypes: cases.length, paaQuestions: paa.length, affiliateRelocation: true, homeRevenuePolicies: homeRevenueCases.length };
 }

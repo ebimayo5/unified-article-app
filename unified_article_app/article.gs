@@ -10,6 +10,65 @@ function uaRemoveRedundantAffiliateDisclosure_(body) {
   );
 }
 
+function uaNormalizeProductPlan_(value) {
+  let source = value;
+  if (typeof source === 'string') {
+    try {
+      source = JSON.parse(source);
+    } catch (e) {
+      source = null;
+    }
+  }
+  if (!source || typeof source !== 'object') return null;
+
+  function cleanText(input, maxLength) {
+    return String(input || '')
+      .replace(/[<>\r\n]+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, maxLength || 100);
+  }
+
+  function cleanList(input) {
+    const values = Array.isArray(input) ? input : String(input || '').split(/[,、]/);
+    const seen = {};
+    return values.map(function(item) { return cleanText(item, 40); }).filter(function(item) {
+      if (!item || seen[item]) return false;
+      seen[item] = true;
+      return true;
+    }).slice(0, 5);
+  }
+
+  return {
+    shouldInsert: source.should_insert === true || source.shouldInsert === true || String(source.should_insert || source.shouldInsert).toLowerCase() === 'true',
+    primaryProduct: cleanText(source.primary_product || source.primaryProduct, 60),
+    marketQuery: cleanText(source.market_query || source.marketQuery, 80),
+    purpose: cleanText(source.purpose, 120),
+    mustHave: cleanList(source.must_have || source.mustHave),
+    exclude: cleanList(source.exclude),
+    benefit: cleanText(source.benefit, 140),
+    ctaReason: cleanText(source.cta_reason || source.ctaReason, 140)
+  };
+}
+
+function uaAttachProductPlanMarker_(body, productPlan) {
+  const html = String(body || '');
+  const plan = uaNormalizeProductPlan_(productPlan);
+  if (!plan) return html;
+  const marker = '<!-- UA_PRODUCT_PLAN:' + encodeURIComponent(JSON.stringify(plan)) + ' -->';
+  return marker + '\n' + html.replace(/<!--\s*UA_PRODUCT_PLAN:[^>]+-->\s*/gi, '');
+}
+
+function uaExtractProductPlan_(body) {
+  const match = /<!--\s*UA_PRODUCT_PLAN:([^\s>]+)\s*-->/i.exec(String(body || ''));
+  if (!match || !match[1]) return null;
+  try {
+    return uaNormalizeProductPlan_(JSON.parse(decodeURIComponent(match[1])));
+  } catch (e) {
+    return null;
+  }
+}
+
 function uaRunArticleFromPanel(data) {
   uaSaveActiveRowData(data || {});
 
@@ -59,11 +118,15 @@ function uaRunArticleFromPanel(data) {
       throw new Error('生成結果に必要な項目がありません。');
     }
 
+    const bodyWithProductPlan = uaAttachProductPlanMarker_(
+      uaFixGeneratedHtml_(resultJson.body),
+      resultJson.product_plan || resultJson.productPlan
+    );
     const body = uaRemoveRedundantAffiliateDisclosure_(uaNormalizeAnchorRelAttributes_(uaApplyRakutenAffiliateBanner_(
       uaApplyNaviokunIntroSet_(
         uaApplyManagedAffiliateCta_(
           uaApplyYmylNotice_(
-            uaNormalizeFaqHeadingLevels_(uaFixGeneratedHtml_(resultJson.body)),
+            uaNormalizeFaqHeadingLevels_(bodyWithProductPlan),
             rowData,
             appConfig
           ),
@@ -1249,7 +1312,16 @@ function uaApplyRakutenAffiliateBanner_(body, rowData, appConfig) {
     return body;
   }
 
-  UA_LAST_RAKUTEN_STATUS = '挿入済み';
+  const productPlan = uaExtractProductPlan_(body);
+  const selectedQuery = uaSelectRakutenProductQuery_(body, rowData, appConfig);
+  UA_LAST_RAKUTEN_STATUS = '挿入済み｜主役商品: ' +
+    String(productPlan && productPlan.primaryProduct || selectedQuery || '関連商品') +
+    '｜検索条件: ' + String(selectedQuery || '自動判定');
+
+  const contextualIndex = uaFindRakutenContextualInsertIndex_(body, rowData, appConfig);
+  if (contextualIndex > -1) {
+    return body.slice(0, contextualIndex).trimEnd() + '\n\n' + banner + '\n\n' + body.slice(contextualIndex).trimStart();
+  }
 
   const faqIndex = body.search(/<h2[^>]*>\s*よくある質問\s*<\/h2>/i);
 
@@ -1268,6 +1340,7 @@ function uaApplyRakutenAffiliateBanner_(body, rowData, appConfig) {
 
 function uaBuildRakutenAffiliateBanner_(body, rowData, appConfig) {
   const query = uaSelectRakutenProductQuery_(body, rowData, appConfig);
+  const productPlan = uaExtractProductPlan_(body);
 
   if (!query) {
     UA_LAST_RAKUTEN_STATUS = '商品検索キーワードを選定できませんでした';
@@ -1283,19 +1356,19 @@ function uaBuildRakutenAffiliateBanner_(body, rowData, appConfig) {
     const keywordAndContextQueries = [query].concat(categoryQueries).filter(function(value, index, values) {
       return value && values.indexOf(value) === index;
     }).slice(0, 3);
-    items = uaFetchRakutenItemsByQueries_(keywordAndContextQueries, Math.min(3, keywordAndContextQueries.length), selectionSeed);
+    items = uaFetchRakutenItemsByQueries_(keywordAndContextQueries, Math.min(3, keywordAndContextQueries.length), selectionSeed, productPlan);
   } else if (categoryQueries.length > 0) {
-    items = uaFetchRakutenItemsByQueries_(categoryQueries, Math.min(3, categoryQueries.length), selectionSeed);
+    items = uaFetchRakutenItemsByQueries_(categoryQueries, Math.min(3, categoryQueries.length), selectionSeed, productPlan);
   }
 
   if (items.length === 0) {
     const desiredCount = uaDecideRakutenItemCount_(body, rowData, appConfig, query);
-    items = uaFetchRakutenItems_(query, desiredCount, selectionSeed);
+    items = uaFetchRakutenItems_(query, desiredCount, selectionSeed, productPlan);
   }
 
   if (items.length > 0) {
     const bannerLabel = categoryQueries.length >= 2 ? '' : query;
-    return uaBuildRakutenItemBannerHtml_(items, bannerLabel);
+    return uaBuildRakutenItemBannerHtml_(items, bannerLabel, productPlan);
   }
 
   const fallbackHtml = String(PropertiesService.getScriptProperties().getProperty('UA_RAKUTEN_AFFILIATE_BANNER_HTML') || '').trim();
@@ -1319,6 +1392,14 @@ function uaSelectRakutenProductQuery_(body, rowData, appConfig) {
 
   if (override && override[1]) {
     return override[1].trim();
+  }
+
+  const productPlan = uaExtractProductPlan_(body);
+  if (productPlan && productPlan.shouldInsert) {
+    if (productPlan.marketQuery) return productPlan.marketQuery;
+    if (productPlan.primaryProduct) {
+      return [productPlan.primaryProduct].concat(productPlan.mustHave.slice(0, 2)).join(' ').trim();
+    }
   }
 
   if (!uaHasMainAffiliateProject_(rowData)) {
@@ -1684,7 +1765,7 @@ function uaSelectRakutenCategoryQueries_(body, rowData, appConfig, primaryQuery)
   return queries.slice(0, 3);
 }
 
-function uaFetchRakutenItemsByQueries_(queries, maxItems, selectionSeed) {
+function uaFetchRakutenItemsByQueries_(queries, maxItems, selectionSeed, productPlan) {
   const results = [];
   const seenUrls = {};
   const limit = Math.max(1, Math.min(3, Number(maxItems) || 3));
@@ -1692,7 +1773,7 @@ function uaFetchRakutenItemsByQueries_(queries, maxItems, selectionSeed) {
   (queries || []).forEach(function(query) {
     if (results.length >= limit) return;
 
-    const items = uaFetchRakutenItems_(query, 1, String(selectionSeed || '') + '|' + query);
+    const items = uaFetchRakutenItems_(query, 1, String(selectionSeed || '') + '|' + query, productPlan);
     items.forEach(function(item) {
       if (results.length >= limit) return;
       if (!item || !item.url || seenUrls[item.url]) return;
@@ -1844,7 +1925,7 @@ function uaDecideRakutenItemCount_(body, rowData, appConfig, query) {
   return 1;
 }
 
-function uaFetchRakutenItems_(query, maxItems, selectionSeed) {
+function uaFetchRakutenItems_(query, maxItems, selectionSeed, productPlan) {
   const applicationId = String(PropertiesService.getScriptProperties().getProperty('UA_RAKUTEN_APPLICATION_ID') || '').trim();
   const accessKey = String(PropertiesService.getScriptProperties().getProperty('UA_RAKUTEN_ACCESS_KEY') || '').trim();
 
@@ -1902,7 +1983,8 @@ function uaFetchRakutenItems_(query, maxItems, selectionSeed) {
     responseItems.forEach(function(rawItem) {
       const currentItem = rawItem && (rawItem.item || rawItem.Item || rawItem);
       if (!currentItem || !currentItem.itemName || !(currentItem.affiliateUrl || currentItem.itemUrl)) return;
-      if (!uaIsRakutenItemRelevant_(currentItem.itemName, query)) return;
+      const relevanceScore = uaScoreRakutenItem_(currentItem, query, productPlan);
+      if (relevanceScore < 1) return;
 
       const currentUrl = currentItem.affiliateUrl || currentItem.itemUrl;
       if (seenUrls[currentUrl]) return;
@@ -1916,41 +1998,27 @@ function uaFetchRakutenItems_(query, maxItems, selectionSeed) {
         url: currentUrl,
         imageUrl: typeof currentMediumImage === 'string'
           ? currentMediumImage
-          : currentMediumImage && currentMediumImage.imageUrl
+          : currentMediumImage && currentMediumImage.imageUrl,
+        price: Number(currentItem.itemPrice) || 0,
+        reviewAverage: Number(currentItem.reviewAverage) || 0,
+        reviewCount: Number(currentItem.reviewCount) || 0,
+        relevanceScore: relevanceScore
       });
     });
 
     if (candidates.length === 0) {
-      UA_LAST_RAKUTEN_STATUS = '讌ｽ螟ｩAPI縺ｮ蝠・刀蜿門ｾ・莉ｶ縺ｾ縺溘・URL荳崎ｶｳ縲よ､懃ｴ｢繧ｭ繝ｼ繝ｯ繝ｼ繝・ ' + query;
+      UA_LAST_RAKUTEN_STATUS = '楽天APIの検索結果に、用途・必須条件・除外条件を満たす商品がありませんでした。検索キーワード: ' + query;
       return [];
     }
 
-    const results = [];
-    const start = uaStableRakutenSelectionOffset_(String(selectionSeed || query), candidates.length);
-    for (let offset = 0; offset < candidates.length && results.length < hits; offset += 1) {
-      results.push(candidates[(start + offset) % candidates.length]);
-    }
-    return results;
-
-    const items = json.items || json.Items || [];
-    const firstItem = items[0];
-    const item = firstItem && (firstItem.item || firstItem.Item || firstItem);
-
-    if (!item || !item.itemName || !(item.affiliateUrl || item.itemUrl)) {
-      UA_LAST_RAKUTEN_STATUS = '楽天APIの商品取得0件またはURL不足。検索キーワード: ' + query;
-      return [];
-    }
-
-    const mediumImage = item.mediumImageUrls &&
-      item.mediumImageUrls[0];
-
-    return {
-      name: item.itemName,
-      url: item.affiliateUrl || item.itemUrl,
-      imageUrl: typeof mediumImage === 'string'
-        ? mediumImage
-        : mediumImage && mediumImage.imageUrl
-    };
+    candidates.sort(function(a, b) {
+      if (b.relevanceScore !== a.relevanceScore) return b.relevanceScore - a.relevanceScore;
+      if (b.reviewCount !== a.reviewCount) return b.reviewCount - a.reviewCount;
+      if (b.reviewAverage !== a.reviewAverage) return b.reviewAverage - a.reviewAverage;
+      return uaStableRakutenSelectionOffset_(String(selectionSeed || query) + '|' + a.url, 1000) -
+        uaStableRakutenSelectionOffset_(String(selectionSeed || query) + '|' + b.url, 1000);
+    });
+    return candidates.slice(0, hits);
   } catch (e) {
     UA_LAST_RAKUTEN_STATUS = '楽天API取得エラー: ' + e.toString();
     return [];
@@ -2035,6 +2103,62 @@ function uaIsRakutenItemRelevant_(itemName, query) {
   });
 }
 
+function uaScoreRakutenItem_(item, query, productPlan) {
+  const currentItem = item || {};
+  const itemName = String(currentItem.itemName || currentItem.name || '');
+  if (!uaIsRakutenItemRelevant_(itemName, query)) return -1000;
+
+  const plan = uaNormalizeProductPlan_(productPlan);
+  const normalizedName = itemName.replace(/[\s　]+/g, '').toLowerCase();
+  const normalizedQuery = String(query || '').replace(/[\s　]+/g, '').toLowerCase();
+  let score = 40;
+
+  function normalizedTerms(values) {
+    return (values || []).reduce(function(result, value) {
+      String(value || '').split(/[\s　・、,\/／()（）]+/).forEach(function(term) {
+        term = term.replace(/[\s　]+/g, '').toLowerCase();
+        if (term.length >= 2 && result.indexOf(term) === -1) result.push(term);
+      });
+      return result;
+    }, []);
+  }
+
+  const queryTerms = normalizedTerms([query]).filter(function(term) {
+    return !/^(家庭用|屋外|室内|おすすめ|比較|対策|セット)$/.test(term);
+  });
+  score += Math.min(24, queryTerms.filter(function(term) { return normalizedName.indexOf(term) !== -1; }).length * 8);
+
+  if (plan) {
+    const excludedTerms = normalizedTerms(plan.exclude);
+    if (excludedTerms.some(function(term) { return normalizedName.indexOf(term) !== -1; })) return -1000;
+
+    const primaryTerms = normalizedTerms([plan.primaryProduct, plan.marketQuery]).filter(function(term) {
+      return term.length >= 2 && !/^(家庭用|屋外|室内|コンパクト|おすすめ|比較|対策)$/.test(term);
+    });
+    const primaryMatches = primaryTerms.filter(function(term) { return normalizedName.indexOf(term) !== -1; }).length;
+    if (primaryTerms.length > 0 && primaryMatches === 0 && normalizedName.indexOf(normalizedQuery) === -1) return -1000;
+    score += Math.min(30, primaryMatches * 10);
+
+    const mustTerms = normalizedTerms(plan.mustHave);
+    score += Math.min(20, mustTerms.filter(function(term) { return normalizedName.indexOf(term) !== -1; }).length * 5);
+
+    const contextTerms = normalizedTerms([plan.purpose, plan.benefit]);
+    score += Math.min(10, contextTerms.filter(function(term) { return normalizedName.indexOf(term) !== -1; }).length * 2);
+
+    const accessoryTerms = ['交換用', '替え', '収納袋', '固定金具', '補修部品', 'パーツのみ'];
+    const planAsksAccessory = accessoryTerms.some(function(term) {
+      return String(plan.primaryProduct || '').indexOf(term) !== -1 || String(plan.marketQuery || '').indexOf(term) !== -1;
+    });
+    if (!planAsksAccessory && accessoryTerms.some(function(term) { return itemName.indexOf(term) !== -1; })) score -= 25;
+  }
+
+  const reviewAverage = Math.max(0, Math.min(5, Number(currentItem.reviewAverage) || 0));
+  const reviewCount = Math.max(0, Number(currentItem.reviewCount) || 0);
+  score += reviewAverage;
+  score += Math.min(8, Math.log(reviewCount + 1) / Math.log(2));
+  return Math.round(score * 10) / 10;
+}
+
 function uaTestRakutenPrimaryProductRouting() {
   const homeConfig = { key: 'home' };
   const sunshadeRow = {
@@ -2056,6 +2180,59 @@ function uaTestRakutenPrimaryProductRouting() {
   const failures = checks.filter(function(check) { return !check.ok; });
   if (failures.length > 0) {
     throw new Error('Rakuten primary product routing test failed: ' + JSON.stringify(failures));
+  }
+  return { ok: true, count: checks.length, checks: checks };
+}
+
+function uaTestStructuredProductPlanRouting() {
+  const plan = {
+    should_insert: true,
+    primary_product: '冷蔵庫用床保護マット',
+    market_query: '冷蔵庫 マット 透明',
+    purpose: '冷蔵庫下の床の傷やへこみを抑える',
+    must_have: ['冷蔵庫対応', '透明', '適合サイズ'],
+    exclude: ['玄関マット', '車用マット'],
+    benefit: '床の傷を気にせず冷蔵庫を設置しやすくなる',
+    cta_reason: '新しい冷蔵庫を置く前なら床を保護する準備を同時に済ませられる'
+  };
+  const body = uaAttachProductPlanMarker_('<p>冷蔵庫を置く前にサイズを確認します。</p>', plan);
+  const extracted = uaExtractProductPlan_(body);
+  const row = { mainInput: '冷蔵庫マット 後悔', affiliateName: '案件無し', affiliateNotes: '' };
+  const config = { key: 'home' };
+  const query = uaSelectRakutenProductQuery_(body, row, config);
+  const goodItem = {
+    itemName: '透明 冷蔵庫マット 床保護 冷蔵庫対応 サイズ選択',
+    reviewAverage: 4.5,
+    reviewCount: 120
+  };
+  const weakItem = {
+    itemName: '透明マット 汎用シート',
+    reviewAverage: 4.8,
+    reviewCount: 500
+  };
+  const excludedItem = {
+    itemName: '透明 玄関マット 滑り止め',
+    reviewAverage: 4.9,
+    reviewCount: 900
+  };
+  const goodScore = uaScoreRakutenItem_(goodItem, query, extracted);
+  const weakScore = uaScoreRakutenItem_(weakItem, query, extracted);
+  const excludedScore = uaScoreRakutenItem_(excludedItem, query, extracted);
+  const noProductBody = uaAttachProductPlanMarker_('<p>制度を確認します。</p>', {
+    should_insert: false,
+    purpose: '制度の確認が中心で商品購入では解決しない'
+  });
+  const checks = [
+    { name: 'plan marker', ok: !!extracted && extracted.primaryProduct === '冷蔵庫用床保護マット' },
+    { name: 'plan query priority', ok: query === '冷蔵庫 マット 透明', actual: query },
+    { name: 'insert decision', ok: uaShouldInsertRakutenAffiliateBanner_(body, row, config) },
+    { name: 'good item score', ok: goodScore > weakScore, actual: [goodScore, weakScore] },
+    { name: 'exclude wrong category', ok: excludedScore < 1, actual: excludedScore },
+    { name: 'skip non-product article', ok: !uaShouldInsertRakutenAffiliateBanner_(noProductBody, row, config) }
+  ];
+  const failures = checks.filter(function(check) { return !check.ok; });
+  if (failures.length > 0) {
+    throw new Error('Structured product plan routing test failed: ' + JSON.stringify(failures));
   }
   return { ok: true, count: checks.length, checks: checks };
 }
@@ -2108,14 +2285,16 @@ function uaBuildRakutenSingleItemBannerHtml_(item, query) {
   ].filter(Boolean).join('\n');
 }
 
-function uaBuildRakutenItemBannerHtml_(items, query) {
+function uaBuildRakutenItemBannerHtml_(items, query, productPlan) {
   items = (items || []).slice(0, 3);
 
   if (items.length === 0) {
     return '';
   }
 
-  const queryText = uaEscapeHtml_(query || '関連アイテム');
+  const plan = uaNormalizeProductPlan_(productPlan);
+  const productLabel = plan && plan.primaryProduct || query || '関連アイテム';
+  const queryText = uaEscapeHtml_(productLabel);
   const itemHtml = items.map(function(item) {
     const name = uaEscapeHtml_(String(item.name || '').slice(0, 80));
     const url = uaEscapeHtml_(item.url || '');
@@ -2132,13 +2311,13 @@ function uaBuildRakutenItemBannerHtml_(items, query) {
     ].filter(Boolean).join('');
   }).join('');
 
-  const leadText = queryText
-    ? (items.length > 1
-      ? '<p>本文の対策を実際に試すための商品候補を見比べたい場合は、下の楽天バナーから「' + queryText + '」の価格や種類をいくつか確認できます。</p>'
-      : '<p>本文の対策を実際に試すための商品候補を確認したい場合は、下の楽天バナーから「' + queryText + '」の価格や種類を確認できます。</p>')
-    : (items.length > 1
-      ? '<p>本文の対策を実際に試すための商品候補を見比べたい場合は、下の楽天バナーから関連アイテムの価格や種類をいくつか確認できます。</p>'
-      : '<p>本文の対策を実際に試すための商品候補を確認したい場合は、下の楽天バナーから関連アイテムの価格や種類を確認できます。</p>');
+  const benefit = plan && plan.benefit ? uaEscapeHtml_(plan.benefit.replace(/[。．.]+$/, '')) + '。' : '';
+  const ctaReason = plan && plan.ctaReason ? uaEscapeHtml_(plan.ctaReason.replace(/[。．.]+$/, '')) + '。' : '';
+  const compareAction = items.length > 1
+    ? '条件に合う場合は、下の商品候補で価格と仕様を見比べられます。'
+    : '条件に合う場合は、下の商品候補で価格と仕様を確認できます。';
+  const leadText = '<p>' + ctaReason + benefit + compareAction + ' 条件に合わなければ、無理に購入する必要はありません。</p>';
+  const amazonButton = uaBuildAmazonSearchButton_(plan, query || productLabel);
 
   return [
     leadText,
@@ -2146,9 +2325,26 @@ function uaBuildRakutenItemBannerHtml_(items, query) {
     '<div style=\'background:#fff;border:1px solid #d7dde3;border-radius:8px;padding:14px;margin:16px 0;max-width:760px;box-sizing:border-box;\'>',
     '<p style=\'margin:0 0 8px;font-weight:700;\'>「' + queryText + '」を楽天で比較する</p>',
     itemHtml,
+    amazonButton,
     '</div>',
     '<!-- /wp:html -->'
   ].filter(Boolean).join('\n');
+}
+
+function uaBuildAmazonSearchButton_(productPlan, fallbackQuery) {
+  const plan = uaNormalizeProductPlan_(productPlan);
+  const associateTag = String(PropertiesService.getScriptProperties().getProperty('UA_AMAZON_ASSOCIATE_TAG') || '').trim();
+  if (!associateTag) return '';
+
+  const query = String(plan && (plan.marketQuery || plan.primaryProduct) || fallbackQuery || '').trim();
+  if (!query) return '';
+
+  const url = 'https://www.amazon.co.jp/s?k=' + encodeURIComponent(query) + '&tag=' + encodeURIComponent(associateTag);
+  return [
+    '<p style=\'margin:12px 0 0;padding-top:12px;border-top:1px solid #edf1f4;\'>',
+    '<a href=\'' + uaEscapeHtml_(url) + '\' target=\'_blank\' rel=\'nofollow sponsored noopener\' style=\'display:inline-block;background:#ff9900;color:#111;text-decoration:none;font-weight:700;border-radius:6px;padding:10px 16px;\'>同じ条件の商品をAmazonで確認する</a>',
+    '</p>'
+  ].join('');
 }
 
 function uaNormalizeRakutenAffiliateBanner_(bannerHtml) {
@@ -2186,6 +2382,20 @@ function uaShouldInsertRakutenAffiliateBanner_(body, rowData, appConfig) {
   }
 
   if (notes.indexOf('楽天バナーあり') !== -1 || notes.indexOf('楽天あり') !== -1) {
+    return true;
+  }
+
+  const productPlan = uaExtractProductPlan_(body);
+  const hasPlanDecision = productPlan && (
+    productPlan.primaryProduct || productPlan.marketQuery || productPlan.purpose ||
+    productPlan.mustHave.length > 0 || productPlan.exclude.length > 0
+  );
+  if (hasPlanDecision && !productPlan.shouldInsert) {
+    UA_LAST_RAKUTEN_STATUS = '商品選定設計で、商品購入が検索意図の解決策ではないと判定されました';
+    return false;
+  }
+  if (productPlan && productPlan.shouldInsert && (productPlan.primaryProduct || productPlan.marketQuery)) {
+    UA_LAST_RAKUTEN_STATUS = '商品選定設計に基づき挿入: ' + (productPlan.primaryProduct || productPlan.marketQuery);
     return true;
   }
 

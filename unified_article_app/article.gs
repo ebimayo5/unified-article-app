@@ -2447,6 +2447,30 @@ function uaTestHomeRinkerConnectorStatus() {
   return response;
 }
 
+function uaTestHomeRinkerItemUpsert() {
+  const appConfig = UA_APP_TYPES.home;
+  const wpConfig = uaGetWpConfig_(appConfig);
+  const testItem = {
+    title: 'Article Compass Rinker連携テスト商品',
+    keyword: 'Rinker 連携テスト',
+    rakuten_itemcode: 'article-compass:rinker-test',
+    rakuten_title_url: 'https://item.rakuten.co.jp/article-compass/rinker-test/',
+    rakuten_url: 'https://search.rakuten.co.jp/search/mall/Rinker%20%E9%80%A3%E6%90%BA%E3%83%86%E3%82%B9%E3%83%88/',
+    amazon_url: 'https://www.amazon.co.jp/gp/search?ie=UTF8&keywords=Rinker%20%E9%80%A3%E6%90%BA%E3%83%86%E3%82%B9%E3%83%88',
+    image_url: '',
+    price: 0
+  };
+  const first = uaCallWordPressApi_(wpConfig, '/wp-json/article-compass/v1/rinker-items', 'post', { items: [testItem] });
+  const second = uaCallWordPressApi_(wpConfig, '/wp-json/article-compass/v1/rinker-items', 'post', { items: [testItem] });
+  const firstId = Number(first && first.items && first.items[0] && first.items[0].post_id || 0);
+  const secondId = Number(second && second.items && second.items[0] && second.items[0].post_id || 0);
+  if (firstId <= 0 || firstId !== secondId) {
+    throw new Error('Rinker商品リンクの重複防止テストに失敗しました。');
+  }
+  console.log('Rinker connector test post ID: ' + firstId);
+  return { ok: true, postId: firstId, reused: true };
+}
+
 function uaBuildAmazonSameProductButton_(itemName, fallbackQuery, appConfig) {
   const associateTag = uaGetAmazonAssociateTag_(appConfig);
   if (!associateTag) return '';

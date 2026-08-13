@@ -1239,7 +1239,9 @@ function uaBuildRakutenInsertTerms_(query) {
 
 function uaHasRakutenBanner_(body) {
   const text = String(body || '');
-  return text.indexOf('openapi.rakuten') !== -1 ||
+  return text.indexOf('UA_RINKER_PRODUCTS_START') !== -1 ||
+    /\[itemlink\s+post_id=["']?\d+/i.test(text) ||
+    text.indexOf('openapi.rakuten') !== -1 ||
     text.indexOf('hb.afl.rakuten') !== -1 ||
     text.indexOf('rakuten.co.jp') !== -1 ||
     text.indexOf('rel=\'nofollow sponsored\'') !== -1 && text.indexOf('楽天') !== -1;
@@ -1247,6 +1249,9 @@ function uaHasRakutenBanner_(body) {
 
 function uaRemoveGeneratedRakutenBanner_(body) {
   return String(body || '').replace(
+    /<!--\s*UA_RINKER_PRODUCTS_START\s*-->[\s\S]*?<!--\s*UA_RINKER_PRODUCTS_END\s*-->\s*/gi,
+    ''
+  ).replace(
     /(?:<h2[^>]*>\s*関連アイテムも選択肢に入れる\s*<\/h2>\s*<p>本文の対策を読んで[\s\S]*?<\/p>\s*)?<p>本文の対策を実際に試すための商品候補[\s\S]*?<!-- \/wp:html -->\s*/gi,
     ''
   ).trim();
@@ -1996,6 +2001,7 @@ function uaFetchRakutenItems_(query, maxItems, selectionSeed, productPlan) {
       candidates.push({
         name: currentItem.itemName,
         url: currentUrl,
+        itemCode: String(currentItem.itemCode || ''),
         imageUrl: typeof currentMediumImage === 'string'
           ? currentMediumImage
           : currentMediumImage && currentMediumImage.imageUrl,
@@ -2296,6 +2302,9 @@ function uaBuildRakutenItemBannerHtml_(items, query, productPlan, appConfig) {
   const productLabel = plan && plan.primaryProduct || query || '関連アイテム';
   const queryText = uaEscapeHtml_(productLabel);
   const isHomeArticle = String(appConfig && appConfig.key || '').trim().toUpperCase() === 'HOME';
+  const homeRinkerHtml = isHomeArticle
+    ? uaBuildHomeRinkerItemsHtml_(items, productLabel, appConfig)
+    : '';
   const itemHtml = items.map(function(item) {
     const rawName = String(item.name || '').trim();
     const name = uaEscapeHtml_(rawName.slice(0, 80));
@@ -2333,6 +2342,16 @@ function uaBuildRakutenItemBannerHtml_(items, query, productPlan, appConfig) {
     ? '「' + queryText + '」を楽天・Amazonで比較する'
     : '「' + queryText + '」を楽天で比較する';
 
+  if (homeRinkerHtml) {
+    return [
+      '<!-- UA_RINKER_PRODUCTS_START -->',
+      leadText,
+      '<p><strong>' + comparisonHeading + '</strong></p>',
+      homeRinkerHtml,
+      '<!-- UA_RINKER_PRODUCTS_END -->'
+    ].join('\n');
+  }
+
   return [
     leadText,
     '<!-- wp:html -->',
@@ -2343,6 +2362,89 @@ function uaBuildRakutenItemBannerHtml_(items, query, productPlan, appConfig) {
     '</div>',
     '<!-- /wp:html -->'
   ].filter(Boolean).join('\n');
+}
+
+function uaBuildHomeRinkerItemsHtml_(items, fallbackQuery, appConfig) {
+  const sourceItems = (items || []).slice(0, 3);
+  if (sourceItems.length === 0) return '';
+
+  try {
+    const payloadItems = sourceItems.map(function(item) {
+      const itemName = String(item && item.name || '').trim();
+      const keyword = uaBuildAmazonSameProductQuery_(itemName, fallbackQuery);
+      return {
+        title: itemName,
+        keyword: keyword,
+        rakuten_itemcode: String(item && item.itemCode || '').trim(),
+        rakuten_title_url: String(item && item.url || '').trim(),
+        rakuten_url: 'https://search.rakuten.co.jp/search/mall/' + encodeURIComponent(keyword) + '/?f=1&grp=product',
+        amazon_url: 'https://www.amazon.co.jp/gp/search?ie=UTF8&keywords=' + encodeURIComponent(keyword),
+        image_url: String(item && item.imageUrl || '').trim(),
+        price: Number(item && item.price || 0)
+      };
+    }).filter(function(item) {
+      return item.title && item.rakuten_title_url;
+    });
+
+    if (payloadItems.length === 0) return '';
+
+    const wpConfig = uaGetWpConfig_(appConfig);
+    const response = uaCallWordPressApi_(
+      wpConfig,
+      '/wp-json/article-compass/v1/rinker-items',
+      'post',
+      { items: payloadItems }
+    );
+    const savedItems = response && Array.isArray(response.items) ? response.items : [];
+    const shortcodeHtml = uaBuildRinkerShortcodeBlocks_(savedItems);
+    if (!shortcodeHtml) return '';
+
+    UA_LAST_RAKUTEN_STATUS = 'Rinker商品ボックス挿入済み｜楽天で選定した同一商品名をAmazon検索にも使用';
+    return shortcodeHtml;
+  } catch (e) {
+    UA_LAST_RAKUTEN_STATUS = 'Rinker連携を利用できなかったため、従来の商品比較ボタンへ自動フォールバックしました: ' + e.toString();
+    return '';
+  }
+}
+
+function uaBuildRinkerShortcodeBlocks_(savedItems) {
+  return (savedItems || []).map(function(item) {
+    const postId = Number(item && item.post_id || 0);
+    if (postId <= 0) return '';
+    return [
+      '<!-- wp:shortcode -->',
+      '[itemlink post_id="' + postId + '"]',
+      '<!-- /wp:shortcode -->'
+    ].join('\n');
+  }).filter(Boolean).join('\n\n');
+}
+
+function uaTestHomeRinkerShortcodeBlocks() {
+  const actual = uaBuildRinkerShortcodeBlocks_([{ post_id: 123 }, { post_id: 456 }]);
+  const expected = [
+    '<!-- wp:shortcode -->',
+    '[itemlink post_id="123"]',
+    '<!-- /wp:shortcode -->',
+    '',
+    '<!-- wp:shortcode -->',
+    '[itemlink post_id="456"]',
+    '<!-- /wp:shortcode -->'
+  ].join('\n');
+  if (actual !== expected) throw new Error('Rinkerショートコードの整形テストに失敗しました。');
+  if (!uaHasRakutenBanner_(actual)) throw new Error('Rinker商品ボックスの検出テストに失敗しました。');
+  const marked = '<!-- UA_RINKER_PRODUCTS_START -->\n' + actual + '\n<!-- UA_RINKER_PRODUCTS_END -->';
+  if (uaRemoveGeneratedRakutenBanner_(marked) !== '') throw new Error('Rinker商品ボックスの置換テストに失敗しました。');
+  return { ok: true, shortcodes: 2 };
+}
+
+function uaTestHomeRinkerConnectorStatus() {
+  const appConfig = UA_APP_TYPES.home;
+  const wpConfig = uaGetWpConfig_(appConfig);
+  const response = uaCallWordPressApi_(wpConfig, '/wp-json/article-compass/v1/rinker-status', 'get');
+  if (!response || !response.ok || !response.rinker_active) {
+    throw new Error('たくみパパ側のRinker連携が有効ではありません。');
+  }
+  return response;
 }
 
 function uaBuildAmazonSameProductButton_(itemName, fallbackQuery, appConfig) {

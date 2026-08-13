@@ -39,6 +39,22 @@ function uaNormalizeProductPlan_(value) {
     }).slice(0, 5);
   }
 
+  const desiredConstraintText = [
+    source.primary_product || source.primaryProduct,
+    source.market_query || source.marketQuery,
+    source.purpose,
+    source.benefit,
+    source.cta_reason || source.ctaReason
+  ].concat(source.must_have || source.mustHave || []).join(' ');
+  let purchaseScale = cleanText(source.purchase_scale || source.purchaseScale, 20).toLowerCase();
+  if (!/^(trial|standard|bulk|unspecified)$/.test(purchaseScale)) {
+    purchaseScale = /少量|小容量|お試し|試用|まず(?:は)?1(?:個|点|袋|パック)|単品/.test(desiredConstraintText)
+      ? 'trial'
+      : /大容量|まとめ買い|箱買い|ケース買い|業務用|備蓄/.test(desiredConstraintText)
+        ? 'bulk'
+        : 'unspecified';
+  }
+
   return {
     shouldInsert: source.should_insert === true || source.shouldInsert === true || String(source.should_insert || source.shouldInsert).toLowerCase() === 'true',
     primaryProduct: cleanText(source.primary_product || source.primaryProduct, 60),
@@ -46,9 +62,71 @@ function uaNormalizeProductPlan_(value) {
     purpose: cleanText(source.purpose, 120),
     mustHave: cleanList(source.must_have || source.mustHave),
     exclude: cleanList(source.exclude),
+    purchaseScale: purchaseScale,
+    requiredFeatures: cleanList(source.required_features || source.requiredFeatures),
+    excludedFeatures: cleanList(source.excluded_features || source.excludedFeatures),
     benefit: cleanText(source.benefit, 140),
     ctaReason: cleanText(source.cta_reason || source.ctaReason, 140)
   };
+}
+
+function uaEvaluateProductPlanFit_(itemName, productPlan) {
+  const plan = uaNormalizeProductPlan_(productPlan);
+  if (!plan) return { pass: true, reason: '' };
+
+  const rawName = String(itemName || '');
+  const normalizedName = rawName.replace(/[\s　・、,\/／()（）\[\]【】]+/g, '').toLowerCase();
+  if (!normalizedName) return { pass: false, reason: '商品名を確認できません' };
+
+  function normalizeFeature(value) {
+    return String(value || '')
+      .replace(/[\s　・、,\/／()（）\[\]【】]+/g, '')
+      .replace(/(?:専用|対応|仕様|タイプ|用|向け|あり|付き)$/g, '')
+      .toLowerCase();
+  }
+
+  const explicitExcluded = (plan.excludedFeatures || []).map(normalizeFeature).filter(function(term) {
+    return term.length >= 2;
+  });
+  const excludedHit = explicitExcluded.find(function(term) { return normalizedName.indexOf(term) !== -1; });
+  if (excludedHit) return { pass: false, reason: '除外条件に一致: ' + excludedHit };
+
+  const explicitRequired = (plan.requiredFeatures || []).map(normalizeFeature).filter(function(term) {
+    return term.length >= 2;
+  });
+  const missingRequired = explicitRequired.find(function(term) { return normalizedName.indexOf(term) === -1; });
+  if (missingRequired) return { pass: false, reason: '必須条件を商品名で確認できない: ' + missingRequired };
+
+  const bulkTerms = [
+    '大容量', '業務用', 'まとめ買い', '箱買い', 'ケース販売', 'ケース買い', 'セット買い',
+    '備蓄', '定期便', 'ふるさと納税'
+  ];
+  const trialTerms = ['お試し', '少量', '小容量', 'ミニサイズ', '単品', '1個', '1袋', '1パック'];
+  const quantityPattern = /(\d{1,3})\s*(?:個|点|本|枚|袋|パック|ロール|巻|箱|セット)/g;
+  let quantityMatch;
+  let hasBulkQuantity = /\d+\s*(?:個|点|本|枚|袋|パック|ロール|巻|箱)\s*[×xX]\s*\d+/i.test(rawName);
+  while (!hasBulkQuantity && (quantityMatch = quantityPattern.exec(rawName)) !== null) {
+    hasBulkQuantity = Number(quantityMatch[1]) >= 10;
+  }
+  if (plan.purchaseScale === 'trial' && (
+    bulkTerms.some(function(term) { return rawName.indexOf(term) !== -1; }) || hasBulkQuantity
+  )) {
+    return { pass: false, reason: '少量試用のCTAに対して大容量・まとめ買い相当の商品です' };
+  }
+  if (plan.purchaseScale === 'bulk' && trialTerms.some(function(term) { return rawName.indexOf(term) !== -1; })) {
+    return { pass: false, reason: 'まとめ買いの意図に対して少量・試用商品です' };
+  }
+
+  const excludeText = (plan.exclude || []).join(' ');
+  if (/大容量|まとめ買い|箱買い|ケース買い|業務用/.test(excludeText) &&
+    bulkTerms.some(function(term) { return rawName.indexOf(term) !== -1; })) {
+    return { pass: false, reason: '除外条件に反する大容量・まとめ買い商品です' };
+  }
+  if (/少量|小容量|お試し|単品/.test(excludeText) &&
+    trialTerms.some(function(term) { return rawName.indexOf(term) !== -1; })) {
+    return { pass: false, reason: '除外条件に反する少量・試用商品です' };
+  }
+  return { pass: true, reason: '' };
 }
 
 function uaAttachProductPlanMarker_(body, productPlan) {
@@ -993,6 +1071,22 @@ function uaAddRakutenBannerForData_(data) {
   return uaAddRakutenBannerForContext_(uaGetRakutenRowContext_(sheet, row));
 }
 
+function uaBuildProductLinkNotInsertedResult_(context, sourceBody, replacedExisting, reason, factLabel) {
+  if (replacedExisting) {
+    context.sheet.getRange(context.row, UA_COLUMNS.body).setValue(sourceBody);
+  }
+  uaAppendFactCheckPoint_(
+    context.sheet,
+    context.row,
+    '・' + String(factLabel || '商品リンク未挿入') + '｜' + reason
+  );
+  const data = uaBuildRowData_(context.sheet, context.row);
+  data.message = replacedExisting
+    ? '本文の購入条件を満たす候補がないため、既存の自動商品リンクを外しました。\n理由: ' + reason
+    : '商品リンクは追加しませんでした。\n理由: ' + reason;
+  return data;
+}
+
 function uaAddRakutenBannerForContext_(context) {
   if (!context.body) {
     throw new Error('本文が空です。先に本文を生成してください。');
@@ -1012,20 +1106,26 @@ function uaAddRakutenBannerForContext_(context) {
 
   if (!uaShouldInsertRakutenAffiliateBanner_(sourceBody, context.rowData, context.appConfig)) {
     const reason = UA_LAST_RAKUTEN_STATUS || '楽天バナー挿入対象外です。';
-    uaAppendFactCheckPoint_(context.sheet, context.row, '・楽天バナー後入れ未実行｜' + reason);
-    return {
-      message: '楽天バナーは追加しませんでした。\n理由: ' + reason
-    };
+    return uaBuildProductLinkNotInsertedResult_(
+      context,
+      sourceBody,
+      replacedExisting,
+      reason,
+      replacedExisting ? '商品リンク再選定で既存リンク削除' : '商品リンク後入れ未実行'
+    );
   }
 
   const block = uaBuildRakutenFollowupBlock_(sourceBody, context.rowData, context.appConfig);
 
   if (!block) {
     const reason = UA_LAST_RAKUTEN_STATUS || '楽天バナーを作成できませんでした。';
-    uaAppendFactCheckPoint_(context.sheet, context.row, '・楽天バナー後入れ失敗｜' + reason);
-    return {
-      message: '楽天バナーを追加できませんでした。\n理由: ' + reason
-    };
+    return uaBuildProductLinkNotInsertedResult_(
+      context,
+      sourceBody,
+      replacedExisting,
+      reason,
+      replacedExisting ? '商品リンク再選定で既存リンク削除' : '商品リンク後入れ失敗'
+    );
   }
 
   const nextBody = uaInsertRakutenBlockIntoBody_(sourceBody, block, context.rowData, context.appConfig);
@@ -1130,9 +1230,11 @@ function uaBuildRakutenFollowupBlock_(body, rowData, appConfig) {
   }
 
   return [
+    '<!-- UA_PRODUCT_FOLLOWUP_START -->',
     '<h2>関連アイテムも選択肢に入れる</h2>',
     '<p>本文の対策を読んで「実際に何を用意すればいいか」まで考えたい場合は、関連アイテムを見比べておくと判断しやすくなります。</p>',
-    banner
+    banner,
+    '<!-- UA_PRODUCT_FOLLOWUP_END -->'
   ].join('\n');
 }
 
@@ -1239,7 +1341,8 @@ function uaBuildRakutenInsertTerms_(query) {
 
 function uaHasRakutenBanner_(body) {
   const text = String(body || '');
-  return text.indexOf('UA_RINKER_PRODUCTS_START') !== -1 ||
+  return text.indexOf('UA_PRODUCT_FOLLOWUP_START') !== -1 ||
+    text.indexOf('UA_RINKER_PRODUCTS_START') !== -1 ||
     /\[itemlink\s+post_id=["']?\d+/i.test(text) ||
     text.indexOf('openapi.rakuten') !== -1 ||
     text.indexOf('hb.afl.rakuten') !== -1 ||
@@ -1249,6 +1352,12 @@ function uaHasRakutenBanner_(body) {
 
 function uaRemoveGeneratedRakutenBanner_(body) {
   return String(body || '').replace(
+    /<!--\s*UA_PRODUCT_FOLLOWUP_START\s*-->[\s\S]*?<!--\s*UA_PRODUCT_FOLLOWUP_END\s*-->\s*/gi,
+    ''
+  ).replace(
+    /<h2[^>]*>\s*関連アイテムも選択肢に入れる\s*<\/h2>\s*<p>本文の対策を読んで「実際に何を用意すればいいか」まで考えたい場合は、関連アイテムを見比べておくと判断しやすくなります。<\/p>\s*<!--\s*UA_RINKER_PRODUCTS_START\s*-->[\s\S]*?<!--\s*UA_RINKER_PRODUCTS_END\s*-->\s*/gi,
+    ''
+  ).replace(
     /<!--\s*UA_RINKER_PRODUCTS_START\s*-->[\s\S]*?<!--\s*UA_RINKER_PRODUCTS_END\s*-->\s*/gi,
     ''
   ).replace(
@@ -2119,6 +2228,9 @@ function uaScoreRakutenItem_(item, query, productPlan) {
   const normalizedQuery = String(query || '').replace(/[\s　]+/g, '').toLowerCase();
   let score = 40;
 
+  const planFit = uaEvaluateProductPlanFit_(itemName, plan);
+  if (!planFit.pass) return -1000;
+
   function normalizedTerms(values) {
     return (values || []).reduce(function(result, value) {
       String(value || '').split(/[\s　・、,\/／()（）]+/).forEach(function(term) {
@@ -2224,6 +2336,56 @@ function uaTestStructuredProductPlanRouting() {
   const goodScore = uaScoreRakutenItem_(goodItem, query, extracted);
   const weakScore = uaScoreRakutenItem_(weakItem, query, extracted);
   const excludedScore = uaScoreRakutenItem_(excludedItem, query, extracted);
+  const trialPlan = uaNormalizeProductPlan_({
+    should_insert: true,
+    primary_product: '2倍巻きトイレットペーパー',
+    market_query: 'トイレットペーパー 2倍巻き',
+    purpose: '交換回数を減らしながらホルダーとの相性を試す',
+    must_have: ['普段使う紙のタイプに近いこと'],
+    exclude: ['初回から選ぶ大容量パック', '箱買い'],
+    purchase_scale: 'trial',
+    cta_reason: '初回は少量パックを1つ試したい'
+  });
+  const trialItem = {
+    itemName: '2倍巻き トイレットペーパー ダブル 60m 4ロール 1パック',
+    reviewAverage: 4.2,
+    reviewCount: 30
+  };
+  const contradictoryBulkItem = {
+    itemName: '48ロール 2倍巻き トイレットペーパー 大容量 6ロール×8パック 備蓄用',
+    reviewAverage: 4.9,
+    reviewCount: 9000
+  };
+  const disguisedBulkItem = {
+    itemName: 'ふるさと納税 トイレットペーパー 2倍巻き シングルまたはダブル 備蓄 防災 日用品',
+    reviewAverage: 5,
+    reviewCount: 12000
+  };
+  const multipliedBulkItem = {
+    itemName: '2倍巻き トイレットペーパー 6ロール×8パック 送料無料',
+    reviewAverage: 4.8,
+    reviewCount: 800
+  };
+  const trialScore = uaScoreRakutenItem_(trialItem, 'トイレットペーパー 2倍巻き', trialPlan);
+  const contradictoryBulkScore = uaScoreRakutenItem_(contradictoryBulkItem, 'トイレットペーパー 2倍巻き', trialPlan);
+  const disguisedBulkScore = uaScoreRakutenItem_(disguisedBulkItem, 'トイレットペーパー 2倍巻き', trialPlan);
+  const multipliedBulkScore = uaScoreRakutenItem_(multipliedBulkItem, 'トイレットペーパー 2倍巻き', trialPlan);
+  const requiredFeaturePlan = uaNormalizeProductPlan_({
+    should_insert: true,
+    primary_product: '屋外用センサーライト',
+    market_query: 'センサーライト 屋外 防水',
+    required_features: ['屋外', '防水'],
+    excluded_features: ['室内専用']
+  });
+  const requiredFeatureGood = uaEvaluateProductPlanFit_('屋外 防水 センサーライト 人感式', requiredFeaturePlan);
+  const requiredFeatureMissing = uaEvaluateProductPlanFit_('室内用 センサーライト 人感式', requiredFeaturePlan);
+  const excludedFeaturePlan = uaNormalizeProductPlan_({
+    should_insert: true,
+    primary_product: 'センサーライト',
+    market_query: 'センサーライト',
+    excluded_features: ['室内専用']
+  });
+  const excludedFeatureHit = uaEvaluateProductPlanFit_('室内用 センサーライト 人感式', excludedFeaturePlan);
   const noProductBody = uaAttachProductPlanMarker_('<p>制度を確認します。</p>', {
     should_insert: false,
     purpose: '制度の確認が中心で商品購入では解決しない'
@@ -2234,6 +2396,13 @@ function uaTestStructuredProductPlanRouting() {
     { name: 'insert decision', ok: uaShouldInsertRakutenAffiliateBanner_(body, row, config) },
     { name: 'good item score', ok: goodScore > weakScore, actual: [goodScore, weakScore] },
     { name: 'exclude wrong category', ok: excludedScore < 1, actual: excludedScore },
+    { name: 'accept trial-size product', ok: trialScore > 0, actual: trialScore },
+    { name: 'reject bulk product against trial CTA', ok: contradictoryBulkScore < 1, actual: contradictoryBulkScore },
+    { name: 'reject stockpile product against trial CTA', ok: disguisedBulkScore < 1, actual: disguisedBulkScore },
+    { name: 'reject multiplied quantity against trial CTA', ok: multipliedBulkScore < 1, actual: multipliedBulkScore },
+    { name: 'accept explicit required features', ok: requiredFeatureGood.pass, actual: requiredFeatureGood },
+    { name: 'reject missing required features', ok: !requiredFeatureMissing.pass, actual: requiredFeatureMissing },
+    { name: 'reject explicit excluded feature', ok: !excludedFeatureHit.pass, actual: excludedFeatureHit },
     { name: 'skip non-product article', ok: !uaShouldInsertRakutenAffiliateBanner_(noProductBody, row, config) }
   ];
   const failures = checks.filter(function(check) { return !check.ok; });
@@ -2434,7 +2603,28 @@ function uaTestHomeRinkerShortcodeBlocks() {
   if (!uaHasRakutenBanner_(actual)) throw new Error('Rinker商品ボックスの検出テストに失敗しました。');
   const marked = '<!-- UA_RINKER_PRODUCTS_START -->\n' + actual + '\n<!-- UA_RINKER_PRODUCTS_END -->';
   if (uaRemoveGeneratedRakutenBanner_(marked) !== '') throw new Error('Rinker商品ボックスの置換テストに失敗しました。');
-  return { ok: true, shortcodes: 2 };
+  const legacyFollowup = [
+    '<p>前の本文</p>',
+    '<h2>関連アイテムも選択肢に入れる</h2>',
+    '<p>本文の対策を読んで「実際に何を用意すればいいか」まで考えたい場合は、関連アイテムを見比べておくと判断しやすくなります。</p>',
+    marked,
+    '<h2>次の見出し</h2>'
+  ].join('\n');
+  if (uaRemoveGeneratedRakutenBanner_(legacyFollowup) !== '<p>前の本文</p>\n<h2>次の見出し</h2>') {
+    throw new Error('旧形式の商品後入れブロックの削除テストに失敗しました。');
+  }
+  const wrappedFollowup = [
+    '<p>前の本文</p>',
+    '<!-- UA_PRODUCT_FOLLOWUP_START -->',
+    '<h2>関連アイテムも選択肢に入れる</h2>',
+    marked,
+    '<!-- UA_PRODUCT_FOLLOWUP_END -->',
+    '<h2>次の見出し</h2>'
+  ].join('\n');
+  if (uaRemoveGeneratedRakutenBanner_(wrappedFollowup) !== '<p>前の本文</p>\n<h2>次の見出し</h2>') {
+    throw new Error('現形式の商品後入れブロックの削除テストに失敗しました。');
+  }
+  return { ok: true, shortcodes: 2, removableFollowupFormats: 2 };
 }
 
 function uaTestHomeRinkerConnectorStatus() {

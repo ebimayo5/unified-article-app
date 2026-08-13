@@ -2295,18 +2295,29 @@ function uaBuildRakutenItemBannerHtml_(items, query, productPlan, appConfig) {
   const plan = uaNormalizeProductPlan_(productPlan);
   const productLabel = plan && plan.primaryProduct || query || '関連アイテム';
   const queryText = uaEscapeHtml_(productLabel);
+  const isHomeArticle = String(appConfig && appConfig.key || '').trim().toUpperCase() === 'HOME';
   const itemHtml = items.map(function(item) {
-    const name = uaEscapeHtml_(String(item.name || '').slice(0, 80));
+    const rawName = String(item.name || '').trim();
+    const name = uaEscapeHtml_(rawName.slice(0, 80));
     const url = uaEscapeHtml_(item.url || '');
     const imageUrl = uaEscapeHtml_(item.imageUrl || '');
     const imageHtml = imageUrl
       ? '<a href=\'' + url + '\' target=\'_blank\' rel=\'nofollow sponsored\' style=\'display:block;width:92px;flex:0 0 92px;background:#fff;border:1px solid #eef1f4;border-radius:6px;padding:5px;\'><img src=\'' + imageUrl + '\' alt=\'' + name + '\' style=\'display:block;max-width:100%;height:auto;border:0;background:#fff;\'></a>'
       : '';
+    const amazonSameProductButton = isHomeArticle
+      ? uaBuildAmazonSameProductButton_(rawName, productLabel, appConfig)
+      : '';
 
     return [
       '<div style=\'display:flex;gap:12px;align-items:center;padding:10px 0;border-top:1px solid #edf1f4;\'>',
       imageHtml,
-      '<p style=\'margin:0;font-size:14px;line-height:1.7;\'><a href=\'' + url + '\' target=\'_blank\' rel=\'nofollow sponsored\'>' + name + '</a></p>',
+      '<div style=\'min-width:0;flex:1;\'>',
+      '<p style=\'margin:0 0 8px;font-size:14px;line-height:1.7;\'>' + name + '</p>',
+      '<div style=\'display:flex;flex-wrap:wrap;gap:8px;\'>',
+      '<a href=\'' + url + '\' target=\'_blank\' rel=\'nofollow sponsored noopener\' style=\'display:inline-block;background:#bf0000;color:#fff;text-decoration:none;font-weight:700;border-radius:6px;padding:8px 12px;\'>楽天で見る</a>',
+      amazonSameProductButton,
+      '</div>',
+      '</div>',
       '</div>'
     ].filter(Boolean).join('');
   }).join('');
@@ -2317,18 +2328,45 @@ function uaBuildRakutenItemBannerHtml_(items, query, productPlan, appConfig) {
     ? '条件に合う場合は、下の商品候補で価格と仕様を見比べられます。'
     : '条件に合う場合は、下の商品候補で価格と仕様を確認できます。';
   const leadText = '<p>' + ctaReason + benefit + compareAction + ' 条件に合わなければ、無理に購入する必要はありません。</p>';
-  const amazonButton = uaBuildAmazonSearchButton_(plan, query || productLabel, appConfig);
+  const amazonButton = isHomeArticle ? '' : uaBuildAmazonSearchButton_(plan, query || productLabel, appConfig);
+  const comparisonHeading = isHomeArticle
+    ? '「' + queryText + '」を楽天・Amazonで比較する'
+    : '「' + queryText + '」を楽天で比較する';
 
   return [
     leadText,
     '<!-- wp:html -->',
     '<div style=\'background:#fff;border:1px solid #d7dde3;border-radius:8px;padding:14px;margin:16px 0;max-width:760px;box-sizing:border-box;\'>',
-    '<p style=\'margin:0 0 8px;font-weight:700;\'>「' + queryText + '」を楽天で比較する</p>',
+    '<p style=\'margin:0 0 8px;font-weight:700;\'>' + comparisonHeading + '</p>',
     itemHtml,
     amazonButton,
     '</div>',
     '<!-- /wp:html -->'
   ].filter(Boolean).join('\n');
+}
+
+function uaBuildAmazonSameProductButton_(itemName, fallbackQuery, appConfig) {
+  const associateTag = uaGetAmazonAssociateTag_(appConfig);
+  if (!associateTag) return '';
+
+  const query = uaBuildAmazonSameProductQuery_(itemName, fallbackQuery);
+  if (!query) return '';
+
+  const url = 'https://www.amazon.co.jp/s?k=' + encodeURIComponent(query) + '&tag=' + encodeURIComponent(associateTag);
+  return '<a href=\'' + uaEscapeHtml_(url) + '\' target=\'_blank\' rel=\'nofollow sponsored noopener\' style=\'display:inline-block;background:#ff9900;color:#111;text-decoration:none;font-weight:700;border-radius:6px;padding:8px 12px;\'>同じ商品をAmazonで探す</a>';
+}
+
+function uaBuildAmazonSameProductQuery_(itemName, fallbackQuery) {
+  let query = String(itemName || '')
+    .replace(/【[^】]{0,50}】/g, ' ')
+    .replace(/\[[^\]]{0,50}\]/g, ' ')
+    .replace(/送料無料|送料込み|ポイント\s*\d+倍|クーポン(?:利用)?|期間限定|楽天市場/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (!query) query = String(fallbackQuery || '').trim();
+  if (query.length > 100) query = query.slice(0, 100).trim();
+  return query;
 }
 
 function uaBuildAmazonSearchButton_(productPlan, fallbackQuery, appConfig) {

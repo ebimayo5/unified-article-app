@@ -690,7 +690,7 @@
           <label for="affiliateNotes">案件注意点 / その他制約事項</label>
           <textarea id="affiliateNotes"></textarea>
 
-          <label>楽天バナー</label>
+          <label id="commerceLinkLabel">楽天バナー</label>
           <div class="rakuten-grid">
             <select id="rakutenBannerMode" onchange="syncRakutenControlsToNotes()">
               <option value="auto">自動判定</option>
@@ -730,7 +730,7 @@
         <div class="action-group">
           <span class="action-label">&#26412;&#25991;&#12408;&#24460;&#20837;&#12428;</span>
           <div class="actions">
-            <button class="secondary" onclick="addRakutenBanner(this)">&#27005;&#22825;&#12496;&#12490;&#12540;&#12434;&#36861;&#21152;</button>
+            <button id="addCommerceLinkButton" class="secondary" onclick="addRakutenBanner(this)">&#27005;&#22825;&#12496;&#12490;&#12540;&#12434;&#36861;&#21152;</button>
             <button class="secondary" onclick="addInternalLink(this)">&#20869;&#37096;&#12522;&#12531;&#12463;&#12434;&#36861;&#21152;</button>
             <button class="secondary" onclick="addExternalLink(this)">&#22806;&#37096;&#12522;&#12531;&#12463;&#12434;&#36861;&#21152;</button>
           </div>
@@ -1128,6 +1128,28 @@
         const keyword = document.getElementById('rakutenProductKeyword');
         if (mode) mode.disabled = isGeneric;
         if (keyword) keyword.disabled = isGeneric;
+        updateCommerceLinkLabels(config);
+      }
+
+      function updateCommerceLinkLabels(config) {
+        const isHome = !!(config && config.key === 'home');
+        const label = document.getElementById('commerceLinkLabel');
+        const keyword = document.getElementById('rakutenProductKeyword');
+        const addButton = document.getElementById('addCommerceLinkButton');
+        if (label) label.textContent = isHome ? '商品リンク（Rinker）' : '楽天バナー';
+        if (keyword) {
+          keyword.setAttribute('aria-label', isHome ? '商品検索キーワード' : '楽天商品キーワード');
+          keyword.placeholder = isHome
+            ? '商品検索キーワード 例: ランドリーチェスト 防カビ'
+            : '楽天商品キーワード 例: ランドリーチェスト 防カビ';
+        }
+        if (addButton) addButton.textContent = isHome ? '商品リンクを追加' : '楽天バナーを追加';
+      }
+
+      function commerceLinkText(rakutenText, homeText) {
+        const selected = document.getElementById('appType').value;
+        const config = appConfigs.find(function(item) { return item.label === selected; });
+        return config && config.key === 'home' ? homeText : rakutenText;
       }
 
       function parseRakutenControlsFromNotes() {
@@ -1173,14 +1195,14 @@
         syncRakutenControlsToNotes();
         const requestToken = ++rakutenSuggestionRequestToken;
         renderRakutenSuggestions([]);
-        setBusy('楽天商品キーワード候補を取得中...', button);
+        setBusy(commerceLinkText('楽天商品キーワード候補を取得中...', '商品検索キーワード候補を取得中...'), button);
         google.script.run
           .withSuccessHandler(function(result) {
             if (requestToken !== rakutenSuggestionRequestToken) return;
             clearBusy();
             renderRakutenSuggestions(result && result.suggestions ? result.suggestions : []);
             setProgress('done');
-            setNotice(result && result.message ? result.message : '商品検索キーワード候補を取得しました。', false);
+            setNotice(result && result.message ? result.message : commerceLinkText('楽天商品キーワード候補を取得しました。', '商品検索キーワード候補を取得しました。'), false);
           })
           .withFailureHandler(function(error) {
             if (requestToken !== rakutenSuggestionRequestToken) return;
@@ -1200,7 +1222,7 @@
           button.onclick = function() {
             document.getElementById('rakutenProductKeyword').value = query;
             syncRakutenControlsToNotes();
-            setNotice('楽天商品キーワードに反映しました。', false);
+            setNotice(commerceLinkText('楽天商品キーワードに反映しました。', '商品検索キーワードに反映しました。'), false);
             scheduleAutoSave();
           };
           container.appendChild(button);
@@ -1804,14 +1826,14 @@ function saveOpenAiModels(button) {
 
       function addRakutenBanner(button) {
         syncRakutenControlsToNotes();
-        setBusy('楽天バナーを本文へ追加中...', button);
+        setBusy(commerceLinkText('楽天バナーを本文へ追加中...', '商品リンクを本文へ追加中...'), button);
         google.script.run
           .withSuccessHandler(function(data) {
             clearBusy();
             fillForm(data);
             showTab('body');
             setProgress('done');
-            setNotice(data && data.message ? data.message : '楽天バナーを本文へ追加しました。', false);
+            setNotice(data && data.message ? data.message : commerceLinkText('楽天バナーを本文へ追加しました。', '商品リンクを本文へ追加しました。'), false);
           })
           .withFailureHandler(fail)
           .uaAddRakutenBannerFromPanel(readForm());

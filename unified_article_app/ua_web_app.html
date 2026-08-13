@@ -973,7 +973,7 @@
         const values = {};
         fields.forEach(function(id) {
           const el = document.getElementById(id);
-          if (el) values[id] = el.value;
+          if (el) values[id] = id === 'body' ? visibleArticleBody(el.value) : el.value;
         });
         ['sourceType','sourceRow','textModel','imageModel','imageStylePreset','imageStylePrompt','rakutenBannerMode','rakutenProductKeyword'].forEach(function(id) {
           const el = document.getElementById(id);
@@ -1047,7 +1047,9 @@
         const values = state.values || {};
         fields.concat(['sourceType','sourceRow','textModel','imageModel','imageStylePreset','imageStylePrompt','rakutenBannerMode','rakutenProductKeyword']).forEach(function(id) {
           const el = document.getElementById(id);
-          if (el && Object.prototype.hasOwnProperty.call(values, id)) el.value = values[id];
+          if (el && Object.prototype.hasOwnProperty.call(values, id)) {
+            el.value = id === 'body' ? visibleArticleBody(values[id]) : values[id];
+          }
         });
         loadedAppType = state.loadedAppType || state.appType;
         document.getElementById('subText').textContent = values.mainInput || '候補を選ぶと、ここに編集フォームが入ります。';
@@ -1308,13 +1310,23 @@
         return data;
       }
 
+      function visibleArticleBody(body) {
+        return String(body || '')
+          .replace(/<p\b[^>]*>\s*<!--\s*UA_PRODUCT_PLAN:[^>]+-->\s*<\/p>\s*/gi, '')
+          .replace(/<!--\s*UA_PRODUCT_PLAN:[^>]+-->\s*/gi, '');
+      }
+
       function fillForm(data) {
         isFillingForm = true;
         rakutenSuggestionRequestToken += 1;
         renderRakutenSuggestions([]);
         data = data || {};
         if (data.appType) document.getElementById('appType').value = data.appType;
-        fields.forEach(function(id) { const el = document.getElementById(id); if (el) el.value = data[id] || ''; });
+        fields.forEach(function(id) {
+          const el = document.getElementById(id);
+          if (el) el.value = id === 'body' ? visibleArticleBody(data[id]) : (data[id] || '');
+        });
+        document.getElementById('body').value = visibleArticleBody(document.getElementById('body').value);
         applyDefaultImageStyle();
         applyTheme();
         loadAutomaticPostingSettings();

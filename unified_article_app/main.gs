@@ -1392,6 +1392,9 @@ function uaSaveActiveRowData(data) {
 
   uaEnsureArticleSheetLayout_(sheet);
 
+  const storedBody = String(sheet.getRange(row, UA_COLUMNS.body).getValue() || '');
+  const bodyForStorage = uaPreserveProductPlanMarker_(data && data.body, storedBody);
+
   const noAffiliateSelected = uaIsNoAffiliateName_(data && data.affiliateName);
   const values = [
     data.appType || (sheetConfig && sheetConfig.label) || '',
@@ -1407,7 +1410,7 @@ function uaSaveActiveRowData(data) {
     data.status || '',
     data.createdAt || '',
     data.generationModel || '',
-    data.body || '',
+    bodyForStorage,
     data.titleIdeas || '',
     data.tags || '',
     data.metaDescription || '',

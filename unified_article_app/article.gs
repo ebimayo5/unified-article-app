@@ -1,4 +1,5 @@
 let UA_LAST_RAKUTEN_STATUS = '';
+let UA_LAST_RAKUTEN_EFFECTIVE_PRODUCT_PLAN = null;
 const UA_NAVIOKUN_INTRO_URL = 'https://ebimayo5.com/archives/naviokun-reputation/';
 
 function uaRemoveRedundantAffiliateDisclosure_(body) {
@@ -8,6 +9,24 @@ function uaRemoveRedundantAffiliateDisclosure_(body) {
     /<p\b[^>]*>\s*(?:<strong\b[^>]*>)?\s*(?:PR[：:]\s*)?本記事(?:には|に|は)アフィリエイト広告を含みます。?\s*(?:<\/strong>)?\s*<\/p>\s*/gi,
     ''
   );
+}
+
+function uaNormalizeStandardPurchaseCopy_(text) {
+  return String(text || '')
+    .replace(/初回は少量パックから試したい読者が比較しやすいため[。．.]?/g, '初回からまとめ買いせず、通常販売単位で比較しやすいため。')
+    .replace(/初回は少量パックから試したい/g, '初回からまとめ買いせず、通常販売単位で比較しやすいため')
+    .replace(/初回のまとめ買いで失敗しないための試し方/g, '初回購入で失敗しないための確認方法')
+    .replace(/少量パック(?:から|で)(?:試す|試せる|始める|確認する)/g, '通常販売単位で確認する')
+    .replace(/少量から(?:試す|始める)/g, '通常販売単位で確認する')
+    .replace(/少量購入で/g, '通常販売単位で')
+    .replace(/初回を試用にする/g, '初回からまとめ買いしない')
+    .replace(/少量パック/g, '通常販売単位');
+}
+
+function uaNormalizeUnsupportedTrialGuidance_(body, productPlan) {
+  const plan = uaNormalizeProductPlan_(productPlan);
+  if (!plan || plan.purchaseScale !== 'standard') return String(body || '');
+  return uaNormalizeStandardPurchaseCopy_(body);
 }
 
 function uaNormalizeProductPlan_(value) {
@@ -39,20 +58,16 @@ function uaNormalizeProductPlan_(value) {
     }).slice(0, 5);
   }
 
-  const desiredConstraintText = [
-    source.primary_product || source.primaryProduct,
-    source.market_query || source.marketQuery,
-    source.purpose,
-    source.benefit,
-    source.cta_reason || source.ctaReason
-  ].concat(source.must_have || source.mustHave || []).join(' ');
   let purchaseScale = cleanText(source.purchase_scale || source.purchaseScale, 20).toLowerCase();
   if (!/^(trial|standard|bulk|unspecified)$/.test(purchaseScale)) {
-    purchaseScale = /少量|小容量|お試し|試用|まず(?:は)?1(?:個|点|袋|パック)|単品/.test(desiredConstraintText)
-      ? 'trial'
-      : /大容量|まとめ買い|箱買い|ケース買い|業務用|備蓄/.test(desiredConstraintText)
-        ? 'bulk'
-        : 'unspecified';
+    // Do not infer that a small trial SKU exists from AI-written CTA copy.
+    // Normal retail quantity is the safe default unless a scale was explicitly planned.
+    purchaseScale = 'standard';
+  }
+
+  let ctaReason = cleanText(source.cta_reason || source.ctaReason, 140);
+  if (purchaseScale === 'standard') {
+    ctaReason = cleanText(uaNormalizeStandardPurchaseCopy_(ctaReason), 140);
   }
 
   return {
@@ -66,7 +81,7 @@ function uaNormalizeProductPlan_(value) {
     requiredFeatures: cleanList(source.required_features || source.requiredFeatures),
     excludedFeatures: cleanList(source.excluded_features || source.excludedFeatures),
     benefit: cleanText(source.benefit, 140),
-    ctaReason: cleanText(source.cta_reason || source.ctaReason, 140)
+    ctaReason: ctaReason
   };
 }
 
@@ -113,13 +128,20 @@ function uaEvaluateProductPlanFit_(itemName, productPlan) {
   )) {
     return { pass: false, reason: '少量試用のCTAに対して大容量・まとめ買い相当の商品です' };
   }
+  if (plan.purchaseScale === 'trial' &&
+    !trialTerms.some(function(term) { return rawName.indexOf(term) !== -1; })) {
+    return { pass: false, reason: '商品名から少量・試用向けの販売単位を確認できません' };
+  }
   if (plan.purchaseScale === 'bulk' && trialTerms.some(function(term) { return rawName.indexOf(term) !== -1; })) {
     return { pass: false, reason: 'まとめ買いの意図に対して少量・試用商品です' };
+  }
+  if (plan.purchaseScale === 'standard' && bulkTerms.some(function(term) { return rawName.indexOf(term) !== -1; })) {
+    return { pass: false, reason: '通常購入の意図に対して大容量・業務用・備蓄向けの商品です' };
   }
 
   const excludeText = (plan.exclude || []).join(' ');
   if (/大容量|まとめ買い|箱買い|ケース買い|業務用/.test(excludeText) &&
-    bulkTerms.some(function(term) { return rawName.indexOf(term) !== -1; })) {
+    (bulkTerms.some(function(term) { return rawName.indexOf(term) !== -1; }) || hasBulkQuantity)) {
     return { pass: false, reason: '除外条件に反する大容量・まとめ買い商品です' };
   }
   if (/少量|小容量|お試し|単品/.test(excludeText) &&
@@ -134,7 +156,20 @@ function uaAttachProductPlanMarker_(body, productPlan) {
   const plan = uaNormalizeProductPlan_(productPlan);
   if (!plan) return html;
   const marker = '<!-- UA_PRODUCT_PLAN:' + encodeURIComponent(JSON.stringify(plan)) + ' -->';
-  return marker + '\n' + html.replace(/<!--\s*UA_PRODUCT_PLAN:[^>]+-->\s*/gi, '');
+  return marker + '\n' + uaStripProductPlanMarker_(uaNormalizeUnsupportedTrialGuidance_(html, plan));
+}
+
+function uaStripProductPlanMarker_(body) {
+  return String(body || '')
+    .replace(/<p\b[^>]*>\s*<!--\s*UA_PRODUCT_PLAN:[^>]+-->\s*<\/p>\s*/gi, '')
+    .replace(/<!--\s*UA_PRODUCT_PLAN:[^>]+-->\s*/gi, '');
+}
+
+function uaPreserveProductPlanMarker_(visibleBody, storedBody) {
+  const visible = String(visibleBody || '');
+  if (!visible.trim() || uaExtractProductPlan_(visible)) return visible;
+  const storedPlan = uaExtractProductPlan_(storedBody);
+  return storedPlan ? uaAttachProductPlanMarker_(visible, storedPlan) : visible;
 }
 
 function uaExtractProductPlan_(body) {
@@ -1092,10 +1127,14 @@ function uaAddRakutenBannerForContext_(context) {
     throw new Error('本文が空です。先に本文を生成してください。');
   }
 
-  let sourceBody = context.body;
+  const productPlan = uaExtractProductPlan_(context.body);
+  let sourceBody = uaNormalizeUnsupportedTrialGuidance_(context.body, productPlan);
   let replacedExisting = false;
   if (uaHasRakutenBanner_(context.body)) {
-    sourceBody = uaRemoveGeneratedRakutenBanner_(context.body);
+    sourceBody = uaNormalizeUnsupportedTrialGuidance_(
+      uaRemoveGeneratedRakutenBanner_(context.body),
+      productPlan
+    );
     replacedExisting = sourceBody !== context.body;
     if (!replacedExisting) {
       throw new Error('本文内に手動追加された楽天リンクがあります。自動判定では安全に置き換えられないため停止しました。');
@@ -1103,6 +1142,7 @@ function uaAddRakutenBannerForContext_(context) {
   }
 
   UA_LAST_RAKUTEN_STATUS = '';
+  UA_LAST_RAKUTEN_EFFECTIVE_PRODUCT_PLAN = null;
 
   if (!uaShouldInsertRakutenAffiliateBanner_(sourceBody, context.rowData, context.appConfig)) {
     const reason = UA_LAST_RAKUTEN_STATUS || '楽天バナー挿入対象外です。';
@@ -1125,6 +1165,14 @@ function uaAddRakutenBannerForContext_(context) {
       replacedExisting,
       reason,
       replacedExisting ? '商品リンク再選定で既存リンク削除' : '商品リンク後入れ失敗'
+    );
+  }
+
+  const effectiveProductPlan = UA_LAST_RAKUTEN_EFFECTIVE_PRODUCT_PLAN || productPlan;
+  if (effectiveProductPlan) {
+    sourceBody = uaAttachProductPlanMarker_(
+      uaNormalizeUnsupportedTrialGuidance_(sourceBody, effectiveProductPlan),
+      effectiveProductPlan
     );
   }
 
@@ -1455,6 +1503,7 @@ function uaApplyRakutenAffiliateBanner_(body, rowData, appConfig) {
 function uaBuildRakutenAffiliateBanner_(body, rowData, appConfig) {
   const query = uaSelectRakutenProductQuery_(body, rowData, appConfig);
   const productPlan = uaExtractProductPlan_(body);
+  let effectiveProductPlan = productPlan;
 
   if (!query) {
     UA_LAST_RAKUTEN_STATUS = '商品検索キーワードを選定できませんでした';
@@ -1480,9 +1529,32 @@ function uaBuildRakutenAffiliateBanner_(body, rowData, appConfig) {
     items = uaFetchRakutenItems_(query, desiredCount, selectionSeed, productPlan);
   }
 
+  if (items.length === 0 && productPlan) {
+    const scaleQueries = uaBuildPurchaseScaleRetryQueries_(query, productPlan);
+    if (scaleQueries.length > 0) {
+      items = uaFetchRakutenItemsByQueries_(scaleQueries, 1, selectionSeed + '|purchase-scale-retry', productPlan);
+    }
+  }
+
+  if (items.length === 0 && productPlan && productPlan.purchaseScale === 'trial') {
+    const standardPlan = uaNormalizeProductPlan_(Object.assign({}, productPlan, {
+      purchaseScale: 'standard',
+      ctaReason: '初回からまとめ買いせず、通常販売単位で比較しやすいため'
+    }));
+    items = uaFetchRakutenItems_(query, 1, selectionSeed + '|standard-fallback', standardPlan);
+    if (items.length === 0) {
+      const standardQueries = uaBuildPurchaseScaleRetryQueries_(query, standardPlan);
+      items = uaFetchRakutenItemsByQueries_(standardQueries, 1, selectionSeed + '|standard-unit-retry', standardPlan);
+    }
+    if (items.length > 0) {
+      effectiveProductPlan = standardPlan;
+    }
+  }
+
   if (items.length > 0) {
+    UA_LAST_RAKUTEN_EFFECTIVE_PRODUCT_PLAN = effectiveProductPlan;
     const bannerLabel = categoryQueries.length >= 2 ? '' : query;
-    return uaBuildRakutenItemBannerHtml_(items, bannerLabel, productPlan, appConfig);
+    return uaBuildRakutenItemBannerHtml_(items, bannerLabel, effectiveProductPlan, appConfig);
   }
 
   const fallbackHtml = String(PropertiesService.getScriptProperties().getProperty('UA_RAKUTEN_AFFILIATE_BANNER_HTML') || '').trim();
@@ -1552,6 +1624,24 @@ function uaSelectRakutenProductQuery_(body, rowData, appConfig) {
   });
 
   return best ? best.query : '';
+}
+
+function uaBuildPurchaseScaleRetryQueries_(query, productPlan) {
+  const base = String(query || '').trim();
+  const plan = uaNormalizeProductPlan_(productPlan);
+  if (!base || !plan) return [];
+
+  const suffixes = plan.purchaseScale === 'trial'
+    ? ['少量', 'お試し', '単品']
+    : plan.purchaseScale === 'bulk'
+      ? ['まとめ買い', '大容量']
+      : plan.purchaseScale === 'standard'
+        ? ['単品', '1パック']
+        : [];
+
+  return suffixes.map(function(suffix) {
+    return base + ' ' + suffix;
+  });
 }
 
 function uaHasMainAffiliateProject_(rowData) {
@@ -2051,17 +2141,22 @@ function uaFetchRakutenItems_(query, maxItems, selectionSeed, productPlan) {
   const affiliateId = String(PropertiesService.getScriptProperties().getProperty('UA_RAKUTEN_AFFILIATE_ID') || '').trim();
   const refererUrl = uaGetRakutenRefererUrl_();
   const hits = Math.max(1, Math.min(3, Number(maxItems) || 1));
-  const candidateHits = Math.max(8, Math.min(20, hits * 5));
+  const candidateHits = 20;
+  const searchTuning = uaBuildRakutenSearchTuning_(productPlan);
   const params = [
     'format=json',
     'formatVersion=2',
     'hits=' + candidateHits,
     'imageFlag=1',
-    'sort=standard',
+    'sort=' + encodeURIComponent(searchTuning.sort),
     'applicationId=' + encodeURIComponent(applicationId),
     'accessKey=' + encodeURIComponent(accessKey),
     'keyword=' + encodeURIComponent(query)
   ];
+
+  if (searchTuning.ngKeyword) {
+    params.push('NGKeyword=' + encodeURIComponent(searchTuning.ngKeyword));
+  }
 
   if (affiliateId) {
     params.push('affiliateId=' + encodeURIComponent(affiliateId));
@@ -2138,6 +2233,21 @@ function uaFetchRakutenItems_(query, maxItems, selectionSeed, productPlan) {
     UA_LAST_RAKUTEN_STATUS = '楽天API取得エラー: ' + e.toString();
     return [];
   }
+}
+
+function uaBuildRakutenSearchTuning_(productPlan) {
+  const plan = uaNormalizeProductPlan_(productPlan);
+  const scale = plan && plan.purchaseScale || 'standard';
+  if (scale === 'standard' || scale === 'trial') {
+    return {
+      sort: '+itemPrice',
+      ngKeyword: 'ふるさと納税'
+    };
+  }
+  return {
+    sort: 'standard',
+    ngKeyword: ''
+  };
 }
 
 function uaIsRakutenItemRelevant_(itemName, query) {
@@ -2351,6 +2461,11 @@ function uaTestStructuredProductPlanRouting() {
     reviewAverage: 4.2,
     reviewCount: 30
   };
+  const normalPackWithoutTrialEvidence = {
+    itemName: '2倍巻き トイレットペーパー ダブル 60m 8ロール',
+    reviewAverage: 4.7,
+    reviewCount: 300
+  };
   const contradictoryBulkItem = {
     itemName: '48ロール 2倍巻き トイレットペーパー 大容量 6ロール×8パック 備蓄用',
     reviewAverage: 4.9,
@@ -2367,6 +2482,7 @@ function uaTestStructuredProductPlanRouting() {
     reviewCount: 800
   };
   const trialScore = uaScoreRakutenItem_(trialItem, 'トイレットペーパー 2倍巻き', trialPlan);
+  const unverifiedTrialScore = uaScoreRakutenItem_(normalPackWithoutTrialEvidence, 'トイレットペーパー 2倍巻き', trialPlan);
   const contradictoryBulkScore = uaScoreRakutenItem_(contradictoryBulkItem, 'トイレットペーパー 2倍巻き', trialPlan);
   const disguisedBulkScore = uaScoreRakutenItem_(disguisedBulkItem, 'トイレットペーパー 2倍巻き', trialPlan);
   const multipliedBulkScore = uaScoreRakutenItem_(multipliedBulkItem, 'トイレットペーパー 2倍巻き', trialPlan);
@@ -2386,6 +2502,22 @@ function uaTestStructuredProductPlanRouting() {
     excluded_features: ['室内専用']
   });
   const excludedFeatureHit = uaEvaluateProductPlanFit_('室内用 センサーライト 人感式', excludedFeaturePlan);
+  const legacyQuantityGuessPlan = uaNormalizeProductPlan_({
+    should_insert: true,
+    primary_product: '2倍巻きトイレットペーパー',
+    cta_reason: '初回は少量パックから試したい'
+  });
+  const standardNormalFit = uaEvaluateProductPlanFit_('2倍巻き トイレットペーパー ダブル 6ロール', legacyQuantityGuessPlan);
+  const standardBulkFit = uaEvaluateProductPlanFit_('ふるさと納税 2倍巻き トイレットペーパー 備蓄用', legacyQuantityGuessPlan);
+  const normalizedStandardCopy = uaNormalizeUnsupportedTrialGuidance_(
+    '<h3>初回は少量パックで試す</h3><p>少量から試すほうが安心です。</p>',
+    legacyQuantityGuessPlan
+  );
+  const markerOnly = uaAttachProductPlanMarker_('<p>本文です。</p>', legacyQuantityGuessPlan);
+  const wrappedMarker = '<p>' + markerOnly.split('\n')[0] + '</p>\n<p>本文です。</p>';
+  const preservedMarker = uaPreserveProductPlanMarker_('<p>編集後です。</p>', markerOnly);
+  const standardRetryQueries = uaBuildPurchaseScaleRetryQueries_('トイレットペーパー 2倍巻き', legacyQuantityGuessPlan);
+  const standardSearchTuning = uaBuildRakutenSearchTuning_(legacyQuantityGuessPlan);
   const noProductBody = uaAttachProductPlanMarker_('<p>制度を確認します。</p>', {
     should_insert: false,
     purpose: '制度の確認が中心で商品購入では解決しない'
@@ -2397,12 +2529,23 @@ function uaTestStructuredProductPlanRouting() {
     { name: 'good item score', ok: goodScore > weakScore, actual: [goodScore, weakScore] },
     { name: 'exclude wrong category', ok: excludedScore < 1, actual: excludedScore },
     { name: 'accept trial-size product', ok: trialScore > 0, actual: trialScore },
+    { name: 'reject normal pack when trial unit is not grounded', ok: unverifiedTrialScore < 1, actual: unverifiedTrialScore },
     { name: 'reject bulk product against trial CTA', ok: contradictoryBulkScore < 1, actual: contradictoryBulkScore },
     { name: 'reject stockpile product against trial CTA', ok: disguisedBulkScore < 1, actual: disguisedBulkScore },
     { name: 'reject multiplied quantity against trial CTA', ok: multipliedBulkScore < 1, actual: multipliedBulkScore },
     { name: 'accept explicit required features', ok: requiredFeatureGood.pass, actual: requiredFeatureGood },
     { name: 'reject missing required features', ok: !requiredFeatureMissing.pass, actual: requiredFeatureMissing },
     { name: 'reject explicit excluded feature', ok: !excludedFeatureHit.pass, actual: excludedFeatureHit },
+    { name: 'do not infer trial SKU from CTA copy', ok: legacyQuantityGuessPlan.purchaseScale === 'standard', actual: legacyQuantityGuessPlan.purchaseScale },
+    { name: 'replace unsupported trial CTA for standard purchase', ok: legacyQuantityGuessPlan.ctaReason === '初回からまとめ買いせず、通常販売単位で比較しやすいため', actual: legacyQuantityGuessPlan.ctaReason },
+    { name: 'normalize unsupported trial language in standard article', ok: normalizedStandardCopy.indexOf('少量') === -1 && normalizedStandardCopy.indexOf('通常販売単位') !== -1, actual: normalizedStandardCopy },
+    { name: 'accept normal quantity for standard purchase', ok: standardNormalFit.pass, actual: standardNormalFit },
+    { name: 'reject explicit stockpile item for standard purchase', ok: !standardBulkFit.pass, actual: standardBulkFit },
+    { name: 'hide bare product plan marker', ok: uaStripProductPlanMarker_(markerOnly) === '<p>本文です。</p>' },
+    { name: 'hide paragraph-wrapped product plan marker', ok: uaStripProductPlanMarker_(wrappedMarker) === '<p>本文です。</p>' },
+    { name: 'preserve hidden product plan after visible edit', ok: !!uaExtractProductPlan_(preservedMarker) && uaStripProductPlanMarker_(preservedMarker) === '<p>編集後です。</p>' },
+    { name: 'retry standard retail units', ok: standardRetryQueries.join('|') === 'トイレットペーパー 2倍巻き 単品|トイレットペーパー 2倍巻き 1パック', actual: standardRetryQueries },
+    { name: 'surface normal retail products before bulk listings', ok: standardSearchTuning.sort === '+itemPrice' && standardSearchTuning.ngKeyword === 'ふるさと納税', actual: standardSearchTuning },
     { name: 'skip non-product article', ok: !uaShouldInsertRakutenAffiliateBanner_(noProductBody, row, config) }
   ];
   const failures = checks.filter(function(check) { return !check.ok; });

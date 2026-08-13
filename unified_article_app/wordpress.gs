@@ -99,14 +99,16 @@ function uaCreateWpDraftFromPanel(data) {
     throw new Error('WP draft: title candidates are empty.');
   }
 
-  const wpBody = uaRemoveRedundantAffiliateDisclosure_(uaNormalizeAnchorRelAttributes_(uaApplyNaviokunIntroSet_(
+  const productPlan = uaExtractProductPlan_(rowData.body);
+  const storedBody = uaNormalizeUnsupportedTrialGuidance_(uaRemoveRedundantAffiliateDisclosure_(uaNormalizeAnchorRelAttributes_(uaApplyNaviokunIntroSet_(
     uaApplyManagedAffiliateCta_(uaRemoveRedundantAffiliateDisclosure_(rowData.body), rowData, appConfig),
     rowData,
     appConfig
-  )));
-  if (wpBody !== String(rowData.body || '')) {
-    sheet.getRange(row, UA_COLUMNS.body).setValue(wpBody);
-    rowData.body = wpBody;
+  ))), productPlan);
+  const wpBody = uaStripProductPlanMarker_(storedBody);
+  if (storedBody !== String(rowData.body || '')) {
+    sheet.getRange(row, UA_COLUMNS.body).setValue(storedBody);
+    rowData.body = storedBody;
   }
 
   const allowedUnverifiedMarketFreshnessDraft = !!(data && data.allowUnverifiedMarketFreshnessDraft);
@@ -241,7 +243,9 @@ function uaAddWpImagesFromPanel(data) {
 
   const postId = Number(rowData.wpPostId || 0);
   if (postId > 0) {
-    uaUpdateWpPostWithImages_(wpConfig, postId, body, featuredMediaId, uploaded);
+    const productPlan = uaExtractProductPlan_(body);
+    const wpBody = uaStripProductPlanMarker_(uaNormalizeUnsupportedTrialGuidance_(body, productPlan));
+    uaUpdateWpPostWithImages_(wpConfig, postId, wpBody, featuredMediaId, uploaded);
   }
 
   const nextData = uaBuildRowData_(sheet, row);

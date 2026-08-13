@@ -1015,6 +1015,12 @@
         return data;
       }
 
+      function visibleArticleBody(body) {
+        return String(body || '')
+          .replace(/<p\b[^>]*>\s*<!--\s*UA_PRODUCT_PLAN:[^>]+-->\s*<\/p>\s*/gi, '')
+          .replace(/<!--\s*UA_PRODUCT_PLAN:[^>]+-->\s*/gi, '');
+      }
+
       function fillForm(data) {
         isFillingForm = true;
         rakutenSuggestionRequestToken += 1;
@@ -1022,8 +1028,11 @@
         fields.forEach(function(id) {
           const el = document.getElementById(id);
           if (!el) return;
-          el.value = data && data[id] ? data[id] : '';
+          el.value = id === 'body'
+            ? visibleArticleBody(data && data[id])
+            : (data && data[id] ? data[id] : '');
         });
+        document.getElementById('body').value = visibleArticleBody(document.getElementById('body').value);
         applyDefaultImageStyle();
         applyTheme();
         loadAutomaticPostingSettings();

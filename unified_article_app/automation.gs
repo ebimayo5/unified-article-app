@@ -462,6 +462,8 @@ function uaPublishWpPostFromAutomation_(data, requireImages) {
     throw new Error('アイキャッチがWordPressに反映されていないため、下書きで停止しました。');
   }
 
+  uaSyncWpMetaDescription_(wpConfig, postId, rowData.metaDescription);
+
   const post = uaCallWordPressApi_(
     wpConfig,
     '/wp-json/wp/v2/posts/' + encodeURIComponent(postId),

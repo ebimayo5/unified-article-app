@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Article Compass Rinker Bridge
  * Description: Article Compass SystemからRinker商品リンクを安全に作成・再利用します。
- * Version: 1.0.0
+ * Version: 1.1.0
  * Author: Article Compass System
  */
 
@@ -14,6 +14,8 @@ final class Article_Compass_Rinker_Bridge {
     const REST_NAMESPACE = 'article-compass/v1';
     const RINKER_POST_TYPE = 'yyi_rinker';
     const META_KEY = 'article_compass_rinker_key';
+    const COCOON_DESCRIPTION_META_KEY = 'the_page_meta_description';
+    const DESCRIPTION_HASH_META_KEY = 'article_compass_description_hash';
 
     public static function init() {
         add_action('rest_api_init', array(__CLASS__, 'register_routes'));
@@ -31,17 +33,72 @@ final class Article_Compass_Rinker_Bridge {
             'callback' => array(__CLASS__, 'upsert_items'),
             'permission_callback' => array(__CLASS__, 'can_edit_posts'),
         ));
+
+        register_rest_route(self::REST_NAMESPACE, '/post-seo-meta', array(
+            'methods' => WP_REST_Server::CREATABLE,
+            'callback' => array(__CLASS__, 'update_post_seo_meta'),
+            'permission_callback' => array(__CLASS__, 'can_edit_target_post'),
+        ));
     }
 
     public static function can_edit_posts() {
         return current_user_can('edit_posts');
     }
 
+    public static function can_edit_target_post(WP_REST_Request $request) {
+        $post_id = absint($request->get_param('post_id'));
+        return $post_id > 0 && current_user_can('edit_post', $post_id);
+    }
+
     public static function status() {
         return rest_ensure_response(array(
             'ok' => true,
             'rinker_active' => post_type_exists(self::RINKER_POST_TYPE),
-            'bridge_version' => '1.0.0',
+            'bridge_version' => '1.1.0',
+            'seo_meta_supported' => true,
+        ));
+    }
+
+    public static function update_post_seo_meta(WP_REST_Request $request) {
+        $post_id = absint($request->get_param('post_id'));
+        $description = sanitize_textarea_field((string) $request->get_param('meta_description'));
+
+        if ($post_id <= 0 || get_post_type($post_id) !== 'post') {
+            return new WP_Error('invalid_post', '対象の投稿が見つかりません。', array('status' => 404));
+        }
+        if ($description === '') {
+            return rest_ensure_response(array(
+                'ok' => true,
+                'updated' => false,
+                'preserved' => true,
+                'reason' => 'empty_input',
+            ));
+        }
+
+        $current = (string) get_post_meta($post_id, self::COCOON_DESCRIPTION_META_KEY, true);
+        $managed_hash = (string) get_post_meta($post_id, self::DESCRIPTION_HASH_META_KEY, true);
+        $current_hash = $current !== '' ? hash('sha256', $current) : '';
+        $is_managed_value = $current !== '' && $managed_hash !== '' && hash_equals($managed_hash, $current_hash);
+
+        if ($current !== '' && !$is_managed_value) {
+            return rest_ensure_response(array(
+                'ok' => true,
+                'updated' => false,
+                'preserved' => true,
+                'reason' => 'manual_value_preserved',
+                'length' => mb_strlen($current),
+            ));
+        }
+
+        update_post_meta($post_id, self::COCOON_DESCRIPTION_META_KEY, $description);
+        update_post_meta($post_id, self::DESCRIPTION_HASH_META_KEY, hash('sha256', $description));
+
+        return rest_ensure_response(array(
+            'ok' => true,
+            'updated' => true,
+            'preserved' => false,
+            'reason' => $current === '' ? 'inserted' : 'managed_value_updated',
+            'length' => mb_strlen($description),
         ));
     }
 

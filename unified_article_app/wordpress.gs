@@ -170,6 +170,8 @@ function uaCreateWpDraftFromPanel(data) {
     throw new Error('WP draft: 既存下書きの更新確認に失敗しました。別の投稿IDは保存しません。');
   }
 
+  uaSyncWpMetaDescription_(wpConfig, postId, rowData.metaDescription);
+
   const editUrl = uaBuildWpEditUrl_(wpConfig.siteUrl, postId);
   const draftedAt = new Date();
 
@@ -634,6 +636,34 @@ function uaCallWordPressApi_(wpConfig, path, method, payload) {
   }
 
   return json;
+}
+
+function uaSyncWpMetaDescription_(wpConfig, postId, metaDescription) {
+  const cleanPostId = Number(postId || 0);
+  const description = String(metaDescription || '').replace(/\s+/g, ' ').trim();
+  if (!cleanPostId || !description) {
+    return {
+      ok: true,
+      updated: false,
+      preserved: true,
+      reason: !cleanPostId ? 'missing_post_id' : 'empty_input'
+    };
+  }
+
+  const result = uaCallWordPressApi_(
+    wpConfig,
+    '/wp-json/article-compass/v1/post-seo-meta',
+    'post',
+    {
+      post_id: cleanPostId,
+      meta_description: description
+    }
+  );
+
+  if (!result || result.ok !== true) {
+    throw new Error('WordPressメタディスクリプションの反映確認に失敗しました。');
+  }
+  return result;
 }
 
 function uaBuildWordPressHttpErrorMessage_(statusCode, method, path, responseText, isHtml) {

@@ -19,6 +19,8 @@ const UA_TREFAI_STATUS_PENDING = 'pending';
 const UA_TREFAI_STATUS_RUNNING = 'running';
 const UA_TREFAI_STATUS_DONE = 'done';
 const UA_TREFAI_STATUS_ERROR = 'error';
+// PC側が中断したジョブだけを安全に再取得できるようにする。
+const UA_TREFAI_RUNNING_STALE_MINUTES = 30;
 
 function uaRunArticleStructureFromPanel(data) {
   return uaRunArticleStructureForData_(data || {});
@@ -247,6 +249,7 @@ function uaGetNextTrefaiStructureJob_(payload) {
 
   try {
     const sheet = uaEnsureTrefaiQueueSheet_();
+    uaRequeueStaleTrefaiJobs_(sheet);
     const lastRow = sheet.getLastRow();
     if (lastRow < 2) {
       return {
@@ -289,6 +292,37 @@ function uaGetNextTrefaiStructureJob_(payload) {
   } finally {
     lock.releaseLock();
   }
+}
+
+function uaRequeueStaleTrefaiJobs_(sheet) {
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) return 0;
+
+  const now = new Date();
+  const staleBefore = now.getTime() - UA_TREFAI_RUNNING_STALE_MINUTES * 60 * 1000;
+  const values = sheet.getRange(2, 1, lastRow - 1, UA_TREFAI_QUEUE_COLUMNS.resultJson).getValues();
+  let recovered = 0;
+
+  for (let index = 0; index < values.length; index++) {
+    const item = values[index];
+    const status = String(item[UA_TREFAI_QUEUE_COLUMNS.status - 1] || '').trim();
+    if (status !== UA_TREFAI_STATUS_RUNNING) continue;
+
+    const updatedAt = item[UA_TREFAI_QUEUE_COLUMNS.updatedAt - 1];
+    const updatedTime = updatedAt instanceof Date ? updatedAt.getTime() : new Date(updatedAt).getTime();
+    if (!Number.isFinite(updatedTime) || updatedTime > staleBefore) continue;
+
+    const rowNumber = index + 2;
+    sheet.getRange(rowNumber, UA_TREFAI_QUEUE_COLUMNS.status).setValue(UA_TREFAI_STATUS_PENDING);
+    sheet.getRange(rowNumber, UA_TREFAI_QUEUE_COLUMNS.updatedAt).setValue(now);
+    sheet.getRange(rowNumber, UA_TREFAI_QUEUE_COLUMNS.message).setValue(
+      '30分以上更新がないため、自動で待機状態へ戻しました。PC側で処理を再取得します。'
+    );
+    recovered++;
+  }
+
+  if (recovered > 0) SpreadsheetApp.flush();
+  return recovered;
 }
 
 function uaCompleteTrefaiStructureJob_(payload) {

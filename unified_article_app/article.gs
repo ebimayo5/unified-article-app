@@ -2228,11 +2228,140 @@ function uaFetchRakutenItems_(query, maxItems, selectionSeed, productPlan) {
       return uaStableRakutenSelectionOffset_(String(selectionSeed || query) + '|' + a.url, 1000) -
         uaStableRakutenSelectionOffset_(String(selectionSeed || query) + '|' + b.url, 1000);
     });
-    return candidates.slice(0, hits);
+    return uaSelectDiverseRakutenItems_(candidates, hits, selectionSeed || query);
   } catch (e) {
     UA_LAST_RAKUTEN_STATUS = '楽天API取得エラー: ' + e.toString();
     return [];
   }
+}
+
+function uaSelectDiverseRakutenItems_(candidates, maxItems, selectionSeed) {
+  const limit = Math.max(1, Math.min(3, Number(maxItems) || 1));
+  const source = (candidates || []).filter(function(item) {
+    return item && item.name && item.url;
+  });
+  if (source.length <= 1 || limit === 1) return source.slice(0, limit);
+
+  source.sort(function(a, b) {
+    if (Number(b.relevanceScore || 0) !== Number(a.relevanceScore || 0)) {
+      return Number(b.relevanceScore || 0) - Number(a.relevanceScore || 0);
+    }
+    if (Number(b.reviewCount || 0) !== Number(a.reviewCount || 0)) {
+      return Number(b.reviewCount || 0) - Number(a.reviewCount || 0);
+    }
+    return uaStableRakutenSelectionOffset_(String(selectionSeed || '') + '|' + a.url, 1000) -
+      uaStableRakutenSelectionOffset_(String(selectionSeed || '') + '|' + b.url, 1000);
+  });
+
+  const selected = [source.shift()];
+  const topRelevance = Number(selected[0].relevanceScore || 0);
+  const minimumRelevance = Math.max(1, topRelevance - 15);
+  const eligible = source.filter(function(item) {
+    return Number(item.relevanceScore || 0) >= minimumRelevance;
+  });
+
+  while (selected.length < limit && eligible.length > 0) {
+    let bestIndex = 0;
+    let bestScore = -Infinity;
+    eligible.forEach(function(item, index) {
+      const qualityScore = Number(item.relevanceScore || 0) * 2 +
+        Math.min(10, Math.log(Number(item.reviewCount || 0) + 1) / Math.log(2));
+      const diversityScore = selected.reduce(function(lowest, chosen) {
+        return Math.min(lowest, uaRakutenChoiceDifferenceScore_(item, chosen));
+      }, 100);
+      const stableTieBreak = uaStableRakutenSelectionOffset_(
+        String(selectionSeed || '') + '|' + String(item.url || ''),
+        1000
+      ) / 10000;
+      const total = qualityScore + diversityScore + stableTieBreak;
+      if (total > bestScore) {
+        bestScore = total;
+        bestIndex = index;
+      }
+    });
+    selected.push(eligible.splice(bestIndex, 1)[0]);
+  }
+
+  return selected.slice(0, limit);
+}
+
+function uaRakutenChoiceDifferenceScore_(left, right) {
+  const leftName = String(left && left.name || '');
+  const rightName = String(right && right.name || '');
+  const titleDifference = (1 - uaRakutenTitleSimilarity_(leftName, rightName)) * 35;
+  const leftTraits = uaExtractRakutenChoiceTraits_(leftName);
+  const rightTraits = uaExtractRakutenChoiceTraits_(rightName);
+  const traitDifference = leftTraits.some(function(value) {
+    return rightTraits.indexOf(value) === -1;
+  }) || rightTraits.some(function(value) {
+    return leftTraits.indexOf(value) === -1;
+  }) ? 25 : 0;
+  const leftPrice = Number(left && left.price || 0);
+  const rightPrice = Number(right && right.price || 0);
+  const priceDifference = leftPrice > 0 && rightPrice > 0
+    ? Math.min(20, Math.abs(Math.log(leftPrice / rightPrice)) * 18)
+    : 0;
+  return titleDifference + traitDifference + priceDifference;
+}
+
+function uaExtractRakutenChoiceTraits_(itemName) {
+  const text = String(itemName || '').toLowerCase();
+  const values = text.match(/\d+(?:\.\d+)?\s*(?:枚|個|本|ロール|巻|パック|セット|倍|m|cm|mm|l|ml|kg|g|w|畳|人用)/gi) || [];
+  const featureWords = [
+    'コンパクト', '大容量', '薄型', '折りたたみ', '防水', '撥水', '防カビ',
+    '屋外', '室内', 'コードレス', '静音', '軽量', '業務用', '家庭用'
+  ];
+  featureWords.forEach(function(word) {
+    if (text.indexOf(word.toLowerCase()) !== -1) values.push(word);
+  });
+  return values.map(function(value) {
+    return String(value).replace(/[\s　]+/g, '').toLowerCase();
+  }).filter(function(value, index, all) {
+    return all.indexOf(value) === index;
+  });
+}
+
+function uaRakutenTitleSimilarity_(leftName, rightName) {
+  function bigrams(value) {
+    const normalized = String(value || '').toLowerCase().replace(/[\s　\-_/／・,，.。()（）【】\[\]]+/g, '');
+    const result = [];
+    for (let i = 0; i < normalized.length - 1; i++) {
+      const gram = normalized.slice(i, i + 2);
+      if (result.indexOf(gram) === -1) result.push(gram);
+    }
+    return result;
+  }
+  const left = bigrams(leftName);
+  const right = bigrams(rightName);
+  if (left.length === 0 || right.length === 0) return 0;
+  const shared = left.filter(function(value) { return right.indexOf(value) !== -1; }).length;
+  return shared / (left.length + right.length - shared);
+}
+
+function uaTestDiverseRakutenItemSelection() {
+  const candidates = [
+    { name: '2倍巻き トイレットペーパー ダブル 8ロール', url: 'https://example.com/a', price: 980, reviewCount: 300, relevanceScore: 100 },
+    { name: '2倍巻き トイレットペーパー ダブル 8ロール 送料無料', url: 'https://example.com/b', price: 1000, reviewCount: 900, relevanceScore: 99 },
+    { name: '2倍巻き トイレットペーパー ダブル 6ロール コンパクト', url: 'https://example.com/c', price: 760, reviewCount: 180, relevanceScore: 96 },
+    { name: '2倍巻き トイレットペーパー ダブル 12ロール 大容量', url: 'https://example.com/d', price: 1480, reviewCount: 240, relevanceScore: 94 }
+  ];
+  const selected = uaSelectDiverseRakutenItems_(candidates, 3, 'diversity-test');
+  const urls = selected.map(function(item) { return item.url; });
+  const checks = [
+    { name: 'show up to three choices', ok: selected.length === 3, actual: urls },
+    { name: 'keep strongest relevant choice', ok: urls.indexOf('https://example.com/a') !== -1, actual: urls },
+    { name: 'prefer compact variation over duplicate listing', ok: urls.indexOf('https://example.com/c') !== -1, actual: urls },
+    { name: 'prefer large variation over duplicate listing', ok: urls.indexOf('https://example.com/d') !== -1, actual: urls },
+    { name: 'do not fill with much weaker candidate', ok: uaSelectDiverseRakutenItems_([
+      candidates[0],
+      { name: '関連性が弱い商品', url: 'https://example.com/weak', price: 500, reviewCount: 999, relevanceScore: 70 }
+    ], 3, 'weak-test').length === 1 }
+  ];
+  const failures = checks.filter(function(check) { return !check.ok; });
+  if (failures.length > 0) {
+    throw new Error('Diverse Rakuten item selection test failed: ' + JSON.stringify(failures));
+  }
+  return { ok: true, count: checks.length, selected: urls };
 }
 
 function uaBuildRakutenSearchTuning_(productPlan) {

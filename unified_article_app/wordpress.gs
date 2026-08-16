@@ -663,6 +663,15 @@ function uaSyncWpMetaDescription_(wpConfig, postId, metaDescription) {
   if (!result || result.ok !== true) {
     throw new Error('WordPressメタディスクリプションの反映確認に失敗しました。');
   }
+
+  const acceptedManualValue = result.preserved === true &&
+    String(result.reason || '') === 'manual_value_preserved';
+  if (result.updated !== true && !acceptedManualValue) {
+    throw new Error(
+      'WordPressメタディスクリプションが保存されませんでした。受信結果: ' +
+      String(result.reason || 'unknown')
+    );
+  }
   return result;
 }
 

@@ -2031,7 +2031,7 @@ function uaSelectRakutenCategoryQueries_(body, rowData, appConfig, primaryQuery)
 
 function uaFetchRakutenItemsByQueries_(queries, maxItems, selectionSeed, productPlan) {
   const results = [];
-  const seenUrls = {};
+  const seenItems = {};
   const limit = Math.max(1, Math.min(3, Number(maxItems) || 3));
 
   (queries || []).forEach(function(query) {
@@ -2040,8 +2040,9 @@ function uaFetchRakutenItemsByQueries_(queries, maxItems, selectionSeed, product
     const items = uaFetchRakutenItems_(query, 1, String(selectionSeed || '') + '|' + query, productPlan);
     items.forEach(function(item) {
       if (results.length >= limit) return;
-      if (!item || !item.url || seenUrls[item.url]) return;
-      seenUrls[item.url] = true;
+      const key = uaRakutenItemUniqueKey_(item);
+      if (!key || seenItems[key]) return;
+      seenItems[key] = true;
       results.push(item);
     });
   });
@@ -2059,7 +2060,9 @@ function uaFetchRakutenItemsAcrossQueries_(queries, maxItems, selectionSeed, pro
 
   if (uniqueQueries.length === 0) return [];
   if (uniqueQueries.length === 1) {
-    return uaFetchRakutenItems_(uniqueQueries[0], limit, String(selectionSeed || '') + '|single-query', productPlan);
+    return uaDedupeRakutenItems_(
+      uaFetchRakutenItems_(uniqueQueries[0], limit, String(selectionSeed || '') + '|single-query', productPlan)
+    ).slice(0, limit);
   }
 
   const results = uaFetchRakutenItemsByQueries_(uniqueQueries, limit, selectionSeed, productPlan);
@@ -2071,13 +2074,38 @@ function uaFetchRakutenItemsAcrossQueries_(queries, maxItems, selectionSeed, pro
     String(selectionSeed || '') + '|primary-backfill',
     productPlan
   );
+  return uaDedupeRakutenItems_(results.concat(supplemental)).slice(0, limit);
+}
+
+function uaRakutenItemUniqueKey_(item) {
+  const itemCode = String(item && item.itemCode || '').trim().toLowerCase();
+  if (itemCode) return 'code:' + itemCode;
+
+  const rawUrl = String(item && item.url || '').trim();
+  if (rawUrl) {
+    const normalizedUrl = rawUrl
+      .replace(/^https?:\/\//i, '')
+      .replace(/[?#].*$/, '')
+      .replace(/\/$/, '')
+      .toLowerCase();
+    if (normalizedUrl) return 'url:' + normalizedUrl;
+  }
+
+  const name = String(item && item.name || '')
+    .replace(/[\s　]+/g, '')
+    .trim()
+    .toLowerCase();
+  return name ? 'name:' + name : '';
+}
+
+function uaDedupeRakutenItems_(items) {
   const seen = {};
-  return results.concat(supplemental).filter(function(item) {
-    const key = String(item && (item.itemCode || item.url) || '').trim();
+  return (items || []).filter(function(item) {
+    const key = uaRakutenItemUniqueKey_(item);
     if (!key || seen[key]) return false;
     seen[key] = true;
     return true;
-  }).slice(0, limit);
+  });
 }
 
 function uaRakutenTextContains_(text, keyword) {
@@ -2824,7 +2852,7 @@ function uaBuildRakutenSingleItemBannerHtml_(item, query) {
 }
 
 function uaBuildRakutenItemBannerHtml_(items, query, productPlan, appConfig) {
-  items = (items || []).slice(0, 3);
+  items = uaDedupeRakutenItems_(items).slice(0, 3);
 
   if (items.length === 0) {
     return '';
@@ -2897,7 +2925,7 @@ function uaBuildRakutenItemBannerHtml_(items, query, productPlan, appConfig) {
 }
 
 function uaBuildHomeRinkerItemsHtml_(items, fallbackQuery, appConfig) {
-  const sourceItems = (items || []).slice(0, 3);
+  const sourceItems = uaDedupeRakutenItems_(items).slice(0, 3);
   if (sourceItems.length === 0) return '';
 
   try {
@@ -2927,7 +2955,9 @@ function uaBuildHomeRinkerItemsHtml_(items, fallbackQuery, appConfig) {
       'post',
       { items: payloadItems }
     );
-    const savedItems = response && Array.isArray(response.items) ? response.items : [];
+    const savedItems = uaDedupeRinkerSavedItems_(
+      response && Array.isArray(response.items) ? response.items : []
+    );
     const shortcodeHtml = uaBuildRinkerShortcodeBlocks_(savedItems);
     if (!shortcodeHtml) return '';
 
@@ -2939,8 +2969,19 @@ function uaBuildHomeRinkerItemsHtml_(items, fallbackQuery, appConfig) {
   }
 }
 
+function uaDedupeRinkerSavedItems_(items) {
+  const seen = {};
+  return (items || []).filter(function(item) {
+    const postId = Number(item && item.post_id || 0);
+    const key = postId > 0 ? 'post:' + postId : uaRakutenItemUniqueKey_(item);
+    if (!key || seen[key]) return false;
+    seen[key] = true;
+    return true;
+  });
+}
+
 function uaBuildRinkerShortcodeBlocks_(savedItems) {
-  return (savedItems || []).map(function(item) {
+  return uaDedupeRinkerSavedItems_(savedItems).map(function(item) {
     const postId = Number(item && item.post_id || 0);
     if (postId <= 0) return '';
     return [

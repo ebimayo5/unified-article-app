@@ -11,6 +11,38 @@ const context = { console };
 vm.createContext(context);
 vm.runInContext(source, context);
 
+const duplicateProductVariants = [
+  {
+    itemCode: 'shop:popup-tent-1',
+    url: 'https://item.rakuten.co.jp/shop/popup-tent-1/?scid=af_pc_etc',
+    name: '収納しやすいポップアップテント'
+  },
+  {
+    itemCode: 'shop:popup-tent-1',
+    url: 'https://hb.afl.rakuten.co.jp/hgc/example/?pc=https%3A%2F%2Fitem.rakuten.co.jp%2Fshop%2Fpopup-tent-1%2F',
+    name: '収納しやすいポップアップテント'
+  },
+  {
+    itemCode: 'shop:popup-tent-2',
+    url: 'https://item.rakuten.co.jp/shop/popup-tent-2/',
+    name: '別仕様のポップアップテント'
+  }
+];
+assert.deepStrictEqual(
+  Array.from(context.uaDedupeRakutenItems_(duplicateProductVariants), item => item.itemCode),
+  ['shop:popup-tent-1', 'shop:popup-tent-2'],
+  '同じ楽天itemCodeはURLが違っても1商品にまとめる'
+);
+assert.strictEqual(
+  context.uaBuildRinkerShortcodeBlocks_([
+    { post_id: 501 },
+    { post_id: 501 },
+    { post_id: 502 }
+  ]).match(/\[itemlink/g).length,
+  2,
+  '同じRinker post_idのショートコードを重複出力しない'
+);
+
 const originalSingleFetch = context.uaFetchRakutenItems_;
 const originalMultiFetch = context.uaFetchRakutenItemsByQueries_;
 

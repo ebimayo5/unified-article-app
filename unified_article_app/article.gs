@@ -88,14 +88,15 @@ function uaNormalizeProductPlan_(value) {
 function uaCanUseSupplementalProductPlan_(productPlan, body, rowData, appConfig) {
   const plan = uaNormalizeProductPlan_(productPlan);
   if (!plan || plan.shouldInsert || !appConfig || appConfig.key !== 'home') return false;
-  if (!plan.primaryProduct && !plan.marketQuery) return false;
 
   const notes = String(rowData && rowData.affiliateNotes || '');
   if (/楽天バナーなし|楽天なし/.test(notes)) return false;
 
   const mainInput = String(rowData && rowData.mainInput || '');
+  const inferredQuery = uaSelectRakutenKeywordFallbackQuery_(mainInput, appConfig.key);
+  if (!plan.primaryProduct && !plan.marketQuery && !inferredQuery) return false;
   const articleText = [mainInput, body, plan.purpose, plan.benefit].join(' ');
-  const productText = [plan.primaryProduct, plan.marketQuery].join(' ');
+  const productText = [plan.primaryProduct, plan.marketQuery, inferredQuery].join(' ');
   const productTerms = productText.split(/[\s　,，、\/／・|｜]+/).filter(function(term) {
     return term.length >= 2 && !/^(家庭用|おすすめ|比較|対策|商品)$/.test(term);
   });
@@ -109,17 +110,24 @@ function uaCanUseSupplementalProductPlan_(productPlan, body, rowData, appConfig)
   return directlyRelated || supportiveContext && !nonProductCore;
 }
 
-function uaBuildSupplementalProductPlan_(productPlan, rowData) {
+function uaBuildSupplementalProductPlan_(productPlan, rowData, appConfig) {
   const plan = uaNormalizeProductPlan_(productPlan);
   if (!plan) return null;
-  const productLabel = plan.primaryProduct || plan.marketQuery || '関連商品';
   const mainInput = String(rowData && rowData.mainInput || '');
+  const inferredQuery = uaSelectRakutenKeywordFallbackQuery_(mainInput, appConfig && appConfig.key);
+  const inferredProduct = mainInput
+    .replace(/(?:たためない|畳めない|できない|使えない|外れない|動かない|入らない|後悔|やめた|デメリット|いらない|難しい|面倒|おすすめ|比較|口コミ|評判)/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const productLabel = plan.primaryProduct || inferredProduct || plan.marketQuery || inferredQuery || '関連商品';
   const hasTroubleAndPrePurchaseIntent = /(たためない|畳めない|できない|使えない|外れない|動かない|入らない|後悔|やめた|デメリット|いらない|難しい|面倒)/.test(mainInput);
   const ctaReason = hasTroubleAndPrePurchaseIntent
     ? '今使っているもので解決できるなら買い替えは不要ですが、購入前の人や同じ不便を繰り返したくない人は、' + productLabel + 'のサイズや仕様を比較できるため'
     : '本文の判断条件に当てはまり、' + productLabel + 'で手間や不便を減らしたい場合は、購入前にサイズや仕様を比較できるため';
   return uaNormalizeProductPlan_(Object.assign({}, plan, {
     shouldInsert: true,
+    primaryProduct: plan.primaryProduct || productLabel,
+    marketQuery: plan.marketQuery || inferredQuery || productLabel,
     benefit: plan.benefit || '自分の条件に合う選択肢を見つけやすくなる',
     ctaReason: ctaReason
   }));
@@ -1544,7 +1552,7 @@ function uaBuildRakutenAffiliateBanner_(body, rowData, appConfig) {
   const query = uaSelectRakutenProductQuery_(body, rowData, appConfig);
   const productPlan = uaExtractProductPlan_(body);
   let effectiveProductPlan = uaCanUseSupplementalProductPlan_(productPlan, body, rowData, appConfig)
-    ? uaBuildSupplementalProductPlan_(productPlan, rowData)
+    ? uaBuildSupplementalProductPlan_(productPlan, rowData, appConfig)
     : productPlan;
 
   if (!query) {
@@ -1634,6 +1642,8 @@ function uaSelectRakutenProductQuery_(body, rowData, appConfig) {
     if (productPlan.primaryProduct) {
       return [productPlan.primaryProduct].concat(productPlan.mustHave.slice(0, 2)).join(' ').trim();
     }
+    const supplementalQuery = uaSelectRakutenKeywordFallbackQuery_(rowData && rowData.mainInput, appConfig && appConfig.key);
+    if (supplementalQuery) return supplementalQuery;
   }
 
   if (!uaHasMainAffiliateProject_(rowData)) {
@@ -1703,13 +1713,15 @@ function uaSelectRakutenKeywordFallbackQuery_(keyword, appKey) {
   if (!value) return '';
 
   const productPattern = appKey === 'home'
-    ? /(サンシェード|日よけ|収納|チェスト|棚|ラック|マット|カーテン|照明|ライト|カメラ|エアコン|除湿機|サーキュレーター|物干し|掃除|ブラシ|防災|ゲート|スロープ|家電|家具)/
+    ? /(ポップアップテント|ワンタッチテント|テント|サンシェード|日よけ|収納|チェスト|棚|ラック|マット|カーテン|照明|ライト|カメラ|エアコン|除湿機|サーキュレーター|物干し|掃除|ブラシ|防災|ゲート|スロープ|家電|家具)/
     : /(ブレーキパッド|カーナビ|ナビゲーション|アンドロイドナビ|ディスプレイオーディオ|ドラレコ|ドライブレコーダー|レーダー探知機|バックカメラ|モニター|HDMI|USB|スピーカー|スマホホルダー|サンシェード|フロアマット|シートマット|シートカバー|シートクッション|収納|ドリンクホルダー|ルーフキャリア|ポータブル電源|ジャンプスターター|バッテリー|タイヤ|ホイール|タイヤチェーン|洗車|クリーナー|コーティング|ワックス|カー用品|車中泊)/i;
 
   if (!productPattern.test(value)) return '';
 
   const canonicalQueries = appKey === 'home'
     ? [
+      { pattern: /ポップアップテント/, query: 'ポップアップテント 収納しやすい' },
+      { pattern: /ワンタッチテント/, query: 'ワンタッチテント 収納しやすい' },
       { pattern: /サンシェード|日よけ/, query: 'サンシェード ベランダ 日よけ' },
       { pattern: /ランドリー.*(?:収納|チェスト)|(?:収納|チェスト).*ランドリー/, query: 'ランドリーチェスト 防カビ' },
       { pattern: /除湿機|除湿器/, query: '除湿機 コンパクト' },

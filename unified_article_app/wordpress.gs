@@ -117,7 +117,7 @@ function uaCreateWpDraftFromPanel(data) {
   });
 
   const wpConfig = uaGetWpConfig_(appConfig);
-  const title = uaPickWpTitle_(rowData.titleIdeas);
+  const title = uaPickWpTitle_(rowData.titleIdeas, rowData.mainInput, rowData.body);
   const slug = uaCleanWpSlug_(rowData.permalink);
   const tagIds = uaEnsureWpTagIds_(wpConfig, rowData.tags);
   const categoryIds = uaResolveWpCategoryIds_(wpConfig, rowData, appConfig);
@@ -1157,22 +1157,162 @@ function uaGetWpCategoryIds_(wpConfig) {
     });
 }
 
-function uaPickWpTitle_(titleIdeas) {
-  const text = String(titleIdeas || '').trim();
+function uaPickWpTitle_(titleIdeas, mainInput, bodyHtml) {
+  const candidates = uaParseWpTitleCandidates_(titleIdeas);
+  if (candidates.length === 0) return '';
+  if (candidates.length === 1) return candidates[0];
 
-  if (!text) {
-    return '';
+  let bestTitle = candidates[0];
+  let bestScore = -Infinity;
+  candidates.forEach(function(candidate, index) {
+    const score = uaScoreWpTitleCandidate_(candidate, mainInput, bodyHtml, index);
+    if (score > bestScore) {
+      bestScore = score;
+      bestTitle = candidate;
+    }
+  });
+  return bestTitle;
+}
+
+function uaParseWpTitleCandidates_(titleIdeas) {
+  const text = String(titleIdeas || '')
+    .replace(/\r\n?/g, '\n')
+    .trim();
+  if (!text) return [];
+
+  const labelPattern = /(?:^|\n+|[ \t]*[\/／|｜][ \t]*)案\s*[1-3１-３一二三]\s*(?:[:：・\-]\s*)?/gim;
+  let parts;
+  const hasLabels = labelPattern.test(text);
+  labelPattern.lastIndex = 0;
+  if (hasLabels) {
+    parts = text
+      .replace(labelPattern, '\n@@UA_TITLE@@')
+      .split('@@UA_TITLE@@');
+  } else {
+    parts = text.split(/[\/／]+|\n+/);
   }
 
-  const first = text
-    // Title ideas are joined with a spaced slash (" / "). Japanese titles
-    // commonly contain "・" and "｜", so those characters must remain part
-    // of the selected title.
-    .split(/\s+(?:\/|／)\s+|\r?\n/)[0]
-    .replace(/^案\s*\d+\s*[:：・\-]?\s*/i, '')
-    .trim();
+  const seen = {};
+  const candidates = [];
+  parts.forEach(function(part) {
+    const candidate = String(part || '')
+      .replace(/^[\s\/／|:：・\-]+/, '')
+      .replace(/[\s\/／|]+$/, '')
+      .replace(/^案\s*[1-3１-３一二三]\s*(?:[:：・\-]\s*)?/i, '')
+      .replace(/^(?:[①②③]|[1-3１-３][\.．\)）:：])\s*/, '')
+      .replace(/^["'「『]+|["'」』]+$/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+    if (!candidate || seen[candidate]) return;
+    if (/^案\s*[1-3１-３一二三]$/i.test(candidate)) return;
+    seen[candidate] = true;
+    candidates.push(candidate);
+  });
 
-  return first || text;
+  if (candidates.length === 0) {
+    const fallback = text
+      .replace(/^案\s*[1-3１-３一二三]\s*(?:[:：・\-]\s*)?/i, '')
+      .trim();
+    return fallback ? [fallback] : [];
+  }
+  return candidates.slice(0, 5);
+}
+
+function uaScoreWpTitleCandidate_(title, mainInput, bodyHtml, index) {
+  const cleanTitle = String(title || '').trim();
+  const length = cleanTitle.length;
+  let score = 0;
+
+  if (length >= 28 && length <= 34) score += 8;
+  else if (length >= 24 && length <= 38) score += 4;
+  else if (length < 20 || length > 42) score -= 8;
+
+  const keywordTokens = String(mainInput || '')
+    .toLowerCase()
+    .split(/[\s　,，、\/／・|｜]+/)
+    .map(function(token) { return token.trim(); })
+    .filter(function(token) { return token.length >= 2; });
+  if (keywordTokens.length > 0) {
+    const lowerTitle = cleanTitle.toLowerCase();
+    let covered = 0;
+    keywordTokens.forEach(function(token) {
+      if (lowerTitle.indexOf(token) !== -1) covered++;
+    });
+    score += (covered / keywordTokens.length) * 12;
+  }
+
+  if (/[？?]/.test(cleanTitle)) score += 5;
+  if (/(後悔|失敗|不安|迷|困|本当|大丈夫|必要|できる|使いにくい|外れない|映らない|流れない|理由|原因|違い|総額|費用|いくら|どこ|なぜ|何を|どうする|向く|合う|見分け|選び分け|防ぐ|避ける|減らす|楽に|ラクに)/i.test(cleanTitle)) {
+    score += 5;
+  }
+  if (/｜/.test(cleanTitle)) score += 1;
+  if (/\d|[０-９]/.test(cleanTitle)) score += 1;
+
+  const genericMatches = cleanTitle.match(/(確認ポイント|確認点|判断基準|確認手順|確認項目|確認法|選び方|見極め方|解説)/g) || [];
+  score -= genericMatches.length * 1.5;
+  if (/(確認ポイント|確認点|判断基準|確認手順|確認項目|確認法|選び方|見極め方|解説)$/.test(cleanTitle) &&
+      !/[？?]/.test(cleanTitle) &&
+      !/(後悔|失敗|不安|迷|困|本当|大丈夫|できる|使いにくい|外れない|映らない|流れない)/.test(cleanTitle)) {
+    score -= 5;
+  }
+  if (/で分かる[、,]?/.test(cleanTitle)) score -= 2;
+  if (/案\s*[1-3１-３一二三]/i.test(cleanTitle)) score -= 30;
+  if (/[\/／]\s*案\s*[1-3１-３一二三]/i.test(cleanTitle)) score -= 30;
+
+  // Keep a small stability bonus for the intentionally strongest first idea,
+  // while still allowing a clearly more compelling candidate to win.
+  if (index === 0) score += 0.75;
+  return score;
+}
+
+function uaFindWeakWpTitleReason_(title) {
+  const cleanTitle = String(title || '').trim();
+  if (!cleanTitle) return 'タイトルが空です。';
+  const genericEnding = /(確認ポイント|確認点|判断基準|確認手順|確認項目|確認法|選び方|見極め方|解説)$/;
+  const readerPull = /[？?]|後悔|失敗|不安|迷|困|本当|大丈夫|必要|できる|使いにくい|外れない|映らない|流れない|理由|原因|違い|総額|費用|いくら|どこ|なぜ|何を|どうする|向く|合う|見分け|選び分け|防ぐ|避ける|減らす|楽に|ラクに/;
+  if (genericEnding.test(cleanTitle) && !readerPull.test(cleanTitle)) {
+    return '「確認ポイント」「判断基準」などの抽象語で終わり、読者の疑問や読むメリットが伝わりにくいです。';
+  }
+  if (/で分かる[、,]?/.test(cleanTitle) && !/[？?]/.test(cleanTitle)) {
+    return '「〜で分かる」が説明的で、読者が自分事として読みたくなる焦点が弱いです。';
+  }
+  return '';
+}
+
+function uaTestWpTitleSelection() {
+  const cases = [
+    {
+      input: '案1 / ハリアーのテレビキャンセラー選び｜適合とタイプ比較で後悔を防ぐ / 案2 / ハリアーのテレビキャンセラーは必要？ナビ操作の注意点 / 案3 / ハリアーのテレビキャンセラーを安全に選ぶ3つの確認項目',
+      keyword: 'ハリアー テレビキャンセラー'
+    },
+    {
+      input: '案1 カーナビ画面が映らない原因と確認手順 / 案2 音は出るのに画面が真っ暗なときは故障？ / 案3 修理か交換か迷ったときの見分け方',
+      keyword: 'カーナビ 画面 映らない 音は出る'
+    },
+    {
+      input: '案1：乾太くんで後悔する家庭は？\n案2：乾太くんは必要？容量と動線で判断\n案3：乾太くんを付ける前に知りたい費用差',
+      keyword: '乾太くん 後悔'
+    }
+  ];
+  const results = cases.map(function(testCase) {
+    const candidates = uaParseWpTitleCandidates_(testCase.input);
+    const selected = uaPickWpTitle_(testCase.input, testCase.keyword, '');
+    const ok = candidates.length === 3 &&
+      selected.length < 60 &&
+      !/案\s*[1-3１-３一二三]/.test(selected);
+    return {
+      keyword: testCase.keyword,
+      candidates: candidates,
+      selected: selected,
+      weakReason: uaFindWeakWpTitleReason_(selected),
+      ok: ok
+    };
+  });
+  const failures = results.filter(function(result) { return !result.ok; });
+  if (failures.length > 0) {
+    throw new Error('WP title selection test failed: ' + JSON.stringify(failures));
+  }
+  return { ok: true, count: results.length, results: results };
 }
 
 function uaCleanWpSlug_(slug) {

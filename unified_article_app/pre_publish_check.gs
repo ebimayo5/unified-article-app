@@ -486,10 +486,12 @@ function uaBuildPrePublishRevisionPrompt_(rowData, checkReport, externalSourcesP
     'H2は「よくある質問」「まとめ」を含めて基本6〜8個を目安にしてください。9個でも検索意図・判断材料・役割が明確に異なるなら、数だけを理由に統合しないでください。10個以上の場合は細分化しすぎていないか確認し、内容が重複するH2だけを統合して詳細をH3へ整理してください。6個未満でも、テーマが十分整理されているなら数合わせで不要なH2を増やさないでください。',
     'FAQはH2「よくある質問」の直下にH3「Q. 質問」を置き、回答はp要素にしてください。FAQ内の質問にH4は使わないでください。',
     'タイトル案を直す場合は、メインキーワードの主要語を自然な日本語として含めてください。検索語を一字一句そのまま連結せず、助詞・疑問形・語順を整え、「何の記事か」と「なぜ読むのか」が同時に分かる30〜32文字を目安にします。数字は本文に根拠があり具体性が増す案だけに使い、3案すべてへ機械的に入れません。先頭案をSEOと読者訴求を最も自然に両立した第一候補にし、煽りや本文にない約束は禁止です。',
+    '「確認ポイント」「判断基準」「確認手順」「選び方」「解説」だけで無難にまとめないでください。少なくとも2案は、読者が実際に抱く疑問、迷う二択、避けたい失敗、読後に得られる具体的な変化のいずれかを前面に出してください。本文に答えがない問いや効果は作りません。',
+    'タイトル案は必ず「案1：タイトル\\n案2：タイトル\\n案3：タイトル」の改行形式で返してください。「案1 / タイトル / 案2 / タイトル」の形式は禁止です。',
     'タイトルに「7つ」「5選」など項目数があり本文の実数と一致しない場合は、本文項目を追加・削除・統合・並べ替えせず、タイトル側の数字だけを本文の実数へ直してください。実数を確実に判定できない場合は本文もタイトルも変更せず、manual_confirmation_needed に残してください。',
     'メタディスクリプションを直す場合は、メインキーワード、読者の悩み、記事で分かる具体的な判断材料、読むメリットを自然に含め、約120文字にしてください。単なる記事説明や煽り文句は禁止です。',
     '必ずJSONだけで返してください。body_htmlには修正後の本文HTML全文を省略せず入れてください。',
-    '{"body_html":"...","title_ideas":"案1 / 案2 / 案3","tags":"...","meta_description":"...","permalink":"...","applied_changes":[{"target":"対象箇所","reason":"文脈上の理由","change":"実際の修正"}],"skipped_suggestions":[{"target":"対象箇所","reason":"文脈上適切なので見送った理由"}],"manual_confirmation_needed":[{"target":"対象箇所","reason":"確認が必要な理由"}]}',
+    '{"body_html":"...","title_ideas":"案1：第一候補\\n案2：第二候補\\n案3：第三候補","tags":"...","meta_description":"...","permalink":"...","applied_changes":[{"target":"対象箇所","reason":"文脈上の理由","change":"実際の修正"}],"skipped_suggestions":[{"target":"対象箇所","reason":"文脈上適切なので見送った理由"}],"manual_confirmation_needed":[{"target":"対象箇所","reason":"確認が必要な理由"}]}',
     '',
     '【記事情報】',
     '記事タイプ: ' + String(rowData.appType || ''),
@@ -525,9 +527,11 @@ function uaBuildPrePublishPatchPrompt_(rowData, checkReport, externalSourcesProm
     '事実、数値、制度、法規、安全、価格、保証、メーカー仕様、対応可否、URLを推測で作らないでください。確認できない内容は manual_confirmation_needed に残してください。',
     'Cocoon側でサイト共通のアフィリエイト広告表記を自動表示します。本文内のPR・広告表記不足を問題として指摘せず、「PR：本記事にはアフィリエイト広告を含みます。」などの段落を追加しないでください。既に同趣旨の独立段落がある場合は、その重複段落だけを削除対象にしてください。',
     'タイトル案は、メインキーワードの主要語を自然な日本語として含め、案1をSEOと読者訴求の両立案、案2を疑問・不安への回答案、案3を読後の判断・価値が分かる案にします。検索語を助詞なしで並べず、数字は本文に根拠があり有効な案だけに使います。',
+    '「確認ポイント」「判断基準」「確認手順」「選び方」「解説」だけで無難にまとめず、少なくとも2案は読者の具体的な疑問、迷う二択、避けたい失敗、読後の変化を前面に出します。本文にない問いや約束は作りません。',
+    'タイトル案は必ず「案1：タイトル\\n案2：タイトル\\n案3：タイトル」の改行形式で返します。',
     'メタディスクリプションは約120文字で、読者の悩み、具体的な判断材料、読むメリットが自然に伝わるようにします。',
     '必ずJSONだけを返してください。形式:',
-    '{"body_edits":[{"find":"元本文に1回だけある完全一致文字列","replace":"修正後文字列","reason":"修正理由"}],"title_ideas":"案1 / 案2 / 案3","tags":"...","meta_description":"...","permalink":"...","skipped_suggestions":[{"target":"...","reason":"..."}],"manual_confirmation_needed":[{"target":"...","reason":"..."}]}',
+    '{"body_edits":[{"find":"元本文に1回だけある完全一致文字列","replace":"修正後文字列","reason":"修正理由"}],"title_ideas":"案1：第一候補\\n案2：第二候補\\n案3：第三候補","tags":"...","meta_description":"...","permalink":"...","skipped_suggestions":[{"target":"...","reason":"..."}],"manual_confirmation_needed":[{"target":"...","reason":"..."}]}',
     '',
     '【記事情報】',
     '記事タイプ: ' + String(rowData.appType || ''),
@@ -647,7 +651,11 @@ function uaApplyPrePublishPatchEdits_(body, edits) {
 
 function uaBuildPrePublishRuleCheck_(rowData) {
   const body = String(rowData && rowData.body || '');
-  const title = uaPickWpTitle_(rowData && rowData.titleIdeas || '') || '';
+  const title = uaPickWpTitle_(
+    rowData && rowData.titleIdeas || '',
+    rowData && rowData.mainInput || '',
+    body
+  ) || '';
   const meta = String(rowData && rowData.metaDescription || '').trim();
   const tags = String(rowData && rowData.tags || '').trim();
   const permalink = String(rowData && rowData.permalink || '').trim();
@@ -661,6 +669,7 @@ function uaBuildPrePublishRuleCheck_(rowData) {
   const reliabilityClaims = uaFindPrePublishReliabilityClaims_(body);
   const externalSourceLinkCount = uaCountPrePublishExternalSourceLinks_(body, rowData);
   const titleNumberIssue = uaFindTitleNumberConsistencyIssue_(title, body);
+  const weakTitleReason = uaFindWeakWpTitleReason_(title);
   const currentSourceIssue = uaCheckCurrentOfficialSourceRequirement_(rowData, body);
   const affiliateDetourIssue = uaFindAffiliateDetourIssue_(rowData, body);
   const standaloneProductSectionsWithoutRakuten = uaFindPrePublishStandaloneProductSectionsWithoutRakuten_(body);
@@ -709,6 +718,9 @@ function uaBuildPrePublishRuleCheck_(rowData) {
   }
   if (titleNumberIssue) {
     result.critical.push(titleNumberIssue);
+  }
+  if (weakTitleReason) {
+    result.warnings.push('タイトルの読者訴求が弱い可能性があります。' + weakTitleReason + ' 読者の疑問・迷う条件・得られる変化のいずれかを具体化してください。');
   }
 
   if (!meta) {

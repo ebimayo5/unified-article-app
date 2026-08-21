@@ -1513,19 +1513,19 @@ function uaBuildRakutenAffiliateBanner_(body, rowData, appConfig) {
   const categoryQueries = uaSelectRakutenCategoryQueries_(body, rowData, appConfig, query);
   const selectionSeed = String(rowData && rowData.mainInput || '') + '|' + String(query || '');
   const hasMainAffiliate = uaHasMainAffiliateProject_(rowData);
+  const desiredCount = uaDecideRakutenItemCount_(body, rowData, appConfig, query);
   let items = [];
 
   if (!hasMainAffiliate) {
     const keywordAndContextQueries = [query].concat(categoryQueries).filter(function(value, index, values) {
       return value && values.indexOf(value) === index;
     }).slice(0, 3);
-    items = uaFetchRakutenItemsByQueries_(keywordAndContextQueries, Math.min(3, keywordAndContextQueries.length), selectionSeed, productPlan);
+    items = uaFetchRakutenItemsAcrossQueries_(keywordAndContextQueries, desiredCount, selectionSeed, productPlan);
   } else if (categoryQueries.length > 0) {
-    items = uaFetchRakutenItemsByQueries_(categoryQueries, Math.min(3, categoryQueries.length), selectionSeed, productPlan);
+    items = uaFetchRakutenItemsAcrossQueries_(categoryQueries, desiredCount, selectionSeed, productPlan);
   }
 
   if (items.length === 0) {
-    const desiredCount = uaDecideRakutenItemCount_(body, rowData, appConfig, query);
     items = uaFetchRakutenItems_(query, desiredCount, selectionSeed, productPlan);
   }
 
@@ -1987,6 +1987,37 @@ function uaFetchRakutenItemsByQueries_(queries, maxItems, selectionSeed, product
   });
 
   return results;
+}
+
+function uaFetchRakutenItemsAcrossQueries_(queries, maxItems, selectionSeed, productPlan) {
+  const limit = Math.max(1, Math.min(3, Number(maxItems) || 1));
+  const uniqueQueries = (queries || []).map(function(query) {
+    return String(query || '').replace(/\s+/g, ' ').trim();
+  }).filter(function(query, index, values) {
+    return query && values.indexOf(query) === index;
+  }).slice(0, 3);
+
+  if (uniqueQueries.length === 0) return [];
+  if (uniqueQueries.length === 1) {
+    return uaFetchRakutenItems_(uniqueQueries[0], limit, String(selectionSeed || '') + '|single-query', productPlan);
+  }
+
+  const results = uaFetchRakutenItemsByQueries_(uniqueQueries, limit, selectionSeed, productPlan);
+  if (results.length >= limit) return results.slice(0, limit);
+
+  const supplemental = uaFetchRakutenItems_(
+    uniqueQueries[0],
+    limit,
+    String(selectionSeed || '') + '|primary-backfill',
+    productPlan
+  );
+  const seen = {};
+  return results.concat(supplemental).filter(function(item) {
+    const key = String(item && (item.itemCode || item.url) || '').trim();
+    if (!key || seen[key]) return false;
+    seen[key] = true;
+    return true;
+  }).slice(0, limit);
 }
 
 function uaRakutenTextContains_(text, keyword) {

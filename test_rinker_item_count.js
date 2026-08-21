@@ -49,7 +49,55 @@ assert.deepStrictEqual(
   '複数検索でも不足分を重複なしで補充する'
 );
 
+const popupPlan = {
+  should_insert: false,
+  primary_product: 'ポップアップテント',
+  market_query: 'ポップアップテント 収納しやすい',
+  purpose: '購入前に収納方法と構造を確認する',
+  benefit: '片付けで慌てにくい商品を選びやすくなる'
+};
+const popupBody = context.uaAttachProductPlanMarker_(
+  '<h2>ポップアップテントがたためないときの手順</h2><p>まずは今使っているテントを買い替えずに直します。</p>',
+  popupPlan
+);
+const popupRow = {
+  mainInput: 'ポップアップテント たためない',
+  affiliateName: '案件無し',
+  affiliateNotes: ''
+};
+const homeConfig = { key: 'home' };
+const normalizedPopupPlan = context.uaExtractProductPlan_(popupBody);
+assert.ok(
+  context.uaCanUseSupplementalProductPlan_(normalizedPopupPlan, popupBody, popupRow, homeConfig),
+  'トラブル解決記事でも購入前読者向けの補助商品を許可する'
+);
+assert.strictEqual(
+  context.uaSelectRakutenProductQuery_(popupBody, popupRow, homeConfig),
+  'ポップアップテント 収納しやすい',
+  '補助商品の具体的な検索語を引き継ぐ'
+);
+assert.ok(
+  context.uaShouldInsertRakutenAffiliateBanner_(popupBody, popupRow, homeConfig),
+  '商品トラブル記事を一律に商品リンク対象外へしない'
+);
+const supplementalPopupPlan = context.uaBuildSupplementalProductPlan_(normalizedPopupPlan, popupRow);
+assert.ok(
+  supplementalPopupPlan.ctaReason.includes('買い替えは不要') && supplementalPopupPlan.ctaReason.includes('購入前'),
+  '所有者と購入前読者を分けたCTAにする'
+);
+
+const seidoPlan = context.uaNormalizeProductPlan_({
+  should_insert: false,
+  primary_product: '収納用品',
+  market_query: '収納用品 家庭用',
+  purpose: '補助金制度を確認する'
+});
+assert.ok(
+  !context.uaCanUseSupplementalProductPlan_(seidoPlan, '<p>補助金の申請条件を確認します。</p>', { mainInput: '住宅 補助金 申請' }, homeConfig),
+  '制度記事へ無関係な商品導線を足さない'
+);
+
 context.uaFetchRakutenItems_ = originalSingleFetch;
 context.uaFetchRakutenItemsByQueries_ = originalMultiFetch;
 
-console.log('Rinker item count tests: OK (2 checks)');
+console.log('Rinker and product routing tests: OK (7 checks)');

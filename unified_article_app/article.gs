@@ -85,6 +85,46 @@ function uaNormalizeProductPlan_(value) {
   };
 }
 
+function uaCanUseSupplementalProductPlan_(productPlan, body, rowData, appConfig) {
+  const plan = uaNormalizeProductPlan_(productPlan);
+  if (!plan || plan.shouldInsert || !appConfig || appConfig.key !== 'home') return false;
+  if (!plan.primaryProduct && !plan.marketQuery) return false;
+
+  const notes = String(rowData && rowData.affiliateNotes || '');
+  if (/楽天バナーなし|楽天なし/.test(notes)) return false;
+
+  const mainInput = String(rowData && rowData.mainInput || '');
+  const articleText = [mainInput, body, plan.purpose, plan.benefit].join(' ');
+  const productText = [plan.primaryProduct, plan.marketQuery].join(' ');
+  const productTerms = productText.split(/[\s　,，、\/／・|｜]+/).filter(function(term) {
+    return term.length >= 2 && !/^(家庭用|おすすめ|比較|対策|商品)$/.test(term);
+  });
+  const directlyRelated = productTerms.some(function(term) {
+    return articleText.indexOf(term) !== -1;
+  });
+
+  const supportiveContext = /(後悔|やめた|デメリット|不便|困る|手間|負担|収納|掃除|家事|暑さ|寒さ|遮光|日差し|湿気|カビ|換気|防災|子育て|車いす|動線|照明|カーテン|マット|家電)/.test(articleText);
+  const nonProductCore = /(制度|法律|法令|税金|ローン|保険|補助金|申請|売却|査定|工賃|施工方法|契約|保証|事故|火災|故障|修理)/.test(mainInput);
+
+  return directlyRelated || supportiveContext && !nonProductCore;
+}
+
+function uaBuildSupplementalProductPlan_(productPlan, rowData) {
+  const plan = uaNormalizeProductPlan_(productPlan);
+  if (!plan) return null;
+  const productLabel = plan.primaryProduct || plan.marketQuery || '関連商品';
+  const mainInput = String(rowData && rowData.mainInput || '');
+  const hasTroubleAndPrePurchaseIntent = /(たためない|畳めない|できない|使えない|外れない|動かない|入らない|後悔|やめた|デメリット|いらない|難しい|面倒)/.test(mainInput);
+  const ctaReason = hasTroubleAndPrePurchaseIntent
+    ? '今使っているもので解決できるなら買い替えは不要ですが、購入前の人や同じ不便を繰り返したくない人は、' + productLabel + 'のサイズや仕様を比較できるため'
+    : '本文の判断条件に当てはまり、' + productLabel + 'で手間や不便を減らしたい場合は、購入前にサイズや仕様を比較できるため';
+  return uaNormalizeProductPlan_(Object.assign({}, plan, {
+    shouldInsert: true,
+    benefit: plan.benefit || '自分の条件に合う選択肢を見つけやすくなる',
+    ctaReason: ctaReason
+  }));
+}
+
 function uaEvaluateProductPlanFit_(itemName, productPlan) {
   const plan = uaNormalizeProductPlan_(productPlan);
   if (!plan) return { pass: true, reason: '' };
@@ -1503,7 +1543,9 @@ function uaApplyRakutenAffiliateBanner_(body, rowData, appConfig) {
 function uaBuildRakutenAffiliateBanner_(body, rowData, appConfig) {
   const query = uaSelectRakutenProductQuery_(body, rowData, appConfig);
   const productPlan = uaExtractProductPlan_(body);
-  let effectiveProductPlan = productPlan;
+  let effectiveProductPlan = uaCanUseSupplementalProductPlan_(productPlan, body, rowData, appConfig)
+    ? uaBuildSupplementalProductPlan_(productPlan, rowData)
+    : productPlan;
 
   if (!query) {
     UA_LAST_RAKUTEN_STATUS = '商品検索キーワードを選定できませんでした';
@@ -1520,24 +1562,24 @@ function uaBuildRakutenAffiliateBanner_(body, rowData, appConfig) {
     const keywordAndContextQueries = [query].concat(categoryQueries).filter(function(value, index, values) {
       return value && values.indexOf(value) === index;
     }).slice(0, 3);
-    items = uaFetchRakutenItemsAcrossQueries_(keywordAndContextQueries, desiredCount, selectionSeed, productPlan);
+    items = uaFetchRakutenItemsAcrossQueries_(keywordAndContextQueries, desiredCount, selectionSeed, effectiveProductPlan);
   } else if (categoryQueries.length > 0) {
-    items = uaFetchRakutenItemsAcrossQueries_(categoryQueries, desiredCount, selectionSeed, productPlan);
+    items = uaFetchRakutenItemsAcrossQueries_(categoryQueries, desiredCount, selectionSeed, effectiveProductPlan);
   }
 
   if (items.length === 0) {
-    items = uaFetchRakutenItems_(query, desiredCount, selectionSeed, productPlan);
+    items = uaFetchRakutenItems_(query, desiredCount, selectionSeed, effectiveProductPlan);
   }
 
-  if (items.length === 0 && productPlan) {
-    const scaleQueries = uaBuildPurchaseScaleRetryQueries_(query, productPlan);
+  if (items.length === 0 && effectiveProductPlan) {
+    const scaleQueries = uaBuildPurchaseScaleRetryQueries_(query, effectiveProductPlan);
     if (scaleQueries.length > 0) {
-      items = uaFetchRakutenItemsByQueries_(scaleQueries, 1, selectionSeed + '|purchase-scale-retry', productPlan);
+      items = uaFetchRakutenItemsByQueries_(scaleQueries, 1, selectionSeed + '|purchase-scale-retry', effectiveProductPlan);
     }
   }
 
-  if (items.length === 0 && productPlan && productPlan.purchaseScale === 'trial') {
-    const standardPlan = uaNormalizeProductPlan_(Object.assign({}, productPlan, {
+  if (items.length === 0 && effectiveProductPlan && effectiveProductPlan.purchaseScale === 'trial') {
+    const standardPlan = uaNormalizeProductPlan_(Object.assign({}, effectiveProductPlan, {
       purchaseScale: 'standard',
       ctaReason: '初回からまとめ買いせず、通常販売単位で比較しやすいため'
     }));
@@ -1582,6 +1624,12 @@ function uaSelectRakutenProductQuery_(body, rowData, appConfig) {
 
   const productPlan = uaExtractProductPlan_(body);
   if (productPlan && productPlan.shouldInsert) {
+    if (productPlan.marketQuery) return productPlan.marketQuery;
+    if (productPlan.primaryProduct) {
+      return [productPlan.primaryProduct].concat(productPlan.mustHave.slice(0, 2)).join(' ').trim();
+    }
+  }
+  if (uaCanUseSupplementalProductPlan_(productPlan, body, rowData, appConfig)) {
     if (productPlan.marketQuery) return productPlan.marketQuery;
     if (productPlan.primaryProduct) {
       return [productPlan.primaryProduct].concat(productPlan.mustHave.slice(0, 2)).join(' ').trim();
@@ -3072,6 +3120,11 @@ function uaShouldInsertRakutenAffiliateBanner_(body, rowData, appConfig) {
     productPlan.mustHave.length > 0 || productPlan.exclude.length > 0
   );
   if (hasPlanDecision && !productPlan.shouldInsert) {
+    if (uaCanUseSupplementalProductPlan_(productPlan, body, rowData, appConfig)) {
+      UA_LAST_RAKUTEN_STATUS = '主回答を妨げない補助商品として自然に挿入: ' +
+        (productPlan.primaryProduct || productPlan.marketQuery);
+      return true;
+    }
     UA_LAST_RAKUTEN_STATUS = '商品選定設計で、商品購入が検索意図の解決策ではないと判定されました';
     return false;
   }

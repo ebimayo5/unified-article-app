@@ -47,7 +47,11 @@ run({ window: iframeWindow, document: iframeDocument });
 const block = { getAttribute(name) { return name === 'data-block' ? 'client-1' : ''; } };
 const button = {
   textContent: '商品リンク追加',
-  closest(selector) { return selector === '[data-block]' ? block : this; }
+  closest(selector) {
+    if (selector === '[data-block]') return block;
+    if (selector === 'button.thickbox.add_media') return this;
+    return null;
+  }
 };
 let prevented = false;
 clickHandler({
@@ -59,6 +63,22 @@ clickHandler({
 assert(prevented, 'iframe button was not intercepted');
 assert(opened.length === 1 && /cid=client-1/.test(opened[0].url), 'parent Thickbox was not opened');
 assert(iframeParentMessages[0].message.type === 'article-compass-rinker-open', 'open message was not sent');
+
+// Affiliate links in the rendered Rinker preview must not navigate the
+// WordPress 7.1 editor iframe away from the post.
+let previewNavigationPrevented = false;
+const previewLink = {
+  closest(selector) {
+    return selector.includes('rinkerg/gutenberg-rinker') ? this : null;
+  }
+};
+clickHandler({
+  target: previewLink,
+  preventDefault() { previewNavigationPrevented = true; },
+  stopPropagation() {},
+  stopImmediatePropagation() {}
+});
+assert(previewNavigationPrevented, 'Rinker preview link navigation was not prevented in the editor');
 
 // The top editor must accept only the expected client ID and update Rinker attributes.
 let messageHandler;
@@ -138,4 +158,4 @@ mediaClickHandler({
 assert(mediaMessages.length === 2, 'registered item was not relayed');
 assert(mediaMessages[1].message.shortcode === '[itemlink post_id="777"]', 'registered item shortcode is incorrect');
 
-console.log('OK (4 Rinker iframe compatibility checks)');
+console.log('OK (5 Rinker iframe compatibility checks)');

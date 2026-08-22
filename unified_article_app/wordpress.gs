@@ -44,6 +44,94 @@ function uaCreateWpDraftFromWeb(data) {
   return uaCreateWpDraftFromPanel(data || {});
 }
 
+/**
+ * Creates one private, deterministic DRIVE BASE draft for SWELL migration QA.
+ * This avoids article-generation API usage while exercising the real
+ * WordPress transport, SWELL blocks, Rinker shortcode, image, links, and SEO
+ * meta bridge. Run only when an intentional migration test draft is needed.
+ */
+function uaCreateDriveSwellMigrationTestDraft() {
+  const appConfig = UA_APP_TYPES.drive;
+  if (!uaUsesSwellBlocks_(appConfig)) {
+    throw new Error('SWELL移行テストを停止しました。DRIVE BASEがSWELL出力設定ではありません。');
+  }
+
+  const wpConfig = uaGetWpConfig_(appConfig);
+  const affiliateSpec = {
+    type: 'url',
+    name: 'ナビ男くん',
+    url: 'https://px.a8.net/svt/ejp?a8mat=44Z0VG+70FT9U+4YGQ+BW0YB&a8ejpredirect=https%3A%2F%2Fnaviokun.ocnk.net%2F',
+    content: 'https://px.a8.net/svt/ejp?a8mat=44Z0VG+70FT9U+4YGQ+BW0YB&a8ejpredirect=https%3A%2F%2Fnaviokun.ocnk.net%2F'
+  };
+  const pointBox = [
+    '<!-- wp:group {"className":"is-style-big_icon_point article-compass-point-box"} -->',
+    '<div class="wp-block-group is-style-big_icon_point article-compass-point-box">',
+    '<!-- wp:paragraph --><p><strong>この記事のポイント</strong></p><!-- /wp:paragraph -->',
+    '<!-- wp:list --><ul class="wp-block-list"><li>SWELLネイティブの装飾を使用</li><li>CTA・内部リンク・商品リンクを保持</li><li>画像とメタ情報を同時に確認</li></ul><!-- /wp:list -->',
+    '</div><!-- /wp:group -->'
+  ].join('\n');
+  const cta = uaBuildManagedAffiliateCtaBlock_(affiliateSpec, 'ナビ男くんの対応内容を確認する', appConfig);
+  const internalLink = uaBuildInternalLinkPostInsertBlock_({
+    url: 'https://ebimayo5.com/archives/naviokun-reputation/',
+    title: 'ナビ男くんは高い？評判・カー用品店との違い・申し込み前の確認点',
+    usage: '専門店へ依頼する前の判断材料'
+  }, appConfig);
+  const imageUrl = 'https://ebimayo5.com/wp-content/uploads/2026/08/article-image-20260814-110734-2.png';
+  const imageBlock = [
+    '<!-- wp:image {"sizeSlug":"large","linkDestination":"none"} -->',
+    '<figure class="wp-block-image size-large"><img src="' + imageUrl + '" alt="SWELL移行検証用の既存記事画像"></figure>',
+    '<!-- /wp:image -->'
+  ].join('\n');
+  const rinkerBlock = '<!-- wp:shortcode -->\n[itemlink post_id="899"]\n<!-- /wp:shortcode -->';
+  const content = [
+    '<!-- wp:paragraph --><p>DRIVE BASEのSWELL移行後に、記事生成からWordPress下書きまでの主要要素を確認する非公開テストです。</p><!-- /wp:paragraph -->',
+    pointBox,
+    '<!-- wp:heading --><h2 class="wp-block-heading">装飾・画像・商品リンクの表示確認</h2><!-- /wp:heading -->',
+    imageBlock,
+    '<!-- wp:paragraph --><p>車内エンタメ機器を比較するときは、車種適合と必要な機能を先に確認します。</p><!-- /wp:paragraph -->',
+    rinkerBlock,
+    '<!-- wp:heading --><h2 class="wp-block-heading">専門店へ相談する選択肢</h2><!-- /wp:heading -->',
+    '<!-- wp:paragraph --><p>配線処理や適合判断に不安がある場合は、ナビ男くんのような専門店へ相談する方法もあります。</p><!-- /wp:paragraph -->',
+    cta,
+    internalLink
+  ].join('\n\n');
+  const metaDescription = 'DRIVE BASEのSWELL移行検証用下書きです。SWELL装飾、CTA、内部リンク、Rinker商品リンク、画像、メタディスクリプションのWordPress反映を非公開状態で確認します。';
+  const payload = {
+    title: '【非公開テスト】DRIVE BASE SWELL移行・表示確認',
+    content: content,
+    status: 'draft'
+  };
+  const created = uaCallWordPressApi_(wpConfig, '/wp-json/wp/v2/posts', 'post', payload);
+  const postId = Number(created && created.id || 0);
+  if (postId <= 0) {
+    throw new Error('SWELL移行テスト下書きの投稿IDを取得できませんでした。');
+  }
+
+  const metaResult = uaSyncWpMetaDescription_(wpConfig, postId, metaDescription);
+  const verified = uaFetchWpPostForEdit_(wpConfig, postId);
+  const verifiedBody = uaGetWpPostRawContent_(verified);
+  const checks = [
+    ['draft status', String(verified && verified.status || '') === 'draft'],
+    ['point box', verifiedBody.indexOf('article-compass-point-box') !== -1],
+    ['SWELL CTA', verifiedBody.indexOf('wp-block-button__link') !== -1 && verifiedBody.indexOf('cocoon-blocks') === -1],
+    ['internal link', verifiedBody.indexOf('article-compass-internal-link') !== -1],
+    ['Rinker', verifiedBody.indexOf('[itemlink post_id="899"]') !== -1],
+    ['image', verifiedBody.indexOf(imageUrl) !== -1]
+  ];
+  const failed = checks.filter(function(item) { return !item[1]; }).map(function(item) { return item[0]; });
+  if (failed.length > 0) {
+    throw new Error('SWELL移行テスト下書きの再取得確認に失敗しました: ' + failed.join(', ') + '（投稿ID: ' + postId + '）');
+  }
+
+  return {
+    ok: true,
+    postId: postId,
+    editUrl: uaBuildWpEditUrl_(wpConfig.siteUrl, postId),
+    checks: checks.length,
+    meta: metaResult || null
+  };
+}
+
 function uaUpdatePublishedWpFromWeb(data) {
   return uaUpdatePublishedWpFromPanel(data || {});
 }

@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Article Compass Rinker Bridge
  * Description: Article Compass SystemからRinker商品リンクを安全に作成・再利用し、SWELL移行後も既存Cocoon装飾を保ちます。
- * Version: 1.3.1
+ * Version: 1.3.3
  * Author: Article Compass System
  */
 
@@ -24,6 +24,7 @@ final class Article_Compass_Rinker_Bridge {
         add_action('enqueue_block_assets', array(__CLASS__, 'enqueue_rinker_editor_compat_in_canvas'));
         add_action('admin_enqueue_scripts', array(__CLASS__, 'enqueue_rinker_media_compat'));
         add_action('enqueue_block_assets', array(__CLASS__, 'enqueue_swell_compat_styles'));
+        add_filter('ssp_output_description', array(__CLASS__, 'filter_swell_description_from_legacy'));
         add_filter('the_content', array(__CLASS__, 'render_cocoon_blogcards_for_swell'), 8);
     }
 
@@ -57,7 +58,7 @@ final class Article_Compass_Rinker_Bridge {
             $handle,
             plugin_dir_url(__FILE__) . 'assets/rinker-editor-compat.js',
             array('jquery'),
-            '1.3.1',
+            '1.3.3',
             true
         );
         wp_localize_script($handle, 'ArticleCompassRinkerCompat', array(
@@ -99,7 +100,7 @@ final class Article_Compass_Rinker_Bridge {
         return rest_ensure_response(array(
             'ok' => true,
             'rinker_active' => post_type_exists(self::RINKER_POST_TYPE),
-            'bridge_version' => '1.3.1',
+            'bridge_version' => '1.3.3',
             'seo_meta_supported' => true,
             'seo_meta_key' => self::get_description_meta_key(),
         ));
@@ -159,8 +160,35 @@ final class Article_Compass_Rinker_Bridge {
         return self::COCOON_DESCRIPTION_META_KEY;
     }
 
+    /**
+     * Let SEO SIMPLE PACK output existing Cocoon descriptions after the SWELL
+     * migration. A native SEO SIMPLE PACK value always takes priority.
+     */
+    public static function filter_swell_description_from_legacy($description) {
+        if (!is_singular('post') || self::get_description_meta_key() !== self::SWELL_DESCRIPTION_META_KEY) {
+            return $description;
+        }
+
+        $post_id = get_queried_object_id();
+        if ($post_id <= 0) {
+            return $description;
+        }
+
+        $native = trim((string) get_post_meta($post_id, self::SWELL_DESCRIPTION_META_KEY, true));
+        if ($native !== '') {
+            return $description;
+        }
+
+        $legacy = trim(wp_strip_all_tags((string) get_post_meta($post_id, self::COCOON_DESCRIPTION_META_KEY, true)));
+        if ($legacy === '') {
+            return $description;
+        }
+
+        return $legacy;
+    }
+
     public static function enqueue_swell_compat_styles() {
-        wp_register_style('article-compass-swell-compat', false, array(), '1.3.1');
+        wp_register_style('article-compass-swell-compat', false, array(), '1.3.3');
         wp_enqueue_style('article-compass-swell-compat');
         wp_add_inline_style('article-compass-swell-compat', self::get_swell_compat_css());
     }

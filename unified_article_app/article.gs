@@ -876,7 +876,7 @@ function uaTestSwellBlockDialect() {
     content: 'https://example.com/path?a=1&b=2'
   };
   const swellCta = uaBuildManagedAffiliateCtaBlock_(spec, 'テスト案件で対応内容を確認する', homeConfig);
-  const cocoonCta = uaBuildManagedAffiliateCtaBlock_(spec, 'テスト案件で対応内容を確認する', driveConfig);
+  const driveSwellCta = uaBuildManagedAffiliateCtaBlock_(spec, 'テスト案件で対応内容を確認する', driveConfig);
   const swellNotice = uaBuildYmylNoticeHtml_({
     category: 'home_safety',
     topic: '住宅設備の安全確認',
@@ -891,12 +891,14 @@ function uaTestSwellBlockDialect() {
 
   const checks = [
     ['home uses SWELL', uaUsesSwellBlocks_(homeConfig)],
-    ['drive keeps Cocoon', !uaUsesSwellBlocks_(driveConfig)],
+    ['drive uses SWELL', uaUsesSwellBlocks_(driveConfig)],
     ['SWELL CTA marker', swellCta.indexOf('UA_MAIN_AFFILIATE_CTA_START') !== -1],
     ['SWELL CTA core class', swellCta.indexOf('wp-block-button__link') !== -1],
     ['SWELL CTA no Cocoon', swellCta.indexOf('cocoon-blocks') === -1],
     ['SWELL CTA URL preserved', swellCta.indexOf(spec.url) !== -1],
-    ['Cocoon CTA remains', cocoonCta.indexOf('wp:cocoon-blocks/button-wrap-1') !== -1],
+    ['DRIVE SWELL CTA core class', driveSwellCta.indexOf('wp-block-button__link') !== -1],
+    ['DRIVE SWELL CTA no Cocoon', driveSwellCta.indexOf('cocoon-blocks') === -1],
+    ['DRIVE SWELL CTA URL preserved', driveSwellCta.indexOf(spec.url) !== -1],
     ['SWELL notice', swellNotice.indexOf('article-compass-notice-danger') !== -1 && swellNotice.indexOf('cocoon-blocks') === -1],
     ['SWELL internal link', swellInternalLink.indexOf('article-compass-internal-link') !== -1 && swellInternalLink.indexOf('cocoon-blocks') === -1]
   ];

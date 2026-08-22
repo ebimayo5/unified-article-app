@@ -91,7 +91,7 @@ const UA_APP_TYPES = {
     useInternalLinks: true,
     useExternalSources: true,
     useWordPress: true,
-    wpEditorTheme: 'cocoon',
+    wpEditorTheme: 'swell',
     promptType: 'drive'
   },
   home: {

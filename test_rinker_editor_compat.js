@@ -29,6 +29,9 @@ const iframeDocument = {
 };
 const iframeWindow = {
   location: { origin: 'https://example.com', pathname: '/wp-admin/post.php', search: '' },
+  // WordPress 7.1 also defines tb_show in the editor iframe. The compatibility
+  // layer must still intercept the click and use the parent editor's Thickbox.
+  tb_show() { throw new Error('local iframe Thickbox must not be used'); },
   parent: {
     tb_show(title, url) { opened.push({ title, url }); },
     postMessage(message, origin) { iframeParentMessages.push({ message, origin }); }

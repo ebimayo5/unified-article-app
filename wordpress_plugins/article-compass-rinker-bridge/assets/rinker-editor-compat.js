@@ -31,7 +31,12 @@
     }
 
     function bindIframeOpenCompatibility() {
-        if (typeof window.tb_show === 'function') {
+        // WordPress 7.1 exposes Thickbox inside the editor canvas as well.
+        // Rinker's local handler can therefore open the search popup, but its
+        // classic DOM callback cannot reach the block editor living across the
+        // iframe boundary. Always route editor-canvas clicks through the top
+        // editor window, even when the iframe has its own tb_show function.
+        if (!window.parent || window.parent === window) {
             return;
         }
         try {

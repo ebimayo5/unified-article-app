@@ -18,6 +18,16 @@ const projects = {
     name: 'カーネクスト',
     url: 'https://t.example/carnext',
     linkInput: '<a href="https://t.example/carnext" rel="nofollow">自由テキスト</a><img src="https://track.example/carnext" width="1" height="1">'
+  },
+  'ナビ男くん': {
+    name: 'ナビ男くん',
+    url: 'https://px.example/naviokun',
+    linkInput: '<a href="https://px.example/naviokun" rel="nofollow">ナビ男くん</a>'
+  },
+  'ottocast': {
+    name: 'ottocast',
+    url: 'https://t.example/ottocast',
+    linkInput: '<a href="https://t.example/ottocast" rel="nofollow">自由テキスト</a><img src="https://track.example/ottocast" width="1" height="1">'
   }
 };
 
@@ -87,4 +97,30 @@ const carnextResult = context.uaApplyManagedAffiliateCta_(carnextBody, {
 assert.ok(carnextResult.includes('ガリバーで希望に合う中古車の提案を確認する'), 'Gulliver must be the text-link sub offer');
 assert.ok(!/cocoon-blocks\/button-wrap-1[\s\S]*ガリバーで/.test(carnextResult.split('UA_SUB_AFFILIATE_START')[1] || ''), 'sub offer must not become a button');
 
-console.log('complementary affiliate tests: OK (8 checks)');
+const naviBody = '<p>有線CarPlay対応車でAI Boxを使う方法と、HDMI施工が必要な場合を比較します。</p>\n' + mainBlock(projects['ナビ男くん'].url) + '\n<h2>まとめ</h2>';
+const naviResult = context.uaApplyManagedAffiliateCta_(naviBody, {
+  appType: 'DRIVE BASE',
+  mainInput: 'ステップワゴン hdmi どこ',
+  affiliateName: 'ナビ男くん'
+}, drive);
+assert.ok(naviResult.includes('UA_OTTOCAST_AFFILIATE_START'), 'Ottocast marker must be inserted for an AI Box article');
+assert.ok(naviResult.includes('OttocastでCarPlay AI Boxの対応機種を確認する'), 'Ottocast free text must be replaced with the contextual CTA');
+assert.ok(naviResult.includes('https://track.example/ottocast'), 'Ottocast tracking pixel must be preserved');
+assert.ok(naviResult.indexOf('UA_OTTOCAST_AFFILIATE_START') < naviResult.indexOf('wp:cocoon-blocks/button-wrap-1'), 'Ottocast branch must appear before the Naviokun button');
+
+const naviIdempotent = context.uaApplyManagedAffiliateCta_(naviResult, {
+  appType: 'DRIVE BASE',
+  mainInput: 'ステップワゴン hdmi どこ',
+  affiliateName: 'ナビ男くん'
+}, drive);
+assert.strictEqual((naviIdempotent.match(/UA_OTTOCAST_AFFILIATE_START/g) || []).length, 1, 'Ottocast branch must not duplicate');
+
+const genericNaviBody = '<p>ナビの工賃と取付キットを確認します。</p>\n' + mainBlock(projects['ナビ男くん'].url) + '\n<h2>まとめ</h2>';
+const genericNaviResult = context.uaApplyManagedAffiliateCta_(genericNaviBody, {
+  appType: 'DRIVE BASE',
+  mainInput: 'オートバックス カーナビ 工賃',
+  affiliateName: 'ナビ男くん'
+}, drive);
+assert.ok(!genericNaviResult.includes('UA_OTTOCAST_AFFILIATE_START'), 'generic navigation articles must not receive Ottocast');
+
+console.log('complementary affiliate tests: OK (14 checks)');

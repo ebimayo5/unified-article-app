@@ -343,8 +343,10 @@ function uaRunArticleFromWeb(data) {
 }
 
 function uaApplyManagedAffiliateCta_(body, rowData, appConfig) {
-  const html = uaRemoveManagedSubAffiliateBlock_(
-    uaRelocateManagedAffiliateTokenByContext_(String(body || ''), rowData, appConfig)
+  const html = uaRemoveManagedOttocastAffiliateBlock_(
+    uaRemoveManagedSubAffiliateBlock_(
+      uaRelocateManagedAffiliateTokenByContext_(String(body || ''), rowData, appConfig)
+    )
   );
   const spec = uaGetManagedAffiliateCtaSpec_(rowData);
   if (!html || !spec) return html;
@@ -373,7 +375,12 @@ function uaApplyManagedAffiliateCta_(body, rowData, appConfig) {
     }
   }
 
-  return uaApplyManagedSubAffiliateTextLink_(resultHtml, rowData, appConfig, spec);
+  return uaApplyManagedOttocastTextLink_(
+    uaApplyManagedSubAffiliateTextLink_(resultHtml, rowData, appConfig, spec),
+    rowData,
+    appConfig,
+    spec
+  );
 }
 
 function uaApplyManagedSubAffiliateTextLink_(body, rowData, appConfig, mainSpec) {
@@ -444,12 +451,94 @@ function uaGetComplementaryAffiliateProject_(rowData, appConfig, body) {
 
 function uaGetManagedComplementaryAffiliateUrls_(rowData, appConfig, body) {
   const project = uaGetComplementaryAffiliateProject_(rowData, appConfig, body);
-  if (!project) return [];
-  return uaExtractUrlsFromAffiliateCode_(project.linkInput || project.url || '')
-    .concat(project.url || '')
+  const ottocastProject = uaGetManagedOttocastProject_(rowData, appConfig, body);
+  const projects = [project, ottocastProject].filter(Boolean);
+  return projects.reduce(function(urls, item) {
+    return urls.concat(
+      uaExtractUrlsFromAffiliateCode_(item.linkInput || item.url || ''),
+      item.url || ''
+    );
+  }, [])
     .filter(function(url, index, list) {
       return url && list.indexOf(url) === index;
     });
+}
+
+function uaApplyManagedOttocastTextLink_(body, rowData, appConfig, mainSpec) {
+  const html = uaRemoveManagedOttocastAffiliateBlock_(body);
+  const project = uaGetManagedOttocastProject_(rowData, appConfig, html);
+  if (!html || !project || !mainSpec) return html;
+
+  if (project.url && (html.indexOf(project.url) !== -1 || html.indexOf(String(project.url).replace(/&/g, '&amp;')) !== -1)) {
+    return html;
+  }
+
+  const bounds = uaFindManagedAffiliateCtaBounds_(html, mainSpec);
+  if (!bounds) return html;
+  const block = uaBuildManagedOttocastAffiliateBlock_(project);
+  if (!block) return html;
+
+  return [
+    html.slice(0, bounds.start).trimEnd(),
+    block,
+    html.slice(bounds.start).trimStart()
+  ].filter(Boolean).join('\n\n');
+}
+
+function uaRemoveManagedOttocastAffiliateBlock_(body) {
+  return String(body || '')
+    .replace(/<!--\s*UA_OTTOCAST_AFFILIATE_START\s*-->[\s\S]*?<!--\s*UA_OTTOCAST_AFFILIATE_END\s*-->/gi, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+function uaGetManagedOttocastProject_(rowData, appConfig, body) {
+  const isDrive = appConfig && appConfig.key
+    ? appConfig.key === 'drive'
+    : /DRIVE\s*BASE/i.test(String(rowData && rowData.appType || ''));
+  if (!isDrive) return null;
+
+  const mainName = uaNormalizeAffiliateName_(rowData && rowData.affiliateName);
+  if (mainName !== 'ナビ男くん') return null;
+
+  const mainInput = String(rowData && rowData.mainInput || '');
+  const context = [
+    mainInput,
+    rowData && rowData.readerMindMemo,
+    rowData && rowData.structureMemo,
+    String(body || '').replace(/<!--[^]*?-->/g, ' ').replace(/<[^>]+>/g, ' ')
+  ].join(' ');
+  const directAiBox = /(CarPlay\s*AI\s*Box|AI\s*BOX|AIボックス|オットキャスト|Ottocast)/i.test(context);
+  const directProblem = /(アンドロイド\s*ナビ\s*デメリット|ディスプレイオーディオ\s*ミラーリング)/i.test(mainInput);
+  if (!directAiBox && !directProblem) return null;
+
+  const project = uaReadAffiliateProjectByName_('ottocast', false);
+  if (!project || !project.linkInput || !project.url) return null;
+  return project;
+}
+
+function uaBuildManagedOttocastAffiliateBlock_(project) {
+  const anchorText = 'OttocastでCarPlay AI Boxの対応機種を確認する';
+  const source = uaNormalizeAnchorRelAttributes_(
+    uaNormalizeAffiliateCodeInput_(project && project.linkInput || '')
+  );
+  const anchorMatch = /<a\b([^>]*)>([\s\S]*?)<\/a>/i.exec(source);
+  let linkHtml = '';
+  if (anchorMatch) {
+    linkHtml = uaIsAffiliateFreeTextPlaceholder_(anchorMatch[2])
+      ? source.replace(anchorMatch[0], '<a' + anchorMatch[1] + '>' + uaEscapeHtml_(anchorText) + '</a>')
+      : source;
+  }
+  if (!linkHtml) return '';
+
+  return [
+    '<!-- UA_OTTOCAST_AFFILIATE_START -->',
+    '<!-- wp:paragraph -->',
+    '<p>有線CarPlay対応車でUSB接続だけで完結させたい場合は、' + linkHtml + '方法があります。' +
+      '一方、HDMI増設や後席モニター連携、配線施工まで必要な場合は、この後の専門店相談を選ぶと整理しやすいです。</p>',
+    '<!-- /wp:paragraph -->',
+    '<!-- UA_OTTOCAST_AFFILIATE_END -->'
+  ].join('\n');
 }
 
 function uaFindManagedAffiliateCtaBounds_(body, spec) {

@@ -48,6 +48,11 @@ function uaUpdatePublishedWpFromWeb(data) {
   return uaUpdatePublishedWpFromPanel(data || {});
 }
 
+function uaMigrateExistingOttocastAffiliateLinks(options) {
+  const opts = Object.assign({}, options || {}, { mode: 'ottocast' });
+  return uaMigrateExistingComplementaryAffiliateLinks(opts);
+}
+
 /**
  * 既存の公開記事へ、メイン案件を補完するテキストリンクだけを安全に追加する。
  *
@@ -58,6 +63,7 @@ function uaUpdatePublishedWpFromWeb(data) {
  */
 function uaMigrateExistingComplementaryAffiliateLinks(options) {
   const opts = options || {};
+  const mode = opts.mode === 'ottocast' ? 'ottocast' : 'vehicle';
   const dryRun = opts.dryRun !== false;
   const afterRow = Math.max(1, Number(opts.afterRow || 1));
   const maxUpdates = dryRun ? 100 : Math.max(1, Math.min(3, Number(opts.maxUpdates || 2)));
@@ -77,6 +83,14 @@ function uaMigrateExistingComplementaryAffiliateLinks(options) {
     hasMore: false,
     details: []
   };
+  const markerRegex = mode === 'ottocast'
+    ? /<!--\s*UA_OTTOCAST_AFFILIATE_START\s*-->/i
+    : /<!--\s*UA_SUB_AFFILIATE_START\s*-->/i;
+
+  function isTargetAffiliate(name) {
+    if (mode === 'ottocast') return name === 'ナビ男くん';
+    return name === 'ガリバー中古車ご提案サービス' || name === 'カーネクスト';
+  }
 
   const articleValues = lastRow >= 2
     ? sheet.getRange(2, 1, lastRow - 1, UA_ARTICLE_COLUMN_COUNT).getValues()
@@ -100,7 +114,7 @@ function uaMigrateExistingComplementaryAffiliateLinks(options) {
       structureMemo: values[UA_COLUMNS.structureMemo - 1] || ''
     };
     const sourceAffiliate = uaNormalizeAffiliateName_(sourceData.affiliateName);
-    if (sourceAffiliate !== 'ガリバー中古車ご提案サービス' && sourceAffiliate !== 'カーネクスト') continue;
+    if (!isTargetAffiliate(sourceAffiliate)) continue;
     if (Number(sourceData.wpPostId || 0) <= 0) continue;
     candidateRows.push({ row: sourceRow, data: sourceData });
   }
@@ -127,7 +141,7 @@ function uaMigrateExistingComplementaryAffiliateLinks(options) {
     const row = candidateRows[candidateIndex].row;
     const rowData = candidateRows[candidateIndex].data;
     const affiliateName = uaNormalizeAffiliateName_(rowData.affiliateName);
-    if (affiliateName !== 'ガリバー中古車ご提案サービス' && affiliateName !== 'カーネクスト') continue;
+    if (!isTargetAffiliate(affiliateName)) continue;
     if (Number(rowData.wpPostId || 0) <= 0) continue;
     result.scanned++;
 
@@ -141,7 +155,7 @@ function uaMigrateExistingComplementaryAffiliateLinks(options) {
     };
 
     try {
-      if (/<!--\s*UA_SUB_AFFILIATE_START\s*-->/i.test(String(rowData.body || ''))) {
+      if (markerRegex.test(String(rowData.body || ''))) {
         detail.reason = 'シート本文へ追加済み';
         result.skipped++;
         result.details.push(detail);
@@ -156,9 +170,13 @@ function uaMigrateExistingComplementaryAffiliateLinks(options) {
         continue;
       }
 
-      const project = uaGetComplementaryAffiliateProject_(rowData, appConfig, rowData.body);
+      const project = mode === 'ottocast'
+        ? uaGetManagedOttocastProject_(rowData, appConfig, rowData.body)
+        : uaGetComplementaryAffiliateProject_(rowData, appConfig, rowData.body);
       if (!project) {
-        detail.reason = '補助案件を自然に案内できる売却・乗り換え文脈がない';
+        detail.reason = mode === 'ottocast'
+          ? 'CarPlay AI Boxを自然に案内できる本文ではない'
+          : '補助案件を自然に案内できる売却・乗り換え文脈がない';
         result.skipped++;
         result.details.push(detail);
         continue;
@@ -181,7 +199,7 @@ function uaMigrateExistingComplementaryAffiliateLinks(options) {
       }
 
       const currentWpBody = uaGetWpPostRawContent_(currentPost);
-      if (/<!--\s*UA_SUB_AFFILIATE_START\s*-->/i.test(currentWpBody)) {
+      if (markerRegex.test(currentWpBody)) {
         detail.reason = 'WordPress本文へ追加済み';
         result.skipped++;
         result.details.push(detail);
@@ -194,8 +212,12 @@ function uaMigrateExistingComplementaryAffiliateLinks(options) {
         continue;
       }
 
-      const nextSheetBody = uaApplyManagedSubAffiliateTextLink_(rowData.body, rowData, appConfig, mainSpec);
-      const nextWpBody = uaApplyManagedSubAffiliateTextLink_(currentWpBody, rowData, appConfig, mainSpec);
+      const nextSheetBody = mode === 'ottocast'
+        ? uaApplyManagedOttocastTextLink_(rowData.body, rowData, appConfig, mainSpec)
+        : uaApplyManagedSubAffiliateTextLink_(rowData.body, rowData, appConfig, mainSpec);
+      const nextWpBody = mode === 'ottocast'
+        ? uaApplyManagedOttocastTextLink_(currentWpBody, rowData, appConfig, mainSpec)
+        : uaApplyManagedSubAffiliateTextLink_(currentWpBody, rowData, appConfig, mainSpec);
       if (nextSheetBody === String(rowData.body || '') || nextWpBody === currentWpBody) {
         detail.reason = 'テキストリンクの安全な差し込み位置を確定できない';
         result.skipped++;
@@ -238,7 +260,7 @@ function uaMigrateExistingComplementaryAffiliateLinks(options) {
         if (remainingMissingImages.length > 0) {
           throw new Error('更新後に既存画像の欠落を検出しました。');
         }
-        if (!/<!--\s*UA_SUB_AFFILIATE_START\s*-->/i.test(verifiedBody)) {
+        if (!markerRegex.test(verifiedBody)) {
           throw new Error('更新後にサブ案件テキストリンクを確認できませんでした。');
         }
 

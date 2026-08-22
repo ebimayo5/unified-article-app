@@ -343,32 +343,227 @@ function uaRunArticleFromWeb(data) {
 }
 
 function uaApplyManagedAffiliateCta_(body, rowData, appConfig) {
-  const html = uaRelocateManagedAffiliateTokenByContext_(String(body || ''), rowData, appConfig);
+  const html = uaRemoveManagedSubAffiliateBlock_(
+    uaRelocateManagedAffiliateTokenByContext_(String(body || ''), rowData, appConfig)
+  );
   const spec = uaGetManagedAffiliateCtaSpec_(rowData);
   if (!html || !spec) return html;
 
+  let resultHtml = '';
   if (uaManagedAffiliateCtaAlreadyExists_(html, spec)) {
-    return uaRemoveManagedAffiliateCtaToken_(html);
+    resultHtml = uaRemoveManagedAffiliateCtaToken_(html);
+  } else {
+    const cleanHtml = uaRemoveManagedAffiliateButtonBlocks_(html, spec);
+    const tokenMatch = /\[UA_AFFILIATE_CTA[:：]\s*([^\]\r\n]{1,160})\]/i.exec(cleanHtml);
+    const ctaText = uaNormalizeManagedAffiliateCtaText_(
+      tokenMatch && tokenMatch[1],
+      spec.name
+    );
+    const ctaBlock = uaBuildManagedAffiliateCtaBlock_(spec, ctaText);
+
+    if (tokenMatch) {
+      resultHtml = uaReplaceManagedAffiliateCtaToken_(cleanHtml, ctaBlock);
+    } else {
+      const insertionIndex = uaFindManagedAffiliateCtaFallbackIndex_(cleanHtml);
+      resultHtml = [
+        cleanHtml.slice(0, insertionIndex).trimEnd(),
+        ctaBlock,
+        cleanHtml.slice(insertionIndex).trimStart()
+      ].filter(Boolean).join('\n\n');
+    }
   }
 
-  const cleanHtml = uaRemoveManagedAffiliateButtonBlocks_(html, spec);
-  const tokenMatch = /\[UA_AFFILIATE_CTA[:：]\s*([^\]\r\n]{1,160})\]/i.exec(cleanHtml);
-  const ctaText = uaNormalizeManagedAffiliateCtaText_(
-    tokenMatch && tokenMatch[1],
-    spec.name
-  );
-  const ctaBlock = uaBuildManagedAffiliateCtaBlock_(spec, ctaText);
+  return uaApplyManagedSubAffiliateTextLink_(resultHtml, rowData, appConfig, spec);
+}
 
-  if (tokenMatch) {
-    return uaReplaceManagedAffiliateCtaToken_(cleanHtml, ctaBlock);
+function uaApplyManagedSubAffiliateTextLink_(body, rowData, appConfig, mainSpec) {
+  const html = uaRemoveManagedSubAffiliateBlock_(body);
+  const project = uaGetComplementaryAffiliateProject_(rowData, appConfig, html);
+  if (!html || !project) return html;
+
+  const projectUrls = uaExtractUrlsFromAffiliateCode_(project.linkInput || project.url || '');
+  if (project.url && projectUrls.indexOf(project.url) === -1) projectUrls.push(project.url);
+  if (projectUrls.some(function(url) {
+    return url && (html.indexOf(url) !== -1 || html.indexOf(String(url).replace(/&/g, '&amp;')) !== -1);
+  })) {
+    return html;
   }
 
-  const insertionIndex = uaFindManagedAffiliateCtaFallbackIndex_(cleanHtml);
+  const bounds = uaFindManagedAffiliateCtaBounds_(html, mainSpec);
+  if (!bounds) return html;
+
+  const block = uaBuildManagedSubAffiliateBlock_(mainSpec && mainSpec.name, project);
+  if (!block) return html;
+
   return [
-    cleanHtml.slice(0, insertionIndex).trimEnd(),
-    ctaBlock,
-    cleanHtml.slice(insertionIndex).trimStart()
+    html.slice(0, bounds.end).trimEnd(),
+    block,
+    html.slice(bounds.end).trimStart()
   ].filter(Boolean).join('\n\n');
+}
+
+function uaRemoveManagedSubAffiliateBlock_(body) {
+  return String(body || '')
+    .replace(/<!--\s*UA_SUB_AFFILIATE_START\s*-->[\s\S]*?<!--\s*UA_SUB_AFFILIATE_END\s*-->/gi, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+function uaGetComplementaryAffiliateProject_(rowData, appConfig, body) {
+  const isDrive = appConfig && appConfig.key
+    ? appConfig.key === 'drive'
+    : /DRIVE\s*BASE/i.test(String(rowData && rowData.appType || ''));
+  if (!isDrive) return null;
+
+  const mainName = uaNormalizeAffiliateName_(rowData && rowData.affiliateName);
+  let subName = '';
+  let relevancePattern = null;
+
+  if (/^ガリバー中古車ご提案サービス$/.test(mainName)) {
+    subName = 'カーネクスト';
+    relevancePattern = /(乗り換え|買い替え|下取り|売却|査定|買取|リセール|手放(?:す|した|し)|今の車|現在の車|愛車)/i;
+  } else if (/^カーネクスト$/.test(mainName)) {
+    subName = 'ガリバー中古車ご提案サービス';
+    relevancePattern = /(乗り換え|買い替え|次の車|次に乗る|購入候補|車選び|希望[^。\n]{0,20}車|中古車[^。\n]{0,20}(?:探|選|買))/i;
+  } else {
+    return null;
+  }
+
+  const context = [
+    rowData && rowData.mainInput,
+    rowData && rowData.readerMindMemo,
+    rowData && rowData.structureMemo,
+    String(body || '').replace(/<!--[^]*?-->/g, ' ').replace(/<[^>]+>/g, ' ')
+  ].join(' ');
+  if (!relevancePattern.test(context)) return null;
+
+  const project = uaReadAffiliateProjectByName_(subName, false);
+  if (!project || !project.linkInput || !project.url) return null;
+  return project;
+}
+
+function uaGetManagedComplementaryAffiliateUrls_(rowData, appConfig, body) {
+  const project = uaGetComplementaryAffiliateProject_(rowData, appConfig, body);
+  if (!project) return [];
+  return uaExtractUrlsFromAffiliateCode_(project.linkInput || project.url || '')
+    .concat(project.url || '')
+    .filter(function(url, index, list) {
+      return url && list.indexOf(url) === index;
+    });
+}
+
+function uaFindManagedAffiliateCtaBounds_(body, spec) {
+  const html = String(body || '');
+  if (!spec) return null;
+  const markers = uaExtractUrlsFromAffiliateCode_(spec.content || '');
+  if (spec.url && markers.indexOf(spec.url) === -1) markers.push(spec.url);
+  if (spec.type === 'shortcode' && spec.content) markers.push(String(spec.content).trim());
+
+  const regex = /<!--\s*wp:cocoon-blocks\/button-wrap-1\b[\s\S]*?<!--\s*\/wp:cocoon-blocks\/button-wrap-1\s*-->/gi;
+  let match;
+  while ((match = regex.exec(html)) !== null) {
+    const block = String(match[0] || '');
+    if (markers.some(function(marker) {
+      return marker && (block.indexOf(marker) !== -1 || block.indexOf(String(marker).replace(/&/g, '&amp;')) !== -1);
+    })) {
+      return { start: match.index, end: match.index + match[0].length, block: block };
+    }
+  }
+  return null;
+}
+
+function uaBuildManagedSubAffiliateBlock_(mainName, project) {
+  const isCarnextSub = /^カーネクスト$/.test(String(project && project.name || ''));
+  const anchorText = isCarnextSub
+    ? 'カーネクストで今の車の査定条件を確認する'
+    : 'ガリバーで希望に合う中古車の提案を確認する';
+  const source = uaNormalizeAnchorRelAttributes_(
+    uaNormalizeAffiliateCodeInput_(project && project.linkInput || '')
+  );
+  const anchorMatch = /<a\b([^>]*)>([\s\S]*?)<\/a>/i.exec(source);
+  let linkHtml = '';
+
+  if (anchorMatch) {
+    linkHtml = uaIsAffiliateFreeTextPlaceholder_(anchorMatch[2])
+      ? source.replace(anchorMatch[0], '<a' + anchorMatch[1] + '>' + uaEscapeHtml_(anchorText) + '</a>')
+      : source;
+  } else if (/^https?:\/\/[^\s"'<>]+$/i.test(String(project && project.url || ''))) {
+    linkHtml = '<a href="' + String(project.url).trim() + '" target="_blank" rel="nofollow sponsored noopener">' +
+      uaEscapeHtml_(anchorText) + '</a>';
+  }
+  if (!linkHtml) return '';
+
+  const sentence = isCarnextSub
+    ? '次の車を探す前に売却予算も整理したい場合は、' + linkHtml + 'と乗り換え全体の判断がしやすくなります。'
+    : '売却後の次の車まで考える場合は、' + linkHtml + 'と希望条件を整理しやすくなります。';
+
+  return [
+    '<!-- UA_SUB_AFFILIATE_START -->',
+    '<!-- wp:paragraph -->',
+    '<p>' + sentence + '</p>',
+    '<!-- /wp:paragraph -->',
+    '<!-- UA_SUB_AFFILIATE_END -->'
+  ].join('\n');
+}
+
+function uaTestManagedComplementaryAffiliateTextLink() {
+  const cases = [
+    {
+      mainSpec: {
+        type: 'url',
+        name: 'ガリバー中古車ご提案サービス',
+        url: 'https://example.com/gulliver',
+        content: 'https://example.com/gulliver'
+      },
+      subProject: {
+        name: 'カーネクスト',
+        url: 'https://example.com/carnext',
+        linkInput: '<a href="https://example.com/carnext" rel="nofollow">自由テキスト</a><img src="https://example.com/carnext-track" width="1" height="1">'
+      },
+      expectedText: 'カーネクストで今の車の査定条件を確認する'
+    },
+    {
+      mainSpec: {
+        type: 'url',
+        name: 'カーネクスト',
+        url: 'https://example.com/carnext',
+        content: 'https://example.com/carnext'
+      },
+      subProject: {
+        name: 'ガリバー中古車ご提案サービス',
+        url: 'https://example.com/gulliver',
+        linkInput: '<a href="https://example.com/gulliver" rel="nofollow">＜自由テキスト02＞</a><img src="https://example.com/gulliver-track" width="1" height="1">'
+      },
+      expectedText: 'ガリバーで希望に合う中古車の提案を確認する'
+    }
+  ];
+
+  cases.forEach(function(item, index) {
+    const mainBlock = uaBuildManagedAffiliateCtaBlock_(
+      item.mainSpec,
+      item.mainSpec.name + 'で対応内容を確認する'
+    );
+    const subBlock = uaBuildManagedSubAffiliateBlock_(item.mainSpec.name, item.subProject);
+    const combined = mainBlock + '\n\n' + subBlock;
+    const bounds = uaFindManagedAffiliateCtaBounds_(combined, item.mainSpec);
+
+    if (!bounds || bounds.end > combined.indexOf('<!-- UA_SUB_AFFILIATE_START -->')) {
+      throw new Error('サブ案件がメイン囲みボタンの直後に配置されていません。case=' + (index + 1));
+    }
+    if (subBlock.indexOf(item.subProject.url) === -1) {
+      throw new Error('サブ案件URLが本文にありません。case=' + (index + 1));
+    }
+    if (subBlock.indexOf(item.expectedText) === -1) {
+      throw new Error('サブ案件のアンカーテキストが不正です。case=' + (index + 1));
+    }
+    if (/cocoon-blocks\/button-wrap-1/i.test(subBlock)) {
+      throw new Error('サブ案件がテキストリンクではなく囲みボタンになりました。case=' + (index + 1));
+    }
+    if (uaRemoveManagedSubAffiliateBlock_(combined).indexOf('UA_SUB_AFFILIATE_START') !== -1) {
+      throw new Error('再処理前に既存サブ案件を除去できません。case=' + (index + 1));
+    }
+  });
+  return { ok: true, pairedCases: cases.length, textLinksOnly: true, removableBeforeReapply: true };
 }
 
 function uaManagedAffiliateCtaAlreadyExists_(body, spec) {

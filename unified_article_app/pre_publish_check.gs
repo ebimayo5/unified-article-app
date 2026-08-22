@@ -217,6 +217,7 @@ function uaApplyPrePublishFixesOnceFromPanel(data) {
   const allowedNewUrls = uaExtractPrePublishUrlsFromText_(externalSourcesPrompt)
     .concat([String(rowData.affiliateUrl || '').trim()])
     .concat(uaGetManagedAffiliateUrls_(rowData))
+    .concat(uaGetManagedComplementaryAffiliateUrls_(rowData, appConfig, revisedBody))
     .concat([UA_NAVIOKUN_INTRO_URL])
     .concat(uaGetYmylNoticeSourceUrls_(rowData, appConfig, revisedBody))
     .filter(Boolean);
@@ -430,6 +431,7 @@ function uaProtectPrePublishRevisionBody_(body) {
     ['Cocoon情報ボックス', /<!--\s*wp:cocoon-blocks\/info-box\b[\s\S]*?<!--\s*\/wp:cocoon-blocks\/info-box\s*-->/gi],
     ['この記事のポイント', /<!--\s*wp:cocoon-blocks\/tab-caption-box-1\b[\s\S]*?<!--\s*\/wp:cocoon-blocks\/tab-caption-box-1\s*-->/gi],
     ['CTA', /<!--\s*wp:cocoon-blocks\/button-wrap-1\b[\s\S]*?<!--\s*\/wp:cocoon-blocks\/button-wrap-1\s*-->/gi],
+    ['サブ案件テキストリンク', /<!--\s*UA_SUB_AFFILIATE_START\s*-->[\s\S]*?<!--\s*UA_SUB_AFFILIATE_END\s*-->/gi],
     ['本文画像', /<!--\s*wp:image\b[\s\S]*?<!--\s*\/wp:image\s*-->/gi],
     ['Cocoonブログカード', /<!--\s*wp:cocoon-blocks\/blogcard\b[\s\S]*?<!--\s*\/wp:cocoon-blocks\/blogcard\s*-->/gi]
   ];

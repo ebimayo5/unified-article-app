@@ -119,12 +119,17 @@ assert(updates[0].attrs.post_id === '321', 'Rinker post ID was not updated');
 assert(editorThickboxClosed === 1, 'Thickbox was not closed after insertion');
 
 // The media popup must relay Rinker's successful AJAX response to the editor.
-let ajaxSuccessHandler;
 let mediaClickHandler;
+let capturedAjaxSettings;
+let legacySuccessCalled = 0;
 const mediaMessages = [];
 function mediaJQuery() {
-  return { ajaxSuccess(handler) { ajaxSuccessHandler = handler; } };
+  return {};
 }
+mediaJQuery.ajax = function (settings) {
+  capturedAjaxSettings = settings;
+  return {};
+};
 const mediaWindow = {
   location: {
     origin: 'https://example.com',
@@ -145,9 +150,14 @@ run({
     querySelector() { return null; }
   }
 });
-ajaxSuccessHandler(null, { responseText: '654' }, { data: { action: 'yyi_rinker_add_item' } });
+mediaWindow.jQuery.ajax({
+  data: { action: 'yyi_rinker_add_item' },
+  success() { legacySuccessCalled += 1; }
+});
+capturedAjaxSettings.success('654');
 assert(mediaMessages.length === 1, 'media popup did not relay the created item');
 assert(mediaMessages[0].message.shortcode === '[itemlink post_id="654"]', 'relayed shortcode is incorrect');
+assert(legacySuccessCalled === 0, 'legacy cross-frame success callback should be skipped after relay');
 
 // Registered items use a separate classic-DOM route and must also be relayed.
 const registeredButton = {

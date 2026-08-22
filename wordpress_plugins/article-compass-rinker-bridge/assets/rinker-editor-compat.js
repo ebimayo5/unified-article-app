@@ -170,6 +170,38 @@
         return !!(data && data.action === 'yyi_rinker_add_item');
     }
 
+    function extractPostId(response) {
+        if (typeof response === 'number' && isFinite(response)) {
+            return String(Math.floor(response));
+        }
+        if (typeof response === 'string') {
+            var trimmed = response.trim();
+            if (/^\d+$/.test(trimmed)) {
+                return trimmed;
+            }
+            try {
+                return extractPostId(JSON.parse(trimmed));
+            } catch (error) {
+                return '';
+            }
+        }
+        if (response && typeof response === 'object') {
+            var candidates = [
+                response.post_id,
+                response.postId,
+                response.id,
+                response.data
+            ];
+            for (var i = 0; i < candidates.length; i += 1) {
+                var found = extractPostId(candidates[i]);
+                if (found) {
+                    return found;
+                }
+            }
+        }
+        return '';
+    }
+
     function bindMediaUploadRelay() {
         if (!$ || !/media-upload\.php$/i.test(window.location.pathname)) {
             return;
@@ -219,17 +251,31 @@
             }, 0);
         }, true);
 
-        $(document).ajaxSuccess(function (event, xhr, settings) {
-            if (!isRinkerAddRequest(settings)) {
-                return;
-            }
-            var response = String(xhr && xhr.responseText || '').trim();
-            var match = response.match(/^\d+$/);
-            if (!match) {
-                return;
-            }
-            relay(match[0]);
-        });
+        // Rinker's success callback runs before jQuery's global ajaxSuccess
+        // event. On WordPress 7.1 that callback throws while trying to access
+        // the block editor across iframe boundaries, so ajaxSuccess is never
+        // reached. Wrap $.ajax and relay the created post ID before Rinker's
+        // legacy callback can run. The classic editor is untouched because
+        // this bridge is enabled only when a Gutenberg client ID is present.
+        var originalAjax = $.ajax;
+        if (typeof originalAjax === 'function') {
+            $.ajax = function (url, options) {
+                var settings = typeof url === 'object' ? url : options;
+                if (settings && isRinkerAddRequest(settings)) {
+                    var originalSuccess = settings.success;
+                    settings.success = function (response) {
+                        var postId = extractPostId(response);
+                        if (postId && relay(postId)) {
+                            return;
+                        }
+                        if (typeof originalSuccess === 'function') {
+                            return originalSuccess.apply(this, arguments);
+                        }
+                    };
+                }
+                return originalAjax.apply(this, arguments);
+            };
+        }
     }
 
     bindIframeOpenCompatibility();

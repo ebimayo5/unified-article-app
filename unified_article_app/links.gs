@@ -8,6 +8,21 @@ function uaBuildInternalLinksPrompt_(mainInput, appConfig, rowData) {
 
   const candidates = uaGetInternalLinkCandidates_(mainInput, appConfig, rowData);
   const topicCluster = uaInferTopicCluster_(mainInput, appConfig);
+  const internalLinkFormatPrompt = uaUsesSwellBlocks_(appConfig)
+    ? [
+        '内部リンクは「前置き文 + 独立したURL段落」で入れてください。Cocoonブログカードは作らないでください。',
+        'URL段落は <!-- wp:paragraph {"className":"article-compass-internal-link"} --><p class="article-compass-internal-link"><a href="URL">記事タイトル</a></p><!-- /wp:paragraph --> の形式にしてください。',
+        'システム側とSWELL側で、読者が内部リンクだと分かるカード風表示に整えます。'
+      ].join('\n')
+    : [
+        '内部リンクは通常のテキストリンクではなく、必ず「前置き文 + Cocoonブログカード」で入れてください。',
+        'ブログカードは必ず次の形式にしてください。divの中にはURLだけを入れ、タイトルや<a>タグは入れないでください。',
+        '<!-- wp:cocoon-blocks/blogcard {"style":"blogcard-type bct-together"} -->',
+        '<div class="wp-block-cocoon-blocks-blogcard blogcard-type bct-together">',
+        'URL',
+        '</div>',
+        '<!-- /wp:cocoon-blocks/blogcard -->'
+      ].join('\n');
 
   if (candidates.length === 0) {
     return `
@@ -41,14 +56,8 @@ function uaBuildInternalLinksPrompt_(mainInput, appConfig, rowData) {
 同じURLは1回だけ使ってください。
 関連性が薄い候補は使わないでください。
 アンカーテキストは記事タイトルをそのまま使わず、本文になじむ短い自然な文言にしてください。
-内部リンクは通常のテキストリンクではなく、必ず「前置き文 + Cocoonブログカード」で入れてください。
+${internalLinkFormatPrompt}
 前置き文は、文脈に合わせて「〜の記事も参考になります。」「詳しくはこちらの記事で整理しています。」「関連する注意点は次の記事も参考になります。」のように、読者が別記事へ移動すると分かる一文にしてください。
-ブログカードは必ず次の形式にしてください。divの中にはURLだけを入れ、タイトルや<a>タグは入れないでください。
-<!-- wp:cocoon-blocks/blogcard {"style":"blogcard-type bct-together"} -->
-<div class="wp-block-cocoon-blocks-blogcard blogcard-type bct-together">
-URL
-</div>
-<!-- /wp:cocoon-blocks/blogcard -->
 内部リンクだけのブロックを連発せず、読者の次の悩みや補足理解につながる位置に入れてください。
 入れやすい位置は、関連するH2の本文中、比較・注意点の補足、まとめ前の「次に読む内容」です。
 内部リンクは自然に溶け込ませすぎず、読者が別記事へ移動するブログカードだと分かる文脈にしてください。
@@ -851,7 +860,11 @@ function uaIsUsedVehicleMarketTopic_(value) {
 }
 
 function uaRequiresFreshOfficialSourceSearchFromContext_(contextText) {
-  return /(最新|現在|今後|倒産|経営|決算|業績|赤字|黒字|利益|財務|負債|資金繰り|キャッシュフロー|株価|法令|法律|違反|規制|制度|補助金|税制|リコール|改善対策)/i.test(String(contextText || ''));
+  const text = String(contextText || '');
+  if (/(倒産|経営|決算|業績|赤字|黒字|利益|財務|負債|資金繰り|キャッシュフロー|株価|法令|法律|違反|規制|補助金|税制|リコール|改善対策)/i.test(text)) {
+    return true;
+  }
+  return /(最新|現在|今後).{0,16}(制度|価格|料金|相場|保証|安全基準)|(制度|価格|料金|相場|保証|安全基準).{0,16}(最新|現在|今後)/i.test(text);
 }
 
 function uaIsFinanceFreshnessTopic_(value) {
@@ -1172,7 +1185,7 @@ function uaAddInternalLinkForContext_(sheet, row) {
     };
   }
 
-  const block = uaBuildInternalLinkPostInsertBlock_(candidate);
+  const block = uaBuildInternalLinkPostInsertBlock_(candidate, appConfig);
   const nextBody = uaInsertLinkBlockIntoBody_(body, block, candidate);
   sheet.getRange(row, UA_COLUMNS.body).setValue(nextBody);
   uaAppendLinkPostInsertFact_(sheet, row, '・内部リンク後入れ｜' + candidate.url);
@@ -1253,7 +1266,7 @@ function uaPickExternalSourceForBody_(rowData, appConfig, body) {
   return null;
 }
 
-function uaBuildInternalLinkPostInsertBlock_(candidate) {
+function uaBuildInternalLinkPostInsertBlock_(candidate, appConfig) {
   const url = uaEscapeLinkHtml_(candidate.url);
   const rawUsage = String(candidate.usage || '本文では触れきれない補足内容')
     .replace(/として使う$/, '')
@@ -1264,6 +1277,18 @@ function uaBuildInternalLinkPostInsertBlock_(candidate) {
   const leadText = /とき$/.test(usage)
     ? usage + 'は、こちらの記事も参考になります。'
     : usage + 'をあわせて確認したい場合は、こちらの記事も参考になります。';
+
+  if (uaUsesSwellBlocks_(appConfig)) {
+    const title = uaEscapeLinkHtml_(candidate.title || '関連記事を読む');
+    return [
+      '<!-- wp:paragraph -->',
+      '<p>' + leadText + '</p>',
+      '<!-- /wp:paragraph -->',
+      '<!-- wp:paragraph {"className":"article-compass-internal-link"} -->',
+      '<p class="article-compass-internal-link"><a href="' + url + '">' + title + '</a></p>',
+      '<!-- /wp:paragraph -->'
+    ].join('\n');
+  }
 
   return [
     '<p>' + leadText + '</p>',

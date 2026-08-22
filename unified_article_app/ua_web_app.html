@@ -1629,6 +1629,10 @@
             schedulePendingPrePublishRevisionRetry(flow, index, currentData);
             return;
           }
+          if (step.server === 'uaRunArticleFromWeb' && isPendingArticleGenerationError(error)) {
+            schedulePendingArticleGenerationRetry(flow, index, currentData);
+            return;
+          }
           failFullArticleWorkflow(error, step.label);
         })[step.server](requestData);
       }
@@ -1637,6 +1641,32 @@
         const message = error && error.message ? error.message : String(error || '');
         return message.indexOf('OpenAIで指摘修正を継続中') !== -1 &&
           message.indexOf('処理IDは保存済み') !== -1;
+      }
+
+      function isPendingArticleGenerationError(error) {
+        const message = error && error.message ? error.message : String(error || '');
+        return message.indexOf('OpenAIで本文生成を継続中') !== -1 &&
+          message.indexOf('処理IDは保存済み') !== -1;
+      }
+
+      function schedulePendingArticleGenerationRetry(flow, index, currentData) {
+        if (!flow || window.uaFullWorkflowCancelled) return;
+        clearBusy();
+        flow.pendingArticleChecks = Number(flow.pendingArticleChecks || 0) + 1;
+        renderWorkflowProgress(flow, index, 'running');
+        const retryToken = beginCancelableOperation(
+          'OpenAIの本文生成完了を待っています。20秒後に自動で確認します...',
+          flow.button
+        );
+        updateBusyProgress(
+          'OpenAIの本文生成はバックグラウンドで継続中です。',
+          '20秒後に保存済みの処理IDを自動確認 / 新しい本文生成は送信しません'
+        );
+        window.setTimeout(function() {
+          if (isOperationCancelled(retryToken) || window.uaFullWorkflowCancelled || window.uaFullWorkflow !== flow) return;
+          clearBusy();
+          runFullArticleWorkflowStep(index, currentData || readForm());
+        }, 20000);
       }
 
       function schedulePendingPrePublishRevisionRetry(flow, index, currentData) {
@@ -2628,16 +2658,22 @@
           setNotice('WP投稿IDがありません。先にWordPressへ入稿してください。', true);
           return;
         }
-        if (!window.confirm('公開中の同じ記事を更新します。タイトル案から1件を採用し、本文・Rinker・SEO情報を反映します。よろしいですか？')) {
+        const isDraft = String(data.status || '').indexOf('WP下書き') >= 0;
+        if (!isDraft && !window.confirm('公開中の同じ記事を更新します。タイトル案から1件を採用し、本文・Rinker・SEO情報を反映します。よろしいですか？')) {
           return;
         }
-        setBusy('公開中のWordPress記事を更新中...', button);
-        google.script.run.withSuccessHandler(function(nextData) {
+        setBusy(isDraft ? 'WordPress下書きを更新中...' : '公開中のWordPress記事を更新中...', button);
+        const onSuccess = function(nextData) {
           clearBusy();
           fillForm(nextData);
           setProgress('done');
-          setNotice(nextData.message || '公開中のWordPress記事を更新しました。', false);
-        }).withFailureHandler(fail).uaUpdatePublishedWpFromWeb(data);
+          setNotice(nextData.message || (isDraft ? 'WordPress下書きを更新しました。' : '公開中のWordPress記事を更新しました。'), false);
+        };
+        if (isDraft) {
+          google.script.run.withSuccessHandler(onSuccess).withFailureHandler(fail).uaCreateWpDraftFromWeb(data);
+        } else {
+          google.script.run.withSuccessHandler(onSuccess).withFailureHandler(fail).uaUpdatePublishedWpFromWeb(data);
+        }
       }
 
       function runPrePublishCheck(button) {

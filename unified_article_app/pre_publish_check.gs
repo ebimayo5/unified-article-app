@@ -428,6 +428,10 @@ function uaProtectPrePublishRevisionBody_(body) {
   let protectedBody = String(body || '');
   const blocks = [];
   const patterns = [
+    ['SWELL対応CTA', /<!--\s*UA_MAIN_AFFILIATE_CTA_START\s*-->[\s\S]*?<!--\s*UA_MAIN_AFFILIATE_CTA_END\s*-->/gi],
+    ['SWELL対応ポイント枠', /<!--\s*wp:group\b[^>]*article-compass-point-box[\s\S]*?<!--\s*\/wp:group\s*-->/gi],
+    ['SWELL対応注意書き', /<!--\s*wp:group\b[^>]*article-compass-notice-box[\s\S]*?<!--\s*\/wp:group\s*-->/gi],
+    ['SWELL対応内部リンク', /<!--\s*wp:paragraph\b[^>]*article-compass-internal-link[\s\S]*?<!--\s*\/wp:paragraph\s*-->/gi],
     ['Cocoon情報ボックス', /<!--\s*wp:cocoon-blocks\/info-box\b[\s\S]*?<!--\s*\/wp:cocoon-blocks\/info-box\s*-->/gi],
     ['この記事のポイント', /<!--\s*wp:cocoon-blocks\/tab-caption-box-1\b[\s\S]*?<!--\s*\/wp:cocoon-blocks\/tab-caption-box-1\s*-->/gi],
     ['CTA', /<!--\s*wp:cocoon-blocks\/button-wrap-1\b[\s\S]*?<!--\s*\/wp:cocoon-blocks\/button-wrap-1\s*-->/gi],
@@ -467,6 +471,10 @@ function uaRestorePrePublishProtectedBlocks_(body, blocks) {
 }
 
 function uaBuildPrePublishRevisionPrompt_(rowData, checkReport, externalSourcesPrompt) {
+  const appConfig = uaGetAppConfigByLabel_(rowData && rowData.appType);
+  const themeRevisionRule = uaUsesSwellBlocks_(appConfig)
+    ? 'WordPressテーマはSWELLです。既存のSWELL対応コアブロック、article-compass-*クラス、Rinker、画像、リンクを維持し、Cocoonブロックへ変換しないでください。'
+    : 'WordPressテーマはCocoonです。「この記事のポイント」はCocoon tab-caption-box-1、CTAはCocoon button-wrap-1、内部リンクは前置き文とCocoonブログカードの形式を守ってください。';
   return [
     'あなたはプロの編集者兼コピーライターです。公開前チェック結果を受けて、記事を1回だけ修正してください。',
     '最重要: 指摘に含まれる単語だけを見て一律置換しないでください。本文全体、前後の文、段落、見出しの役割、読者の検索意図を読んでから、修正が必要か判断してください。',
@@ -483,7 +491,7 @@ function uaBuildPrePublishRevisionPrompt_(rowData, checkReport, externalSourcesP
     'Rinker商品ボックスまたは楽天バナーがある用品H2でも、表示商品のカテゴリと本文で紹介する用品が一致しない場合は、見出しを残すために無関係な商品説明を増やさないでください。検索意図に必要な用品だけへ絞り、対応しない補足は既存章へ統合してください。',
     '案件が検索意図の中心から少し離れる場合は、案件のためだけのH2・H3や長い商品紹介章を作らず、既存の購入判断セクション内の1〜3段落に圧縮してください。変えにくい不満と後から調整できる不満など、記事の主題に沿う短い橋渡しは残してください。',
     'ナビ男くん案件では紹介セットと案件CTAの両方を必ず残してください。検索意図から少し離れる場合は、メインキーワード、読者の不安、対象車種、直前セクションの結論を読み、「なぜここでナビ男くんを確認するのか」が具体的に分かる橋渡しへ直してください。単なる「選択肢です」「確認してみましょう」だけの接続は禁止です。',
-    '「この記事のポイント」はCocoon tab-caption-box-1、CTAはCocoon button-wrap-1、内部リンクは前置き文とCocoonブログカードの形式を守ってください。',
+    themeRevisionRule,
     '本文中の <!-- UA_PROTECTED_BLOCK_数字 --> は、システムが保護している画像・リンク・CTAなどの位置を表します。文字列を変更・削除・複製・移動せず、必ず元の位置に1個だけ残してください。',
     'H2は「よくある質問」「まとめ」を含めて基本6〜8個を目安にしてください。9個でも検索意図・判断材料・役割が明確に異なるなら、数だけを理由に統合しないでください。10個以上の場合は細分化しすぎていないか確認し、内容が重複するH2だけを統合して詳細をH3へ整理してください。6個未満でも、テーマが十分整理されているなら数合わせで不要なH2を増やさないでください。',
     'FAQはH2「よくある質問」の直下にH3「Q. 質問」を置き、回答はp要素にしてください。FAQ内の質問にH4は使わないでください。',
@@ -675,10 +683,11 @@ function uaBuildPrePublishRuleCheck_(rowData) {
   const currentSourceIssue = uaCheckCurrentOfficialSourceRequirement_(rowData, body);
   const affiliateDetourIssue = uaFindAffiliateDetourIssue_(rowData, body);
   const standaloneProductSectionsWithoutRakuten = uaFindPrePublishStandaloneProductSectionsWithoutRakuten_(body);
+  let appConfig = null;
   let siteFitIssue = null;
   let ymylNoticeSpec = null;
   try {
-    const appConfig = uaGetAppConfigByLabel_(rowData && rowData.appType);
+    appConfig = uaGetAppConfigByLabel_(rowData && rowData.appType);
     siteFitIssue = uaFindDeterministicKeywordSiteFitIssue_(rowData && rowData.mainInput, appConfig);
     ymylNoticeSpec = uaBuildYmylNoticeSpec_(rowData || {}, appConfig, body);
   } catch (e) {
@@ -764,38 +773,42 @@ function uaBuildPrePublishRuleCheck_(rowData) {
     result.ok.push('FAQの質問見出しはH3です。');
   }
 
-  const hasCocoonPointBox = body.indexOf('wp:cocoon-blocks/tab-caption-box-1') !== -1 ||
-    body.indexOf('wp-block-cocoon-blocks-tab-caption-box-1') !== -1;
-  if (hasCocoonPointBox &&
-      body.indexOf('この記事のポイント') !== -1) {
-    result.ok.push('「この記事のポイント」はCocoon tab-caption-box-1形式です。');
+  const usesSwell = uaUsesSwellBlocks_(appConfig);
+  const hasPointBox = usesSwell
+    ? body.indexOf('article-compass-point-box') !== -1
+    : body.indexOf('wp:cocoon-blocks/tab-caption-box-1') !== -1 ||
+      body.indexOf('wp-block-cocoon-blocks-tab-caption-box-1') !== -1;
+  if (hasPointBox && body.indexOf('この記事のポイント') !== -1) {
+    result.ok.push('「この記事のポイント」は' + (usesSwell ? 'SWELL対応コアブロック' : 'Cocoon tab-caption-box-1') + '形式です。');
   } else {
-    result.critical.push('「この記事のポイント」がCocoon tab-caption-box-1形式で見つかりません。');
+    result.critical.push('「この記事のポイント」が' + (usesSwell ? 'SWELL対応形式' : 'Cocoon tab-caption-box-1形式') + 'で見つかりません。');
   }
 
   if (body.trim() && ymylNoticeSpec) {
     if (uaHasYmylNotice_(body)) {
-      result.ok.push('YMYL寄りの記事向け注意書きがCocoon danger-box形式で入っています。');
+      result.ok.push('YMYL寄りの記事向け注意書きが' + (usesSwell ? 'SWELL対応形式' : 'Cocoon danger-box形式') + 'で入っています。');
     } else {
-      result.critical.push('YMYL寄りの記事ですが、Cocoon danger-box形式の注意書きが見つかりません。');
+      result.critical.push('YMYL寄りの記事ですが、' + (usesSwell ? 'SWELL対応形式' : 'Cocoon danger-box形式') + 'の注意書きが見つかりません。');
     }
   }
 
   const hasAffiliateCtaTarget = !!String(rowData && rowData.affiliateUrl || '').trim();
   const hasNaviokunIntroCta = /ナビ男くん/.test(String(rowData && rowData.affiliateName || '')) &&
     body.indexOf(UA_NAVIOKUN_INTRO_URL) !== -1 && /\[affi\s+id\s*=\s*7\s*\]/i.test(body);
-  const hasCocoonAffiliateButton = body.indexOf('wp:cocoon-blocks/button-wrap-1') !== -1 &&
+  const hasAffiliateButton = (usesSwell
+    ? body.indexOf('UA_MAIN_AFFILIATE_CTA_START') !== -1 && body.indexOf('article-compass-affiliate-cta') !== -1
+    : body.indexOf('wp:cocoon-blocks/button-wrap-1') !== -1) &&
     /<a\b[^>]+href=["'][^"']+["'][^>]*>/i.test(body);
   const requiresBothNaviokunBlocks = /ナビ男くん/.test(String(rowData && rowData.affiliateName || ''));
-  if ((requiresBothNaviokunBlocks && hasNaviokunIntroCta && hasCocoonAffiliateButton) ||
-      (!requiresBothNaviokunBlocks && (hasCocoonAffiliateButton || hasNaviokunIntroCta))) {
-    result.ok.push('CTA\u306fCocoon button-wrap-1\u5f62\u5f0f\u3067\u898b\u3064\u304b\u308a\u307e\u3057\u305f\u3002');
+  if ((requiresBothNaviokunBlocks && hasNaviokunIntroCta && hasAffiliateButton) ||
+      (!requiresBothNaviokunBlocks && (hasAffiliateButton || hasNaviokunIntroCta))) {
+    result.ok.push('CTAは' + (usesSwell ? 'SWELL対応ボタン' : 'Cocoon button-wrap-1') + '形式で見つかりました。');
   } else if (requiresBothNaviokunBlocks) {
     result.critical.push('ナビ男くん案件ですが、紹介セットと案件CTAの両方がそろっていません。');
   } else if (hasAffiliateCtaTarget) {
-    result.critical.push('\u6848\u4ef6URL\u304c\u3042\u308a\u307e\u3059\u304c\u3001CTA\u306eCocoon button-wrap-1\u5f62\u5f0f\u304c\u898b\u3064\u304b\u308a\u307e\u305b\u3093\u3002');
+    result.critical.push('案件URLがありますが、CTAの' + (usesSwell ? 'SWELL対応形式' : 'Cocoon button-wrap-1形式') + 'が見つかりません。');
   } else {
-    result.warnings.push('\u6848\u4ef6URL\u304c\u672a\u5165\u529b\u306e\u305f\u3081\u3001CTA\u306eCocoon button-wrap-1\u78ba\u8a8d\u306f\u30b9\u30ad\u30c3\u30d7\u3057\u307e\u3057\u305f\u3002');
+    result.warnings.push('案件URLが未入力のため、CTA形式の確認はスキップしました。');
   }
 
   relDuplicates.forEach(function(item) {
@@ -825,17 +838,18 @@ function uaBuildPrePublishRuleCheck_(rowData) {
     result.critical.push(uaBuildSiteFitStopMessage_(siteFitIssue, uaGetAppConfigByLabel_(rowData && rowData.appType)));
   }
 
-  if (body.indexOf('wp:cocoon-blocks/blogcard') !== -1 &&
-      body.indexOf('wp-block-cocoon-blocks-blogcard') !== -1) {
-    result.ok.push('内部リンク用のCocoonブログカード形式が見つかりました。');
+  const hasInternalLinkBlock = usesSwell
+    ? body.indexOf('article-compass-internal-link') !== -1
+    : body.indexOf('wp:cocoon-blocks/blogcard') !== -1 && body.indexOf('wp-block-cocoon-blocks-blogcard') !== -1;
+  if (hasInternalLinkBlock) {
+    result.ok.push('内部リンク用の' + (usesSwell ? 'SWELL対応リンク' : 'Cocoonブログカード') + '形式が見つかりました。');
   } else {
-    result.warnings.push('Cocoonブログカード形式の内部リンクが見つかりません。内部リンク後入れ前なら問題ありません。');
+    result.warnings.push((usesSwell ? 'SWELL対応内部リンク' : 'Cocoonブログカード') + '形式が見つかりません。内部リンク後入れ前なら問題ありません。');
   }
 
-  if (/こちらの記事|関連記事|あわせて読みたい|詳しくはこちら/.test(body) &&
-      body.indexOf('wp:cocoon-blocks/blogcard') !== -1) {
+  if (/こちらの記事|関連記事|あわせて読みたい|詳しくはこちら/.test(body) && hasInternalLinkBlock) {
     result.ok.push('内部リンク前の前置き文らしき文章があります。');
-  } else if (body.indexOf('wp:cocoon-blocks/blogcard') !== -1) {
+  } else if (hasInternalLinkBlock) {
     result.warnings.push('ブログカード前の前置き文が弱い可能性があります。本文上で自然につながるか確認してください。');
   }
 
@@ -1167,13 +1181,18 @@ function uaBuildPrePublishEditorPrompt_(rowData, ruleCheck) {
   const compactBody = body.length > 18000
     ? body.slice(0, 15000) + '\n\n【本文後半抜粋】\n' + body.slice(-3000)
     : body;
+  const appConfig = uaGetAppConfigByLabel_(rowData && rowData.appType);
+  const themeLabel = uaUsesSwellBlocks_(appConfig) ? 'WordPress/SWELL' : 'WordPress/Cocoon';
+  const disclosureRule = uaUsesSwellBlocks_(appConfig)
+    ? 'サイト側でアフィリエイト広告表記を表示するため、本文内にPR・広告表記がないことを問題として指摘しないでください。'
+    : 'Cocoon側でサイト共通のアフィリエイト広告表記を自動表示します。本文内にPR・広告表記がないことを問題として指摘しないでください。また、本文内に同趣旨の独立段落がある場合は、Cocoon表示と重複するため削除候補として扱ってください。';
   return [
     'あなたはプロの編集者兼コピーライターです。ブログ記事を公開前チェックしてください。',
-    '目的: 読者にとって自然で役に立ち、AIっぽさが少なく、WordPress/Cocoon形式も崩れていない記事にする。',
+    '目的: 読者にとって自然で役に立ち、AIっぽさが少なく、' + themeLabel + '形式も崩れていない記事にする。',
     '重視する観点: 元の意図を変えない。事実を作らない。不確かな情報は断定しない。AIっぽい定型表現を減らす。読者の迷い、不安、次の行動が自然につながっているか見る。タイトル、導入、構成、具体性、読みやすさ、SEO、独自性、CTA、信頼性を見る。',
     '単語だけを検出して問題扱いしないでください。必ず前後の文、段落、見出し、記事全体の意図を読み、質問、引用、条件付き説明、手順、注意書き、保証・契約内容として適切な表現は修正対象にしないでください。',
     '法規、安全、数値、価格、保証、メーカー仕様、対応可否など信頼性が必要な主張は、内容に対応する外部出典リンクが近くにあるか確認してください。URLを推測して修正案へ書かず、確認できない場合は手動確認事項として示してください。',
-    'Cocoon側でサイト共通のアフィリエイト広告表記を自動表示します。本文内にPR・広告表記がないことを問題として指摘しないでください。また、本文内に同趣旨の独立段落がある場合は、Cocoon表示と重複するため削除候補として扱ってください。',
+    disclosureRule,
     'タイトルはメインキーワードの主要語を自然な日本語として含み、「何の記事か」と「なぜ読むのか」が30〜32文字程度で伝わるか確認してください。検索語を助詞なしで並べただけの形は低評価にします。数字は本文に根拠があり具体性が増す場合だけ評価し、数字がないこと自体は問題にしません。メタディスクリプションは約120文字で、単なる記事説明ではなく具体的な判断材料と読むメリットが伝わるか確認してください。',
     'H2は「よくある質問」「まとめ」を含め基本6〜8個を目安にしてください。9個でも役割が明確に異なるなら問題扱いせず、数だけを理由に統合しないでください。10個以上では細分化を重点確認し、検索意図や説明内容が重複するH2だけを統合候補にしてください。6個未満でも、数合わせで不要なH2を追加しないでください。',
     '用品・道具・アイテム・グッズ・商品候補だけを扱う独立H2は、読者の判断に必要で、紹介用品と一致するRinker商品ボックスまたは楽天バナーが同じH2内にある場合だけ適切です。商品導線がない用品専用H2、表示商品と紹介用品が一致しないH2、記事の判断に不要な商品名の羅列は重大な問題として指摘してください。補足として有用な用品情報は既存の関連H2へ1〜3段落で統合する提案にしてください。',
@@ -1572,6 +1591,11 @@ function uaFindPrePublishUnbalancedBlocks_(body) {
     'cocoon-blocks/button-wrap-1',
     'cocoon-blocks/blogcard',
     'cocoon-blocks/info-box',
+    'group',
+    'html',
+    'shortcode',
+    'buttons',
+    'button',
     'image',
     'list',
     'paragraph',

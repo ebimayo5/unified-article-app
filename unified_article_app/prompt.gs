@@ -20,7 +20,27 @@ function uaBuildArticlePrompt_(rowData, appConfig) {
   } else {
     promptText = uaBuildDriveArticlePrompt_(rowData, affiliatePrompt, competitorPrompt, preparedStructurePrompt, internalLinksPrompt, externalSourcesPrompt, readerMindMemo);
   }
-  return promptText + '\n\n' + uaBuildAutomaticArticlePolicyPrompt_(rowData, appConfig);
+  return promptText
+    + '\n\n' + uaBuildAutomaticArticlePolicyPrompt_(rowData, appConfig)
+    + '\n\n' + uaBuildWpEditorThemePrompt_(appConfig);
+}
+
+function uaBuildWpEditorThemePrompt_(appConfig) {
+  if (!uaUsesSwellBlocks_(appConfig)) {
+    return 'WordPressテーマ出力: Cocoon。上記で指定したCocoonブロック形式を維持してください。';
+  }
+
+  return [
+    '【最優先: WordPressテーマはSWELL】',
+    'このサイトはSWELLを使用しています。上記の共通ルール中にCocoonブロックの例があっても、このSWELLルールを優先してください。',
+    '新規本文に wp:cocoon-blocks、wp-block-cocoon-blocks、btn-wrap、tab-caption-box、blogcard-type を生成しないでください。',
+    '「この記事のポイント」はWordPressコアのグループ・段落・リストで作り、外側に className「is-style-big_icon_point article-compass-point-box」を付けてください。見出し文は「この記事のポイント」とします。',
+    'CTA位置には従来どおり [UA_AFFILIATE_CTA:案件名と具体的な確認行動] の置換記号だけを1回書いてください。実際のSWELL対応ボタンはシステム側で挿入します。',
+    '内部リンクは「前置き文 + URL」を出力し、URLは独立段落にしてください。Cocoonブログカードは作らないでください。システム側のSWELL対応処理がカード表示に整えます。',
+    '注意書きはWordPressコアのグループに className「is-style-big_icon_caution article-compass-notice-box article-compass-notice-danger」を付けて作ってください。',
+    '強調は<strong>、マーカーは本文ルールにあるインラインstyleを使ってよく、Cocoon固有クラスへ依存しないでください。',
+    '表・リスト・画像はWordPressコアブロック形式を使ってください。独自テーマ固有ブロックを推測で作らないでください。'
+  ].join('\n');
 }
 
 function uaBuildAffiliatePrompt_(rowData) {
@@ -298,6 +318,8 @@ function uaCommonOutputRules_() {
 ・「後悔」「やめた」「デメリット」「いらない」など否定的な検索語でも、向く人・向かない人を整理した結果、条件に合う読者には比較購入が現実的な選択肢になるなら product_plan の should_insert を true にする。否定的な検索語だけを理由に商品導線を捨てない。
 ・「たためない」「動かない」「外れない」「使えない」など商品トラブルの検索語では、すでに所有して解決手順を探す読者と、購入前に同じ失敗を心配する読者の両方を想定する。既存品で解決できるなら買い替え不要と先に伝えたうえで、購入前の読者や同じ不便を繰り返したくない読者には、問題を避けやすい仕様・サイズ・構造を比較できる商品導線を関連H2内へ置く。
 ・product_plan は、主解決商品または自然な補助解決商品がある場合に作る。主役商品は1種類に絞り、用途、必須条件、除外条件、読者が得る変化、CTA理由を本文と一致させる。関連商品を紹介すると検索意図から明確に外れる場合だけ should_insert を false にする。
+・product_plan の primary_product は、メインキーワードの中心的な悩みを直接解決する商品にする。本文で偶然触れた湿気対策、掃除用品、メンテナンス用品などを、検索意図の中心商品より優先しない。例えば収納・片付けが中心なら収納用品を主役にし、除湿用品は補助候補に留める。
+・market_query は検索キーワードをそのまま複製せず、実際の商品カテゴリ名と必須条件に絞る。cta_reason は「〜できるため」で途中に切らず、1文として完結させる。
 ・補助商品を提案する場合は、本文の対策→商品を使うと負担が減る条件→購入前に確認する仕様→比較リンク、の順にする。商品紹介だけの独立H2を無理に増やさず、関連する既存H2内の1〜3段落に収める。
 ・purchase_scale は standard を標準にする。bulk は検索意図や案件指示がまとめ買い・備蓄・業務用途を明示する場合だけ使う。trial は、取得済みの公式情報・商品情報・競合資料で少量版やお試し版が実在すると確認できる場合だけ使う。
 ・商品取得前に「まず少量・1個・1パックから試す」と推測で案内しない。少量商品が実在する根拠がない場合は、通常購入できる容量を前提に、サイズ・規格・使用感など購入前の確認条件を案内する。

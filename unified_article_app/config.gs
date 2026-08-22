@@ -91,6 +91,7 @@ const UA_APP_TYPES = {
     useInternalLinks: true,
     useExternalSources: true,
     useWordPress: true,
+    wpEditorTheme: 'cocoon',
     promptType: 'drive'
   },
   home: {
@@ -104,6 +105,7 @@ const UA_APP_TYPES = {
     useInternalLinks: true,
     useExternalSources: true,
     useWordPress: true,
+    wpEditorTheme: 'swell',
     promptType: 'home'
   },
   general: {
@@ -117,9 +119,19 @@ const UA_APP_TYPES = {
     useInternalLinks: false,
     useExternalSources: true,
     useWordPress: false,
+    wpEditorTheme: 'core',
     promptType: 'general'
   }
 };
+
+function uaGetWpEditorTheme_(appConfig) {
+  const theme = String(appConfig && appConfig.wpEditorTheme || '').trim().toLowerCase();
+  return theme === 'swell' || theme === 'cocoon' ? theme : 'core';
+}
+
+function uaUsesSwellBlocks_(appConfig) {
+  return uaGetWpEditorTheme_(appConfig) === 'swell';
+}
 
 const UA_COLUMNS = {
   appType: 1,

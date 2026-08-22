@@ -1,5 +1,6 @@
 let UA_LAST_RAKUTEN_STATUS = '';
 let UA_LAST_RAKUTEN_EFFECTIVE_PRODUCT_PLAN = null;
+let UA_LAST_RAKUTEN_QUERY = '';
 const UA_NAVIOKUN_INTRO_URL = 'https://ebimayo5.com/archives/naviokun-reputation/';
 
 function uaRemoveRedundantAffiliateDisclosure_(body) {
@@ -122,8 +123,8 @@ function uaBuildSupplementalProductPlan_(productPlan, rowData, appConfig) {
   const productLabel = plan.primaryProduct || inferredProduct || plan.marketQuery || inferredQuery || '関連商品';
   const hasTroubleAndPrePurchaseIntent = /(たためない|畳めない|できない|使えない|外れない|動かない|入らない|後悔|やめた|デメリット|いらない|難しい|面倒)/.test(mainInput);
   const ctaReason = hasTroubleAndPrePurchaseIntent
-    ? '今使っているもので解決できるなら買い替えは不要ですが、購入前の人や同じ不便を繰り返したくない人は、' + productLabel + 'のサイズや仕様を比較できるため'
-    : '本文の判断条件に当てはまり、' + productLabel + 'で手間や不便を減らしたい場合は、購入前にサイズや仕様を比較できるため';
+    ? '今使っているもので解決できるなら買い替えは不要です。購入前の人や同じ不便を繰り返したくない人は、' + productLabel + 'のサイズや仕様を比較してから選べます'
+    : '本文の判断条件に当てはまり、' + productLabel + 'で手間や不便を減らしたい場合は、購入前にサイズや仕様を比較してから選べます';
   return uaNormalizeProductPlan_(Object.assign({}, plan, {
     shouldInsert: true,
     primaryProduct: plan.primaryProduct || productLabel,
@@ -271,7 +272,7 @@ function uaRunArticleFromPanel(data) {
 
   try {
     const promptText = uaBuildArticlePrompt_(rowData, appConfig);
-    const result = uaCallArticleGenerationJson_(promptText, provider);
+    const result = uaCallArticleGenerationJson_(promptText, provider, sheet, row);
     const resultJson = result && result.data;
 
     if (!resultJson || !resultJson.body || !resultJson.title_ideas) {
@@ -330,8 +331,16 @@ function uaRunArticleFromPanel(data) {
 
     const nextData = uaBuildRowData_(sheet, row);
     nextData.message = '記事生成が完了しました。';
+    if (result && result.backgroundStateKey) {
+      uaClearArticleBackgroundState_(result.backgroundStateKey);
+    }
     return nextData;
   } catch (e) {
+    if (e && e.uaArticleBackgroundPending) {
+      sheet.getRange(row, UA_COLUMNS.status).setValue(UA_STATUS_GENERATING);
+      SpreadsheetApp.flush();
+      throw e;
+    }
     sheet.getRange(row, UA_COLUMNS.status).setValue(UA_STATUS_STOPPED);
     sheet.getRange(row, UA_COLUMNS.factCheckPoints).setValue('・記事生成停止理由｜' + e.toString());
     throw e;
@@ -361,7 +370,7 @@ function uaApplyManagedAffiliateCta_(body, rowData, appConfig) {
       tokenMatch && tokenMatch[1],
       spec.name
     );
-    const ctaBlock = uaBuildManagedAffiliateCtaBlock_(spec, ctaText);
+    const ctaBlock = uaBuildManagedAffiliateCtaBlock_(spec, ctaText, appConfig);
 
     if (tokenMatch) {
       resultHtml = uaReplaceManagedAffiliateCtaToken_(cleanHtml, ctaBlock);
@@ -548,14 +557,14 @@ function uaFindManagedAffiliateCtaBounds_(body, spec) {
   if (spec.url && markers.indexOf(spec.url) === -1) markers.push(spec.url);
   if (spec.type === 'shortcode' && spec.content) markers.push(String(spec.content).trim());
 
-  const regex = /<!--\s*wp:cocoon-blocks\/button-wrap-1\b[\s\S]*?<!--\s*\/wp:cocoon-blocks\/button-wrap-1\s*-->/gi;
-  let match;
-  while ((match = regex.exec(html)) !== null) {
-    const block = String(match[0] || '');
+  const blocks = uaGetManagedAffiliateButtonBlocks_(html);
+  for (let i = 0; i < blocks.length; i += 1) {
+    const block = String(blocks[i] || '');
     if (markers.some(function(marker) {
       return marker && (block.indexOf(marker) !== -1 || block.indexOf(String(marker).replace(/&/g, '&amp;')) !== -1);
     })) {
-      return { start: match.index, end: match.index + match[0].length, block: block };
+      const start = html.indexOf(block);
+      return { start: start, end: start + block.length, block: block };
     }
   }
   return null;
@@ -672,9 +681,14 @@ function uaManagedAffiliateCtaAlreadyExists_(body, spec) {
 }
 
 function uaGetManagedAffiliateButtonBlocks_(body) {
-  return String(body || '').match(
+  const html = String(body || '');
+  const marked = html.match(
+    /<!--\s*UA_MAIN_AFFILIATE_CTA_START\s*-->[\s\S]*?<!--\s*UA_MAIN_AFFILIATE_CTA_END\s*-->/gi
+  ) || [];
+  const cocoon = html.match(
     /<!--\s*wp:cocoon-blocks\/button-wrap-1\b[\s\S]*?<!--\s*\/wp:cocoon-blocks\/button-wrap-1\s*-->/gi
   ) || [];
+  return marked.concat(cocoon);
 }
 
 function uaRemoveManagedAffiliateButtonBlocks_(body, spec) {
@@ -732,7 +746,7 @@ function uaNormalizeManagedAffiliateCtaText_(value, affiliateName) {
   return text.slice(0, 100);
 }
 
-function uaBuildManagedAffiliateCtaBlock_(spec, ctaText) {
+function uaBuildManagedAffiliateCtaBlock_(spec, ctaText, appConfig) {
   let tagContent = '';
 
   if (spec.type === 'shortcode') {
@@ -757,6 +771,46 @@ function uaBuildManagedAffiliateCtaBlock_(spec, ctaText) {
 
   if (!tagContent) {
     throw new Error('案件管理シートのCTA情報が空です。');
+  }
+
+  if (uaUsesSwellBlocks_(appConfig)) {
+    if (spec.type === 'shortcode') {
+      return [
+        '<!-- UA_MAIN_AFFILIATE_CTA_START -->',
+        '<!-- wp:group {"className":"article-compass-affiliate-cta"} -->',
+        '<div class="wp-block-group article-compass-affiliate-cta">',
+        '<!-- wp:shortcode -->',
+        tagContent,
+        '<!-- /wp:shortcode -->',
+        '</div>',
+        '<!-- /wp:group -->',
+        '<!-- UA_MAIN_AFFILIATE_CTA_END -->'
+      ].join('\n');
+    }
+
+    const swellTagContent = tagContent.replace(/<a\b([^>]*)>/i, function(match, attrs) {
+      const classMatch = /\sclass=(['"])(.*?)\1/i.exec(attrs);
+      if (classMatch) {
+        const classes = String(classMatch[2] || '').split(/\s+/).filter(Boolean);
+        ['wp-block-button__link', 'wp-element-button'].forEach(function(className) {
+          if (classes.indexOf(className) === -1) classes.push(className);
+        });
+        return '<a' + attrs.replace(classMatch[0], ' class="' + classes.join(' ') + '"') + '>';
+      }
+      return '<a' + attrs + ' class="wp-block-button__link wp-element-button">';
+    });
+
+    return [
+      '<!-- UA_MAIN_AFFILIATE_CTA_START -->',
+      '<!-- wp:group {"className":"article-compass-affiliate-cta"} -->',
+      '<div class="wp-block-group article-compass-affiliate-cta">',
+      '<!-- wp:html -->',
+      '<div class="wp-block-button is-style-btn_solid">' + swellTagContent + '</div>',
+      '<!-- /wp:html -->',
+      '</div>',
+      '<!-- /wp:group -->',
+      '<!-- UA_MAIN_AFFILIATE_CTA_END -->'
+    ].join('\n');
   }
 
   const attributes = {
@@ -810,6 +864,45 @@ function uaTestManagedAffiliateUrlCta() {
     testedCases: cases.length,
     urlsPreserved: true
   };
+}
+
+function uaTestSwellBlockDialect() {
+  const homeConfig = UA_APP_TYPES.home;
+  const driveConfig = UA_APP_TYPES.drive;
+  const spec = {
+    type: 'url',
+    name: 'テスト案件',
+    url: 'https://example.com/path?a=1&b=2',
+    content: 'https://example.com/path?a=1&b=2'
+  };
+  const swellCta = uaBuildManagedAffiliateCtaBlock_(spec, 'テスト案件で対応内容を確認する', homeConfig);
+  const cocoonCta = uaBuildManagedAffiliateCtaBlock_(spec, 'テスト案件で対応内容を確認する', driveConfig);
+  const swellNotice = uaBuildYmylNoticeHtml_({
+    category: 'home_safety',
+    topic: '住宅設備の安全確認',
+    sourceUrl: '',
+    sourceLabel: ''
+  }, homeConfig);
+  const swellInternalLink = uaBuildInternalLinkPostInsertBlock_({
+    url: 'https://example.com/related/',
+    title: '関連記事のタイトル',
+    usage: '関連する注意点'
+  }, homeConfig);
+
+  const checks = [
+    ['home uses SWELL', uaUsesSwellBlocks_(homeConfig)],
+    ['drive keeps Cocoon', !uaUsesSwellBlocks_(driveConfig)],
+    ['SWELL CTA marker', swellCta.indexOf('UA_MAIN_AFFILIATE_CTA_START') !== -1],
+    ['SWELL CTA core class', swellCta.indexOf('wp-block-button__link') !== -1],
+    ['SWELL CTA no Cocoon', swellCta.indexOf('cocoon-blocks') === -1],
+    ['SWELL CTA URL preserved', swellCta.indexOf(spec.url) !== -1],
+    ['Cocoon CTA remains', cocoonCta.indexOf('wp:cocoon-blocks/button-wrap-1') !== -1],
+    ['SWELL notice', swellNotice.indexOf('article-compass-notice-danger') !== -1 && swellNotice.indexOf('cocoon-blocks') === -1],
+    ['SWELL internal link', swellInternalLink.indexOf('article-compass-internal-link') !== -1 && swellInternalLink.indexOf('cocoon-blocks') === -1]
+  ];
+  const failed = checks.filter(function(item) { return !item[1]; }).map(function(item) { return item[0]; });
+  if (failed.length) throw new Error('SWELL出力テスト失敗: ' + failed.join(', '));
+  return { ok: true, checks: checks.length, homeTheme: uaGetWpEditorTheme_(homeConfig), driveTheme: uaGetWpEditorTheme_(driveConfig) };
 }
 
 function uaIsAffiliateFreeTextPlaceholder_(value) {
@@ -1111,7 +1204,7 @@ function uaApplyYmylNotice_(body, rowData, appConfig) {
   const spec = uaBuildYmylNoticeSpec_(rowData || {}, appConfig, html);
   if (!spec) return html;
 
-  const notice = uaBuildYmylNoticeHtml_(spec);
+  const notice = uaBuildYmylNoticeHtml_(spec, appConfig);
   const insertionIndex = uaFindYmylNoticeInsertionIndex_(html, spec.category);
   return [
     html.slice(0, insertionIndex).trimEnd(),
@@ -1321,7 +1414,7 @@ function uaGetYmylCategoryTerms_(category) {
   return terms[category] || terms.general_safety;
 }
 
-function uaBuildYmylNoticeHtml_(spec) {
+function uaBuildYmylNoticeHtml_(spec, appConfig) {
   const topic = uaEscapeHtml_(spec && spec.topic || 'この記事のテーマ');
   const reference = uaBuildYmylReferenceHtml_(spec);
   let text;
@@ -1338,6 +1431,18 @@ function uaBuildYmylNoticeHtml_(spec) {
     text = 'この記事は、' + topic + 'に関する法規・安全面の一般的な情報です。実際の適法性や車検適合性は、車種・年式・部品仕様・取付方法・法令改正で変わります。購入・取付・走行前には、' + reference + '、販売店・整備事業者・所管機関の最新情報を確認してください。';
   } else {
     text = 'この記事は、' + topic + 'について判断材料を整理する一般的な情報です。実際の走行可否や安全性は、車種・年式・装備の状態・路面状況・道路規制で変わります。購入・走行・作業前には、' + reference + '、販売店・整備事業者・道路管理者の最新情報を確認してください。';
+  }
+
+  if (uaUsesSwellBlocks_(appConfig)) {
+    return [
+      '<!-- wp:group {"className":"is-style-big_icon_caution article-compass-notice-box article-compass-notice-danger"} -->',
+      '<div class="wp-block-group is-style-big_icon_caution article-compass-notice-box article-compass-notice-danger">',
+      '<!-- wp:paragraph -->',
+      '<p><strong>注意：</strong>' + text + '</p>',
+      '<!-- /wp:paragraph -->',
+      '</div>',
+      '<!-- /wp:group -->'
+    ].join('\n');
   }
 
   return [
@@ -1392,8 +1497,10 @@ function uaGetYmylHeadingPattern_(category) {
 
 function uaHasYmylNotice_(body) {
   const text = String(body || '');
-  return text.indexOf('wp:cocoon-blocks/info-box') !== -1 &&
-    text.indexOf('danger-box') !== -1 &&
+  const hasNoticeContainer = (
+    text.indexOf('wp:cocoon-blocks/info-box') !== -1 && text.indexOf('danger-box') !== -1
+  ) || text.indexOf('article-compass-notice-danger') !== -1;
+  return hasNoticeContainer &&
     /<strong>\s*注意[：:]\s*<\/strong>/i.test(text) &&
     /(一般的な情報|最新情報を確認|専門家へ確認)/.test(text);
 }
@@ -1480,6 +1587,7 @@ function uaAddRakutenBannerForContext_(context) {
 
   UA_LAST_RAKUTEN_STATUS = '';
   UA_LAST_RAKUTEN_EFFECTIVE_PRODUCT_PLAN = null;
+  UA_LAST_RAKUTEN_QUERY = '';
 
   if (!uaShouldInsertRakutenAffiliateBanner_(sourceBody, context.rowData, context.appConfig)) {
     const reason = UA_LAST_RAKUTEN_STATUS || '楽天バナー挿入対象外です。';
@@ -1524,7 +1632,7 @@ function uaAddRakutenBannerForContext_(context) {
     Number(context.rowData && context.rowData.forceRakutenItemCount || 0) > 0;
   const rinkerItemCount = (String(block || '').match(/\[itemlink\b/gi) || []).length;
   nextData.message = isForcedHomeRinker
-    ? 'Rinker商品リンクを' + rinkerItemCount + '種類、本文へ追加しました。重複商品は除外済みです。本文生成APIは使っていません。'
+    ? 'Rinker商品リンクを' + rinkerItemCount + '種類、本文へ追加しました。重複商品は除外済みです。検索条件: ' + String(UA_LAST_RAKUTEN_QUERY || '自動判定') + '。本文生成APIは使っていません。'
     : replacedExisting
       ? '楽天バナーを現在のキーワードで再選定して置き換えました。本文生成APIは使っていません。'
       : '楽天バナーを本文へ追加しました。本文生成APIは使っていません。';
@@ -1787,13 +1895,13 @@ function uaSetGeneratedMeta_(sheet, row, status, provider, model) {
   SpreadsheetApp.flush();
 }
 
-function uaCallArticleGenerationJson_(promptText, provider) {
+function uaCallArticleGenerationJson_(promptText, provider, sheet, row) {
   if (provider === 'claude') {
     return uaCallClaudeJson_(promptText, 18000);
   }
 
   if (provider === 'openai') {
-    return uaCallOpenAiJson_(promptText, 16000);
+    return uaCallOpenAiArticleBackgroundJson_(promptText, 16000, sheet, row);
   }
 
   return uaCallGeminiJson_(promptText, 16000, 512);
@@ -1843,11 +1951,30 @@ function uaApplyRakutenAffiliateBanner_(body, rowData, appConfig) {
 }
 
 function uaBuildRakutenAffiliateBanner_(body, rowData, appConfig) {
-  const query = uaSelectRakutenProductQuery_(body, rowData, appConfig);
   const productPlan = uaExtractProductPlan_(body);
   let effectiveProductPlan = uaCanUseSupplementalProductPlan_(productPlan, body, rowData, appConfig)
     ? uaBuildSupplementalProductPlan_(productPlan, rowData, appConfig)
     : productPlan;
+  if (!effectiveProductPlan && appConfig && appConfig.key === 'home' && !uaHasMainAffiliateProject_(rowData)) {
+    const fallbackQuery = uaSelectRakutenKeywordFallbackQuery_(rowData && rowData.mainInput, 'home');
+    if (fallbackQuery) {
+      const fallbackProductLabel = uaGetFallbackProductDisplayLabel_(fallbackQuery);
+      effectiveProductPlan = uaNormalizeProductPlan_({
+        shouldInsert: true,
+        primaryProduct: fallbackProductLabel,
+        marketQuery: fallbackQuery,
+        purpose: '記事の中心となる悩みを解決する',
+        purchaseScale: 'standard',
+        benefit: '自分の使い方と設置条件に合う候補へ絞り込みやすくなります',
+        ctaReason: fallbackProductLabel + 'を追加する場合は、設置サイズや仕様を比較してから選べます'
+      });
+    }
+  }
+  effectiveProductPlan = uaAlignProductPlanToMainIntent_(effectiveProductPlan, rowData, appConfig);
+  const query = effectiveProductPlan && effectiveProductPlan.shouldInsert
+    ? (effectiveProductPlan.marketQuery || effectiveProductPlan.primaryProduct)
+    : uaSelectRakutenProductQuery_(body, rowData, appConfig);
+  UA_LAST_RAKUTEN_QUERY = String(query || '');
 
   if (!query) {
     UA_LAST_RAKUTEN_STATUS = '商品検索キーワードを選定できませんでした';
@@ -1861,7 +1988,8 @@ function uaBuildRakutenAffiliateBanner_(body, rowData, appConfig) {
   let items = [];
 
   if (!hasMainAffiliate) {
-    const keywordAndContextQueries = [query].concat(categoryQueries).filter(function(value, index, values) {
+    const queryPool = effectiveProductPlan ? [query] : [query].concat(categoryQueries);
+    const keywordAndContextQueries = queryPool.filter(function(value, index, values) {
       return value && values.indexOf(value) === index;
     }).slice(0, 3);
     items = uaFetchRakutenItemsAcrossQueries_(keywordAndContextQueries, desiredCount, selectionSeed, effectiveProductPlan);
@@ -1978,6 +2106,174 @@ function uaSelectRakutenProductQuery_(body, rowData, appConfig) {
   return best ? best.query : '';
 }
 
+function uaAlignProductPlanToMainIntent_(productPlan, rowData, appConfig) {
+  const plan = uaNormalizeProductPlan_(productPlan);
+  if (!plan || !appConfig || appConfig.key !== 'home') return plan;
+
+  const mainInput = String(rowData && rowData.mainInput || '').trim();
+  const fallbackQuery = uaSelectRakutenKeywordFallbackQuery_(mainInput, 'home');
+  if (!fallbackQuery) return plan;
+
+  function terms(value) {
+    const stopWords = /^(?:おすすめ|比較|口コミ|評判|後悔|デメリット|メリット|やめた|いらない|狭い|広い|片付け方|片付け|収納|対策|方法|商品|用品)$/;
+    return String(value || '')
+      .split(/[\s　・、,／/|｜]+/)
+      .map(function(term) { return term.trim().toLowerCase(); })
+      .filter(function(term) { return term.length >= 2 && !stopWords.test(term); });
+  }
+
+  const anchorTerms = terms(fallbackQuery);
+  const plannedText = [plan.primaryProduct, plan.marketQuery].join(' ').toLowerCase();
+  const aligns = anchorTerms.some(function(term) {
+    return plannedText.indexOf(term) !== -1;
+  });
+  const normalizedMainInput = mainInput.replace(/[\s　]+/g, ' ').trim().toLowerCase();
+  const normalizedPrimary = String(plan.primaryProduct || '').replace(/[\s　]+/g, ' ').trim().toLowerCase();
+  const normalizedFallbackQuery = fallbackQuery.replace(/[\s　]+/g, ' ').trim().toLowerCase();
+  const echoesRawSearchIntent = !!normalizedMainInput && normalizedPrimary === normalizedMainInput;
+  const echoesMachineQuery = !!normalizedFallbackQuery && normalizedPrimary === normalizedFallbackQuery &&
+    uaGetFallbackProductDisplayLabel_(fallbackQuery) !== fallbackQuery;
+  const hasBrokenCtaSentence = /(?:できる|比較できる)ため[.。．]?$/.test(String(plan.ctaReason || '').trim());
+  const hasStaleGenericBenefit = /本文の判断条件に合う商品を選びやすくなる/.test(String(plan.benefit || ''));
+  if (aligns && !echoesRawSearchIntent && !echoesMachineQuery && !hasBrokenCtaSentence && !hasStaleGenericBenefit) return plan;
+
+  const productLabel = uaGetFallbackProductDisplayLabel_(fallbackQuery);
+  return uaNormalizeProductPlan_(Object.assign({}, plan, {
+    shouldInsert: true,
+    primaryProduct: productLabel,
+    marketQuery: fallbackQuery,
+    purpose: '記事の中心となる悩みを解決する',
+    mustHave: [],
+    exclude: [],
+    purchaseScale: 'standard',
+    requiredFeatures: [],
+    excludedFeatures: [],
+    benefit: '自分の使い方と設置条件に合う候補へ絞り込みやすくなります',
+    ctaReason: productLabel + 'を追加する場合は、設置サイズや仕様を比較してから選べます'
+  }));
+}
+
+function uaGetFallbackProductDisplayLabel_(query) {
+  const value = String(query || '').replace(/[\s　]+/g, ' ').trim();
+  const labels = {
+    '靴 収納 省スペース スリム': '省スペース靴収納',
+    'ポップアップテント 収納しやすい': '収納しやすいポップアップテント',
+    'ワンタッチテント 収納しやすい': '収納しやすいワンタッチテント',
+    'サンシェード ベランダ 日よけ': 'ベランダ用サンシェード',
+    'ランドリーチェスト 防カビ': '防カビ仕様のランドリーチェスト',
+    '除湿機 コンパクト': 'コンパクト除湿機',
+    'サーキュレーター 部屋干し': '部屋干し向けサーキュレーター'
+  };
+  return labels[value] || value;
+}
+
+function uaCallOpenAiArticleBackgroundJson_(promptText, maxOutputTokens, sheet, row) {
+  const stateKey = uaGetArticleBackgroundStateKey_(sheet, row);
+  const fingerprint = uaHashArticleBackgroundText_([
+    String(uaGetOpenAiModel_() || ''),
+    String(maxOutputTokens || ''),
+    String(promptText || '')
+  ].join('\n---UA-ARTICLE-BACKGROUND---\n'));
+  let state = uaLoadArticleBackgroundState_(stateKey);
+
+  if (state && state.fingerprint !== fingerprint) {
+    uaClearArticleBackgroundState_(stateKey);
+    state = null;
+  }
+
+  let response;
+  if (state && state.responseId) {
+    try {
+      response = uaRetrieveOpenAiBackgroundJson_(state.responseId);
+    } catch (retrieveError) {
+      if (Number(retrieveError && retrieveError.statusCode) === 404) {
+        throw new Error(
+          '保存済みのOpenAI本文生成結果は取得期限を過ぎています。' +
+          '重複課金を防ぐため、新しい本文生成は自動送信していません。'
+        );
+      }
+      throw retrieveError;
+    }
+  }
+
+  if (state && !state.responseId) {
+    throw new Error(
+      '前回のOpenAI本文生成は開始応答の処理IDを保存できないまま終了しました。' +
+      '重複課金を防ぐため自動再送信しません。'
+    );
+  }
+
+  if (!state) {
+    state = {
+      responseId: '',
+      fingerprint: fingerprint,
+      startedAt: new Date().toISOString(),
+      phase: 'starting'
+    };
+    uaSaveArticleBackgroundState_(stateKey, state);
+    response = uaStartOpenAiBackgroundJson_(promptText, maxOutputTokens);
+    state.responseId = String(response.id || '');
+    state.phase = 'queued';
+    uaSaveArticleBackgroundState_(stateKey, state);
+  }
+
+  const normalized = uaNormalizeOpenAiBackgroundJson_(response);
+  if (normalized.pending) {
+    const pendingError = new Error(
+      'OpenAIで本文生成を継続中です。処理IDは保存済みです。' +
+      '同じ本文生成の完了結果だけを確認し、新しい生成依頼は送信しません。'
+    );
+    pendingError.uaArticleBackgroundPending = true;
+    pendingError.responseId = state.responseId;
+    throw pendingError;
+  }
+
+  normalized.backgroundStateKey = stateKey;
+  return normalized;
+}
+
+function uaGetArticleBackgroundStateKey_(sheet, row) {
+  const spreadsheetId = sheet && sheet.getParent ? sheet.getParent().getId() : '';
+  const sheetName = sheet && sheet.getName ? sheet.getName() : '';
+  return 'UA_ARTICLE_BG_' + uaHashArticleBackgroundText_([
+    spreadsheetId,
+    sheetName,
+    String(row || '')
+  ].join('|')).slice(0, 32);
+}
+
+function uaHashArticleBackgroundText_(value) {
+  const bytes = Utilities.computeDigest(
+    Utilities.DigestAlgorithm.SHA_256,
+    String(value || ''),
+    Utilities.Charset.UTF_8
+  );
+  return bytes.map(function(byte) {
+    const normalized = byte < 0 ? byte + 256 : byte;
+    return ('0' + normalized.toString(16)).slice(-2);
+  }).join('');
+}
+
+function uaLoadArticleBackgroundState_(key) {
+  const raw = PropertiesService.getScriptProperties().getProperty(key);
+  if (!raw) return null;
+  try {
+    const state = JSON.parse(raw);
+    return state && typeof state === 'object' ? state : null;
+  } catch (e) {
+    PropertiesService.getScriptProperties().deleteProperty(key);
+    return null;
+  }
+}
+
+function uaSaveArticleBackgroundState_(key, state) {
+  PropertiesService.getScriptProperties().setProperty(key, JSON.stringify(state || {}));
+}
+
+function uaClearArticleBackgroundState_(key) {
+  PropertiesService.getScriptProperties().deleteProperty(key);
+}
+
 function uaBuildPurchaseScaleRetryQueries_(query, productPlan) {
   const base = String(query || '').trim();
   const plan = uaNormalizeProductPlan_(productPlan);
@@ -2014,6 +2310,7 @@ function uaSelectRakutenKeywordFallbackQuery_(keyword, appKey) {
 
   const canonicalQueries = appKey === 'home'
     ? [
+      { pattern: /玄関.*(?:収納|片付)|(?:収納|片付).*玄関/, query: '靴 収納 省スペース スリム' },
       { pattern: /ポップアップテント/, query: 'ポップアップテント 収納しやすい' },
       { pattern: /ワンタッチテント/, query: 'ワンタッチテント 収納しやすい' },
       { pattern: /サンシェード|日よけ/, query: 'サンシェード ベランダ 日よけ' },
@@ -3194,7 +3491,7 @@ function uaBuildRakutenItemBannerHtml_(items, query, productPlan, appConfig) {
   const compareAction = items.length > 1
     ? '条件に合う場合は、下の商品候補で価格と仕様を見比べられます。'
     : '条件に合う場合は、下の商品候補で価格と仕様を確認できます。';
-  const leadText = '<p>' + ctaReason + benefit + compareAction + ' 条件に合わなければ、無理に購入する必要はありません。</p>';
+  const leadText = '<p>' + ctaReason + benefit + compareAction + '条件に合わなければ、無理に購入する必要はありません。</p>';
   const amazonButton = isHomeArticle ? '' : uaBuildAmazonSearchButton_(plan, query || productLabel, appConfig);
   const comparisonHeading = isHomeArticle
     ? '「' + queryText + '」を楽天・Amazonで比較する'

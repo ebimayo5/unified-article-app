@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Article Compass Rinker Bridge
  * Description: Article Compass SystemからRinker商品リンクを安全に作成・再利用し、SWELL移行後も既存Cocoon装飾を保ちます。
- * Version: 1.3.0
+ * Version: 1.3.1
  * Author: Article Compass System
  */
 
@@ -15,6 +15,7 @@ final class Article_Compass_Rinker_Bridge {
     const RINKER_POST_TYPE = 'yyi_rinker';
     const META_KEY = 'article_compass_rinker_key';
     const COCOON_DESCRIPTION_META_KEY = 'the_page_meta_description';
+    const SWELL_DESCRIPTION_META_KEY = 'ssp_meta_description';
     const DESCRIPTION_HASH_META_KEY = 'article_compass_description_hash';
 
     public static function init() {
@@ -56,7 +57,7 @@ final class Article_Compass_Rinker_Bridge {
             $handle,
             plugin_dir_url(__FILE__) . 'assets/rinker-editor-compat.js',
             array('jquery'),
-            '1.3.0',
+            '1.3.1',
             true
         );
         wp_localize_script($handle, 'ArticleCompassRinkerCompat', array(
@@ -98,8 +99,9 @@ final class Article_Compass_Rinker_Bridge {
         return rest_ensure_response(array(
             'ok' => true,
             'rinker_active' => post_type_exists(self::RINKER_POST_TYPE),
-            'bridge_version' => '1.3.0',
+            'bridge_version' => '1.3.1',
             'seo_meta_supported' => true,
+            'seo_meta_key' => self::get_description_meta_key(),
         ));
     }
 
@@ -119,7 +121,8 @@ final class Article_Compass_Rinker_Bridge {
             ));
         }
 
-        $current = (string) get_post_meta($post_id, self::COCOON_DESCRIPTION_META_KEY, true);
+        $meta_key = self::get_description_meta_key();
+        $current = (string) get_post_meta($post_id, $meta_key, true);
         $managed_hash = (string) get_post_meta($post_id, self::DESCRIPTION_HASH_META_KEY, true);
         $current_hash = $current !== '' ? hash('sha256', $current) : '';
         $is_managed_value = $current !== '' && $managed_hash !== '' && hash_equals($managed_hash, $current_hash);
@@ -134,7 +137,7 @@ final class Article_Compass_Rinker_Bridge {
             ));
         }
 
-        update_post_meta($post_id, self::COCOON_DESCRIPTION_META_KEY, $description);
+        update_post_meta($post_id, $meta_key, $description);
         update_post_meta($post_id, self::DESCRIPTION_HASH_META_KEY, hash('sha256', $description));
 
         return rest_ensure_response(array(
@@ -146,8 +149,18 @@ final class Article_Compass_Rinker_Bridge {
         ));
     }
 
+    private static function get_description_meta_key() {
+        $theme = wp_get_theme();
+        $template = strtolower((string) $theme->get_template());
+        $stylesheet = strtolower((string) $theme->get_stylesheet());
+        if (strpos($template, 'swell') !== false || strpos($stylesheet, 'swell') !== false) {
+            return self::SWELL_DESCRIPTION_META_KEY;
+        }
+        return self::COCOON_DESCRIPTION_META_KEY;
+    }
+
     public static function enqueue_swell_compat_styles() {
-        wp_register_style('article-compass-swell-compat', false, array(), '1.3.0');
+        wp_register_style('article-compass-swell-compat', false, array(), '1.3.1');
         wp_enqueue_style('article-compass-swell-compat');
         wp_add_inline_style('article-compass-swell-compat', self::get_swell_compat_css());
     }
@@ -220,6 +233,56 @@ final class Article_Compass_Rinker_Bridge {
 .post_content .marker-red { background: linear-gradient(transparent 62%, #ffb6b6 62%); }
 .post_content .marker-blue { background: linear-gradient(transparent 62%, #a9ddff 62%); }
 .post_content .marker-under { background: linear-gradient(transparent 72%, #ffe78a 72%); }
+.post_content .article-compass-point-box {
+  margin: 2em 0;
+  padding: 1.15em 1.3em;
+  border: 2px solid #0f9d8a;
+  border-radius: 10px;
+  background: #f5fbf9;
+}
+.post_content .article-compass-point-box > :first-child { margin-top: 0; }
+.post_content .article-compass-point-box > :last-child { margin-bottom: 0; }
+.post_content .article-compass-notice-box {
+  margin: 1.8em 0;
+  padding: 1.1em 1.25em;
+  border-radius: 9px;
+}
+.post_content .article-compass-notice-danger {
+  border: 1px solid #efb2b2;
+  border-left: 5px solid #d93025;
+  background: #fff6f6;
+}
+.post_content .article-compass-affiliate-cta {
+  width: min(100%, 680px);
+  margin: 1.8em auto;
+  text-align: center;
+}
+.post_content .article-compass-affiliate-cta .wp-block-button,
+.post_content .article-compass-affiliate-cta .wp-block-button__link { width: 100%; }
+.post_content .article-compass-affiliate-cta .wp-block-button__link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 54px;
+  padding: .9em 1.35em;
+  border-radius: 999px;
+  background: var(--color_main, #0f9d8a);
+  color: #fff !important;
+  font-weight: 700;
+  text-decoration: none !important;
+}
+.post_content .article-compass-internal-link > a {
+  display: block;
+  padding: 1em 1.15em;
+  border: 1px solid #d7e1e8;
+  border-left: 5px solid var(--color_main, #0f9d8a);
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(20,45,60,.08);
+  color: inherit;
+  font-weight: 700;
+  text-decoration: none;
+}
 .post_content .btn-wrap,
 .post_content .wp-block-cocoon-blocks-button-wrap-1 {
   position: relative;

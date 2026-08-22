@@ -380,6 +380,12 @@
         box-shadow: 0 1px 4px rgba(16, 24, 40, 0.08);
       }
 
+      .notice-row { display: flex; align-items: center; gap: 9px; }
+      .auto-save-indicator { display: none; flex: 0 0 auto; align-items: center; gap: 6px; padding: 7px 9px; border: 1px solid #8ed2ad; border-radius: 999px; background: rgba(255,255,255,0.9); color: var(--brand-dark); font-size: 12px; font-weight: 800; white-space: nowrap; }
+      .auto-save-indicator.visible { display: inline-flex; }
+      .auto-save-indicator.saved .auto-save-spinner { display: none; }
+      .auto-save-spinner { width: 12px; height: 12px; border: 2px solid #b7dccb; border-top-color: var(--brand); border-radius: 50%; animation: spinStatus 0.75s linear infinite; }
+
       .status.working {
         color: #fff;
         background: var(--brand);
@@ -581,7 +587,7 @@
           <div class="sub">スプシは一覧、パネルは編集画面。まずは読み込み・保存の土台です。</div>
         </div>
         <div>
-          <div id="notice" class="status">読み込み中...</div>
+          <div class="notice-row"><div id="notice" class="status">読み込み中...</div><div id="autoSaveIndicator" class="auto-save-indicator" aria-live="polite"><span class="auto-save-spinner" aria-hidden="true"></span><span id="autoSaveIndicatorText">保存中…</span></div></div>
           <div class="progress">
             <div id="progressBar" class="progress-bar"></div>
           </div>
@@ -851,7 +857,7 @@
       let autoSaveTimer = null;
       let autoSavePending = false;
       let autoSaveInFlight = false;
-      let noticeAutoSaveBlockedUntil = 0;
+      let autoSaveIndicatorTimer = null;
       let isFillingForm = false;
       let loadedAppType = '';
       let rakutenSuggestionRequestToken = 0;
@@ -1106,19 +1112,20 @@
 
         autoSavePending = false;
         autoSaveInFlight = true;
-        setNotice('自動保存中...', false, 'autosave');
+        setAutoSaveIndicator('saving');
         const payload = readForm();
         if (loadedAppType) payload.appType = loadedAppType;
         google.script.run
           .withSuccessHandler(function(data) {
             autoSaveInFlight = false;
             setProgress('done');
-            setNotice('自動保存しました。', false, 'autosave');
+            setAutoSaveIndicator('saved');
             if (autoSavePending) scheduleAutoSave();
           })
           .withFailureHandler(function(error) {
             autoSaveInFlight = false;
             setProgress('error');
+            setAutoSaveIndicator('hidden');
             setNotice('自動保存に失敗しました: ' + (error && error.message ? error.message : error), true);
           })
           .uaSaveActiveRowData(payload);
@@ -2089,14 +2096,30 @@ function saveOpenAiModels(button) {
         return value.charAt(0).toUpperCase() + value.slice(1);
       }
 
-      function setNotice(message, isError, source) {
-        if (source === 'autosave' && Date.now() < noticeAutoSaveBlockedUntil) return;
+      function setAutoSaveIndicator(state) {
+        const indicator = document.getElementById('autoSaveIndicator');
+        const text = document.getElementById('autoSaveIndicatorText');
+        if (!indicator || !text) return;
+        window.clearTimeout(autoSaveIndicatorTimer);
+        indicator.className = 'auto-save-indicator';
+        if (state === 'saving') {
+          text.textContent = '保存中…';
+          indicator.classList.add('visible');
+          return;
+        }
+        if (state === 'saved') {
+          text.textContent = '保存済み';
+          indicator.classList.add('visible', 'saved');
+          autoSaveIndicatorTimer = window.setTimeout(function() {
+            indicator.className = 'auto-save-indicator';
+          }, 1400);
+        }
+      }
+
+      function setNotice(message, isError) {
         const notice = document.getElementById('notice');
         notice.textContent = message;
         notice.className = isError ? 'status error' : 'status';
-        if (source !== 'autosave') {
-          noticeAutoSaveBlockedUntil = Date.now() + 10000;
-        }
       }
 
       function setProgress(state) {

@@ -1,8 +1,8 @@
 <?php
 /**
  * Plugin Name: Article Compass Rinker Bridge
- * Description: Article Compass SystemからRinker商品リンクを安全に作成・再利用します。
- * Version: 1.2.6
+ * Description: Article Compass SystemからRinker商品リンクを安全に作成・再利用し、SWELL移行後も既存Cocoon装飾を保ちます。
+ * Version: 1.3.0
  * Author: Article Compass System
  */
 
@@ -22,6 +22,8 @@ final class Article_Compass_Rinker_Bridge {
         add_action('enqueue_block_editor_assets', array(__CLASS__, 'enqueue_rinker_editor_compat'));
         add_action('enqueue_block_assets', array(__CLASS__, 'enqueue_rinker_editor_compat_in_canvas'));
         add_action('admin_enqueue_scripts', array(__CLASS__, 'enqueue_rinker_media_compat'));
+        add_action('enqueue_block_assets', array(__CLASS__, 'enqueue_swell_compat_styles'));
+        add_filter('the_content', array(__CLASS__, 'render_cocoon_blogcards_for_swell'), 8);
     }
 
     /**
@@ -54,7 +56,7 @@ final class Article_Compass_Rinker_Bridge {
             $handle,
             plugin_dir_url(__FILE__) . 'assets/rinker-editor-compat.js',
             array('jquery'),
-            '1.2.6',
+            '1.3.0',
             true
         );
         wp_localize_script($handle, 'ArticleCompassRinkerCompat', array(
@@ -96,7 +98,7 @@ final class Article_Compass_Rinker_Bridge {
         return rest_ensure_response(array(
             'ok' => true,
             'rinker_active' => post_type_exists(self::RINKER_POST_TYPE),
-            'bridge_version' => '1.2.6',
+            'bridge_version' => '1.3.0',
             'seo_meta_supported' => true,
         ));
     }
@@ -142,6 +144,215 @@ final class Article_Compass_Rinker_Bridge {
             'reason' => $current === '' ? 'inserted' : 'managed_value_updated',
             'length' => mb_strlen($description),
         ));
+    }
+
+    public static function enqueue_swell_compat_styles() {
+        wp_register_style('article-compass-swell-compat', false, array(), '1.3.0');
+        wp_enqueue_style('article-compass-swell-compat');
+        wp_add_inline_style('article-compass-swell-compat', self::get_swell_compat_css());
+    }
+
+    private static function get_swell_compat_css() {
+        return <<<'CSS'
+/* Article Compass: Cocoon content compatibility on SWELL */
+.post_content .tab-caption-box,
+.post_content .wp-block-cocoon-blocks-tab-caption-box-1 {
+  position: relative;
+  margin: 2.4em 0 1.8em;
+  padding: 1.65em 1.25em 1em;
+  border: 2px solid var(--cocoon-custom-border-color, #e60033) !important;
+  border-radius: 8px;
+  background: #fff;
+}
+.post_content .tab-caption-box > .tab-caption-box-label,
+.post_content .wp-block-cocoon-blocks-tab-caption-box-1 > .tab-caption-box-label {
+  position: absolute;
+  top: 0;
+  left: 1em;
+  max-width: calc(100% - 2em);
+  transform: translateY(-50%);
+  padding: .35em .9em;
+  border-radius: 999px;
+  background: var(--cocoon-custom-border-color, #e60033);
+  color: #fff;
+  font-weight: 700;
+  line-height: 1.4;
+}
+.post_content .tab-caption-box > .tab-caption-box-content,
+.post_content .wp-block-cocoon-blocks-tab-caption-box-1 > .tab-caption-box-content {
+  margin: 0;
+  padding: 0;
+}
+.post_content .tab-caption-box-content > :first-child { margin-top: 0; }
+.post_content .tab-caption-box-content > :last-child { margin-bottom: 0; }
+.post_content .wp-block-cocoon-blocks-info-box,
+.post_content .information-box,
+.post_content .question-box,
+.post_content .alert-box,
+.post_content .memo-box,
+.post_content .comment-box,
+.post_content .ok-box,
+.post_content .good-box,
+.post_content .ng-box,
+.post_content .bad-box,
+.post_content .profile-box {
+  margin: 1.8em 0;
+  padding: 1.15em 1.25em;
+  border: 1px solid #d7e1e8;
+  border-left: 5px solid #0f9d8a;
+  border-radius: 8px;
+  background: #f7fbfa;
+}
+.post_content .wp-block-cocoon-blocks-info-box.danger-box,
+.post_content .danger-box {
+  border-color: #f3b3b3;
+  border-left-color: #d93025;
+  background: #fff6f6;
+}
+.post_content .wp-block-cocoon-blocks-info-box.warning-box,
+.post_content .warning-box {
+  border-color: #f0cf85;
+  border-left-color: #d89a00;
+  background: #fffaf0;
+}
+.post_content .marker,
+.post_content .marker-yellow { background: linear-gradient(transparent 62%, #ffe78a 62%); }
+.post_content .marker-red { background: linear-gradient(transparent 62%, #ffb6b6 62%); }
+.post_content .marker-blue { background: linear-gradient(transparent 62%, #a9ddff 62%); }
+.post_content .marker-under { background: linear-gradient(transparent 72%, #ffe78a 72%); }
+.post_content .btn-wrap,
+.post_content .wp-block-cocoon-blocks-button-wrap-1 {
+  position: relative;
+  display: block;
+  width: min(100%, 680px);
+  margin: 1.8em auto;
+  background: transparent !important;
+  text-align: center;
+}
+.post_content .cocoon-block-button__width-75 { width: min(75%, 680px); }
+.post_content .cocoon-block-button__width-100 { width: 100%; }
+.post_content .btn-wrap > a,
+.post_content .wp-block-cocoon-blocks-button-wrap-1 > a {
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  min-height: 54px;
+  padding: .9em 1.35em;
+  border: 0 !important;
+  border-radius: 999px !important;
+  background: #0f9d8a !important;
+  box-shadow: 0 4px 0 #087466;
+  color: #fff !important;
+  font-weight: 700;
+  line-height: 1.5;
+  text-decoration: none !important;
+  transition: transform .15s ease, box-shadow .15s ease, filter .15s ease;
+}
+.post_content .has-blue-background-color > a { background: #1176d4 !important; box-shadow: 0 4px 0 #0b559a; }
+.post_content .has-red-background-color > a { background: #d93025 !important; box-shadow: 0 4px 0 #a5231b; }
+.post_content .has-orange-background-color > a { background: #e67e22 !important; box-shadow: 0 4px 0 #ad5a15; }
+.post_content .btn-wrap > a:hover,
+.post_content .wp-block-cocoon-blocks-button-wrap-1 > a:hover {
+  filter: brightness(1.06);
+  transform: translateY(2px);
+  box-shadow: 0 2px 0 rgba(0,0,0,.28);
+}
+.post_content .article-compass-swell-blogcard { margin: 1.3em 0 1.8em; }
+.post_content .article-compass-swell-blogcard__link {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  padding: 14px;
+  border: 1px solid #d7e1e8;
+  border-radius: 9px;
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(20,45,60,.08);
+  color: inherit !important;
+  text-decoration: none !important;
+}
+.post_content .article-compass-swell-blogcard__thumb { flex: 0 0 150px; }
+.post_content .article-compass-swell-blogcard__thumb img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border-radius: 6px;
+  object-fit: cover;
+}
+.post_content .article-compass-swell-blogcard__body { min-width: 0; }
+.post_content .article-compass-swell-blogcard__label {
+  display: block;
+  margin-bottom: .25em;
+  color: #0f766e;
+  font-size: .78em;
+  font-weight: 700;
+}
+.post_content .article-compass-swell-blogcard__title { display: block; font-weight: 700; line-height: 1.55; }
+.post_content .article-compass-swell-blogcard__excerpt {
+  display: block;
+  margin-top: .35em;
+  color: #64727b;
+  font-size: .84em;
+  line-height: 1.55;
+}
+@media (max-width: 600px) {
+  .post_content .cocoon-block-button__width-75 { width: 100%; }
+  .post_content .article-compass-swell-blogcard__link { align-items: flex-start; gap: 11px; padding: 11px; }
+  .post_content .article-compass-swell-blogcard__thumb { flex-basis: 104px; }
+  .post_content .article-compass-swell-blogcard__excerpt { display: none; }
+}
+CSS;
+    }
+
+    public static function render_cocoon_blogcards_for_swell($content) {
+        if (is_admin() || stripos($content, 'wp-block-cocoon-blocks-blogcard') === false) {
+            return $content;
+        }
+
+        $pattern = '#<div\\b[^>]*class=(["\'])([^"\']*\\bwp-block-cocoon-blocks-blogcard\\b[^"\']*)\\1[^>]*>\\s*(?:<a\\b[^>]*href=(["\'])([^"\']+)\\3[^>]*>[\\s\\S]*?</a>|(https?://[^\\s<]+))\\s*</div>#i';
+
+        return preg_replace_callback($pattern, function ($matches) {
+            $url = isset($matches[4]) && $matches[4] !== '' ? $matches[4] : (isset($matches[5]) ? $matches[5] : '');
+            return self::build_swell_blogcard($url);
+        }, $content);
+    }
+
+    private static function build_swell_blogcard($url) {
+        $url = esc_url_raw(html_entity_decode(trim($url), ENT_QUOTES, get_bloginfo('charset')));
+        if ($url === '') {
+            return '';
+        }
+
+        $post_id = url_to_postid($url);
+        $title = $post_id ? get_the_title($post_id) : wp_parse_url($url, PHP_URL_HOST);
+        $title = $title ? $title : $url;
+        $excerpt = '';
+        $thumb = '';
+
+        if ($post_id) {
+            $post = get_post($post_id);
+            if ($post) {
+                $excerpt = has_excerpt($post_id) ? get_the_excerpt($post_id) : wp_trim_words(wp_strip_all_tags(strip_shortcodes($post->post_content)), 38, '…');
+            }
+            if (has_post_thumbnail($post_id)) {
+                $thumb = get_the_post_thumbnail($post_id, 'medium', array('loading' => 'lazy'));
+            }
+        }
+
+        $thumb_html = $thumb !== ''
+            ? '<span class="article-compass-swell-blogcard__thumb">' . $thumb . '</span>'
+            : '';
+        $excerpt_html = $excerpt !== ''
+            ? '<span class="article-compass-swell-blogcard__excerpt">' . esc_html($excerpt) . '</span>'
+            : '';
+
+        return '<div class="article-compass-swell-blogcard">'
+            . '<a class="article-compass-swell-blogcard__link" href="' . esc_url($url) . '">'
+            . $thumb_html
+            . '<span class="article-compass-swell-blogcard__body">'
+            . '<span class="article-compass-swell-blogcard__label">あわせて読みたい</span>'
+            . '<span class="article-compass-swell-blogcard__title">' . esc_html(wp_strip_all_tags($title)) . '</span>'
+            . $excerpt_html
+            . '</span></a></div>';
     }
 
     public static function upsert_items(WP_REST_Request $request) {

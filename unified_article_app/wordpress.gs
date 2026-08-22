@@ -48,6 +48,222 @@ function uaUpdatePublishedWpFromWeb(data) {
   return uaUpdatePublishedWpFromPanel(data || {});
 }
 
+/**
+ * 既存の公開記事へ、メイン案件を補完するテキストリンクだけを安全に追加する。
+ *
+ * - dryRun=true（既定）では候補確認のみで、シートとWordPressを変更しない。
+ * - メイン案件の囲みボタンがシート本文・公開本文の両方に存在する記事だけを対象にする。
+ * - 公開中のWordPress本文を直接の更新元にするため、既存画像や手動編集を保持する。
+ * - 追加後に公開状態、アイキャッチ、本文画像、サブ案件マーカーを再確認する。
+ */
+function uaMigrateExistingComplementaryAffiliateLinks(options) {
+  const opts = options || {};
+  const dryRun = opts.dryRun !== false;
+  const afterRow = Math.max(1, Number(opts.afterRow || 1));
+  const maxUpdates = dryRun ? 100 : Math.max(1, Math.min(3, Number(opts.maxUpdates || 2)));
+  const appConfig = UA_APP_TYPES.drive;
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(appConfig.articleSheetName);
+  if (!sheet) throw new Error('既存記事移行: DRIVE BASEシートが見つかりません。');
+
+  const wpConfig = uaGetWpConfig_(appConfig);
+  const lastRow = sheet.getLastRow();
+  const result = {
+    dryRun: dryRun,
+    scanned: 0,
+    eligible: 0,
+    updated: 0,
+    skipped: 0,
+    nextAfterRow: afterRow,
+    hasMore: false,
+    details: []
+  };
+
+  const articleValues = lastRow >= 2
+    ? sheet.getRange(2, 1, lastRow - 1, UA_ARTICLE_COLUMN_COUNT).getValues()
+    : [];
+  const candidateRows = [];
+  for (let sourceRow = Math.max(2, afterRow + 1); sourceRow <= lastRow; sourceRow++) {
+    const values = articleValues[sourceRow - 2] || [];
+    const sourceData = {
+      row: sourceRow,
+      appType: values[UA_COLUMNS.appType - 1] || appConfig.label,
+      mainInput: values[UA_COLUMNS.mainInput - 1] || '',
+      affiliateName: uaNormalizeAffiliateName_(values[UA_COLUMNS.affiliateName - 1]),
+      affiliateUrl: values[UA_COLUMNS.affiliateUrl - 1] || '',
+      affiliateNotes: values[UA_COLUMNS.affiliateNotes - 1] || '',
+      readerMindMemo: values[UA_COLUMNS.readerMindMemo - 1] || '',
+      status: values[UA_COLUMNS.status - 1] || '',
+      body: values[UA_COLUMNS.body - 1] || '',
+      titleIdeas: values[UA_COLUMNS.titleIdeas - 1] || '',
+      metaDescription: values[UA_COLUMNS.metaDescription - 1] || '',
+      wpPostId: values[UA_COLUMNS.wpPostId - 1] || '',
+      structureMemo: values[UA_COLUMNS.structureMemo - 1] || ''
+    };
+    const sourceAffiliate = uaNormalizeAffiliateName_(sourceData.affiliateName);
+    if (sourceAffiliate !== 'ガリバー中古車ご提案サービス' && sourceAffiliate !== 'カーネクスト') continue;
+    if (Number(sourceData.wpPostId || 0) <= 0) continue;
+    candidateRows.push({ row: sourceRow, data: sourceData });
+  }
+
+  const postIds = candidateRows.map(function(item) {
+    return Number(item.data.wpPostId || 0);
+  }).filter(function(id, index, list) {
+    return id > 0 && list.indexOf(id) === index;
+  });
+  const postMap = {};
+  if (postIds.length > 0) {
+    const posts = uaCallWordPressApi_(
+      wpConfig,
+      '/wp-json/wp/v2/posts?include=' + encodeURIComponent(postIds.join(',')) +
+        '&per_page=100&context=edit&_fields=id,status,content,featured_media',
+      'get'
+    );
+    (Array.isArray(posts) ? posts : []).forEach(function(post) {
+      postMap[Number(post && post.id || 0)] = post;
+    });
+  }
+
+  for (let candidateIndex = 0; candidateIndex < candidateRows.length; candidateIndex++) {
+    const row = candidateRows[candidateIndex].row;
+    const rowData = candidateRows[candidateIndex].data;
+    const affiliateName = uaNormalizeAffiliateName_(rowData.affiliateName);
+    if (affiliateName !== 'ガリバー中古車ご提案サービス' && affiliateName !== 'カーネクスト') continue;
+    if (Number(rowData.wpPostId || 0) <= 0) continue;
+    result.scanned++;
+
+    const detail = {
+      row: row,
+      keyword: String(rowData.mainInput || ''),
+      mainAffiliate: affiliateName,
+      wpPostId: Number(rowData.wpPostId),
+      status: 'skip',
+      reason: ''
+    };
+
+    try {
+      if (/<!--\s*UA_SUB_AFFILIATE_START\s*-->/i.test(String(rowData.body || ''))) {
+        detail.reason = 'シート本文へ追加済み';
+        result.skipped++;
+        result.details.push(detail);
+        continue;
+      }
+
+      const mainSpec = uaGetManagedAffiliateCtaSpec_(rowData);
+      if (!mainSpec || !uaManagedAffiliateCtaAlreadyExists_(rowData.body, mainSpec)) {
+        detail.reason = 'シート本文でメイン案件の囲みボタンを確認できない';
+        result.skipped++;
+        result.details.push(detail);
+        continue;
+      }
+
+      const project = uaGetComplementaryAffiliateProject_(rowData, appConfig, rowData.body);
+      if (!project) {
+        detail.reason = '補助案件を自然に案内できる売却・乗り換え文脈がない';
+        result.skipped++;
+        result.details.push(detail);
+        continue;
+      }
+
+      const currentPost = postMap[detail.wpPostId];
+      if (!currentPost) {
+        detail.reason = 'WordPress記事を取得できない';
+        result.skipped++;
+        result.details.push(detail);
+        result.nextAfterRow = row;
+        continue;
+      }
+      const currentStatus = String(currentPost && currentPost.status || '').trim();
+      if (currentStatus !== 'publish') {
+        detail.reason = 'WordPressが公開状態ではない（' + (currentStatus || '状態不明') + '）';
+        result.skipped++;
+        result.details.push(detail);
+        continue;
+      }
+
+      const currentWpBody = uaGetWpPostRawContent_(currentPost);
+      if (/<!--\s*UA_SUB_AFFILIATE_START\s*-->/i.test(currentWpBody)) {
+        detail.reason = 'WordPress本文へ追加済み';
+        result.skipped++;
+        result.details.push(detail);
+        continue;
+      }
+      if (!uaManagedAffiliateCtaAlreadyExists_(currentWpBody, mainSpec)) {
+        detail.reason = '公開本文でメイン案件の囲みボタンを確認できない';
+        result.skipped++;
+        result.details.push(detail);
+        continue;
+      }
+
+      const nextSheetBody = uaApplyManagedSubAffiliateTextLink_(rowData.body, rowData, appConfig, mainSpec);
+      const nextWpBody = uaApplyManagedSubAffiliateTextLink_(currentWpBody, rowData, appConfig, mainSpec);
+      if (nextSheetBody === String(rowData.body || '') || nextWpBody === currentWpBody) {
+        detail.reason = 'テキストリンクの安全な差し込み位置を確定できない';
+        result.skipped++;
+        result.details.push(detail);
+        continue;
+      }
+
+      const missingImages = uaFindMissingPublishedWpImages_(currentWpBody, nextWpBody);
+      if (missingImages.length > 0) {
+        detail.reason = '既存画像の欠落を検出';
+        result.skipped++;
+        result.details.push(detail);
+        continue;
+      }
+
+      detail.status = dryRun ? 'eligible' : 'updated';
+      detail.subAffiliate = String(project.name || '');
+      detail.reason = dryRun ? '差し込み可能' : '公開本文とシート本文へ反映済み';
+      result.eligible++;
+
+      if (!dryRun) {
+        uaCallWordPressApi_(
+          wpConfig,
+          '/wp-json/wp/v2/posts/' + encodeURIComponent(detail.wpPostId),
+          'post',
+          { content: nextWpBody }
+        );
+        const verifiedPost = uaFetchWpPostForEdit_(wpConfig, detail.wpPostId);
+        const verifiedBody = uaGetWpPostRawContent_(verifiedPost);
+        const originalFeaturedMediaId = Number(currentPost && currentPost.featured_media || 0);
+        const verifiedFeaturedMediaId = Number(verifiedPost && verifiedPost.featured_media || 0);
+        const remainingMissingImages = uaFindMissingPublishedWpImages_(currentWpBody, verifiedBody);
+
+        if (String(verifiedPost && verifiedPost.status || '') !== 'publish') {
+          throw new Error('更新後に公開状態を維持できませんでした。');
+        }
+        if (verifiedFeaturedMediaId !== originalFeaturedMediaId) {
+          throw new Error('更新後にアイキャッチ画像の変更を検出しました。');
+        }
+        if (remainingMissingImages.length > 0) {
+          throw new Error('更新後に既存画像の欠落を検出しました。');
+        }
+        if (!/<!--\s*UA_SUB_AFFILIATE_START\s*-->/i.test(verifiedBody)) {
+          throw new Error('更新後にサブ案件テキストリンクを確認できませんでした。');
+        }
+
+        sheet.getRange(row, UA_COLUMNS.body).setValue(nextSheetBody);
+        sheet.getRange(row, UA_COLUMNS.wpDraftedAt).setValue(new Date());
+        result.updated++;
+      }
+      result.details.push(detail);
+      result.nextAfterRow = row;
+      if (!dryRun && result.updated >= maxUpdates) {
+        result.hasMore = candidateIndex < candidateRows.length - 1;
+        break;
+      }
+    } catch (e) {
+      detail.status = 'error';
+      detail.reason = e && e.message ? e.message : String(e);
+      result.skipped++;
+      result.details.push(detail);
+      result.nextAfterRow = row;
+    }
+  }
+
+  return result;
+}
+
 function uaAddWpImagesFromWeb(data) {
   return uaAddWpImagesFromPanel(data || {});
 }

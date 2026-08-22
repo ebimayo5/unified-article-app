@@ -315,6 +315,12 @@
           <div id="autoPostingStatus" class="auto-posting-status">設定を読み込み中...</div>
           <button id="autoPostingResumeButton" class="danger hidden" type="button" style="width:100%; margin-top:8px;" onclick="resumeAutomaticPosting(this)">停止位置から再開</button>
           <button id="autoPostingSkipButton" class="secondary hidden" type="button" style="width:100%; margin-top:8px;" onclick="skipAutomaticPosting(this)">この記事を対象外にして次へ</button>
+          <details id="existingAffiliateMigrationPanel" style="margin-top:12px;">
+            <summary style="cursor:pointer; font-weight:700;">既存記事の補助案件</summary>
+            <button class="secondary" type="button" style="width:100%; margin-top:8px;" onclick="migrateExistingComplementaryAffiliateLinks(true, this)">差し込み候補を確認</button>
+            <button class="primary" type="button" style="width:100%; margin-top:8px;" onclick="migrateExistingComplementaryAffiliateLinks(false, this)">候補を公開記事へ反映</button>
+            <div id="existingAffiliateMigrationResult" class="muted" style="margin-top:8px; white-space:pre-wrap; font-size:12px;"></div>
+          </details>
         </div>
       </aside>
 
@@ -891,6 +897,60 @@
           })
           .withFailureHandler(fail)
           .uaSaveAutomaticPostingSettingsFromPanel(data);
+      }
+
+      function migrateExistingComplementaryAffiliateLinks(dryRun, button) {
+        if (!dryRun && button.dataset.confirmed !== 'true') {
+          button.dataset.confirmed = 'true';
+          button.textContent = 'もう一度押して公開記事へ反映';
+          setNotice('公開中の記事を更新します。内容を確認し、もう一度ボタンを押してください。', false);
+          window.setTimeout(function() {
+            if (button.dataset.confirmed === 'true') {
+              button.dataset.confirmed = '';
+              button.textContent = '候補を公開記事へ反映';
+            }
+          }, 30000);
+          return;
+        }
+        if (!dryRun) {
+          button.dataset.confirmed = '';
+          button.textContent = '候補を公開記事へ反映';
+        }
+        const output = document.getElementById('existingAffiliateMigrationResult');
+        setBusy(dryRun ? '既存記事の差し込み候補を確認中...' : '既存記事へ補助案件を反映中...', button);
+        const collected = [];
+        let scanned = 0;
+
+        function runChunk(afterRow) {
+          google.script.run
+          .withSuccessHandler(function(result) {
+            scanned += Number(result && result.scanned || 0);
+            clearBusy();
+            const details = result && result.details || [];
+            const changed = details.filter(function(item) {
+              return item.status === 'eligible' || item.status === 'updated';
+            });
+            Array.prototype.push.apply(collected, changed);
+            const progressSummary = (dryRun ? '候補' : '更新') + ': ' + collected.length + '件 / 確認: ' + scanned + '件';
+            output.textContent = [progressSummary].concat(collected.map(function(item) {
+              return '・' + item.keyword + '（' + item.mainAffiliate + ' → ' + item.subAffiliate + '）';
+            })).join('\n');
+            if (!dryRun && result && result.hasMore) {
+              setBusy('既存記事へ補助案件を反映中... ' + collected.length + '件完了', button);
+              runChunk(Number(result.nextAfterRow || afterRow));
+              return;
+            }
+            setNotice(progressSummary, false);
+          })
+          .withFailureHandler(function(error) {
+            clearBusy();
+            output.textContent = '失敗: ' + (error && error.message ? error.message : error);
+            fail(error);
+          })
+          .uaMigrateExistingComplementaryAffiliateLinks({ dryRun: dryRun, afterRow: afterRow, maxUpdates: 2 });
+        }
+
+        runChunk(1);
       }
 
       function fillSelect(id, options, selectedValue) {

@@ -22,6 +22,7 @@ function run(context) {
 // The iframe button must open Thickbox through the parent editor window.
 let clickHandler;
 const opened = [];
+const previewTabs = [];
 const iframeParentMessages = [];
 const iframeDocument = {
   addEventListener(type, handler) { if (type === 'click') clickHandler = handler; },
@@ -32,6 +33,7 @@ const iframeWindow = {
   // WordPress 7.1 also defines tb_show in the editor iframe. The compatibility
   // layer must still intercept the click and use the parent editor's Thickbox.
   tb_show() { throw new Error('local iframe Thickbox must not be used'); },
+  open(url, target, features) { previewTabs.push({ url, target, features }); },
   parent: {
     tb_show(title, url) { opened.push({ title, url }); },
     postMessage(message, origin) { iframeParentMessages.push({ message, origin }); }
@@ -68,6 +70,7 @@ assert(iframeParentMessages[0].message.type === 'article-compass-rinker-open', '
 // WordPress 7.1 editor iframe away from the post.
 let previewNavigationPrevented = false;
 const previewLink = {
+  href: 'https://example.com/product',
   closest(selector) {
     return selector.includes('rinkerg/gutenberg-rinker') ? this : null;
   }
@@ -79,6 +82,8 @@ clickHandler({
   stopImmediatePropagation() {}
 });
 assert(previewNavigationPrevented, 'Rinker preview link navigation was not prevented in the editor');
+assert(previewTabs.length === 1, 'Rinker preview link did not open a separate tab');
+assert(previewTabs[0].target === '_blank', 'Rinker preview link did not target a new tab');
 
 // The top editor must accept only the expected client ID and update Rinker attributes.
 let messageHandler;

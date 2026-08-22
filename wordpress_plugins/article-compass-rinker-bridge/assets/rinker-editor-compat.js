@@ -51,12 +51,19 @@
             // Rinker's rendered preview contains ordinary affiliate anchors.
             // In WordPress 7.1 the editor canvas is an iframe, so following
             // one replaces the editing canvas with the shop page. Keep links
-            // active on the public site, but never navigate from the editor.
+            // active on the public site and open them in a separate tab when
+            // clicked from the editor.
             var previewLink = event.target && event.target.closest
                 ? event.target.closest('[data-type="rinkerg/gutenberg-rinker"] .yyi-rinker-contents a[href]')
                 : null;
             if (previewLink) {
                 event.preventDefault();
+                try {
+                    window.open(previewLink.href, '_blank', 'noopener,noreferrer');
+                } catch (error) {
+                    // Keep the editor canvas in place even if a browser blocks
+                    // the new tab.
+                }
                 return;
             }
 

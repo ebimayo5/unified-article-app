@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Article Compass Rinker Bridge
  * Description: Article Compass SystemからRinker商品リンクを安全に作成・再利用します。
- * Version: 1.2.4
+ * Version: 1.2.5
  * Author: Article Compass System
  */
 
@@ -54,7 +54,7 @@ final class Article_Compass_Rinker_Bridge {
             $handle,
             plugin_dir_url(__FILE__) . 'assets/rinker-editor-compat.js',
             array('jquery'),
-            '1.2.4',
+            '1.2.5',
             true
         );
         wp_localize_script($handle, 'ArticleCompassRinkerCompat', array(
@@ -96,7 +96,7 @@ final class Article_Compass_Rinker_Bridge {
         return rest_ensure_response(array(
             'ok' => true,
             'rinker_active' => post_type_exists(self::RINKER_POST_TYPE),
-            'bridge_version' => '1.2.4',
+            'bridge_version' => '1.2.5',
             'seo_meta_supported' => true,
         ));
     }

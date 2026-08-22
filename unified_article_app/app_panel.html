@@ -374,6 +374,7 @@
         font-size: 15px;
         font-weight: 800;
         line-height: 1.35;
+        white-space: pre-line;
         overflow-wrap: anywhere;
         contain: paint;
         box-shadow: 0 1px 4px rgba(16, 24, 40, 0.08);
@@ -850,6 +851,7 @@
       let autoSaveTimer = null;
       let autoSavePending = false;
       let autoSaveInFlight = false;
+      let noticeAutoSaveBlockedUntil = 0;
       let isFillingForm = false;
       let loadedAppType = '';
       let rakutenSuggestionRequestToken = 0;
@@ -1104,14 +1106,14 @@
 
         autoSavePending = false;
         autoSaveInFlight = true;
-        setNotice('自動保存中...', false);
+        setNotice('自動保存中...', false, 'autosave');
         const payload = readForm();
         if (loadedAppType) payload.appType = loadedAppType;
         google.script.run
           .withSuccessHandler(function(data) {
             autoSaveInFlight = false;
             setProgress('done');
-            setNotice('自動保存しました。', false);
+            setNotice('自動保存しました。', false, 'autosave');
             if (autoSavePending) scheduleAutoSave();
           })
           .withFailureHandler(function(error) {
@@ -2087,10 +2089,14 @@ function saveOpenAiModels(button) {
         return value.charAt(0).toUpperCase() + value.slice(1);
       }
 
-      function setNotice(message, isError) {
+      function setNotice(message, isError, source) {
+        if (source === 'autosave' && Date.now() < noticeAutoSaveBlockedUntil) return;
         const notice = document.getElementById('notice');
         notice.textContent = message;
         notice.className = isError ? 'status error' : 'status';
+        if (source !== 'autosave') {
+          noticeAutoSaveBlockedUntil = Date.now() + 10000;
+        }
       }
 
       function setProgress(state) {

@@ -1184,7 +1184,7 @@
             ? '商品検索キーワード 例: ランドリーチェスト 防カビ'
             : '楽天商品キーワード 例: ランドリーチェスト 防カビ';
         }
-        if (addButton) addButton.textContent = isHome ? '商品リンクを追加' : '楽天バナーを追加';
+        if (addButton) addButton.textContent = isHome ? 'Rinkerを追加' : '楽天バナーを追加';
       }
 
       function commerceLinkText(rakutenText, homeText) {
@@ -2424,14 +2424,16 @@
 
       function addRakutenBanner(button) {
         syncRakutenControlsToNotes();
-        setBusy(commerceLinkText('楽天バナーを本文へ追加中...', '商品リンクを本文へ追加中...'), button);
+        const payload = readForm();
+        if (currentConfig() && currentConfig().key === 'home') payload.forceRinkerItemCount = 3;
+        setBusy(commerceLinkText('楽天バナーを本文へ追加中...', 'Rinker商品を3種類選定中...'), button);
         google.script.run.withSuccessHandler(function(data) {
           clearBusy();
           fillForm(data);
           showTab('body');
           setProgress('done');
-          setNotice(data.message || commerceLinkText('楽天バナーを本文へ追加しました。', '商品リンクを本文へ追加しました。'), false);
-        }).withFailureHandler(fail).uaAddRakutenBannerFromWeb(readForm());
+          setNotice(data.message || commerceLinkText('楽天バナーを本文へ追加しました。', 'Rinker商品を本文へ追加しました。'), false);
+        }).withFailureHandler(fail).uaAddRakutenBannerFromWeb(payload);
       }
 
       function addInternalLink(button) {

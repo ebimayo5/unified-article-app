@@ -1151,7 +1151,12 @@ function uaAddRakutenBannerToActiveRow_() {
 function uaAddRakutenBannerForData_(data) {
   const sheet = uaGetSheetForData_(data || {});
   const row = Number(data && data.row) || sheet.getActiveCell().getRow();
-  return uaAddRakutenBannerForContext_(uaGetRakutenRowContext_(sheet, row));
+  const context = uaGetRakutenRowContext_(sheet, row);
+  const requestedRinkerCount = Number(data && data.forceRinkerItemCount || 0);
+  if (context.appConfig && context.appConfig.key === 'home' && requestedRinkerCount > 0) {
+    context.rowData.forceRakutenItemCount = Math.max(1, Math.min(3, requestedRinkerCount));
+  }
+  return uaAddRakutenBannerForContext_(context);
 }
 
 function uaBuildProductLinkNotInsertedResult_(context, sourceBody, replacedExisting, reason, factLabel) {
@@ -1231,9 +1236,14 @@ function uaAddRakutenBannerForContext_(context) {
     : '・楽天バナー後入れ｜既存本文に小リライトとして追加済み');
 
   const nextData = uaBuildRowData_(context.sheet, context.row);
-  nextData.message = replacedExisting
-    ? '楽天バナーを現在のキーワードで再選定して置き換えました。本文生成APIは使っていません。'
-    : '楽天バナーを本文へ追加しました。本文生成APIは使っていません。';
+  const isForcedHomeRinker = context.appConfig && context.appConfig.key === 'home' &&
+    Number(context.rowData && context.rowData.forceRakutenItemCount || 0) > 0;
+  const rinkerItemCount = (String(block || '').match(/\[itemlink\b/gi) || []).length;
+  nextData.message = isForcedHomeRinker
+    ? 'Rinker商品リンクを' + rinkerItemCount + '種類、本文へ追加しました。重複商品は除外済みです。本文生成APIは使っていません。'
+    : replacedExisting
+      ? '楽天バナーを現在のキーワードで再選定して置き換えました。本文生成APIは使っていません。'
+      : '楽天バナーを本文へ追加しました。本文生成APIは使っていません。';
   return nextData;
 }
 
@@ -2196,6 +2206,10 @@ function uaHomeRakutenProductCandidates_() {
 }
 
 function uaDecideRakutenItemCount_(body, rowData, appConfig, query) {
+  if (appConfig && appConfig.key === 'home' && Number(rowData && rowData.forceRakutenItemCount || 0) > 0) {
+    return Math.max(1, Math.min(3, Number(rowData.forceRakutenItemCount)));
+  }
+
   const text = [
     rowData && rowData.mainInput,
     rowData && rowData.readerMindMemo,

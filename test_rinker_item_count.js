@@ -42,6 +42,16 @@ assert.strictEqual(
   2,
   '同じRinker post_idのショートコードを重複出力しない'
 );
+assert.strictEqual(
+  context.uaDecideRakutenItemCount_('', { forceRakutenItemCount: 3 }, { key: 'home' }, 'ポップアップテント'),
+  3,
+  'たくみパパの手動Rinkerボタンは3種類を要求する'
+);
+assert.strictEqual(
+  context.uaDecideRakutenItemCount_('', { forceRakutenItemCount: 3 }, { key: 'drive' }, 'カーナビ'),
+  1,
+  'DRIVE BASEの楽天バナー件数にはRinker専用指定を適用しない'
+);
 
 const originalSingleFetch = context.uaFetchRakutenItems_;
 const originalMultiFetch = context.uaFetchRakutenItemsByQueries_;

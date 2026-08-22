@@ -396,6 +396,7 @@
               <div class="actions">
                 <button class="secondary" onclick="generateImagePromptPack(this)">&#30011;&#20687;&#12503;&#12525;&#12531;&#12503;&#12488;&#20316;&#25104;</button>
                 <button id="wpDraftButton" class="primary" onclick="createWpDraft(this)">WP&#12408;&#19979;&#26360;&#12365;</button>
+                <button id="wpUpdateButton" class="primary" onclick="updatePublishedWp(this)">WP&#12408;&#26356;&#26032;</button>
                 <button class="primary" onclick="runPrePublishFixAndWp(this)">&#12481;&#12455;&#12483;&#12463;&#20462;&#27491;&#8594;WP&#21453;&#26144;</button>
                 <button class="neutral" onclick="markPosted(this)">&#25237;&#31295;&#28168;&#12415;&#12395;&#12377;&#12427;</button>
               </div>
@@ -1158,8 +1159,10 @@
       function updateWpVisibility(config) {
         const isDisabled = config && config.useWordPress === false;
         const wpButton = document.getElementById('wpDraftButton');
+        const wpUpdateButton = document.getElementById('wpUpdateButton');
         const wpSummaryBlock = document.getElementById('wpSummaryBlock');
         if (wpButton) wpButton.classList.toggle('hidden', isDisabled);
+        if (wpUpdateButton) wpUpdateButton.classList.toggle('hidden', isDisabled);
         if (wpSummaryBlock) wpSummaryBlock.classList.toggle('hidden', isDisabled);
       }
 
@@ -2543,6 +2546,24 @@
           setProgress('done');
           setNotice(data.message || 'WordPress下書きを作成しました。', false);
         }).withFailureHandler(fail).uaCreateWpDraftFromWeb(readForm());
+      }
+
+      function updatePublishedWp(button) {
+        const data = readForm();
+        if (!Number(data.wpPostId || 0)) {
+          setNotice('WP投稿IDがありません。先にWordPressへ入稿してください。', true);
+          return;
+        }
+        if (!window.confirm('公開中の同じ記事を更新します。タイトル案から1件を採用し、本文・Rinker・SEO情報を反映します。よろしいですか？')) {
+          return;
+        }
+        setBusy('公開中のWordPress記事を更新中...', button);
+        google.script.run.withSuccessHandler(function(nextData) {
+          clearBusy();
+          fillForm(nextData);
+          setProgress('done');
+          setNotice(nextData.message || '公開中のWordPress記事を更新しました。', false);
+        }).withFailureHandler(fail).uaUpdatePublishedWpFromWeb(data);
       }
 
       function runPrePublishCheck(button) {

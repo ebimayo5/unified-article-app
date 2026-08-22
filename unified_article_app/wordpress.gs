@@ -44,6 +44,10 @@ function uaCreateWpDraftFromWeb(data) {
   return uaCreateWpDraftFromPanel(data || {});
 }
 
+function uaUpdatePublishedWpFromWeb(data) {
+  return uaUpdatePublishedWpFromPanel(data || {});
+}
+
 function uaAddWpImagesFromWeb(data) {
   return uaAddWpImagesFromPanel(data || {});
 }
@@ -187,6 +191,102 @@ function uaCreateWpDraftFromPanel(data) {
   if (allowedUnverifiedMarketFreshnessDraft) {
     nextData.message += ' 価格・相場の資料不足は手動確認済みとして下書きへ進めました。公開前に金額と確認時点を確認してください。';
   }
+  return nextData;
+}
+
+function uaUpdatePublishedWpFromPanel(data) {
+  uaSaveActiveRowData(data || {});
+
+  const sheet = uaGetSheetForData_(data || {});
+  const row = Number(data && data.row) || sheet.getActiveCell().getRow();
+  const rowData = uaBuildRowData_(sheet, row);
+  const appConfig = uaGetAppConfigByLabel_(rowData.appType);
+
+  if (!appConfig || appConfig.useWordPress === false) {
+    throw new Error('WP更新: この記事タイプはWordPress更新に対応していません。');
+  }
+  if (!String(rowData.body || '').trim()) {
+    throw new Error('WP更新: 本文が空です。');
+  }
+  if (!String(rowData.titleIdeas || '').trim()) {
+    throw new Error('WP更新: タイトル案が空です。');
+  }
+
+  const postId = Number(rowData.wpPostId || 0);
+  if (postId <= 0) {
+    throw new Error('WP更新: WP投稿IDがありません。先にWordPressへ入稿してください。');
+  }
+
+  const wpConfig = uaGetWpConfig_(appConfig);
+  const currentPost = uaFetchWpPostForEdit_(wpConfig, postId);
+  const currentStatus = String(currentPost && currentPost.status || '').trim();
+  if (currentStatus !== 'publish') {
+    throw new Error(
+      'WP更新: 投稿ID ' + postId + ' は公開中ではありません（現在: ' +
+      (currentStatus || '状態不明') + '）。下書きは「WPへ下書き」で更新してください。'
+    );
+  }
+
+  const productPlan = uaExtractProductPlan_(rowData.body);
+  const storedBody = uaNormalizeUnsupportedTrialGuidance_(uaRemoveRedundantAffiliateDisclosure_(uaNormalizeAnchorRelAttributes_(uaApplyNaviokunIntroSet_(
+    uaApplyManagedAffiliateCta_(uaRemoveRedundantAffiliateDisclosure_(rowData.body), rowData, appConfig),
+    rowData,
+    appConfig
+  ))), productPlan);
+  const wpBody = uaStripProductPlanMarker_(storedBody);
+  if (storedBody !== String(rowData.body || '')) {
+    sheet.getRange(row, UA_COLUMNS.body).setValue(storedBody);
+    rowData.body = storedBody;
+  }
+
+  const currentWpBody = uaGetWpPostRawContent_(currentPost);
+  const missingImages = uaFindMissingPublishedWpImages_(currentWpBody, wpBody);
+  if (missingImages.length > 0) {
+    throw new Error(
+      'WP更新を停止しました。公開中の記事にある画像がパネル本文から' +
+      missingImages.length + '件欠落しています。画像を消さないため更新していません。欠落画像: ' +
+      missingImages.slice(0, 5).join(', ')
+    );
+  }
+
+  const title = uaPickWpTitle_(rowData.titleIdeas, rowData.mainInput, rowData.body);
+  const payload = uaBuildPublishedWpUpdatePayload_(title, wpBody);
+  const slug = uaCleanWpSlug_(rowData.permalink);
+  const tagIds = uaEnsureWpTagIds_(wpConfig, rowData.tags);
+  const categoryIds = uaResolveWpCategoryIds_(wpConfig, rowData, appConfig);
+  if (slug) payload.slug = slug;
+  if (tagIds.length > 0) payload.tags = tagIds;
+  if (categoryIds.length > 0) payload.categories = categoryIds;
+
+  const updatedPost = uaCallWordPressApi_(
+    wpConfig,
+    '/wp-json/wp/v2/posts/' + encodeURIComponent(postId),
+    'post',
+    payload
+  );
+  const verifiedPost = uaFetchWpPostForEdit_(wpConfig, postId);
+  const verifiedStatus = String(verifiedPost && verifiedPost.status || '').trim();
+  const verifiedId = Number(verifiedPost && verifiedPost.id || updatedPost && updatedPost.id || 0);
+  const originalFeaturedMediaId = Number(currentPost && currentPost.featured_media || 0);
+  const verifiedFeaturedMediaId = Number(verifiedPost && verifiedPost.featured_media || 0);
+
+  if (verifiedId !== postId || verifiedStatus !== 'publish') {
+    throw new Error('WP更新後の確認に失敗しました。投稿IDまたは公開状態が一致しません。');
+  }
+  if (verifiedFeaturedMediaId !== originalFeaturedMediaId) {
+    throw new Error('WP更新後の確認でアイキャッチ画像の変更を検出しました。WordPress管理画面を確認してください。');
+  }
+  const remainingMissingImages = uaFindMissingPublishedWpImages_(currentWpBody, uaGetWpPostRawContent_(verifiedPost));
+  if (remainingMissingImages.length > 0) {
+    throw new Error('WP更新後の確認で既存画像の欠落を検出しました。WordPress管理画面を確認してください。');
+  }
+
+  uaSyncWpMetaDescription_(wpConfig, postId, rowData.metaDescription);
+  const updatedAt = new Date();
+  sheet.getRange(row, UA_COLUMNS.wpDraftedAt).setValue(updatedAt);
+
+  const nextData = uaBuildRowData_(sheet, row);
+  nextData.message = '公開中の記事を更新しました。タイトル・本文・商品リンク・SEO情報を反映し、公開状態と既存画像を維持しています。採用タイトル: ' + title;
   return nextData;
 }
 
@@ -578,6 +678,73 @@ function uaGetWpPostContentText_(post) {
   ].map(function(value) {
     return String(value || '');
   }).join('\n');
+}
+
+function uaGetWpPostRawContent_(post) {
+  const content = post && post.content || {};
+  return String(content.raw || content.rendered || '');
+}
+
+function uaBuildPublishedWpUpdatePayload_(title, bodyHtml) {
+  return {
+    title: String(title || '').trim(),
+    content: String(bodyHtml || '')
+  };
+}
+
+function uaFindMissingPublishedWpImages_(currentBody, nextBody) {
+  const currentImages = uaExtractWpImageReferences_(currentBody);
+  const nextImages = uaExtractWpImageReferences_(nextBody);
+  const nextKeys = {};
+  nextImages.forEach(function(item) {
+    nextKeys[item.key] = true;
+  });
+  return currentImages.filter(function(item) {
+    return !nextKeys[item.key];
+  }).map(function(item) {
+    return item.label;
+  });
+}
+
+function uaExtractWpImageReferences_(bodyHtml) {
+  const html = String(bodyHtml || '');
+  const seen = {};
+  const items = [];
+
+  function addImage(key, label) {
+    const cleanKey = String(key || '').trim();
+    if (!cleanKey || seen[cleanKey]) return;
+    seen[cleanKey] = true;
+    items.push({ key: cleanKey, label: String(label || cleanKey) });
+  }
+
+  let match;
+  const classIdRegex = /\bwp-image-(\d+)\b/gi;
+  while ((match = classIdRegex.exec(html)) !== null) {
+    addImage('id:' + match[1], '画像ID ' + match[1]);
+  }
+
+  const blockIdRegex = /<!--\s+wp:image\s+\{[^}]*"id"\s*:\s*(\d+)[^}]*\}\s+-->/gi;
+  while ((match = blockIdRegex.exec(html)) !== null) {
+    addImage('id:' + match[1], '画像ID ' + match[1]);
+  }
+
+  const srcRegex = /<img\b[^>]*\bsrc=["']([^"']+)["'][^>]*>/gi;
+  while ((match = srcRegex.exec(html)) !== null) {
+    if (/\bwp-image-\d+\b/i.test(match[0])) continue;
+    const src = uaNormalizeWpImageUrl_(match[1]);
+    if (src) addImage('url:' + src, src);
+  }
+
+  return items;
+}
+
+function uaNormalizeWpImageUrl_(value) {
+  const url = String(value || '')
+    .replace(/&amp;/g, '&')
+    .trim();
+  if (!url) return '';
+  return url.replace(/[?#].*$/, '').replace(/^http:\/\//i, 'https://');
 }
 
 function uaCallWordPressApi_(wpConfig, path, method, payload) {

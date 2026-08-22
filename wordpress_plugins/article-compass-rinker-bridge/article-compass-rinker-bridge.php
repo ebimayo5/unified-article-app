@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Article Compass Rinker Bridge
  * Description: Article Compass SystemからRinker商品リンクを安全に作成・再利用します。
- * Version: 1.1.0
+ * Version: 1.2.0
  * Author: Article Compass System
  */
 
@@ -19,6 +19,48 @@ final class Article_Compass_Rinker_Bridge {
 
     public static function init() {
         add_action('rest_api_init', array(__CLASS__, 'register_routes'));
+        add_action('enqueue_block_editor_assets', array(__CLASS__, 'enqueue_rinker_editor_compat'));
+        add_action('enqueue_block_assets', array(__CLASS__, 'enqueue_rinker_editor_compat_in_canvas'));
+        add_action('admin_enqueue_scripts', array(__CLASS__, 'enqueue_rinker_media_compat'));
+    }
+
+    /**
+     * Rinker 1.13.0 still returns a selected item by searching the parent
+     * document for the block input. WordPress 7.1 renders the post canvas in
+     * an iframe, so that lookup no longer reaches the selected block. The
+     * compatibility script relays the generated shortcode to the block-editor
+     * data store without modifying Rinker itself.
+     */
+    public static function enqueue_rinker_editor_compat() {
+        self::enqueue_rinker_compat_script();
+    }
+
+    public static function enqueue_rinker_editor_compat_in_canvas() {
+        if (is_admin()) {
+            self::enqueue_rinker_compat_script();
+        }
+    }
+
+    public static function enqueue_rinker_media_compat($hook_suffix) {
+        $page = isset($GLOBALS['pagenow']) ? (string) $GLOBALS['pagenow'] : '';
+        if ($hook_suffix === 'media-upload.php' || $page === 'media-upload.php') {
+            self::enqueue_rinker_compat_script();
+        }
+    }
+
+    private static function enqueue_rinker_compat_script() {
+        $handle = 'article-compass-rinker-editor-compat';
+        wp_enqueue_script(
+            $handle,
+            plugin_dir_url(__FILE__) . 'assets/rinker-editor-compat.js',
+            array('jquery'),
+            '1.2.0',
+            true
+        );
+        wp_localize_script($handle, 'ArticleCompassRinkerCompat', array(
+            'mediaUploadUrl' => admin_url('media-upload.php'),
+            'origin' => wp_parse_url(home_url('/'), PHP_URL_SCHEME) . '://' . wp_parse_url(home_url('/'), PHP_URL_HOST),
+        ));
     }
 
     public static function register_routes() {
@@ -54,7 +96,7 @@ final class Article_Compass_Rinker_Bridge {
         return rest_ensure_response(array(
             'ok' => true,
             'rinker_active' => post_type_exists(self::RINKER_POST_TYPE),
-            'bridge_version' => '1.1.0',
+            'bridge_version' => '1.2.0',
             'seo_meta_supported' => true,
         ));
     }

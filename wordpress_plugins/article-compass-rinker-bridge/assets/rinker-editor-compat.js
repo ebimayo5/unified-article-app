@@ -120,11 +120,25 @@
                 expectedClientId = String(data.clientId || '');
                 return;
             }
-            if (data.type !== insertMessageType || !expectedClientId || data.clientId !== expectedClientId) {
+            if (data.type !== insertMessageType || !data.clientId) {
+                return;
+            }
+            // The open notification can be lost when the editor canvas is a
+            // blob iframe. A same-origin message is still safe to accept when
+            // it targets a real block in the current editor; dispatchShortcode
+            // performs that existence check. Keep the expected ID check when
+            // the notification was received.
+            if (expectedClientId && data.clientId !== expectedClientId) {
                 return;
             }
             if (dispatchShortcode(data.clientId, data.postId, data.shortcode)) {
                 expectedClientId = '';
+                // Close the top-level Thickbox after the block has actually
+                // accepted the shortcode. Closing from the media iframe is
+                // unreliable in WordPress 7.1's nested iframe editor.
+                if (typeof window.tb_remove === 'function') {
+                    window.tb_remove();
+                }
             }
         });
     }
@@ -147,6 +161,45 @@
             return;
         }
 
+        function relay(postId) {
+            postId = String(postId || '').trim();
+            if (!/^\d+$/.test(postId)) {
+                return false;
+            }
+            var message = {
+                type: insertMessageType,
+                clientId: clientId,
+                postId: postId,
+                shortcode: '[itemlink post_id="' + postId + '"]'
+            };
+            try {
+                window.parent.postMessage(message, expectedOrigin());
+                return true;
+            } catch (error) {
+                return false;
+            }
+        }
+
+        // Registered products bypass yyi_rinker_add_item and use Rinker's
+        // classic same-document callback. Relay their existing post ID before
+        // that callback runs so Gutenberg receives it across the iframe.
+        document.addEventListener('click', function (event) {
+            var button = event.target && event.target.closest
+                ? event.target.closest('button.add-items-from-list[data-item-post-id]')
+                : null;
+            if (!button || !relay(button.getAttribute('data-item-post-id'))) {
+                return;
+            }
+            event.preventDefault();
+            event.stopPropagation();
+            event.stopImmediatePropagation();
+            window.setTimeout(function () {
+                if (window.parent && typeof window.parent.tb_remove === 'function') {
+                    window.parent.tb_remove();
+                }
+            }, 0);
+        }, true);
+
         $(document).ajaxSuccess(function (event, xhr, settings) {
             if (!isRinkerAddRequest(settings)) {
                 return;
@@ -156,18 +209,7 @@
             if (!match) {
                 return;
             }
-            var postId = match[0];
-            var message = {
-                type: insertMessageType,
-                clientId: clientId,
-                postId: postId,
-                shortcode: '[itemlink post_id="' + postId + '"]'
-            };
-            try {
-                window.parent.postMessage(message, expectedOrigin());
-            } catch (error) {
-                // Rinker's own classic-editor callback remains available.
-            }
+            relay(match[0]);
         });
     }
 

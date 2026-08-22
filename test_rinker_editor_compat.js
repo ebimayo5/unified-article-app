@@ -63,9 +63,11 @@ assert(iframeParentMessages[0].message.type === 'article-compass-rinker-open', '
 // The top editor must accept only the expected client ID and update Rinker attributes.
 let messageHandler;
 const updates = [];
+let editorThickboxClosed = 0;
 const editorWindow = {
   location: { origin: 'https://example.com', pathname: '/wp-admin/post.php', search: '' },
   tb_show() {},
+  tb_remove() { editorThickboxClosed += 1; },
   addEventListener(type, handler) { if (type === 'message') messageHandler = handler; },
   wp: {
     data: {
@@ -89,9 +91,11 @@ messageHandler({
 });
 assert(updates.length === 1, 'shortcode was not delivered to the block editor');
 assert(updates[0].attrs.post_id === '321', 'Rinker post ID was not updated');
+assert(editorThickboxClosed === 1, 'Thickbox was not closed after insertion');
 
 // The media popup must relay Rinker's successful AJAX response to the editor.
 let ajaxSuccessHandler;
+let mediaClickHandler;
 const mediaMessages = [];
 function mediaJQuery() {
   return { ajaxSuccess(handler) { ajaxSuccessHandler = handler; } };
@@ -105,12 +109,33 @@ const mediaWindow = {
   tb_show() {},
   addEventListener() {},
   parent: { postMessage(message, origin) { mediaMessages.push({ message, origin }); } },
+  setTimeout(handler) { handler(); },
   jQuery: mediaJQuery,
   ArticleCompassRinkerCompat: { origin: 'https://example.com' }
 };
-run({ window: mediaWindow, document: { addEventListener() {}, querySelector() { return null; } } });
+run({
+  window: mediaWindow,
+  document: {
+    addEventListener(type, handler) { if (type === 'click') mediaClickHandler = handler; },
+    querySelector() { return null; }
+  }
+});
 ajaxSuccessHandler(null, { responseText: '654' }, { data: { action: 'yyi_rinker_add_item' } });
 assert(mediaMessages.length === 1, 'media popup did not relay the created item');
 assert(mediaMessages[0].message.shortcode === '[itemlink post_id="654"]', 'relayed shortcode is incorrect');
 
-console.log('OK (3 Rinker iframe compatibility checks)');
+// Registered items use a separate classic-DOM route and must also be relayed.
+const registeredButton = {
+  getAttribute(name) { return name === 'data-item-post-id' ? '777' : ''; },
+  closest(selector) { return selector.includes('add-items-from-list') ? this : null; }
+};
+mediaClickHandler({
+  target: registeredButton,
+  preventDefault() {},
+  stopPropagation() {},
+  stopImmediatePropagation() {}
+});
+assert(mediaMessages.length === 2, 'registered item was not relayed');
+assert(mediaMessages[1].message.shortcode === '[itemlink post_id="777"]', 'registered item shortcode is incorrect');
+
+console.log('OK (4 Rinker iframe compatibility checks)');

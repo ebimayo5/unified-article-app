@@ -7,7 +7,22 @@ const source = fs.readFileSync(
   path.join(__dirname, 'unified_article_app', 'wordpress.gs'),
   'utf8'
 );
-const context = { console };
+const context = {
+  console,
+  uaNormalizeAnchorRelAttributes_: (value) => String(value || '').replace(/<a\b[^>]*>/gi, (tag) => {
+    const relPattern = /\s+rel\s*=\s*(["'])([\s\S]*?)\1/gi;
+    const values = [];
+    let match;
+    while ((match = relPattern.exec(tag)) !== null) {
+      String(match[2] || '').split(/\s+/).forEach((token) => {
+        const clean = token.trim().toLowerCase();
+        if (clean && !values.includes(clean)) values.push(clean);
+      });
+    }
+    if (!values.length) return tag;
+    return tag.replace(relPattern, '').replace(/\s*(\/?)>$/, ` rel="${values.join(' ')}"$1>`);
+  })
+};
 vm.createContext(context);
 vm.runInContext(source, context);
 
@@ -27,6 +42,8 @@ const fixture = [
   '<!-- /wp:cocoon-blocks/button-wrap-1 -->',
   '<!-- wp:cocoon-blocks/blank-box-1 {"borderColor":"green"} --><div class="wp-block-cocoon-blocks-blank-box-1 blank-box"><p>枠</p></div><!-- /wp:cocoon-blocks/blank-box-1 -->',
   '<!-- wp:cocoon-blocks/icon-box --><div class="wp-block-cocoon-blocks-icon-box common-icon-box"><p><span class="bold-red">重要</span></p></div><!-- /wp:cocoon-blocks/icon-box -->',
+  '<!-- wp:cocoon-blocks/sticky-box {"style":"st-green"} --><div class="wp-block-cocoon-blocks-sticky-box blank-box block-box sticky st-green"><p>付箋の要点</p></div><!-- /wp:cocoon-blocks/sticky-box -->',
+  '<!-- wp:cocoon-blocks/micro-text {"align":"center","textColor":"red"} --><div class="wp-block-cocoon-blocks-micro-text aligncenter micro-text"><span class="micro-text-content"><strong>＼今すぐチェック！／</strong></span></div><!-- /wp:cocoon-blocks/micro-text -->',
   '<!-- wp:image {"id":77} --><figure><img src="https://example.com/image.jpg" class="wp-image-77"></figure><!-- /wp:image -->',
   '<!-- wp:cocoon-blocks/button-wrap-1 {"tag":"[affi id=7]"} --><div class="wp-block-cocoon-blocks-button-wrap-1 btn-wrap">[affi id=7]</div><!-- /wp:cocoon-blocks/button-wrap-1 -->'
 ].join('\n');
@@ -40,8 +57,15 @@ assert.ok(converted.includes('wp:loos/post-link'), 'blogcard should use a SWELL 
 assert.ok(converted.includes('article-compass-migrated-border'), 'blank box should use a SWELL/core group style');
 assert.ok(converted.includes('article-compass-migrated-icon-box'), 'icon box should use a SWELL/core group style');
 assert.ok(converted.includes('swl-marker mark_yellow'), 'Cocoon marker should become a SWELL marker');
+assert.ok(!converted.includes('micro-text-content'), 'legacy micro-text class should be removed');
+assert.ok(!converted.includes('micro-content'), 'legacy Cocoon micro class should be removed');
 assert.ok(converted.includes('[affi id=7]'), 'shortcode must remain unchanged');
 assert.ok(converted.includes('https://track.example/pixel.gif?a=1'), 'tracking pixel must remain unchanged');
+
+const duplicateRelSource = '<p><a href="https://example.com" target="_blank" rel="noopener" rel="nofollow sponsored noopener">確認する</a></p>';
+const normalizedRel = convert(duplicateRelSource);
+assert.strictEqual((normalizedRel.match(/\srel=/g) || []).length, 1, 'duplicate rel attributes should be merged');
+assert.ok(normalizedRel.includes('rel="noopener nofollow sponsored"'), 'rel tokens should be preserved without duplication');
 
 const wxrPath = 'C:\\Users\\ebima\\Downloads\\drivebase.WordPress.2026-08-22.xml';
 let audited = 0;

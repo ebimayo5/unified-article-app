@@ -1014,6 +1014,9 @@ function uaGetWpPostRawContent_(post) {
 const UA_DRIVE_SWELL_MIGRATION_BACKUP_SHEET = 'SWELL移行バックアップ';
 const UA_DRIVE_SWELL_MIGRATION_STATE_PROPERTY = 'UA_DRIVE_SWELL_MIGRATION_STATE_V1';
 const UA_DRIVE_SWELL_MIGRATION_WORKER = 'uaRunDriveSwellExistingMigrationWorker';
+const UA_HOME_SWELL_MIGRATION_BACKUP_SHEET = 'SWELL移行バックアップ_たくみパパ';
+const UA_HOME_SWELL_MIGRATION_STATE_PROPERTY = 'UA_HOME_SWELL_MIGRATION_STATE_V1';
+const UA_HOME_SWELL_MIGRATION_WORKER = 'uaRunHomeSwellExistingMigrationWorker';
 
 /**
  * Converts only known Cocoon decoration blocks to the SWELL dialect used by
@@ -1067,6 +1070,18 @@ function uaConvertCocoonDecorationsToSwell_(bodyHtml) {
     ].join('\n');
   });
 
+  html = uaReplaceCocoonOuterBlock_(html, 'sticky-box', function(inner) {
+    return uaBuildSwellMigrationCapBox_('ポイント', inner.trim(), 'article-compass-migrated-sticky');
+  });
+
+  html = uaReplaceCocoonOuterBlock_(html, 'micro-text', function(inner) {
+    return [
+      '<!-- wp:paragraph {"align":"center","style":{"color":{"text":"#e60033"}}} -->',
+      '<p class="has-text-align-center has-text-color" style="color:#e60033">' + uaRemoveLegacyMicroTextClasses_(inner.trim()) + '</p>',
+      '<!-- /wp:paragraph -->'
+    ].join('\n');
+  });
+
   html = uaReplaceCocoonOuterBlock_(html, 'button-wrap-1', function(inner) {
     const clean = inner.trim();
     if (!/<a\b/i.test(clean)) {
@@ -1111,7 +1126,19 @@ function uaConvertCocoonDecorationsToSwell_(bodyHtml) {
     /<span\b[^>]*class=(['"])bold-red\1[^>]*>([\s\S]*?)<\/span>/gi,
     '<strong style="color:#e60033;">$2</strong>'
   );
-  return html;
+  // Existing posts can contain duplicate rel attributes from old editors.
+  // Normalize them during the same backed-up migration so affiliate links keep
+  // one valid rel attribute without changing URLs, CTA text, or tracking pixels.
+  return uaNormalizeAnchorRelAttributes_(uaRemoveLegacyMicroTextClasses_(html));
+}
+
+function uaRemoveLegacyMicroTextClasses_(value) {
+  return String(value || '').replace(/\sclass=(['"])([^'"]*)\1/gi, function(match, quote, classValue) {
+    const classes = String(classValue || '').split(/\s+/).filter(function(className) {
+      return className && className !== 'micro-text-content' && className !== 'micro-content';
+    });
+    return classes.length ? ' class=' + quote + classes.join(' ') + quote : '';
+  });
 }
 
 function uaConvertCocoonTabCaptionInnerToSwell_(inner) {
@@ -1185,7 +1212,9 @@ function uaGetDriveSwellMigrationMetrics_(html) {
     'info-box',
     'button-wrap-1',
     'blank-box-1',
-    'icon-box'
+    'icon-box',
+    'sticky-box',
+    'micro-text'
   ];
   const cocoon = {};
   blockNames.forEach(function(name) {
@@ -1240,6 +1269,17 @@ function uaAssertDriveSwellMigrationSafety_(before, after) {
     throw new Error('未変換のCocoon装飾が残るため停止しました。');
   }
   return true;
+}
+
+function uaGetRemainingCocoonMarkupNames_(html) {
+  const text = String(html || '');
+  const names = [];
+  let match;
+  const blockRegex = /wp:cocoon-blocks\/([a-z0-9_-]+)/gi;
+  while ((match = blockRegex.exec(text)) !== null) names.push(match[1]);
+  const classRegex = /wp-block-cocoon-blocks-([a-z0-9_-]+)/gi;
+  while ((match = classRegex.exec(text)) !== null) names.push(match[1]);
+  return names.filter(function(name, index, list) { return list.indexOf(name) === index; }).sort();
 }
 
 function uaListDrivePublishedPostsForSwellMigration_() {
@@ -1434,6 +1474,230 @@ function uaGetDriveSwellExistingPostMigrationStatus() {
 function uaDeleteDriveSwellMigrationWorkerTriggers_() {
   ScriptApp.getProjectTriggers().forEach(function(trigger) {
     if (trigger.getHandlerFunction() === UA_DRIVE_SWELL_MIGRATION_WORKER) ScriptApp.deleteTrigger(trigger);
+  });
+}
+
+function uaListHomePublishedPostsForSwellMigration_() {
+  const appConfig = UA_APP_TYPES.home;
+  const wpConfig = uaGetWpConfig_(appConfig);
+  const posts = [];
+  let page = 1;
+  while (page <= 20) {
+    const batch = uaCallWordPressApi_(
+      wpConfig,
+      '/wp-json/wp/v2/posts?status=publish&per_page=100&page=' + page +
+        '&orderby=id&order=asc&context=edit&_fields=id,slug,status,title,content,featured_media,link',
+      'get'
+    );
+    if (!Array.isArray(batch) || !batch.length) break;
+    Array.prototype.push.apply(posts, batch);
+    if (batch.length < 100) break;
+    page++;
+  }
+  return posts;
+}
+
+function uaPlanHomeSwellExistingPostMigration() {
+  const posts = uaListHomePublishedPostsForSwellMigration_();
+  const details = [];
+  const totals = { posts: posts.length, candidates: 0, cocoonBlocks: 0 };
+  posts.forEach(function(post) {
+    const before = uaGetWpPostRawContent_(post);
+    const after = uaConvertCocoonDecorationsToSwell_(before);
+    const beforeMetrics = uaGetDriveSwellMigrationMetrics_(before);
+    if (before === after) return;
+    const remainingNames = uaGetRemainingCocoonMarkupNames_(after);
+    if (remainingNames.length) {
+      throw new Error('たくみパパ投稿ID ' + Number(post.id || 0) + ' に未対応のCocoon装飾があります: ' + remainingNames.join(', '));
+    }
+    uaAssertDriveSwellMigrationSafety_(before, after);
+    totals.candidates++;
+    totals.cocoonBlocks += beforeMetrics.cocoonTotal;
+    details.push({
+      id: Number(post.id || 0),
+      slug: String(post.slug || ''),
+      title: String(post && post.title && (post.title.raw || post.title.rendered) || ''),
+      cocoonBlocks: beforeMetrics.cocoonTotal
+    });
+  });
+  const result = { ok: true, dryRun: true, totals: totals, details: details };
+  console.log(JSON.stringify(result));
+  return result;
+}
+
+function uaInspectHomeCocoonMigrationMarkup() {
+  const findings = [];
+  uaListHomePublishedPostsForSwellMigration_().forEach(function(post) {
+    const before = uaGetWpPostRawContent_(post);
+    const after = uaConvertCocoonDecorationsToSwell_(before);
+    const names = uaGetRemainingCocoonMarkupNames_(after);
+    names.forEach(function(name) {
+      const needle1 = 'wp:cocoon-blocks/' + name;
+      const needle2 = 'wp-block-cocoon-blocks-' + name;
+      let index = after.indexOf(needle1);
+      if (index < 0) index = after.indexOf(needle2);
+      findings.push({
+        id: Number(post.id || 0),
+        slug: String(post.slug || ''),
+        name: name,
+        snippet: index >= 0 ? after.slice(Math.max(0, index - 180), index + 1100) : ''
+      });
+    });
+  });
+  console.log(JSON.stringify(findings));
+  return findings;
+}
+
+function uaMigrateHomeSwellSamplePost() {
+  const plan = uaPlanHomeSwellExistingPostMigration();
+  if (!plan.details.length) return { ok: true, changed: false, reason: 'no_candidates' };
+  const result = uaMigrateHomeSwellExistingPost_(Number(plan.details[0].id || 0), false);
+  console.log(JSON.stringify(result));
+  return result;
+}
+
+function uaStartHomeSwellExistingPostMigration() {
+  const plan = uaPlanHomeSwellExistingPostMigration();
+  const state = {
+    status: 'running',
+    ids: plan.details.map(function(item) { return item.id; }),
+    index: 0,
+    migrated: 0,
+    skipped: 0,
+    startedAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    lastPostId: 0,
+    lastError: ''
+  };
+  PropertiesService.getScriptProperties().setProperty(UA_HOME_SWELL_MIGRATION_STATE_PROPERTY, JSON.stringify(state));
+  uaDeleteHomeSwellMigrationWorkerTriggers_();
+  if (state.ids.length) {
+    ScriptApp.newTrigger(UA_HOME_SWELL_MIGRATION_WORKER).timeBased().after(1000).create();
+  } else {
+    state.status = 'complete';
+    PropertiesService.getScriptProperties().setProperty(UA_HOME_SWELL_MIGRATION_STATE_PROPERTY, JSON.stringify(state));
+  }
+  return { ok: true, plan: plan.totals, state: state };
+}
+
+function uaRunHomeSwellExistingMigrationWorker() {
+  uaDeleteHomeSwellMigrationWorkerTriggers_();
+  const props = PropertiesService.getScriptProperties();
+  const raw = props.getProperty(UA_HOME_SWELL_MIGRATION_STATE_PROPERTY);
+  if (!raw) throw new Error('たくみパパSWELL既存記事移行の状態がありません。');
+  const state = JSON.parse(raw);
+  if (state.status !== 'running') return state;
+  const ids = Array.isArray(state.ids) ? state.ids : [];
+  const limit = Math.min(ids.length, Number(state.index || 0) + 4);
+  try {
+    while (state.index < limit) {
+      const postId = Number(ids[state.index] || 0);
+      const result = uaMigrateHomeSwellExistingPost_(postId, false);
+      state.lastPostId = postId;
+      if (result.changed) state.migrated++;
+      else state.skipped++;
+      state.index++;
+      state.updatedAt = new Date().toISOString();
+      props.setProperty(UA_HOME_SWELL_MIGRATION_STATE_PROPERTY, JSON.stringify(state));
+    }
+    if (state.index >= ids.length) {
+      state.status = 'complete';
+      state.completedAt = new Date().toISOString();
+    } else {
+      ScriptApp.newTrigger(UA_HOME_SWELL_MIGRATION_WORKER).timeBased().after(30000).create();
+    }
+  } catch (e) {
+    state.status = 'error';
+    state.lastError = e && e.message ? e.message : String(e || '');
+  }
+  state.updatedAt = new Date().toISOString();
+  props.setProperty(UA_HOME_SWELL_MIGRATION_STATE_PROPERTY, JSON.stringify(state));
+  return state;
+}
+
+function uaMigrateHomeSwellExistingPost(postId, dryRun) {
+  return uaMigrateHomeSwellExistingPost_(Number(postId || 0), dryRun !== false);
+}
+
+function uaMigrateHomeSwellExistingPost_(postId, dryRun) {
+  if (!(postId > 0)) throw new Error('たくみパパ移行対象のWordPress投稿IDが不正です。');
+  const appConfig = UA_APP_TYPES.home;
+  const wpConfig = uaGetWpConfig_(appConfig);
+  const beforePost = uaFetchWpPostForEdit_(wpConfig, postId);
+  if (String(beforePost && beforePost.status || '') !== 'publish') {
+    throw new Error('公開済み記事以外は既存記事移行の対象外です。投稿ID: ' + postId);
+  }
+  const before = uaGetWpPostRawContent_(beforePost);
+  const after = uaConvertCocoonDecorationsToSwell_(before);
+  const result = {
+    ok: true,
+    postId: postId,
+    changed: before !== after,
+    dryRun: dryRun !== false,
+    before: uaGetDriveSwellMigrationMetrics_(before),
+    after: uaGetDriveSwellMigrationMetrics_(after)
+  };
+  if (!result.changed) return result;
+  uaAssertDriveSwellMigrationSafety_(before, after);
+  if (dryRun !== false) return result;
+
+  uaBackupHomePostForSwellMigration_(beforePost, before);
+  uaCallWordPressApi_(wpConfig, '/wp-json/wp/v2/posts/' + encodeURIComponent(postId), 'post', { content: after });
+  const verified = uaFetchWpPostForEdit_(wpConfig, postId);
+  const verifiedBody = uaGetWpPostRawContent_(verified);
+  if (String(verified && verified.status || '') !== 'publish') {
+    throw new Error('たくみパパSWELL移行後に公開状態が変化したため停止しました。投稿ID: ' + postId);
+  }
+  if (Number(verified && verified.featured_media || 0) !== Number(beforePost && beforePost.featured_media || 0)) {
+    throw new Error('たくみパパSWELL移行後にアイキャッチが変化したため停止しました。投稿ID: ' + postId);
+  }
+  uaAssertDriveSwellMigrationSafety_(before, verifiedBody);
+  if (uaGetDriveSwellMigrationMetrics_(verifiedBody).cocoonTotal !== 0) {
+    throw new Error('たくみパパSWELL移行後の再取得本文にCocoon装飾が残っています。投稿ID: ' + postId);
+  }
+  result.verified = true;
+  return result;
+}
+
+function uaBackupHomePostForSwellMigration_(post, body) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName(UA_HOME_SWELL_MIGRATION_BACKUP_SHEET);
+  if (!sheet) {
+    sheet = ss.insertSheet(UA_HOME_SWELL_MIGRATION_BACKUP_SHEET);
+    sheet.getRange(1, 1, 1, 7).setValues([[
+      'バックアップ日時', '投稿ID', 'タイトル', '状態', 'アイキャッチID', 'URL', '移行前本文'
+    ]]);
+    sheet.setFrozenRows(1);
+    sheet.hideSheet();
+  }
+  const postId = Number(post && post.id || 0);
+  if (sheet.getLastRow() >= 2) {
+    const ids = sheet.getRange(2, 2, sheet.getLastRow() - 1, 1).getValues().map(function(row) { return Number(row[0] || 0); });
+    if (ids.indexOf(postId) !== -1) return false;
+  }
+  sheet.appendRow([
+    new Date(),
+    postId,
+    String(post && post.title && (post.title.raw || post.title.rendered) || ''),
+    String(post && post.status || ''),
+    Number(post && post.featured_media || 0),
+    String(post && post.link || ''),
+    String(body || '')
+  ]);
+  SpreadsheetApp.flush();
+  return true;
+}
+
+function uaGetHomeSwellExistingPostMigrationStatus() {
+  const raw = PropertiesService.getScriptProperties().getProperty(UA_HOME_SWELL_MIGRATION_STATE_PROPERTY);
+  const result = raw ? JSON.parse(raw) : { status: 'not_started' };
+  console.log(JSON.stringify(result));
+  return result;
+}
+
+function uaDeleteHomeSwellMigrationWorkerTriggers_() {
+  ScriptApp.getProjectTriggers().forEach(function(trigger) {
+    if (trigger.getHandlerFunction() === UA_HOME_SWELL_MIGRATION_WORKER) ScriptApp.deleteTrigger(trigger);
   });
 }
 

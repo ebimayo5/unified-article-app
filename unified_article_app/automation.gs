@@ -110,6 +110,8 @@ function uaSaveAutomaticPostingSettingsFromPanel(data) {
     const activeJob = uaGetAutomaticPostingJob_();
     if (activeJob && String(activeJob.appType || '') === appConfig.label) {
       uaDeleteAutomaticPostingTriggers_(UA_AUTOMATION_WORKER_HANDLER);
+      uaDeleteAutomaticPostingTriggers_(UA_AUTOMATION_NEXT_HANDLER);
+      uaPauseAutomaticPostingJob_(activeJob, '自動投稿設定をOFFにしたため一時停止しました。');
     }
     uaWriteAutomaticPostingStatus_(appConfig.key, '停止中', '');
   }
@@ -130,9 +132,22 @@ function uaDisableAutomaticPosting() {
   });
   uaDeleteAutomaticPostingTriggers_(UA_AUTOMATION_WORKER_HANDLER);
   uaDeleteAutomaticPostingTriggers_(UA_AUTOMATION_NEXT_HANDLER);
+  uaPauseAutomaticPostingJob_(
+    uaGetAutomaticPostingJob_(),
+    '自動投稿を停止したため一時停止しました。'
+  );
   uaWriteAutomaticPostingStatus_('drive', '停止中', '');
   uaWriteAutomaticPostingStatus_('home', '停止中', '');
   SpreadsheetApp.getUi().alert('自動投稿を停止しました。進行中の記事情報は保存しています。');
+}
+
+function uaPauseAutomaticPostingJob_(job, reason) {
+  if (!job || String(job.status || '') === 'complete') return false;
+  job.status = 'error';
+  job.lastError = String(reason || '自動投稿を一時停止しました。');
+  job.updatedAt = new Date().toISOString();
+  uaSaveAutomaticPostingJob_(job);
+  return true;
 }
 
 function uaResumeAutomaticPosting() {
@@ -242,11 +257,9 @@ function uaStartAutomaticPostingForSite_(appKey) {
     if (!settings.enabled) return false;
 
     const activeJob = uaGetAutomaticPostingJob_();
-    if (activeJob && activeJob.status !== 'complete') {
-      if (activeJob.status === 'running') {
-        uaScheduleAutomaticPostingWorker_(1000);
-        uaScheduleNextAutomaticPosting_(60000);
-      }
+    if (uaHasBlockingAutomaticPostingJob_(activeJob)) {
+      // 進行中ジョブは、そのジョブ自身が予約した1本のワーカーチェーンだけに任せる。
+      // starter側でもworker/nextを予約すると、長時間処理中に重複実行ループが生まれる。
       return false;
     }
 
@@ -286,6 +299,10 @@ function uaStartAutomaticPostingForSite_(appKey) {
   } finally {
     lock.releaseLock();
   }
+}
+
+function uaHasBlockingAutomaticPostingJob_(job) {
+  return !!(job && String(job.status || '') !== 'complete');
 }
 
 function uaStartNextAutomaticPosting() {
@@ -849,5 +866,8 @@ function uaTestAutomaticPostingLogic() {
   if (steps.some(function(step) { return !uaGetAutomaticPostingStepLabel_(step); })) throw new Error('段階定義テスト失敗');
   if (uaNormalizeAutomaticPostingInteger_(25, 0, 23, 4) !== 4) throw new Error('開始時刻範囲テスト失敗');
   if (uaNormalizeAutomaticPostingInteger_(3, 1, 5, 1) !== 3) throw new Error('記事数変更テスト失敗');
-  return { ok: true, tested: ['1日1〜5記事', '0〜23時', '画像あり', '下書き/公開分岐', '再開段階'] };
+  if (!uaHasBlockingAutomaticPostingJob_({ status: 'running' })) throw new Error('進行中ジョブの重複開始防止テスト失敗');
+  if (!uaHasBlockingAutomaticPostingJob_({ status: 'error' })) throw new Error('停止中ジョブの重複開始防止テスト失敗');
+  if (uaHasBlockingAutomaticPostingJob_({ status: 'complete' })) throw new Error('完了ジョブ判定テスト失敗');
+  return { ok: true, tested: ['1日1〜5記事', '0〜23時', '画像あり', '下書き/公開分岐', '再開段階', '重複開始防止'] };
 }

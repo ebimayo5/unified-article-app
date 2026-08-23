@@ -1011,6 +1011,432 @@ function uaGetWpPostRawContent_(post) {
   return String(content.raw || content.rendered || '');
 }
 
+const UA_DRIVE_SWELL_MIGRATION_BACKUP_SHEET = 'SWELL移行バックアップ';
+const UA_DRIVE_SWELL_MIGRATION_STATE_PROPERTY = 'UA_DRIVE_SWELL_MIGRATION_STATE_V1';
+const UA_DRIVE_SWELL_MIGRATION_WORKER = 'uaRunDriveSwellExistingMigrationWorker';
+
+/**
+ * Converts only known Cocoon decoration blocks to the SWELL dialect used by
+ * Article Compass. Text, images, affiliate markup, tracking pixels, Rinker
+ * shortcodes, and URLs are kept byte-for-byte wherever they are reader-facing.
+ */
+function uaConvertCocoonDecorationsToSwell_(bodyHtml) {
+  let html = String(bodyHtml || '');
+  if (!html) return html;
+
+  html = uaReplaceCocoonOuterBlock_(html, 'tab-caption-box-1', function(inner) {
+    return uaConvertCocoonTabCaptionInnerToSwell_(inner);
+  });
+  html = html.replace(
+    /<!--\s*wp:html\s*-->\s*<div\b[^>]*\bwp-block-cocoon-blocks-tab-caption-box-1\b[^>]*>([\s\S]*?)<\/div>\s*<!--\s*\/wp:html\s*-->/gi,
+    function(match, inner) { return uaConvertCocoonTabCaptionInnerToSwell_(inner); }
+  );
+  html = html.replace(
+    /<div\b[^>]*\bwp-block-cocoon-blocks-tab-caption-box-1\b[^>]*>([\s\S]*?<div\b[^>]*class=(['"])[^'"]*tab-caption-box-content[^'"]*\2[^>]*>[\s\S]*?<\/div>)\s*<\/div>/gi,
+    function(match, inner) { return uaConvertCocoonTabCaptionInnerToSwell_(inner); }
+  );
+
+  html = uaReplaceCocoonOuterBlock_(html, 'info-box', function(inner, opening) {
+    const styleMatch = /"style"\s*:\s*"([^"]+)"/i.exec(opening);
+    const style = String(styleMatch && styleMatch[1] || '').toLowerCase();
+    const title = style === 'success-box'
+      ? '確認ポイント'
+      : style === 'info-box'
+        ? '補足'
+        : '注意点';
+    return uaBuildSwellMigrationCapBox_(title, inner.trim(), 'article-compass-migrated-info ' + (style || 'info-box'));
+  });
+
+  html = uaReplaceCocoonOuterBlock_(html, 'blank-box-1', function(inner) {
+    return [
+      '<!-- wp:group {"className":"is-style-border article-compass-migrated-border"} -->',
+      '<div class="wp-block-group is-style-border article-compass-migrated-border">',
+      inner.trim(),
+      '</div>',
+      '<!-- /wp:group -->'
+    ].join('\n');
+  });
+
+  html = uaReplaceCocoonOuterBlock_(html, 'icon-box', function(inner) {
+    return [
+      '<!-- wp:group {"className":"is-style-border_left article-compass-migrated-icon-box"} -->',
+      '<div class="wp-block-group is-style-border_left article-compass-migrated-icon-box">',
+      inner.trim(),
+      '</div>',
+      '<!-- /wp:group -->'
+    ].join('\n');
+  });
+
+  html = uaReplaceCocoonOuterBlock_(html, 'button-wrap-1', function(inner) {
+    const clean = inner.trim();
+    if (!/<a\b/i.test(clean)) {
+      const shortcodeMatch = /(\[[A-Za-z0-9_-]+\b[^\]]*\])/i.exec(clean);
+      if (!shortcodeMatch) return clean;
+      return [
+        '<!-- wp:group {"className":"article-compass-affiliate-cta"} -->',
+        '<div class="wp-block-group article-compass-affiliate-cta">',
+        '<!-- wp:shortcode -->',
+        shortcodeMatch[1],
+        '<!-- /wp:shortcode -->',
+        '</div>',
+        '<!-- /wp:group -->'
+      ].join('\n');
+    }
+    return [
+      '<!-- wp:loos/button {"isCount":true,"color":"blue","btnSize":"l","className":"is-style-btn_shiny"} -->',
+      '<div class="swell-block-button -html blue_ -size-l is-style-btn_shiny" data-id="article-compass-migrated">' + clean + '</div>',
+      '<!-- /wp:loos/button -->'
+    ].join('\n');
+  });
+
+  html = uaReplaceCocoonOuterBlock_(html, 'blogcard', function(inner) {
+    const hrefMatch = /<a\b[^>]*href=(['"])([^'"]+)\1/i.exec(inner);
+    const bareMatch = /(https?:\/\/[^\s<>'"]+)/i.exec(uaStripMigrationHtml_(inner));
+    const url = uaDecodeMigrationEntities_(hrefMatch ? hrefMatch[2] : (bareMatch ? bareMatch[1] : ''));
+    if (!url) return inner.trim();
+    const attributes = {
+      isNewTab: true,
+      rel: 'noopener noreferrer',
+      linkData: { url: url },
+      icon: 'externalLink'
+    };
+    return '<!-- wp:loos/post-link ' + JSON.stringify(attributes) + ' /-->';
+  });
+
+  html = html.replace(
+    /<span\b[^>]*class=(['"])(?:marker|marker-under)\1[^>]*>([\s\S]*?)<\/span>/gi,
+    '<span style="background:linear-gradient(transparent 60%, #fff3a3 60%);"><span class="swl-marker mark_yellow">$2</span></span>'
+  );
+  html = html.replace(
+    /<span\b[^>]*class=(['"])bold-red\1[^>]*>([\s\S]*?)<\/span>/gi,
+    '<strong style="color:#e60033;">$2</strong>'
+  );
+  return html;
+}
+
+function uaConvertCocoonTabCaptionInnerToSwell_(inner) {
+  const titleMatch = /class=(['"])[^'"]*tab-caption-box-label-text[^'"]*\1[^>]*>([\s\S]*?)<\/span>/i.exec(inner);
+  const title = uaStripMigrationHtml_(titleMatch ? titleMatch[2] : '') || 'この記事のポイント';
+  const contentMatch = /<div\b[^>]*class=(['"])[^'"]*tab-caption-box-content[^'"]*\1[^>]*>([\s\S]*)<\/div>\s*$/i.exec(inner);
+  const content = contentMatch ? contentMatch[2].trim() : String(inner || '').trim();
+  return uaBuildSwellMigrationCapBox_(title, content, 'article-compass-migrated-points');
+}
+
+function uaReplaceCocoonOuterBlock_(html, blockName, replacer) {
+  const escaped = String(blockName || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const regex = new RegExp(
+    '<!--\\s*wp:cocoon-blocks\\/' + escaped + '\\b([\\s\\S]*?)-->' +
+      '\\s*<div\\b[^>]*\\bwp-block-cocoon-blocks-' + escaped + '\\b[^>]*>' +
+      '([\\s\\S]*?)<\\/div>\\s*<!--\\s*\\/wp:cocoon-blocks\\/' + escaped + '\\s*-->',
+    'gi'
+  );
+  return String(html || '').replace(regex, function(match, attributes, inner) {
+    return replacer(String(inner || ''), String(attributes || ''), match);
+  });
+}
+
+function uaBuildSwellMigrationCapBox_(title, content, extraClass) {
+  const className = ['is-style-onborder_ttl2', String(extraClass || '').trim()].filter(Boolean).join(' ');
+  return [
+    '<!-- wp:loos/cap-block {"dataColSet":"col1","className":' + JSON.stringify(className) + '} -->',
+    '<div class="swell-block-capbox cap_box ' + className + '" data-colset="col1">',
+    '<div class="cap_box_ttl"><span><strong>' + uaEscapeMigrationHtml_(title) + '</strong></span></div>',
+    '<div class="cap_box_content">' + String(content || '').trim() + '</div>',
+    '</div>',
+    '<!-- /wp:loos/cap-block -->'
+  ].join('\n');
+}
+
+function uaStripMigrationHtml_(value) {
+  return String(value || '')
+    .replace(/<[^>]*>/g, '')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function uaDecodeMigrationEntities_(value) {
+  return String(value || '')
+    .replace(/&amp;/gi, '&')
+    .replace(/&#38;/gi, '&')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'");
+}
+
+function uaEscapeMigrationHtml_(value) {
+  return String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function uaGetDriveSwellMigrationMetrics_(html) {
+  const text = String(html || '');
+  const blockNames = [
+    'blogcard',
+    'tab-caption-box-1',
+    'info-box',
+    'button-wrap-1',
+    'blank-box-1',
+    'icon-box'
+  ];
+  const cocoon = {};
+  blockNames.forEach(function(name) {
+    const regex = new RegExp('<!--\\s*wp:cocoon-blocks\\/' + name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'gi');
+    cocoon[name] = (text.match(regex) || []).length;
+  });
+  return {
+    cocoon: cocoon,
+    cocoonTotal: Object.keys(cocoon).reduce(function(sum, key) { return sum + cocoon[key]; }, 0),
+    swellCapBoxes: (text.match(/<!--\s*wp:loos\/cap-block\b/gi) || []).length,
+    swellButtons: (text.match(/<!--\s*wp:loos\/button\b/gi) || []).length,
+    swellPostLinks: (text.match(/<!--\s*wp:loos\/post-link\b/gi) || []).length,
+    markers: (text.match(/\bswl-marker\b/gi) || []).length
+  };
+}
+
+function uaExtractDriveSwellMigrationUrls_(html) {
+  const text = String(html || '');
+  const urls = [];
+  let match;
+  const anchorRegex = /<a\b[^>]*href=(['"])([^'"]+)\1/gi;
+  while ((match = anchorRegex.exec(text)) !== null) urls.push(uaDecodeMigrationEntities_(match[2]));
+  const postLinkRegex = /"linkData"\s*:\s*\{\s*"url"\s*:\s*"([^"]+)"/gi;
+  while ((match = postLinkRegex.exec(text)) !== null) urls.push(uaDecodeMigrationEntities_(match[1].replace(/\\\//g, '/')));
+  const blogCardRegex = /<!--\s*wp:cocoon-blocks\/blogcard\b[\s\S]*?-->[\s\S]*?(https?:\/\/[^\s<>'"]+)[\s\S]*?<!--\s*\/wp:cocoon-blocks\/blogcard\s*-->/gi;
+  while ((match = blogCardRegex.exec(text)) !== null) urls.push(uaDecodeMigrationEntities_(match[1]));
+  return urls.filter(Boolean).filter(function(url, index, list) { return list.indexOf(url) === index; }).sort();
+}
+
+function uaExtractDriveSwellMigrationShortcodes_(html) {
+  const textWithoutComments = String(html || '').replace(/<!--[\s\S]*?-->/g, '');
+  const matches = textWithoutComments.match(/\[[A-Za-z0-9_-]+\b[^\]]*\]/g) || [];
+  return matches.filter(function(item, index, list) { return list.indexOf(item) === index; }).sort();
+}
+
+function uaAssertDriveSwellMigrationSafety_(before, after) {
+  const missingImages = uaFindMissingPublishedWpImages_(before, after);
+  if (missingImages.length) {
+    throw new Error('SWELL移行で画像が減るため停止しました: ' + missingImages.join(', '));
+  }
+  const beforeUrls = uaExtractDriveSwellMigrationUrls_(before);
+  const afterUrls = uaExtractDriveSwellMigrationUrls_(after);
+  if (JSON.stringify(beforeUrls) !== JSON.stringify(afterUrls)) {
+    throw new Error('SWELL移行でリンクURLが変化するため停止しました。');
+  }
+  const beforeShortcodes = uaExtractDriveSwellMigrationShortcodes_(before);
+  const afterShortcodes = uaExtractDriveSwellMigrationShortcodes_(after);
+  if (JSON.stringify(beforeShortcodes) !== JSON.stringify(afterShortcodes)) {
+    throw new Error('SWELL移行でショートコードが変化するため停止しました。');
+  }
+  if (/wp:cocoon-blocks\/|wp-block-cocoon-blocks-/i.test(after)) {
+    throw new Error('未変換のCocoon装飾が残るため停止しました。');
+  }
+  return true;
+}
+
+function uaListDrivePublishedPostsForSwellMigration_() {
+  const appConfig = UA_APP_TYPES.drive;
+  const wpConfig = uaGetWpConfig_(appConfig);
+  const posts = [];
+  let page = 1;
+  while (page <= 20) {
+    const batch = uaCallWordPressApi_(
+      wpConfig,
+      '/wp-json/wp/v2/posts?status=publish&per_page=100&page=' + page +
+        '&orderby=id&order=asc&context=edit&_fields=id,slug,status,title,content,featured_media,link',
+      'get'
+    );
+    if (!Array.isArray(batch) || !batch.length) break;
+    Array.prototype.push.apply(posts, batch);
+    if (batch.length < 100) break;
+    page++;
+  }
+  return posts;
+}
+
+function uaPlanDriveSwellExistingPostMigration() {
+  const posts = uaListDrivePublishedPostsForSwellMigration_();
+  const details = [];
+  const totals = { posts: posts.length, candidates: 0, cocoonBlocks: 0 };
+  posts.forEach(function(post) {
+    const before = uaGetWpPostRawContent_(post);
+    const after = uaConvertCocoonDecorationsToSwell_(before);
+    const beforeMetrics = uaGetDriveSwellMigrationMetrics_(before);
+    if (before === after) return;
+    uaAssertDriveSwellMigrationSafety_(before, after);
+    totals.candidates++;
+    totals.cocoonBlocks += beforeMetrics.cocoonTotal;
+    details.push({
+      id: Number(post.id || 0),
+      slug: String(post.slug || ''),
+      title: String(post && post.title && (post.title.raw || post.title.rendered) || ''),
+      cocoonBlocks: beforeMetrics.cocoonTotal
+    });
+  });
+  const result = { ok: true, dryRun: true, totals: totals, details: details };
+  console.log(JSON.stringify(result));
+  return result;
+}
+
+function uaMigrateDriveSwellSamplePost894() {
+  const result = uaMigrateDriveSwellExistingPost_(894, false);
+  console.log(JSON.stringify(result));
+  return result;
+}
+
+function uaStartDriveSwellExistingPostMigration() {
+  const plan = uaPlanDriveSwellExistingPostMigration();
+  const state = {
+    status: 'running',
+    ids: plan.details.map(function(item) { return item.id; }),
+    index: 0,
+    migrated: 0,
+    skipped: 0,
+    startedAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    lastPostId: 0,
+    lastError: ''
+  };
+  PropertiesService.getScriptProperties().setProperty(UA_DRIVE_SWELL_MIGRATION_STATE_PROPERTY, JSON.stringify(state));
+  uaDeleteDriveSwellMigrationWorkerTriggers_();
+  if (state.ids.length) {
+    ScriptApp.newTrigger(UA_DRIVE_SWELL_MIGRATION_WORKER).timeBased().after(1000).create();
+  } else {
+    state.status = 'complete';
+    PropertiesService.getScriptProperties().setProperty(UA_DRIVE_SWELL_MIGRATION_STATE_PROPERTY, JSON.stringify(state));
+  }
+  return { ok: true, plan: plan.totals, state: state };
+}
+
+function uaRunDriveSwellExistingMigrationWorker() {
+  uaDeleteDriveSwellMigrationWorkerTriggers_();
+  const props = PropertiesService.getScriptProperties();
+  const raw = props.getProperty(UA_DRIVE_SWELL_MIGRATION_STATE_PROPERTY);
+  if (!raw) throw new Error('SWELL既存記事移行の状態がありません。');
+  const state = JSON.parse(raw);
+  if (state.status !== 'running') return state;
+  const ids = Array.isArray(state.ids) ? state.ids : [];
+  const limit = Math.min(ids.length, Number(state.index || 0) + 4);
+  try {
+    while (state.index < limit) {
+      const postId = Number(ids[state.index] || 0);
+      const result = uaMigrateDriveSwellExistingPost_(postId, false);
+      state.lastPostId = postId;
+      if (result.changed) state.migrated++;
+      else state.skipped++;
+      state.index++;
+      state.updatedAt = new Date().toISOString();
+      props.setProperty(UA_DRIVE_SWELL_MIGRATION_STATE_PROPERTY, JSON.stringify(state));
+    }
+    if (state.index >= ids.length) {
+      state.status = 'complete';
+      state.completedAt = new Date().toISOString();
+    } else {
+      ScriptApp.newTrigger(UA_DRIVE_SWELL_MIGRATION_WORKER).timeBased().after(30000).create();
+    }
+  } catch (e) {
+    state.status = 'error';
+    state.lastError = e && e.message ? e.message : String(e || '');
+  }
+  state.updatedAt = new Date().toISOString();
+  props.setProperty(UA_DRIVE_SWELL_MIGRATION_STATE_PROPERTY, JSON.stringify(state));
+  return state;
+}
+
+function uaMigrateDriveSwellExistingPost(postId, dryRun) {
+  return uaMigrateDriveSwellExistingPost_(Number(postId || 0), dryRun !== false);
+}
+
+function uaMigrateDriveSwellExistingPost_(postId, dryRun) {
+  if (!(postId > 0)) throw new Error('移行対象のWordPress投稿IDが不正です。');
+  const appConfig = UA_APP_TYPES.drive;
+  const wpConfig = uaGetWpConfig_(appConfig);
+  const beforePost = uaFetchWpPostForEdit_(wpConfig, postId);
+  if (String(beforePost && beforePost.status || '') !== 'publish') {
+    throw new Error('公開済み記事以外は既存記事移行の対象外です。投稿ID: ' + postId);
+  }
+  const before = uaGetWpPostRawContent_(beforePost);
+  const after = uaConvertCocoonDecorationsToSwell_(before);
+  const result = {
+    ok: true,
+    postId: postId,
+    changed: before !== after,
+    dryRun: dryRun !== false,
+    before: uaGetDriveSwellMigrationMetrics_(before),
+    after: uaGetDriveSwellMigrationMetrics_(after)
+  };
+  if (!result.changed) return result;
+  uaAssertDriveSwellMigrationSafety_(before, after);
+  if (dryRun !== false) return result;
+
+  uaBackupDrivePostForSwellMigration_(beforePost, before);
+  uaCallWordPressApi_(wpConfig, '/wp-json/wp/v2/posts/' + encodeURIComponent(postId), 'post', { content: after });
+  const verified = uaFetchWpPostForEdit_(wpConfig, postId);
+  const verifiedBody = uaGetWpPostRawContent_(verified);
+  if (String(verified && verified.status || '') !== 'publish') {
+    throw new Error('SWELL移行後に公開状態が変化したため停止しました。投稿ID: ' + postId);
+  }
+  if (Number(verified && verified.featured_media || 0) !== Number(beforePost && beforePost.featured_media || 0)) {
+    throw new Error('SWELL移行後にアイキャッチが変化したため停止しました。投稿ID: ' + postId);
+  }
+  uaAssertDriveSwellMigrationSafety_(before, verifiedBody);
+  if (uaGetDriveSwellMigrationMetrics_(verifiedBody).cocoonTotal !== 0) {
+    throw new Error('SWELL移行後の再取得本文にCocoon装飾が残っています。投稿ID: ' + postId);
+  }
+  result.verified = true;
+  return result;
+}
+
+function uaBackupDrivePostForSwellMigration_(post, body) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName(UA_DRIVE_SWELL_MIGRATION_BACKUP_SHEET);
+  if (!sheet) {
+    sheet = ss.insertSheet(UA_DRIVE_SWELL_MIGRATION_BACKUP_SHEET);
+    sheet.getRange(1, 1, 1, 7).setValues([[
+      'バックアップ日時', '投稿ID', 'タイトル', '状態', 'アイキャッチID', 'URL', '移行前本文'
+    ]]);
+    sheet.setFrozenRows(1);
+    sheet.hideSheet();
+  }
+  const postId = Number(post && post.id || 0);
+  if (sheet.getLastRow() >= 2) {
+    const ids = sheet.getRange(2, 2, sheet.getLastRow() - 1, 1).getValues().map(function(row) { return Number(row[0] || 0); });
+    if (ids.indexOf(postId) !== -1) return false;
+  }
+  sheet.appendRow([
+    new Date(),
+    postId,
+    String(post && post.title && (post.title.raw || post.title.rendered) || ''),
+    String(post && post.status || ''),
+    Number(post && post.featured_media || 0),
+    String(post && post.link || ''),
+    String(body || '')
+  ]);
+  SpreadsheetApp.flush();
+  return true;
+}
+
+function uaGetDriveSwellExistingPostMigrationStatus() {
+  const raw = PropertiesService.getScriptProperties().getProperty(UA_DRIVE_SWELL_MIGRATION_STATE_PROPERTY);
+  const result = raw ? JSON.parse(raw) : { status: 'not_started' };
+  console.log(JSON.stringify(result));
+  return result;
+}
+
+function uaDeleteDriveSwellMigrationWorkerTriggers_() {
+  ScriptApp.getProjectTriggers().forEach(function(trigger) {
+    if (trigger.getHandlerFunction() === UA_DRIVE_SWELL_MIGRATION_WORKER) ScriptApp.deleteTrigger(trigger);
+  });
+}
+
 function uaBuildPublishedWpUpdatePayload_(title, bodyHtml) {
   return {
     title: String(title || '').trim(),

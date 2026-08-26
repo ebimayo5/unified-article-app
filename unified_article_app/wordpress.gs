@@ -114,7 +114,7 @@ function uaCreateDriveSwellMigrationTestDraft() {
     ['draft status', String(verified && verified.status || '') === 'draft'],
     ['point box', verifiedBody.indexOf('article-compass-point-box') !== -1],
     ['SWELL CTA', verifiedBody.indexOf('wp-block-button__link') !== -1 && verifiedBody.indexOf('cocoon-blocks') === -1],
-    ['internal link', verifiedBody.indexOf('article-compass-internal-link') !== -1],
+    ['internal link', verifiedBody.indexOf('wp:loos/post-link') !== -1],
     ['Rinker', verifiedBody.indexOf('[itemlink post_id="899"]') !== -1],
     ['image', verifiedBody.indexOf(imageUrl) !== -1]
   ];
@@ -134,6 +134,103 @@ function uaCreateDriveSwellMigrationTestDraft() {
 
 function uaUpdatePublishedWpFromWeb(data) {
   return uaUpdatePublishedWpFromPanel(data || {});
+}
+
+/**
+ * Repairs recent SWELL posts that were published with the former
+ * card-like paragraph or a standalone same-site anchor instead of the native
+ * SWELL post-link block. The default is a read-only preview.
+ */
+function uaMigrateRecentSwellInternalLinkCards(options) {
+  const opts = options || {};
+  const requestedKey = String(opts.appKey || '').trim().toLowerCase();
+  const appKeys = requestedKey ? [requestedKey] : ['drive', 'home'];
+  const maxPosts = Math.max(1, Math.min(20, Number(opts.maxPosts || 10)));
+  const dryRun = opts.dryRun !== false;
+  const result = { dryRun: dryRun, scanned: 0, changed: 0, updated: 0, details: [] };
+
+  appKeys.forEach(function(appKey) {
+    const appConfig = UA_APP_TYPES[appKey];
+    if (!appConfig || !uaUsesSwellBlocks_(appConfig) || appConfig.useWordPress === false) {
+      throw new Error('SWELL内部リンク移行: 対象サイトが不正です: ' + appKey);
+    }
+
+    const wpConfig = uaGetWpConfig_(appConfig);
+    const posts = uaCallWordPressApi_(
+      wpConfig,
+      '/wp-json/wp/v2/posts?status=publish&per_page=' + maxPosts + '&orderby=date&order=desc&context=edit',
+      'get'
+    ) || [];
+
+    posts.forEach(function(post) {
+      result.scanned++;
+      const postId = Number(post && post.id || 0);
+      const before = uaGetWpPostRawContent_(post);
+      const after = uaNormalizeSwellInternalLinkBlocks_(before, appConfig, wpConfig.siteUrl);
+      if (!postId || after === before) return;
+
+      const missingImages = uaFindMissingPublishedWpImages_(before, after);
+      if (missingImages.length) {
+        throw new Error('SWELL内部リンク移行で画像が減るため停止しました: 投稿ID ' + postId);
+      }
+      const beforeUrls = uaExtractDriveSwellMigrationUrls_(before);
+      const afterUrls = uaExtractDriveSwellMigrationUrls_(after);
+      if (JSON.stringify(beforeUrls) !== JSON.stringify(afterUrls)) {
+        throw new Error('SWELL内部リンク移行でURLが変わるため停止しました: 投稿ID ' + postId);
+      }
+
+      result.changed++;
+      const detail = {
+        appType: appConfig.label,
+        postId: postId,
+        title: String(post && post.title && (post.title.raw || post.title.rendered) || ''),
+        cardCountBefore: (before.match(/<!--\s*wp:loos\/post-link\b/gi) || []).length,
+        cardCountAfter: (after.match(/<!--\s*wp:loos\/post-link\b/gi) || []).length,
+        updated: false
+      };
+
+      if (!dryRun) {
+        uaCallWordPressApi_(
+          wpConfig,
+          '/wp-json/wp/v2/posts/' + encodeURIComponent(postId),
+          'post',
+          { content: after, status: 'publish' }
+        );
+        const verified = uaFetchWpPostForEdit_(wpConfig, postId);
+        const verifiedBody = uaGetWpPostRawContent_(verified);
+        const verifiedUrls = uaExtractDriveSwellMigrationUrls_(verifiedBody);
+        const expectedCardCount = (after.match(/<!--\s*wp:loos\/post-link\b/gi) || []).length;
+        const verifiedCardCount = (verifiedBody.match(/<!--\s*wp:loos\/post-link\b/gi) || []).length;
+        if (
+          String(verified && verified.status || '') !== 'publish' ||
+          JSON.stringify(verifiedUrls) !== JSON.stringify(afterUrls) ||
+          verifiedCardCount < expectedCardCount
+        ) {
+          throw new Error('SWELL内部リンク移行後の再取得確認に失敗しました: 投稿ID ' + postId);
+        }
+        if (uaFindMissingPublishedWpImages_(before, verifiedBody).length) {
+          throw new Error('SWELL内部リンク移行後に画像欠落を検出しました: 投稿ID ' + postId);
+        }
+        detail.updated = true;
+        result.updated++;
+      }
+      result.details.push(detail);
+    });
+  });
+
+  return result;
+}
+
+function uaPreviewRecentSwellInternalLinkCards() {
+  const result = uaMigrateRecentSwellInternalLinkCards({ maxPosts: 10, dryRun: true });
+  console.log(JSON.stringify(result));
+  return result;
+}
+
+function uaApplyRecentSwellInternalLinkCards() {
+  const result = uaMigrateRecentSwellInternalLinkCards({ maxPosts: 10, dryRun: false });
+  console.log(JSON.stringify(result));
+  return result;
 }
 
 function uaMigrateExistingOttocastAffiliateLinks(options) {
@@ -429,12 +526,13 @@ function uaCreateWpDraftFromPanel(data) {
     throw new Error('WP draft: title candidates are empty.');
   }
 
+  const wpConfig = uaGetWpConfig_(appConfig);
   const productPlan = uaExtractProductPlan_(rowData.body);
-  const storedBody = uaNormalizeUnsupportedTrialGuidance_(uaRemoveRedundantAffiliateDisclosure_(uaNormalizeAnchorRelAttributes_(uaApplyNaviokunIntroSet_(
+  const storedBody = uaNormalizeSwellInternalLinkBlocks_(uaNormalizeUnsupportedTrialGuidance_(uaRemoveRedundantAffiliateDisclosure_(uaNormalizeAnchorRelAttributes_(uaApplyNaviokunIntroSet_(
     uaApplyManagedAffiliateCta_(uaRemoveRedundantAffiliateDisclosure_(rowData.body), rowData, appConfig),
     rowData,
     appConfig
-  ))), productPlan);
+  ))), productPlan), appConfig, wpConfig.siteUrl);
   const wpBody = uaStripProductPlanMarker_(storedBody);
   if (storedBody !== String(rowData.body || '')) {
     sheet.getRange(row, UA_COLUMNS.body).setValue(storedBody);
@@ -446,7 +544,6 @@ function uaCreateWpDraftFromPanel(data) {
     allowUnverifiedMarketFreshnessDraft: allowedUnverifiedMarketFreshnessDraft
   });
 
-  const wpConfig = uaGetWpConfig_(appConfig);
   const title = uaPickWpTitle_(rowData.titleIdeas, rowData.mainInput, rowData.body);
   const slug = uaCleanWpSlug_(rowData.permalink);
   const tagIds = uaEnsureWpTagIds_(wpConfig, rowData.tags);
@@ -554,11 +651,11 @@ function uaUpdatePublishedWpFromPanel(data) {
   }
 
   const productPlan = uaExtractProductPlan_(rowData.body);
-  const storedBody = uaNormalizeUnsupportedTrialGuidance_(uaRemoveRedundantAffiliateDisclosure_(uaNormalizeAnchorRelAttributes_(uaApplyNaviokunIntroSet_(
+  const storedBody = uaNormalizeSwellInternalLinkBlocks_(uaNormalizeUnsupportedTrialGuidance_(uaRemoveRedundantAffiliateDisclosure_(uaNormalizeAnchorRelAttributes_(uaApplyNaviokunIntroSet_(
     uaApplyManagedAffiliateCta_(uaRemoveRedundantAffiliateDisclosure_(rowData.body), rowData, appConfig),
     rowData,
     appConfig
-  ))), productPlan);
+  ))), productPlan), appConfig, wpConfig.siteUrl);
   const wpBody = uaStripProductPlanMarker_(storedBody);
   if (storedBody !== String(rowData.body || '')) {
     sheet.getRange(row, UA_COLUMNS.body).setValue(storedBody);

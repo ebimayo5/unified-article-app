@@ -237,6 +237,7 @@ function uaRunArticleFromPanel(data) {
   const sheet = uaGetSheetForData_(data || {});
   const row = Number(data && data.row) || sheet.getActiveCell().getRow();
   const rowData = uaBuildRowData_(sheet, row);
+  rowData.automaticPosting = !!(data && data.automaticPosting);
   const appConfig = uaGetAppConfigByLabel_(rowData.appType);
   const mainInput = String(rowData.mainInput || '').trim();
 
@@ -349,6 +350,76 @@ function uaRunArticleFromPanel(data) {
 
 function uaRunArticleFromWeb(data) {
   return uaRunArticleFromPanel(data || {});
+}
+
+function uaCancelArticleBackgroundFromWeb(data) {
+  const input = data || {};
+  const sheet = uaGetSheetForData_(input);
+  const row = Number(input.row) || sheet.getActiveCell().getRow();
+  const stateKey = uaGetArticleBackgroundStateKey_(sheet, row);
+  const state = uaLoadArticleBackgroundState_(stateKey);
+  const responseId = String(state && state.responseId || '').trim();
+  let result = { cancelled: false, status: responseId ? 'cancel_not_requested' : 'missing' };
+
+  if (responseId) {
+    try {
+      result = uaCancelOpenAiBackgroundResponse_(responseId);
+    } catch (e) {
+      result = {
+        cancelled: false,
+        status: 'cancel_failed',
+        message: String(e && e.message || e)
+      };
+    }
+  }
+
+  if (state) {
+    state.phase = result && result.cancelled ? 'cancelled' : 'cancel_requested';
+    state.cancelledAt = new Date().toISOString();
+    state.cancelResult = result;
+    uaSaveArticleBackgroundState_(stateKey, state);
+  }
+
+  const currentStatus = String(sheet.getRange(row, UA_COLUMNS.status).getValue() || '').trim();
+  if (currentStatus === UA_STATUS_GENERATING) {
+    sheet.getRange(row, UA_COLUMNS.status).setValue(UA_STATUS_STOPPED);
+  }
+  SpreadsheetApp.flush();
+
+  return {
+    cancelled: !!(result && result.cancelled),
+    responseId: responseId,
+    status: String(result && result.status || ''),
+    message: responseId
+      ? '途中停止しました。保存済みのOpenAI処理にもキャンセル要求を送りました。'
+      : '途中停止しました。進行中のOpenAI本文生成はありません。'
+  };
+}
+
+function uaPrepareArticleBackgroundResumeFromWeb(data) {
+  const input = data || {};
+  const sheet = uaGetSheetForData_(input);
+  const row = Number(input.row) || sheet.getActiveCell().getRow();
+  const stateKey = uaGetArticleBackgroundStateKey_(sheet, row);
+  const state = uaLoadArticleBackgroundState_(stateKey);
+  const cancelResult = state && state.cancelResult;
+  const canRestart = !!(
+    state &&
+    state.phase === 'cancelled' &&
+    cancelResult &&
+    cancelResult.cancelled
+  );
+
+  if (canRestart) {
+    uaClearArticleBackgroundState_(stateKey);
+  }
+
+  const rowData = uaBuildRowData_(sheet, row);
+  rowData.backgroundRestartPrepared = canRestart;
+  rowData.message = canRestart
+    ? 'キャンセル済みの本文生成を確認しました。保存済みの競合調査・構成案から本文生成を1回だけ再開します。'
+    : '保存済みの処理IDを維持したまま停止位置から再開します。';
+  return rowData;
 }
 
 function uaApplyManagedAffiliateCta_(body, rowData, appConfig) {
@@ -900,7 +971,7 @@ function uaTestSwellBlockDialect() {
     ['DRIVE SWELL CTA no Cocoon', driveSwellCta.indexOf('cocoon-blocks') === -1],
     ['DRIVE SWELL CTA URL preserved', driveSwellCta.indexOf(spec.url) !== -1],
     ['SWELL notice', swellNotice.indexOf('article-compass-notice-danger') !== -1 && swellNotice.indexOf('cocoon-blocks') === -1],
-    ['SWELL internal link', swellInternalLink.indexOf('article-compass-internal-link') !== -1 && swellInternalLink.indexOf('cocoon-blocks') === -1]
+    ['SWELL internal link', swellInternalLink.indexOf('wp:loos/post-link') !== -1 && swellInternalLink.indexOf('cocoon-blocks') === -1]
   ];
   const failed = checks.filter(function(item) { return !item[1]; }).map(function(item) { return item[0]; });
   if (failed.length) throw new Error('SWELL出力テスト失敗: ' + failed.join(', '));
@@ -2179,8 +2250,14 @@ function uaCallOpenAiArticleBackgroundJson_(promptText, maxOutputTokens, sheet, 
   let state = uaLoadArticleBackgroundState_(stateKey);
 
   if (state && state.fingerprint !== fingerprint) {
-    uaClearArticleBackgroundState_(stateKey);
-    state = null;
+    // Never replace an in-flight response merely because the reconstructed
+    // prompt changed (for example after a status or panel autosave update).
+    // Replacing it here starts another paid background response and also
+    // resets the stale timer. Keep retrieving the saved response ID until it
+    // completes, is cancelled, or reaches the hard timeout.
+    state.promptChangedWhilePending = true;
+    state.latestFingerprint = fingerprint;
+    uaSaveArticleBackgroundState_(stateKey, state);
   }
 
   let response;
@@ -2221,6 +2298,27 @@ function uaCallOpenAiArticleBackgroundJson_(promptText, maxOutputTokens, sheet, 
 
   const normalized = uaNormalizeOpenAiBackgroundJson_(response);
   if (normalized.pending) {
+    const startedAtMs = Date.parse(String(state && state.startedAt || ''));
+    if (!isNaN(startedAtMs) && Date.now() - startedAtMs >= 20 * 60 * 1000) {
+      let cancelResult;
+      try {
+        cancelResult = uaCancelOpenAiBackgroundResponse_(state.responseId);
+      } catch (cancelError) {
+        cancelResult = {
+          cancelled: false,
+          status: 'cancel_failed',
+          message: String(cancelError && cancelError.message || cancelError)
+        };
+      }
+      state.phase = cancelResult && cancelResult.cancelled ? 'cancelled' : 'cancel_requested';
+      state.cancelledAt = new Date().toISOString();
+      state.cancelResult = cancelResult;
+      uaSaveArticleBackgroundState_(stateKey, state);
+      throw new Error(
+        'OpenAI本文生成が20分を超えて完了しなかったため停止しました。' +
+        '処理IDと停止位置は保存し、バックグラウンド処理へキャンセル要求を送りました。'
+      );
+    }
     const pendingError = new Error(
       'OpenAIで本文生成を継続中です。処理IDは保存済みです。' +
       '同じ本文生成の完了結果だけを確認し、新しい生成依頼は送信しません。'

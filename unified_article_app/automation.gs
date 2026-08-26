@@ -10,6 +10,7 @@ const UA_AUTOMATION_DAILY_HANDLERS = {
 const UA_AUTOMATION_WORKER_HANDLER = 'uaRunAutomaticPostingWorker';
 const UA_AUTOMATION_NEXT_HANDLER = 'uaStartNextAutomaticPosting';
 const UA_AUTOMATION_TIMEZONE = 'Asia/Tokyo';
+const UA_AUTOMATION_STALE_JOB_MINUTES = 20;
 
 const UA_AUTOMATION_STEP_READER_MIND = 'reader_mind';
 const UA_AUTOMATION_STEP_STRUCTURE = 'structure';
@@ -47,10 +48,10 @@ function uaGetAutomaticPostingSettingsForPanel(appType) {
   const appConfig = uaGetAutomationAppConfig_(appType);
   const settings = uaReadAutomaticPostingSettings_(appConfig.key);
   const column = uaGetAutomationColumn_(appConfig.key);
+  const job = uaMarkStaleAutomaticPostingJobError_(uaGetAutomaticPostingJob_());
   const statusValues = sheet.getRange(7, column, 3, 1).getDisplayValues().map(function(row) {
     return String(row[0] || '').trim();
   });
-  const job = uaGetAutomaticPostingJob_();
   const isThisSiteJob = job && job.status !== 'complete' && String(job.appType || '') === appConfig.label;
   return {
     appType: appConfig.label,
@@ -68,7 +69,65 @@ function uaGetAutomaticPostingSettingsForPanel(appType) {
     lastError: statusValues[2] || '',
     activeKeyword: isThisSiteJob ? String(job.keyword || '') : '',
     activeStep: isThisSiteJob ? uaGetAutomaticPostingStepLabel_(job.step) : '',
-    activeJobStatus: isThisSiteJob ? String(job.status || '') : ''
+    activeJobStatus: isThisSiteJob ? String(job.status || '') : '',
+    activeProgress: isThisSiteJob ? uaBuildAutomaticPostingProgress_(job) : null
+  };
+}
+
+function uaGetActiveAutomaticPostingArticleFromPanel(appType) {
+  const job = uaMarkStaleAutomaticPostingJobError_(uaGetAutomaticPostingJob_());
+  if (!job || String(job.status || '') === 'complete') {
+    throw new Error('現在処理中の自動投稿記事はありません。');
+  }
+
+  const appConfig = uaGetAutomationAppConfig_(job.appType);
+  const requestedType = String(appType || '').trim();
+  if (requestedType) {
+    const requestedConfig = uaGetAutomationAppConfig_(requestedType);
+    if (requestedConfig.key !== appConfig.key) {
+      throw new Error('処理中の記事は' + appConfig.label + 'です。サイトを切り替えてください。');
+    }
+  }
+
+  const data = uaGetAutomaticPostingRowData_(job);
+  data.automaticPostingProgress = uaBuildAutomaticPostingProgress_(job);
+  data.message = '自動投稿中の記事「' + job.keyword + '」をパネルに表示しました。';
+  return data;
+}
+
+function uaBuildAutomaticPostingProgress_(job) {
+  const currentJob = job || {};
+  const groups = [
+    { keys: [UA_AUTOMATION_STEP_READER_MIND], label: '読者心理メモ' },
+    { keys: [UA_AUTOMATION_STEP_STRUCTURE, UA_AUTOMATION_STEP_WAIT_TREFAI], label: '競合調査・構成案' },
+    { keys: [UA_AUTOMATION_STEP_ARTICLE], label: '本文生成' },
+    { keys: [UA_AUTOMATION_STEP_INITIAL_WP], label: 'WP下書き準備' }
+  ];
+  if (currentJob.includeImages !== false) {
+    groups.push({ keys: [UA_AUTOMATION_STEP_IMAGES], label: '画像生成・WP差し込み' });
+  }
+  groups.push(
+    { keys: [UA_AUTOMATION_STEP_CHECK], label: '公開前チェック' },
+    { keys: [UA_AUTOMATION_STEP_REVISION], label: '指摘修正（1回）' },
+    { keys: [UA_AUTOMATION_STEP_FINAL_WP], label: 'WPへ修正版反映' }
+  );
+  if (String(currentJob.publishMode || '') === '公開まで') {
+    groups.push({ keys: [UA_AUTOMATION_STEP_PUBLISH], label: 'WordPress公開' });
+  }
+
+  const currentStep = String(currentJob.step || '');
+  let currentIndex = groups.findIndex(function(group) {
+    return group.keys.indexOf(currentStep) !== -1;
+  });
+  if (currentIndex < 0) currentIndex = 0;
+
+  return {
+    steps: groups.map(function(group) { return group.label; }),
+    currentIndex: currentIndex,
+    currentLabel: uaGetAutomaticPostingStepLabel_(currentStep) || groups[currentIndex].label,
+    state: String(currentJob.status || '') === 'error' ? 'error' : 'running',
+    startedAt: String(currentJob.startedAt || ''),
+    updatedAt: String(currentJob.updatedAt || '')
   };
 }
 
@@ -143,6 +202,7 @@ function uaDisableAutomaticPosting() {
 
 function uaPauseAutomaticPostingJob_(job, reason) {
   if (!job || String(job.status || '') === 'complete') return false;
+  uaCancelAutomaticPostingBackgroundWork_(job);
   job.status = 'error';
   job.lastError = String(reason || '自動投稿を一時停止しました。');
   job.updatedAt = new Date().toISOString();
@@ -171,9 +231,22 @@ function uaResumeAutomaticPostingFromPanel(appType) {
   }
   const settings = uaReadAutomaticPostingSettings_(appConfig.key);
   if (!settings.enabled) throw new Error(appConfig.label + 'の自動投稿設定がOFFです。');
+  if (job.step === UA_AUTOMATION_STEP_WAIT_TREFAI) {
+    uaResetLatestTrefaiJobForExplicitRetry_(job.appType, job.row, job.keyword);
+    if (job.structureAi && job.backgroundCancellation) delete job.structureAi;
+  }
+  if (job.step === UA_AUTOMATION_STEP_ARTICLE && job.backgroundCancellation) {
+    const articleSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(job.sheetName);
+    if (articleSheet) {
+      uaClearArticleBackgroundState_(uaGetArticleBackgroundStateKey_(articleSheet, Number(job.row)));
+    }
+  }
+  delete job.backgroundCancellation;
   job.status = 'running';
   job.lastError = '';
-  job.updatedAt = new Date().toISOString();
+  const resumedAt = new Date().toISOString();
+  job.stepStartedAt = resumedAt;
+  job.updatedAt = resumedAt;
   uaSaveAutomaticPostingJob_(job);
   uaScheduleAutomaticPostingWorker_(1000);
   uaWriteAutomaticPostingStatus_(appConfig.key, '再開待ち：' + job.keyword, '');
@@ -256,7 +329,7 @@ function uaStartAutomaticPostingForSite_(appKey) {
     const settings = uaReadAutomaticPostingSettings_(appConfig.key);
     if (!settings.enabled) return false;
 
-    const activeJob = uaGetAutomaticPostingJob_();
+    const activeJob = uaMarkStaleAutomaticPostingJobError_(uaGetAutomaticPostingJob_());
     if (uaHasBlockingAutomaticPostingJob_(activeJob)) {
       // 進行中ジョブは、そのジョブ自身が予約した1本のワーカーチェーンだけに任せる。
       // starter側でもworker/nextを予約すると、長時間処理中に重複実行ループが生まれる。
@@ -274,6 +347,7 @@ function uaStartAutomaticPostingForSite_(appKey) {
       return false;
     }
 
+    const startedAt = new Date().toISOString();
     const job = {
       runId: Utilities.getUuid(),
       date: today,
@@ -285,8 +359,9 @@ function uaStartAutomaticPostingForSite_(appKey) {
       keyword: target.keyword,
       includeImages: settings.includeImages,
       publishMode: settings.publishMode,
-      startedAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
+      startedAt: startedAt,
+      stepStartedAt: startedAt,
+      updatedAt: startedAt,
       lastError: ''
     };
     uaSaveAutomaticPostingJob_(job);
@@ -303,6 +378,72 @@ function uaStartAutomaticPostingForSite_(appKey) {
 
 function uaHasBlockingAutomaticPostingJob_(job) {
   return !!(job && String(job.status || '') !== 'complete');
+}
+
+function uaMarkStaleAutomaticPostingJobError_(job) {
+  if (!job || String(job.status || '') !== 'running') return job;
+
+  // Polling the same step updates updatedAt, so use the time the step itself
+  // began when detecting an endlessly waiting worker.
+  const stepStartedAtMs = Date.parse(String(job.stepStartedAt || job.updatedAt || job.startedAt || ''));
+  if (!isFinite(stepStartedAtMs)) return job;
+
+  const staleMs = UA_AUTOMATION_STALE_JOB_MINUTES * 60 * 1000;
+  if (Date.now() - stepStartedAtMs < staleMs) return job;
+
+  const appConfig = uaGetAutomationAppConfig_(job.appType);
+  uaCancelAutomaticPostingBackgroundWork_(job);
+  job.status = 'error';
+  job.lastError = UA_AUTOMATION_STALE_JOB_MINUTES
+    + '分以上進捗更新がないため、安全のためエラー停止に切り替えました。'
+    + '保存済み工程から再開するか、この記事を対象外にして次へ進んでください。';
+  job.updatedAt = new Date().toISOString();
+  uaSaveAutomaticPostingJob_(job);
+  uaTryMarkAutomaticPostingRowStopped_(job);
+  uaWriteAutomaticPostingStatus_(appConfig.key, '停止：' + job.keyword, job.lastError);
+  try {
+    uaSendAutomaticPostingErrorNotification_(job, appConfig, job.lastError);
+  } catch (notificationError) {
+    console.error(notificationError && notificationError.stack ? notificationError.stack : notificationError);
+  }
+  return job;
+}
+
+function uaCancelAutomaticPostingBackgroundWork_(job) {
+  if (!job || !job.sheetName || !job.row) return null;
+  let responseId = '';
+  let stateKey = '';
+  let state = null;
+
+  if (job.step === UA_AUTOMATION_STEP_ARTICLE) {
+    const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(job.sheetName);
+    if (sheet) {
+      stateKey = uaGetArticleBackgroundStateKey_(sheet, Number(job.row));
+      state = uaLoadArticleBackgroundState_(stateKey);
+      responseId = String(state && state.responseId || '').trim();
+    }
+  } else if (job.step === UA_AUTOMATION_STEP_WAIT_TREFAI) {
+    responseId = String(job.structureAi && job.structureAi.responseId || '').trim();
+  }
+
+  if (!responseId) return null;
+  let result;
+  try {
+    result = uaCancelOpenAiBackgroundResponse_(responseId);
+  } catch (e) {
+    result = { cancelled: false, status: 'cancel_failed', message: String(e && e.message || e) };
+  }
+  job.backgroundCancellation = {
+    responseId: responseId,
+    cancelledAt: new Date().toISOString(),
+    result: result
+  };
+  if (state && stateKey) {
+    state.phase = result && result.cancelled ? 'cancelled' : 'cancel_requested';
+    state.cancelledAt = job.backgroundCancellation.cancelledAt;
+    uaSaveArticleBackgroundState_(stateKey, state);
+  }
+  return result;
 }
 
 function uaStartNextAutomaticPosting() {
@@ -322,7 +463,7 @@ function uaRunAutomaticPostingWorker() {
   }
 
   try {
-    const job = uaGetAutomaticPostingJob_();
+    const job = uaMarkStaleAutomaticPostingJobError_(uaGetAutomaticPostingJob_());
     if (!job || job.status !== 'running') return;
     const appConfig = uaGetAutomationAppConfig_(job.appType);
     const settings = uaReadAutomaticPostingSettings_(appConfig.key);
@@ -364,12 +505,45 @@ function uaRunAutomaticPostingWorker() {
       if (trefai && trefai.status === UA_TREFAI_STATUS_ERROR) {
         throw new Error('トレファイ処理エラー: ' + (trefai.message || '詳細なし'));
       }
+      if (trefai && trefai.status === UA_TREFAI_STATUS_DONE) {
+        const articleSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(job.sheetName);
+        if (!articleSheet) throw new Error('記事シートが見つかりません: ' + job.sheetName);
+        if (!job.structureAi || !String(job.structureAi.responseId || '').trim()) {
+          job.structureAi = uaStartArticleStructureBackgroundForRow_(
+            articleSheet,
+            Number(job.row),
+            uaGetAutomationAppConfig_(job.appType),
+            uaGetArticleProvider_(),
+            {
+              messagePrefix: 'トレファイURLを使って記事構成を作成しました。',
+              competitorUrls: trefai.competitorUrls || [],
+              competitorPages: trefai.competitorPages || []
+            }
+          );
+          uaAdvanceAutomaticPostingJob_(job, UA_AUTOMATION_STEP_WAIT_TREFAI, 60000);
+          return;
+        }
+        const structureResult = uaContinueArticleStructureBackgroundForRow_(
+          articleSheet,
+          Number(job.row),
+          job.structureAi
+        );
+        if (structureResult && structureResult.pending) {
+          uaAdvanceAutomaticPostingJob_(job, UA_AUTOMATION_STEP_WAIT_TREFAI, 60000);
+          return;
+        }
+        delete job.structureAi;
+        uaAdvanceAutomaticPostingJob_(job, UA_AUTOMATION_STEP_ARTICLE, 60000);
+        return;
+      }
       uaAdvanceAutomaticPostingJob_(job, UA_AUTOMATION_STEP_WAIT_TREFAI, 300000);
       return;
     }
 
     if (job.step === UA_AUTOMATION_STEP_ARTICLE) {
-      if (!String(data.body || '').trim()) uaRunArticleFromPanel(data);
+      if (!String(data.body || '').trim()) {
+        uaRunArticleFromPanel(Object.assign({}, data, { automaticPosting: true }));
+      }
       uaAdvanceAutomaticPostingJob_(job, UA_AUTOMATION_STEP_INITIAL_WP, 60000);
       return;
     }
@@ -433,7 +607,7 @@ function uaRunAutomaticPostingWorker() {
         '処理中: ' + job.keyword + ' / OpenAIの本文生成完了待ち',
         ''
       );
-      uaScheduleAutomaticPostingWorker_(120000);
+      uaScheduleAutomaticPostingWorker_(5 * 60 * 1000);
       return;
     }
     if (job && job.step === UA_AUTOMATION_STEP_REVISION && e && e.uaBackgroundPending) {
@@ -447,7 +621,7 @@ function uaRunAutomaticPostingWorker() {
         '処理中: ' + job.keyword + ' / OpenAIの修正結果待ち',
         ''
       );
-      uaScheduleAutomaticPostingWorker_(120000);
+      uaScheduleAutomaticPostingWorker_(5 * 60 * 1000);
       return;
     }
     if (job) {
@@ -707,6 +881,29 @@ function uaGetAutomaticPostingJob_() {
   try { return JSON.parse(raw); } catch (e) { return null; }
 }
 
+function uaGetAutomaticPostingDiagnostics_() {
+  const job = uaGetAutomaticPostingJob_();
+  const triggers = ScriptApp.getProjectTriggers().map(function(trigger) {
+    return {
+      handler: trigger.getHandlerFunction(),
+      source: String(trigger.getTriggerSource()),
+      eventType: String(trigger.getEventType())
+    };
+  });
+  return {
+    checkedAt: new Date().toISOString(),
+    job: job,
+    trefai: job ? uaGetLatestTrefaiJobStatus_(job.appType, job.row, job.keyword) : null,
+    triggers: triggers,
+    driveSettings: uaReadAutomaticPostingSettings_('drive'),
+    homeSettings: uaReadAutomaticPostingSettings_('home')
+  };
+}
+
+function uaGetAutomaticPostingDiagnosticsForCodex() {
+  return uaGetAutomaticPostingDiagnostics_();
+}
+
 function uaSaveAutomaticPostingJob_(job) {
   PropertiesService.getScriptProperties().setProperty(UA_AUTOMATION_JOB_PROPERTY, JSON.stringify(job || {}));
 }
@@ -722,6 +919,11 @@ function uaGetAutomaticPostingRowData_(job) {
 }
 
 function uaAdvanceAutomaticPostingJob_(job, nextStep, delayMs) {
+  const previousStep = String(job.step || '');
+  const cleanNextStep = String(nextStep || '');
+  if (previousStep !== cleanNextStep || !String(job.stepStartedAt || '').trim()) {
+    job.stepStartedAt = new Date().toISOString();
+  }
   job.step = nextStep;
   job.updatedAt = new Date().toISOString();
   job.lastError = '';

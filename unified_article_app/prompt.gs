@@ -149,6 +149,23 @@ function uaBuildCompetitorPrompt_(rowData) {
     return '競合URLは未入力です。検索意図と読者心理メモを優先してください。';
   }
 
+  // Trefai/記事構成工程ですでに取得・分析した競合ページを、本文工程で
+  // Apps Scriptから再取得しない。外部ページの再取得は6分制限を使い切り、
+  // 同じ記事を「本文生成」のまま停止させる原因になる。
+  const preparedStructure = String(rowData && rowData.structureMemo || '').trim();
+  if (preparedStructure || rowData && rowData.automaticPosting) {
+    return [
+      '競合・参考URL（記事構成工程で取得・分析済み）:',
+      urls.map(function(url, index) {
+        return (index + 1) + '. URL: ' + url;
+      }).join('\n'),
+      preparedStructure
+        ? 'ページ内容から抽出した検索意図・共通論点・不足論点・見出し判断は、下の「確定済みの記事構成メモ」に保存済みです。本文ではその分析結果を使い、同じURLを再取得しないでください。'
+        : '自動投稿中の再取得は行いません。取得済みの読者心理メモと入力済みURLから確認できる範囲だけを使い、未確認情報を断定しないでください。',
+      '競合URL自体を本文の外部リンクとして使わず、丸写しや長い引用もしないでください。'
+    ].join('\n');
+  }
+
   const pages = urls.map(function(url) {
     return uaFetchCompetitorPageInfo_(url);
   });

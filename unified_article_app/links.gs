@@ -10,9 +10,9 @@ function uaBuildInternalLinksPrompt_(mainInput, appConfig, rowData) {
   const topicCluster = uaInferTopicCluster_(mainInput, appConfig);
   const internalLinkFormatPrompt = uaUsesSwellBlocks_(appConfig)
     ? [
-        '内部リンクは「前置き文 + 独立したURL段落」で入れてください。Cocoonブログカードは作らないでください。',
-        'URL段落は <!-- wp:paragraph {"className":"article-compass-internal-link"} --><p class="article-compass-internal-link"><a href="URL">記事タイトル</a></p><!-- /wp:paragraph --> の形式にしてください。',
-        'システム側とSWELL側で、読者が内部リンクだと分かるカード風表示に整えます。'
+        '内部リンクは「前置き文 + SWELLの記事リンクカード」で入れてください。Cocoonブログカードや通常のテキストリンクは作らないでください。',
+        'カードは <!-- wp:loos/post-link {"linkData":{"url":"URL"}} /--> の形式にしてください。',
+        'URLは内部リンク候補にある値を一字も変えずに使い、カードのタイトルや説明はリンク先情報をSWELLに取得させてください。'
       ].join('\n')
     : [
         '内部リンクは通常のテキストリンクではなく、必ず「前置き文 + Cocoonブログカード」で入れてください。',
@@ -55,7 +55,7 @@ function uaBuildInternalLinksPrompt_(mainInput, appConfig, rowData) {
 内部リンクは1〜3個まで入れてください。
 同じURLは1回だけ使ってください。
 関連性が薄い候補は使わないでください。
-アンカーテキストは記事タイトルをそのまま使わず、本文になじむ短い自然な文言にしてください。
+SWELLの記事リンクカードとは別に、同じURLのテキストリンクを重ねて入れないでください。
 ${internalLinkFormatPrompt}
 前置き文は、文脈に合わせて「〜の記事も参考になります。」「詳しくはこちらの記事で整理しています。」「関連する注意点は次の記事も参考になります。」のように、読者が別記事へ移動すると分かる一文にしてください。
 内部リンクだけのブロックを連発せず、読者の次の悩みや補足理解につながる位置に入れてください。
@@ -1267,7 +1267,8 @@ function uaPickExternalSourceForBody_(rowData, appConfig, body) {
 }
 
 function uaBuildInternalLinkPostInsertBlock_(candidate, appConfig) {
-  const url = uaEscapeLinkHtml_(candidate.url);
+  const rawUrl = String(candidate.url || '').trim();
+  const url = uaEscapeLinkHtml_(rawUrl);
   const rawUsage = String(candidate.usage || '本文では触れきれない補足内容')
     .replace(/として使う$/, '')
     .replace(/ときに使う$/, 'とき')
@@ -1279,14 +1280,11 @@ function uaBuildInternalLinkPostInsertBlock_(candidate, appConfig) {
     : usage + 'をあわせて確認したい場合は、こちらの記事も参考になります。';
 
   if (uaUsesSwellBlocks_(appConfig)) {
-    const title = uaEscapeLinkHtml_(candidate.title || '関連記事を読む');
     return [
       '<!-- wp:paragraph -->',
       '<p>' + leadText + '</p>',
       '<!-- /wp:paragraph -->',
-      '<!-- wp:paragraph {"className":"article-compass-internal-link"} -->',
-      '<p class="article-compass-internal-link"><a href="' + url + '">' + title + '</a></p>',
-      '<!-- /wp:paragraph -->'
+      uaBuildSwellInternalPostLinkBlock_(rawUrl)
     ].join('\n');
   }
 
@@ -1298,6 +1296,38 @@ function uaBuildInternalLinkPostInsertBlock_(candidate, appConfig) {
     '</div>',
     '<!-- /wp:cocoon-blocks/blogcard -->'
   ].join('\n');
+}
+
+function uaBuildSwellInternalPostLinkBlock_(url) {
+  const cleanUrl = String(url || '').trim().replace(/&amp;/gi, '&');
+  if (!/^https?:\/\//i.test(cleanUrl)) return '';
+  return '<!-- wp:loos/post-link ' + JSON.stringify({
+    linkData: { url: cleanUrl }
+  }) + ' /-->';
+}
+
+/**
+ * Converts the former SWELL "card-like text link" and standalone same-site
+ * link paragraphs into SWELL's native post-link block before WordPress sync.
+ * Normal inline links inside explanatory paragraphs are intentionally kept.
+ */
+function uaNormalizeSwellInternalLinkBlocks_(body, appConfig, siteUrl) {
+  let html = String(body || '');
+  if (!html || !uaUsesSwellBlocks_(appConfig)) return html;
+
+  const siteHostMatch = /^https?:\/\/([^\/?#]+)/i.exec(String(siteUrl || '').trim());
+  const siteHost = String(siteHostMatch && siteHostMatch[1] || '').toLowerCase().replace(/^www\./, '');
+  if (!siteHost) return html;
+
+  const paragraphPattern = /(?:<!--\s*wp:paragraph\b[^>]*-->\s*)?<p\b([^>]*)>\s*<a\b([^>]*)href=(['"])(https?:\/\/[^'"]+)\3([^>]*)>[\s\S]*?<\/a>\s*<\/p>\s*(?:<!--\s*\/wp:paragraph\s*-->)?/gi;
+  return html.replace(paragraphPattern, function(match, paragraphAttrs, beforeHref, quote, rawUrl) {
+    const url = String(rawUrl || '').replace(/&amp;/gi, '&');
+    const hostMatch = /^https?:\/\/([^\/?#]+)/i.exec(url);
+    const host = String(hostMatch && hostMatch[1] || '').toLowerCase().replace(/^www\./, '');
+    const isMarkedInternal = /\barticle-compass-internal-link\b/i.test(String(paragraphAttrs || ''));
+    if (!isMarkedInternal && host !== siteHost) return match;
+    return uaBuildSwellInternalPostLinkBlock_(url) || match;
+  });
 }
 
 function uaBuildExternalSourcePostInsertBlock_(candidate) {

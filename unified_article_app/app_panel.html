@@ -416,6 +416,18 @@
         will-change: transform;
       }
 
+      .workflow-progress { display: none; margin-top: 8px; padding: 8px; border: 1px solid #b7dccb; border-radius: 8px; background: #f7fffb; }
+      .workflow-progress.visible { display: block; }
+      .workflow-progress.stopped { border-color: #f97066; background: #fff1f0; box-shadow: inset 4px 0 0 var(--danger); }
+      .workflow-progress-head { color: var(--brand-dark); font-size: 12px; font-weight: 800; margin-bottom: 6px; }
+      .workflow-progress.stopped .workflow-progress-head { color: var(--danger); }
+      .workflow-steps { display: flex; flex-wrap: wrap; gap: 6px; }
+      .workflow-step { max-width: 150px; padding: 5px 7px; border: 1px solid #cbe5d8; border-radius: 999px; background: #fff; color: #47665b; font-size: 11px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .workflow-step.done { color: #fff; background: #1f9d6d; border-color: #1f9d6d; }
+      .workflow-step.current { color: #fff; background: var(--brand); border-color: var(--brand); }
+      .workflow-step.current::after { content: ""; display: inline-block; width: 6px; height: 6px; margin-left: 6px; border-radius: 50%; background: currentColor; animation: pulseStatus 0.9s ease-in-out infinite; }
+      .workflow-step.error { color: #fff; background: var(--danger); border-color: var(--danger); }
+
       .modal-backdrop {
         position: fixed;
         inset: 0;
@@ -591,6 +603,10 @@
           <div class="progress">
             <div id="progressBar" class="progress-bar"></div>
           </div>
+          <div id="workflowProgress" class="workflow-progress">
+            <div id="workflowProgressHead" class="workflow-progress-head"></div>
+            <div id="workflowSteps" class="workflow-steps"></div>
+          </div>
         </div>
       </div>
 
@@ -680,6 +696,7 @@
             <div id="autoPostingSummary" style="margin-top:8px; color:var(--text); line-height:1.6;">毎日4時ごろ・1日1記事。重大NG時は下書きで停止します。</div>
             <button class="primary" type="button" style="width:100%; margin-top:10px;" onclick="saveAutomaticPostingSettings(this)">自動投稿設定を保存</button>
             <div id="autoPostingStatus" class="auto-posting-status">設定を読み込み中...</div>
+            <button id="autoPostingOpenArticleButton" class="secondary hidden" type="button" style="margin-top:8px;" onclick="loadActiveAutomaticPostingArticle(this)">処理中の記事を表示</button>
             <button id="autoPostingResumeButton" class="danger hidden" type="button" style="margin-top:8px;" onclick="resumeAutomaticPosting(this)">停止位置から再開</button>
             <button id="autoPostingSkipButton" class="secondary hidden" type="button" style="margin-top:8px;" onclick="skipAutomaticPosting(this)">この記事を対象外にして次へ</button>
           </div>
@@ -902,6 +919,8 @@
             if (resumeButton) resumeButton.classList.add('hidden');
             const skipButton = document.getElementById('autoPostingSkipButton');
             if (skipButton) skipButton.classList.add('hidden');
+            const openArticleButton = document.getElementById('autoPostingOpenArticleButton');
+            if (openArticleButton) openArticleButton.classList.add('hidden');
           })
           .uaGetAutomaticPostingSettingsForPanel(appType);
       }
@@ -930,6 +949,56 @@
         if (resumeButton) resumeButton.classList.toggle('hidden', !(hasError && settings.activeJobStatus === 'error'));
         const skipButton = document.getElementById('autoPostingSkipButton');
         if (skipButton) skipButton.classList.toggle('hidden', !(hasError && settings.activeJobStatus === 'error'));
+        const openArticleButton = document.getElementById('autoPostingOpenArticleButton');
+        if (openArticleButton) openArticleButton.classList.toggle('hidden', !settings.activeKeyword);
+      }
+
+      function loadActiveAutomaticPostingArticle(button) {
+        const appType = document.getElementById('appType').value;
+        setBusy('処理中の記事を読み込み中...', button);
+        google.script.run
+          .withSuccessHandler(function(data) {
+            clearBusy();
+            fillForm(data);
+            renderAutomaticPostingProgress(data && data.automaticPostingProgress);
+            setNotice(data && data.message ? data.message : '処理中の記事を表示しました。', false);
+          })
+          .withFailureHandler(fail)
+          .uaGetActiveAutomaticPostingArticleFromPanel(appType);
+      }
+
+      function renderAutomaticPostingProgress(progress) {
+        if (!progress || !progress.steps || !progress.steps.length) return;
+        const panel = document.getElementById('workflowProgress');
+        const head = document.getElementById('workflowProgressHead');
+        const steps = document.getElementById('workflowSteps');
+        const bar = document.getElementById('progressBar');
+        const total = progress.steps.length;
+        const currentIndex = Math.max(0, Math.min(Number(progress.currentIndex || 0), total - 1));
+        const isError = progress.state === 'error';
+        if (panel) {
+          panel.classList.add('visible');
+          panel.classList.toggle('stopped', isError);
+        }
+        if (head) head.textContent = '自動投稿 ' + (currentIndex + 1) + '/' + total + '：' + (progress.currentLabel || progress.steps[currentIndex]);
+        if (bar) {
+          bar.className = 'progress-bar';
+          bar.style.background = isError ? 'var(--danger)' : 'var(--brand)';
+          bar.style.width = (isError ? 100 : Math.max(4, Math.round((currentIndex / total) * 100))) + '%';
+        }
+        if (steps) {
+          steps.innerHTML = '';
+          progress.steps.forEach(function(label, index) {
+            const item = document.createElement('span');
+            item.className = 'workflow-step';
+            if (isError && index === currentIndex) item.classList.add('error');
+            else if (index < currentIndex) item.classList.add('done');
+            else if (index === currentIndex) item.classList.add('current');
+            item.textContent = (index + 1) + '. ' + label;
+            item.title = label;
+            steps.appendChild(item);
+          });
+        }
       }
 
       function resumeAutomaticPosting(button) {

@@ -451,7 +451,7 @@ function uaFindArticleRowByCandidate_(articleSheet, appConfig, keyword, volume) 
   return 0;
 }
 
-function uaGetArticleRowForWeb(appTypeLabel, row) {
+function uaGetArticleRowForWeb(appTypeLabel, row, prepareCancelledBackgroundResume) {
   const appConfig = uaGetAppConfigByLabel_(appTypeLabel);
 
   if (!appConfig || !appConfig.articleSheetName) {
@@ -465,6 +465,14 @@ function uaGetArticleRowForWeb(appTypeLabel, row) {
   }
 
   const rowNumber = Number(row);
+  if (prepareCancelledBackgroundResume) {
+    const stateKey = uaGetArticleBackgroundStateKey_(sheet, rowNumber);
+    const state = uaLoadArticleBackgroundState_(stateKey);
+    const cancelResult = state && state.cancelResult;
+    if (state && state.phase === 'cancelled' && cancelResult && cancelResult.cancelled) {
+      uaClearArticleBackgroundState_(stateKey);
+    }
+  }
   const data = uaBuildRowData_(sheet, rowNumber);
   data.trefaiJob = uaGetLatestTrefaiJobStatus_(data.appType || appTypeLabel, rowNumber, data.mainInput);
   return data;

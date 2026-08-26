@@ -431,7 +431,8 @@ function uaProtectPrePublishRevisionBody_(body) {
     ['SWELL対応CTA', /<!--\s*UA_MAIN_AFFILIATE_CTA_START\s*-->[\s\S]*?<!--\s*UA_MAIN_AFFILIATE_CTA_END\s*-->/gi],
     ['SWELL対応ポイント枠', /<!--\s*wp:group\b[^>]*article-compass-point-box[\s\S]*?<!--\s*\/wp:group\s*-->/gi],
     ['SWELL対応注意書き', /<!--\s*wp:group\b[^>]*article-compass-notice-box[\s\S]*?<!--\s*\/wp:group\s*-->/gi],
-    ['SWELL対応内部リンク', /<!--\s*wp:paragraph\b[^>]*article-compass-internal-link[\s\S]*?<!--\s*\/wp:paragraph\s*-->/gi],
+    ['SWELL記事リンクカード', /<!--\s*wp:loos\/post-link\b[^>]*\/-->/gi],
+    ['旧SWELL対応内部リンク', /<!--\s*wp:paragraph\b[^>]*article-compass-internal-link[\s\S]*?<!--\s*\/wp:paragraph\s*-->/gi],
     ['Cocoon情報ボックス', /<!--\s*wp:cocoon-blocks\/info-box\b[\s\S]*?<!--\s*\/wp:cocoon-blocks\/info-box\s*-->/gi],
     ['この記事のポイント', /<!--\s*wp:cocoon-blocks\/tab-caption-box-1\b[\s\S]*?<!--\s*\/wp:cocoon-blocks\/tab-caption-box-1\s*-->/gi],
     ['CTA', /<!--\s*wp:cocoon-blocks\/button-wrap-1\b[\s\S]*?<!--\s*\/wp:cocoon-blocks\/button-wrap-1\s*-->/gi],
@@ -839,7 +840,7 @@ function uaBuildPrePublishRuleCheck_(rowData) {
   }
 
   const hasInternalLinkBlock = usesSwell
-    ? body.indexOf('article-compass-internal-link') !== -1
+    ? body.indexOf('wp:loos/post-link') !== -1 || body.indexOf('article-compass-internal-link') !== -1
     : body.indexOf('wp:cocoon-blocks/blogcard') !== -1 && body.indexOf('wp-block-cocoon-blocks-blogcard') !== -1;
   if (hasInternalLinkBlock) {
     result.ok.push('内部リンク用の' + (usesSwell ? 'SWELL対応リンク' : 'Cocoonブログカード') + '形式が見つかりました。');

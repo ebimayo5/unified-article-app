@@ -227,6 +227,35 @@ function uaRetrieveOpenAiBackgroundJson_(responseId) {
   return uaParseOpenAiHttpResponse_(response, 'バックグラウンド修正の確認');
 }
 
+function uaCancelOpenAiBackgroundResponse_(responseId) {
+  const apiKey = uaGetOpenAiApiKey_();
+  const id = String(responseId || '').trim();
+  if (!apiKey || !id) return { cancelled: false, status: 'missing' };
+
+  const response = UrlFetchApp.fetch(
+    'https://api.openai.com/v1/responses/' + encodeURIComponent(id) + '/cancel',
+    {
+      method: 'post',
+      headers: { Authorization: 'Bearer ' + apiKey },
+      muteHttpExceptions: true
+    }
+  );
+  const statusCode = response.getResponseCode();
+  let json = null;
+  try { json = JSON.parse(response.getContentText()); } catch (e) { json = null; }
+
+  // A response that already completed cannot be cancelled, but it also no longer
+  // consumes background compute. Treat that as a safe terminal result.
+  if (statusCode >= 200 && statusCode < 300) {
+    return { cancelled: true, status: String(json && json.status || 'cancelled') };
+  }
+  return {
+    cancelled: false,
+    status: String(json && json.status || 'unknown'),
+    statusCode: statusCode
+  };
+}
+
 function uaParseOpenAiHttpResponse_(response, operationLabel) {
   const statusCode = response.getResponseCode();
   const responseText = response.getContentText();

@@ -95,6 +95,60 @@ function uaGenerateArticleStructureForRow_(sheet, row, appConfig, provider, opti
   return nextData;
 }
 
+function uaStartArticleStructureBackgroundForRow_(sheet, row, appConfig, provider, options) {
+  let rowData = uaBuildRowData_(sheet, row);
+  const readyProvider = provider || uaGetArticleProvider_();
+  uaAssertArticleProviderReady_(readyProvider);
+  if (readyProvider !== 'openai') {
+    throw new Error('自動投稿の記事構成バックグラウンド処理はOpenAI設定時だけ利用できます。');
+  }
+
+  const suppliedPages = uaNormalizeTrefaiPages_(options && options.competitorPages);
+  const competitorPages = suppliedPages.length
+    ? suppliedPages
+    : uaFetchStructureCompetitorPages_(rowData, appConfig, options && options.competitorUrls);
+  uaSaveAutoCompetitorUrls_(sheet, row, rowData, competitorPages);
+  rowData = uaBuildRowData_(sheet, row);
+  const promptText = uaBuildArticleStructurePrompt_(rowData, appConfig, competitorPages);
+  const response = uaStartOpenAiBackgroundJson_(promptText, 9000);
+  return {
+    responseId: String(response && response.id || ''),
+    model: String(response && response.model || uaGetOpenAiModel_()),
+    startedAt: new Date().toISOString(),
+    messagePrefix: options && options.messagePrefix ? String(options.messagePrefix) : '記事構成を作成しました。',
+    competitorPages: competitorPages.map(function(page) {
+      return {
+        url: String(page && page.url || '').trim(),
+        title: String(page && page.title || '').trim()
+      };
+    })
+  };
+}
+
+function uaContinueArticleStructureBackgroundForRow_(sheet, row, state) {
+  const savedState = state && typeof state === 'object' ? state : {};
+  const responseId = String(savedState.responseId || '').trim();
+  if (!responseId) throw new Error('記事構成のOpenAI処理IDがありません。');
+
+  const response = uaRetrieveOpenAiBackgroundJson_(responseId);
+  const normalized = uaNormalizeOpenAiBackgroundJson_(response);
+  if (normalized.pending) {
+    return { pending: true, responseId: responseId };
+  }
+
+  const resultJson = normalized.data;
+  if (!resultJson || !resultJson.structure_memo || !resultJson.article_outline) {
+    throw new Error('記事構成の生成結果に必要な項目がありません。');
+  }
+  const competitorPages = Array.isArray(savedState.competitorPages) ? savedState.competitorPages : [];
+  const structureMemo = uaFormatArticleStructureMemo_(resultJson, competitorPages);
+  sheet.getRange(row, UA_COLUMNS.structureMemo).setValue(structureMemo);
+  sheet.getRange(row, UA_COLUMNS.createdAt).setValue(new Date());
+  sheet.getRange(row, UA_COLUMNS.generationModel).setValue(uaFormatModelLabel_('openai', normalized.model || savedState.model));
+  SpreadsheetApp.flush();
+  return { pending: false, responseId: responseId };
+}
+
 function uaShouldUseTrefaiBridge_(rowData, data) {
   if (data && data.forceGasSearch) return false;
   if (!uaIsTrefaiBridgeEnabled_()) return false;
@@ -198,15 +252,63 @@ function uaGetLatestTrefaiJobStatus_(appType, row, keyword) {
     if (String(item[UA_TREFAI_QUEUE_COLUMNS.keyword - 1] || '').trim() !== targetKeyword) continue;
 
     const updatedAt = item[UA_TREFAI_QUEUE_COLUMNS.updatedAt - 1];
+    let resultPayload = null;
+    const rawResultJson = String(item[UA_TREFAI_QUEUE_COLUMNS.resultJson - 1] || '').trim();
+    if (rawResultJson) {
+      try { resultPayload = JSON.parse(rawResultJson); } catch (e) { resultPayload = null; }
+    }
     return {
       jobId: String(item[UA_TREFAI_QUEUE_COLUMNS.jobId - 1] || '').trim(),
       status: String(item[UA_TREFAI_QUEUE_COLUMNS.status - 1] || '').trim(),
       updatedAt: updatedAt ? String(updatedAt) : '',
-      message: String(item[UA_TREFAI_QUEUE_COLUMNS.message - 1] || '').trim()
+      message: String(item[UA_TREFAI_QUEUE_COLUMNS.message - 1] || '').trim(),
+      competitorUrls: uaNormalizeTrefaiUrls_(resultPayload && (resultPayload.competitorUrls || resultPayload.urls)),
+      competitorPages: uaNormalizeTrefaiPages_(resultPayload && resultPayload.competitorPages)
     };
   }
 
   return null;
+}
+
+function uaResetLatestTrefaiJobForExplicitRetry_(appType, row, keyword) {
+  const queueSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(UA_TREFAI_QUEUE_SHEET_NAME);
+  if (!queueSheet || queueSheet.getLastRow() < 2) return false;
+
+  const targetAppType = String(appType || '').trim();
+  const targetRow = Number(row || 0);
+  const targetKeyword = String(keyword || '').trim();
+  const values = queueSheet.getRange(2, 1, queueSheet.getLastRow() - 1, UA_TREFAI_QUEUE_COLUMNS.resultJson).getValues();
+
+  for (let index = values.length - 1; index >= 0; index--) {
+    const item = values[index];
+    if (String(item[UA_TREFAI_QUEUE_COLUMNS.appType - 1] || '').trim() !== targetAppType) continue;
+    if (Number(item[UA_TREFAI_QUEUE_COLUMNS.row - 1] || 0) !== targetRow) continue;
+    if (String(item[UA_TREFAI_QUEUE_COLUMNS.keyword - 1] || '').trim() !== targetKeyword) continue;
+
+    const status = String(item[UA_TREFAI_QUEUE_COLUMNS.status - 1] || '').trim();
+    let hasCompetitorPages = false;
+    const rawResult = String(item[UA_TREFAI_QUEUE_COLUMNS.resultJson - 1] || '').trim();
+    if (rawResult) {
+      try {
+        const parsedResult = JSON.parse(rawResult);
+        hasCompetitorPages = Array.isArray(parsedResult && parsedResult.competitorPages) && parsedResult.competitorPages.length > 0;
+      } catch (e) {
+        hasCompetitorPages = false;
+      }
+    }
+    const shouldRetry = status === UA_TREFAI_STATUS_ERROR
+      || (status === UA_TREFAI_STATUS_DONE && !hasCompetitorPages);
+    if (!shouldRetry) return false;
+    const queueRow = index + 2;
+    queueSheet.getRange(queueRow, UA_TREFAI_QUEUE_COLUMNS.status).setValue(UA_TREFAI_STATUS_PENDING);
+    queueSheet.getRange(queueRow, UA_TREFAI_QUEUE_COLUMNS.updatedAt).setValue(new Date());
+    queueSheet.getRange(queueRow, UA_TREFAI_QUEUE_COLUMNS.message).setValue('画面から明示的に再開されました。PC側で1回だけ再取得します。');
+    queueSheet.getRange(queueRow, UA_TREFAI_QUEUE_COLUMNS.resultJson).clearContent();
+    SpreadsheetApp.flush();
+    return true;
+  }
+
+  return false;
 }
 
 function uaEnsureTrefaiQueueSheet_() {
@@ -371,20 +473,12 @@ function uaCompleteTrefaiStructureJob_(payload) {
   }
 
   const urls = uaNormalizeTrefaiUrls_(payload && (payload.competitorUrls || payload.urls));
-  queueSheet.getRange(queueRow, UA_TREFAI_QUEUE_COLUMNS.status).setValue(UA_TREFAI_STATUS_RUNNING);
-  queueSheet.getRange(queueRow, UA_TREFAI_QUEUE_COLUMNS.updatedAt).setValue(new Date());
-  queueSheet.getRange(queueRow, UA_TREFAI_QUEUE_COLUMNS.message).setValue('上位URLを' + urls.length + '件取得しました。競合ページを確認して記事構成を生成中です。');
-  SpreadsheetApp.flush();
+  // Finish the PC callback quickly. Paid structure generation belongs to the
+  // automation worker and must not be retried because an HTTP client timed out.
   uaSaveTrefaiUrlsToArticleRow_(articleSheet, row, urls);
-
-  const provider = uaGetArticleProvider_();
-  const data = uaGenerateArticleStructureForRow_(articleSheet, row, appConfig, provider, {
-    messagePrefix: 'トレファイURLを使って記事構成を作成しました。',
-    competitorUrls: urls
-  });
-
   queueSheet.getRange(queueRow, UA_TREFAI_QUEUE_COLUMNS.status).setValue(UA_TREFAI_STATUS_DONE);
-  queueSheet.getRange(queueRow, UA_TREFAI_QUEUE_COLUMNS.message).setValue('記事構成作成まで完了しました。');
+  queueSheet.getRange(queueRow, UA_TREFAI_QUEUE_COLUMNS.updatedAt).setValue(new Date());
+  queueSheet.getRange(queueRow, UA_TREFAI_QUEUE_COLUMNS.message).setValue('上位URLを' + urls.length + '件取得しました。記事構成工程へ引き渡します。');
   SpreadsheetApp.flush();
 
   return {
@@ -393,7 +487,7 @@ function uaCompleteTrefaiStructureJob_(payload) {
     row: row,
     appType: appConfig.label,
     savedUrls: urls,
-    message: data.message
+    message: 'トレファイURL取得を完了しました。'
   };
 }
 
@@ -422,6 +516,29 @@ function uaNormalizeTrefaiUrls_(urls) {
     results.push(value);
   });
 
+  return results.slice(0, UA_STRUCTURE_COMPETITOR_ANALYSIS_MAX_PAGES);
+}
+
+function uaNormalizeTrefaiPages_(pages) {
+  if (!Array.isArray(pages)) return [];
+  const results = [];
+  pages.forEach(function(page) {
+    const item = page && typeof page === 'object' ? page : {};
+    const url = String(item.url || '').trim();
+    if (!uaIsUsefulCompetitorUrl_(url)) return;
+    if (results.some(function(existing) { return existing.url === url; })) return;
+    results.push({
+      url: url,
+      fetchStatus: String(item.fetchStatus || '').trim(),
+      title: String(item.title || '').trim().slice(0, 300),
+      description: String(item.description || '').trim().slice(0, 300),
+      headings: (Array.isArray(item.headings) ? item.headings : []).map(function(value) {
+        return String(value || '').trim().slice(0, 180);
+      }).filter(Boolean).slice(0, 10),
+      bodyText: String(item.bodyText || '').trim().slice(0, 1200),
+      keywords: String(item.keywords || '').trim().slice(0, 500)
+    });
+  });
   return results.slice(0, UA_STRUCTURE_COMPETITOR_ANALYSIS_MAX_PAGES);
 }
 

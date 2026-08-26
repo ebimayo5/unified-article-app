@@ -675,7 +675,7 @@ DRIVE BASE:
 - WordPressコードエディターに貼れるHTMLを出す
 - H1は使わない
 - 導入文のあとに「この記事のポイント」を入れる
-- 「この記事のポイント」は通常の見出し＋箇条書きではなく、Cocoonの `tab-caption-box-1` 形式で出す。見出しラベルは `この記事のポイント`、アイコンは `fab-info-circle`、枠線は赤、本文は4〜5項目の箇条書きにする
+- SWELLサイトの「この記事のポイント」はコアの `wp:group` に `is-style-big_icon_point article-compass-point-box` を付け、内側の段落・リストにもそれぞれ `wp:paragraph` / `wp:list` のブロックコメントを付ける。旧式の `wp-block-group__inner-container` は使わない。本文は4〜5項目の箇条書きにする
 - ポイント文は、読者がこの記事で得られる判断軸・注意点・比較ポイント・次の行動が具体的に分かる内容にする
 - Q&Aのあとに必ずまとめを入れる
 - タグは8〜10個を狙う

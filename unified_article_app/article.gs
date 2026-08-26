@@ -1508,7 +1508,7 @@ function uaBuildYmylNoticeHtml_(spec, appConfig) {
 
   if (uaUsesSwellBlocks_(appConfig)) {
     return [
-      '<!-- wp:group {"className":"is-style-big_icon_caution article-compass-notice-box article-compass-notice-danger"} -->',
+      '<!-- wp:group {"className":"is-style-big_icon_caution article-compass-notice-box article-compass-notice-danger","layout":{"type":"constrained"}} -->',
       '<div class="wp-block-group is-style-big_icon_caution article-compass-notice-box article-compass-notice-danger">',
       '<!-- wp:paragraph -->',
       '<p><strong>注意：</strong>' + text + '</p>',

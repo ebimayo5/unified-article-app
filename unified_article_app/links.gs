@@ -1330,6 +1330,83 @@ function uaNormalizeSwellInternalLinkBlocks_(body, appConfig, siteUrl) {
   });
 }
 
+/**
+ * Re-serializes the two managed SWELL core-group decorations into markup that
+ * Gutenberg can parse without showing "unexpected or invalid content".
+ *
+ * Older generated posts included wp-block-group__inner-container and raw
+ * <p>/<ul> children without their own block comments. They rendered on the
+ * public page, but the block editor treated the outer group as invalid and
+ * visually showed a second point/caution frame. Only Article Compass managed
+ * groups are touched here; ordinary author-created groups are left unchanged.
+ */
+function uaNormalizeSwellManagedCoreGroups_(body, appConfig) {
+  let html = String(body || '');
+  if (!html || !uaUsesSwellBlocks_(appConfig)) return html;
+
+  const managedGroups = [
+    {
+      marker: 'article-compass-point-box',
+      className: 'is-style-big_icon_point article-compass-point-box'
+    },
+    {
+      marker: 'article-compass-notice-box',
+      className: 'is-style-big_icon_caution article-compass-notice-box article-compass-notice-danger'
+    }
+  ];
+
+  managedGroups.forEach(function(spec) {
+    const escapedMarker = spec.marker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const pattern = new RegExp(
+      '<!--\\s*wp:group\\b(?:(?!-->)[\\s\\S])*?' + escapedMarker + '(?:(?!-->)[\\s\\S])*?-->' +
+      '\\s*<div\\b[^>]*class=[^>]*' + escapedMarker + '[^>]*>' +
+      '\\s*(?:<div\\b[^>]*class=[^>]*wp-block-group__inner-container[^>]*>\\s*)?' +
+      '([\\s\\S]*?)' +
+      '(?:\\s*</div>)?\\s*</div>\\s*<!--\\s*/wp:group\\s*-->',
+      'gi'
+    );
+
+    html = html.replace(pattern, function(match, inner) {
+      const children = uaSerializeSwellManagedGroupChildren_(inner);
+      if (!children) return match;
+      return [
+        '<!-- wp:group {"className":' + JSON.stringify(spec.className) + ',"layout":{"type":"constrained"}} -->',
+        '<div class="wp-block-group ' + spec.className + '">',
+        children,
+        '</div>',
+        '<!-- /wp:group -->'
+      ].join('\n');
+    });
+  });
+
+  return html;
+}
+
+function uaSerializeSwellManagedGroupChildren_(inner) {
+  const source = String(inner || '')
+    .replace(/^\s*<div\b[^>]*wp-block-group__inner-container[^>]*>/i, '')
+    .replace(/<\/div>\s*$/i, '')
+    .trim();
+  const tags = source.match(/<(p|ul|ol)\b[^>]*>[\s\S]*?<\/\1>/gi) || [];
+  if (!tags.length) return '';
+
+  return tags.map(function(tag) {
+    if (/^<p\b/i.test(tag)) {
+      return '<!-- wp:paragraph -->\n' + tag + '\n<!-- /wp:paragraph -->';
+    }
+    const listTag = /^<ol\b/i.test(tag) ? 'ol' : 'ul';
+    let normalized = tag;
+    if (!/\bclass=(["'])[^"']*\bwp-block-list\b/i.test(normalized)) {
+      normalized = normalized.replace(
+        new RegExp('^<' + listTag + '\\b', 'i'),
+        '<' + listTag + ' class="wp-block-list"'
+      );
+    }
+    const attributes = listTag === 'ol' ? ' {"ordered":true}' : '';
+    return '<!-- wp:list' + attributes + ' -->\n' + normalized + '\n<!-- /wp:list -->';
+  }).join('\n');
+}
+
 function uaBuildExternalSourcePostInsertBlock_(candidate) {
   const url = uaEscapeLinkHtml_(candidate.url);
   const name = uaEscapeLinkHtml_(candidate.name || '公式情報');

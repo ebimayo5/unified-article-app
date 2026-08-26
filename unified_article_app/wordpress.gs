@@ -64,7 +64,7 @@ function uaCreateDriveSwellMigrationTestDraft() {
     content: 'https://px.a8.net/svt/ejp?a8mat=44Z0VG+70FT9U+4YGQ+BW0YB&a8ejpredirect=https%3A%2F%2Fnaviokun.ocnk.net%2F'
   };
   const pointBox = [
-    '<!-- wp:group {"className":"is-style-big_icon_point article-compass-point-box"} -->',
+    '<!-- wp:group {"className":"is-style-big_icon_point article-compass-point-box","layout":{"type":"constrained"}} -->',
     '<div class="wp-block-group is-style-big_icon_point article-compass-point-box">',
     '<!-- wp:paragraph --><p><strong>この記事のポイント</strong></p><!-- /wp:paragraph -->',
     '<!-- wp:list --><ul class="wp-block-list"><li>SWELLネイティブの装飾を使用</li><li>CTA・内部リンク・商品リンクを保持</li><li>画像とメタ情報を同時に確認</li></ul><!-- /wp:list -->',
@@ -229,6 +229,94 @@ function uaPreviewRecentSwellInternalLinkCards() {
 
 function uaApplyRecentSwellInternalLinkCards() {
   const result = uaMigrateRecentSwellInternalLinkCards({ maxPosts: 10, dryRun: false });
+  console.log(JSON.stringify(result));
+  return result;
+}
+
+/**
+ * Repairs only Article Compass managed point/caution groups that Gutenberg
+ * marks invalid. The default is a read-only preview and every write is checked
+ * for URL and image preservation before and after the WordPress update.
+ */
+function uaMigrateRecentSwellManagedGroups(options) {
+  const opts = options || {};
+  const requestedKey = String(opts.appKey || '').trim().toLowerCase();
+  const appKeys = requestedKey ? [requestedKey] : ['drive', 'home'];
+  const maxPosts = Math.max(1, Math.min(50, Number(opts.maxPosts || 20)));
+  const dryRun = opts.dryRun !== false;
+  const result = { dryRun: dryRun, scanned: 0, changed: 0, updated: 0, details: [] };
+
+  appKeys.forEach(function(appKey) {
+    const appConfig = UA_APP_TYPES[appKey];
+    if (!appConfig || !uaUsesSwellBlocks_(appConfig) || appConfig.useWordPress === false) {
+      throw new Error('SWELL装飾修復: 対象サイトが不正です: ' + appKey);
+    }
+    const wpConfig = uaGetWpConfig_(appConfig);
+    const posts = uaCallWordPressApi_(
+      wpConfig,
+      '/wp-json/wp/v2/posts?status=publish&per_page=' + maxPosts + '&orderby=date&order=desc&context=edit',
+      'get'
+    ) || [];
+
+    posts.forEach(function(post) {
+      result.scanned++;
+      const postId = Number(post && post.id || 0);
+      const before = uaGetWpPostRawContent_(post);
+      const after = uaNormalizeSwellManagedCoreGroups_(before, appConfig);
+      if (!postId || after === before) return;
+
+      if (uaFindMissingPublishedWpImages_(before, after).length) {
+        throw new Error('SWELL装飾修復で画像が減るため停止しました: 投稿ID ' + postId);
+      }
+      const beforeUrls = uaExtractDriveSwellMigrationUrls_(before);
+      const afterUrls = uaExtractDriveSwellMigrationUrls_(after);
+      if (JSON.stringify(beforeUrls) !== JSON.stringify(afterUrls)) {
+        throw new Error('SWELL装飾修復でURLが変わるため停止しました: 投稿ID ' + postId);
+      }
+
+      result.changed++;
+      const detail = {
+        appType: appConfig.label,
+        postId: postId,
+        title: String(post && post.title && (post.title.raw || post.title.rendered) || ''),
+        managedGroups: (after.match(/article-compass-(?:point|notice)-box/g) || []).length,
+        updated: false
+      };
+
+      if (!dryRun) {
+        uaCallWordPressApi_(
+          wpConfig,
+          '/wp-json/wp/v2/posts/' + encodeURIComponent(postId),
+          'post',
+          { content: after, status: 'publish' }
+        );
+        const verified = uaFetchWpPostForEdit_(wpConfig, postId);
+        const verifiedBody = uaGetWpPostRawContent_(verified);
+        if (
+          String(verified && verified.status || '') !== 'publish' ||
+          uaNormalizeSwellManagedCoreGroups_(verifiedBody, appConfig) !== verifiedBody ||
+          JSON.stringify(uaExtractDriveSwellMigrationUrls_(verifiedBody)) !== JSON.stringify(afterUrls) ||
+          uaFindMissingPublishedWpImages_(before, verifiedBody).length
+        ) {
+          throw new Error('SWELL装飾修復後の再取得確認に失敗しました: 投稿ID ' + postId);
+        }
+        detail.updated = true;
+        result.updated++;
+      }
+      result.details.push(detail);
+    });
+  });
+  return result;
+}
+
+function uaPreviewRecentSwellManagedGroups() {
+  const result = uaMigrateRecentSwellManagedGroups({ maxPosts: 20, dryRun: true });
+  console.log(JSON.stringify(result));
+  return result;
+}
+
+function uaApplyRecentSwellManagedGroups() {
+  const result = uaMigrateRecentSwellManagedGroups({ maxPosts: 20, dryRun: false });
   console.log(JSON.stringify(result));
   return result;
 }
@@ -528,11 +616,11 @@ function uaCreateWpDraftFromPanel(data) {
 
   const wpConfig = uaGetWpConfig_(appConfig);
   const productPlan = uaExtractProductPlan_(rowData.body);
-  const storedBody = uaNormalizeSwellInternalLinkBlocks_(uaNormalizeUnsupportedTrialGuidance_(uaRemoveRedundantAffiliateDisclosure_(uaNormalizeAnchorRelAttributes_(uaApplyNaviokunIntroSet_(
+  const storedBody = uaNormalizeSwellManagedCoreGroups_(uaNormalizeSwellInternalLinkBlocks_(uaNormalizeUnsupportedTrialGuidance_(uaRemoveRedundantAffiliateDisclosure_(uaNormalizeAnchorRelAttributes_(uaApplyNaviokunIntroSet_(
     uaApplyManagedAffiliateCta_(uaRemoveRedundantAffiliateDisclosure_(rowData.body), rowData, appConfig),
     rowData,
     appConfig
-  ))), productPlan), appConfig, wpConfig.siteUrl);
+  ))), productPlan), appConfig, wpConfig.siteUrl), appConfig);
   const wpBody = uaStripProductPlanMarker_(storedBody);
   if (storedBody !== String(rowData.body || '')) {
     sheet.getRange(row, UA_COLUMNS.body).setValue(storedBody);
@@ -651,11 +739,11 @@ function uaUpdatePublishedWpFromPanel(data) {
   }
 
   const productPlan = uaExtractProductPlan_(rowData.body);
-  const storedBody = uaNormalizeSwellInternalLinkBlocks_(uaNormalizeUnsupportedTrialGuidance_(uaRemoveRedundantAffiliateDisclosure_(uaNormalizeAnchorRelAttributes_(uaApplyNaviokunIntroSet_(
+  const storedBody = uaNormalizeSwellManagedCoreGroups_(uaNormalizeSwellInternalLinkBlocks_(uaNormalizeUnsupportedTrialGuidance_(uaRemoveRedundantAffiliateDisclosure_(uaNormalizeAnchorRelAttributes_(uaApplyNaviokunIntroSet_(
     uaApplyManagedAffiliateCta_(uaRemoveRedundantAffiliateDisclosure_(rowData.body), rowData, appConfig),
     rowData,
     appConfig
-  ))), productPlan), appConfig, wpConfig.siteUrl);
+  ))), productPlan), appConfig, wpConfig.siteUrl), appConfig);
   const wpBody = uaStripProductPlanMarker_(storedBody);
   if (storedBody !== String(rowData.body || '')) {
     sheet.getRange(row, UA_COLUMNS.body).setValue(storedBody);

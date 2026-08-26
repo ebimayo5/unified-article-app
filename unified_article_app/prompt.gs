@@ -34,10 +34,10 @@ function uaBuildWpEditorThemePrompt_(appConfig) {
     '【最優先: WordPressテーマはSWELL】',
     'このサイトはSWELLを使用しています。上記の共通ルール中にCocoonブロックの例があっても、このSWELLルールを優先してください。',
     '新規本文に wp:cocoon-blocks、wp-block-cocoon-blocks、btn-wrap、tab-caption-box、blogcard-type を生成しないでください。',
-    '「この記事のポイント」はWordPressコアのグループ・段落・リストで作り、外側に className「is-style-big_icon_point article-compass-point-box」を付けてください。見出し文は「この記事のポイント」とします。',
+    '「この記事のポイント」はWordPressコアのグループ・段落・リストで作ります。外側は <!-- wp:group {"className":"is-style-big_icon_point article-compass-point-box","layout":{"type":"constrained"}} --> と <div class="wp-block-group is-style-big_icon_point article-compass-point-box"> を使い、内側の段落とリストにも必ず wp:paragraph / wp:list の開始・終了コメントを付けてください。wp-block-group__inner-container は入れません。見出し文は「この記事のポイント」とします。',
     'CTA位置には従来どおり [UA_AFFILIATE_CTA:案件名と具体的な確認行動] の置換記号だけを1回書いてください。実際のSWELL対応ボタンはシステム側で挿入します。',
     '内部リンクは「前置き文 + URL」を出力し、URLは独立段落にしてください。Cocoonブログカードは作らないでください。システム側のSWELL対応処理がカード表示に整えます。',
-    '注意書きはWordPressコアのグループに className「is-style-big_icon_caution article-compass-notice-box article-compass-notice-danger」を付けて作ってください。',
+    '注意書きもWordPressコアのグループに className「is-style-big_icon_caution article-compass-notice-box article-compass-notice-danger」と constrained レイアウトを付け、内側の段落には wp:paragraph コメントを付けてください。wp-block-group__inner-container は入れません。',
     '強調は<strong>、マーカーは本文ルールにあるインラインstyleを使ってよく、Cocoon固有クラスへ依存しないでください。',
     '表・リスト・画像はWordPressコアブロック形式を使ってください。独自テーマ固有ブロックを推測で作らないでください。'
   ].join('\n');

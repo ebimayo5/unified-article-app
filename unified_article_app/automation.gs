@@ -747,6 +747,20 @@ function uaPublishWpPostFromAutomation_(data, requireImages) {
   }
   sheet.getRange(row, UA_COLUMNS.status).setValue(UA_STATUS_POSTED);
   SpreadsheetApp.flush();
+
+  try {
+    uaUpsertInternalLinkCandidateForPost_(
+      appConfig,
+      String(post.link || ''),
+      uaDecodeHtmlEntities_(String(post.title && post.title.rendered || rowData.mainInput || '')),
+      rowData.metaDescription,
+      rowData.body,
+      rowData.tags
+    );
+  } catch (e) {
+    console.error('内部リンク候補の自動追加に失敗しました: ' + (e && e.message ? e.message : e));
+  }
+
   return uaBuildRowData_(sheet, row);
 }
 

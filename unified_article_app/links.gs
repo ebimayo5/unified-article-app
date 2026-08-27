@@ -333,7 +333,7 @@ function uaGetExistingInternalLinkMap_(sheet) {
 
   const values = sheet.getRange(2, 1, sheet.getLastRow() - 1, Math.min(sheet.getLastColumn(), 11)).getValues();
 
-  values.forEach(function(row) {
+  values.forEach(function(row, index) {
     const url = row[1];
     if (!url) return;
 
@@ -348,11 +348,50 @@ function uaGetExistingInternalLinkMap_(sheet) {
       fetchedAt: row[7],
       isManualKeep: row[8] === true || String(row[8]).toUpperCase() === 'TRUE',
       usage: row[9],
-      priority: row[10]
+      priority: row[10],
+      rowIndex: index + 2
     };
   });
 
   return map;
+}
+
+/**
+ * Adds or refreshes a single internal-link candidate row right after a post
+ * goes live, using data already on hand (no sitemap crawl / page fetch).
+ * Keeps existing 核記事・手動保持・使う場面・優先度 edits intact.
+ */
+function uaUpsertInternalLinkCandidateForPost_(appConfig, url, title, description, bodyHtml, keywords) {
+  if (!appConfig || !appConfig.useInternalLinks || !url || !title) return;
+
+  const introText = uaCleanText_(uaStripHtml_(String(bodyHtml || ''))).slice(0, 200);
+  const info = { title: uaCleanText_(title), description: uaCleanText_(description || ''), intro: introText, keywords: uaCleanText_(keywords || '') };
+  const inferred = uaInferInternalLinkMetadata_(appConfig, url, info);
+
+  uaSetupInternalLinkSheet();
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(UA_INTERNAL_LINK_SHEET_NAME);
+  const existingMap = uaGetExistingInternalLinkMap_(sheet);
+  const oldData = existingMap[url] || {};
+
+  const row = [
+    appConfig.label,
+    url,
+    info.title || oldData.title || '',
+    info.description || oldData.description || '',
+    info.intro || oldData.intro || '',
+    oldData.keywords || info.keywords || inferred.keywords || '',
+    oldData.isCore ? true : '',
+    new Date(),
+    oldData.isManualKeep ? true : '',
+    oldData.usage || inferred.usage || '',
+    oldData.priority || inferred.priority || ''
+  ];
+
+  if (oldData.rowIndex) {
+    sheet.getRange(oldData.rowIndex, 1, 1, 11).setValues([row]);
+  } else {
+    sheet.appendRow(row);
+  }
 }
 
 function uaGetInternalLinkCandidates_(mainInput, appConfig, rowData) {

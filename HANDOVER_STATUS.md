@@ -3,9 +3,25 @@
 ## 最終更新
 - 更新者: Claude Code
 - 日時: 2026-08-27
-- 切り替え理由: 「今からN記事開始」機能のレビュー・バグ修正・本番デプロイ・GitHub反映まで完了したための更新。
+- 切り替え理由: 「今からN記事開始」機能に続けて、DRIVE BASE最新記事で見つかった「CTAボタンがSWELL本来のボタンになっていない」問題も修正・本番デプロイ・GitHub反映まで完了したための更新。
 
-## 直前まで何をしていたか
+## 直前まで何をしていたか（その2: SWELLボタン統一）
+- ユーザーが「ドラベの最新記事のボタンがSWELLボタンじゃない」と報告。DRIVE BASEの最新記事（[認定中古車はやめとけ？](https://ebimayo5.com/archives/certified-used-car-yametoke/)）をブラウザで直接確認し、以下を発見:
+  - 自動投稿が作るメインCTAボタンは `<!-- wp:html --><div class="wp-block-button is-style-btn_solid">...` という**カスタムHTMLブロック**で、見た目はプラグイン（Article Compass Rinker Bridge）のCSS（`.article-compass-affiliate-cta .wp-block-button__link`、`var(--color_main)` で色付け）で整えていただけだった。
+  - 同じ記事の本文下部に、Codexが見本として置いたと思われる**中身が空のSWELL純正ボタン**（`swell-block-button green_ -size-l is-style-btn_shiny`）があり、これが本来あるべき形式だった。
+  - 色はDRIVE BASE=green（サイトテーマ色と一致）。たくみパパは対象記事にCTAボタンがなかったため実例なし、ユーザーに確認し **orange** に決定。
+- 対応内容（コミット `141ae0f`、本番 `@283` へデプロイ済み）:
+  - [config.gs](unified_article_app/config.gs) の `UA_APP_TYPES` に `swellButtonColor`（drive:'green', home:'orange'）を追加し、`uaGetSwellButtonColor_()` を新設。
+  - [article.gs](unified_article_app/article.gs) の `uaBuildManagedAffiliateCtaBlock_` を、`wp:loos/button` + `swell-block-button -html {色}_ -size-l is-style-btn_shiny` という、移行コード（wordpress.gs側）と同じ本物のSWELLボタン形式に変更。**今後の自動投稿・新規記事生成分はこの修正で正しい形式になる。**
+  - [links.gs](unified_article_app/links.gs) に変換用の純粋関数 `uaNormalizeSwellAffiliateCtaButtons_` を追加。
+  - [wordpress.gs](unified_article_app/wordpress.gs) に、既存公開記事をスキャンして直す `uaMigrateRecentSwellAffiliateCtaButtons`（+ `uaPreviewRecentSwellAffiliateCtaButtons` / `uaApplyRecentSwellAffiliateCtaButtons`）を追加。直近のポイント枠修復（`uaMigrateRecentSwellManagedGroups`）と全く同じパターン（デフォルトはドライラン、URL・画像が変わらないことを書き込み前後で必ず確認）。
+  - `uaTestSwellBlockDialect` / `uaCreateDriveSwellMigrationTestDraft` のアサーションも新形式に合わせて更新。ローカルで実行可能なテストは全てPASS確認済み（vmでのシミュレーション実行でも、DRIVE BASE=green・たくみパパ=orangeの出力、旧形式→新形式の変換とその冪等性を確認済み）。
+- **未完了・次にやること**: `clasp run` がこの環境ではまだ動かない（`Exception: ... NOT_FOUND` — `.clasp.json` にGCPプロジェクトIDの紐付けがない可能性）ため、**Claude Codeからは既存公開記事への実際の書き換えを実行できていない**。DRIVE BASEの最新記事はじめ、直近の公開記事に残っている旧形式ボタンは、Apps Scriptエディタから手動で実行する必要がある。
+  1. スプレッドシートを開く →「拡張機能」→「Apps Script」
+  2. 関数選択で `uaPreviewRecentSwellAffiliateCtaButtons` を選び実行（書き込みなしの確認。ログに対象記事一覧が出る）
+  3. 内容を確認し、問題なければ `uaApplyRecentSwellAffiliateCtaButtons` を実行（実際にWordPressへ反映。デフォルトは直近20記事、両サイトを対象。サイトを絞りたい場合は `uaMigrateRecentSwellAffiliateCtaButtons({appKey:'drive', maxPosts:5, dryRun:false})` のように直接呼び出す）
+
+## 直前まで何をしていたか（その1: 今からN記事開始）
 - セッション開始時点で、**Codexが実装した「今からN記事開始」機能**（保存済みの画像・WordPress到達点を使って1〜5記事を1回限りで即時開始するボタン。毎日の自動運転設定は変更しない）がリポジトリに未コミットのまま残っていた。
 - **重要な発見**: この機能はローカルでは未コミットだったが、**Codexはすでにclasp経由で本番Webアプリへデプロイ済み**だった（本番デプロイIDのバージョンが `@281 - Add one-time immediate article batch start` になっているのをClaude Codeが `clasp deployments` で発見。ユーザーが当初報告していた「本番は@280のまま」という情報は、この時点ですでに古くなっていた）。
 - Claude Codeがコードを精査し、Codexの実装に**2つの不具合**を発見・修正した:
@@ -24,7 +40,9 @@
 - 未コミットの変更: なし（`git status --short` はクリーンな想定。次のセッション開始時に必ず再確認すること）
 
 ## 自動投稿・本番デプロイの状態
-- **本番デプロイID** `AKfycbzGbxQA5AuXH3MlUZSlfTjDn1hrpH4MnNNG0NVKty0wUz1Bd-4oVXbMQUBloQvd-HCm` は、Claude Codeが `clasp deploy -i <上記ID>` で **`@282`**（説明: "Fix manual batch: run when automation OFF, separate daily quota"）へ更新済み。バグ修正版が本番で稼働中。
+- **本番デプロイID** `AKfycbzGbxQA5AuXH3MlUZSlfTjDn1hrpH4MnNNG0NVKty0wUz1Bd-4oVXbMQUBloQvd-HCm` は、このセッション内で2回デプロイを更新した:
+  - `@282`（説明: "Fix manual batch: run when automation OFF, separate daily quota"）
+  - **`@283`**（説明: "Use native SWELL button block for affiliate CTA"）← **現在の本番版**。SWELLボタン統一の修正が反映済み。
   - 直前の本番バージョンは `@281`（Codexが手動バッチ機能を初めてデプロイしたバージョン。上記の不具合2件を含む）だった。
   - clasp pushの実行元: `C:\Users\ebima\Documents\Codex\deploy_stale_guard`（`.clasp.json` のscriptIdは `1OIzsyQgzT9dDNeUvytDNIXgtOgTXrXJomlhhNFtNbFyhmkf7KZ0jBMa7` で一致確認済み）。GitHub本体の `unified_article_app/` とこのステージングフォルダは、Claude Codeがpush前にファイル単位で内容一致を確認済み（`automation.gs` 以外はCodexがすでに同期済みだった）。
 - **Claude Codeはこのセッションでライブの「アーコンパネル」へブラウザでアクセスを試みたが、Google認証がされておらず中身が表示できなかった**（`このアプリケーションは Google Apps Script のユーザーによって作成されたものです` の案内画面のみ表示）。そのため「処理中の記事を表示」による実際の進行状況の直接確認は**今回もできていない**。

@@ -1387,9 +1387,9 @@ function uaNormalizeSwellAffiliateCtaButtons_(body, appConfig) {
   if (!html || !uaUsesSwellBlocks_(appConfig)) return html;
 
   const buttonColor = uaGetSwellButtonColor_(appConfig);
-  const pattern = /<!--\s*wp:html\s*-->\s*<div class="wp-block-button is-style-btn_solid">([\s\S]*?)<\/div>\s*<!--\s*\/wp:html\s*-->/gi;
+  const pattern = /<!--\s*wp:html\s*-->\s*<div class=(["'])wp-block-button is-style-btn_solid\1>([\s\S]*?)<\/div>\s*<!--\s*\/wp:html\s*-->/gi;
 
-  return html.replace(pattern, function(match, inner) {
+  return html.replace(pattern, function(match, quote, inner) {
     return [
       '<!-- wp:loos/button {"isCount":true,"color":"' + buttonColor + '","btnSize":"l","className":"is-style-btn_shiny"} -->',
       '<div class="swell-block-button -html ' + buttonColor + '_ -size-l is-style-btn_shiny" data-id="article-compass-cta">' + inner + '</div>',

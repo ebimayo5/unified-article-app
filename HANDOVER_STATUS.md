@@ -22,7 +22,8 @@
 - 修正1（データ消失防止・`@286`）: `uaUpdateInternalLinksFromSitemaps`（[links.gs](unified_article_app/links.gs)）が**毎回シートを全クリアしてから、再取得できた行と「手動保持」行だけを書き戻す**設計だったため、取得がほとんど失敗すると手動保持以外の全候補が消える構造的欠陥があった。**シートを一括クリアする処理を完全に削除**し、成功したURLだけを1行ずつ upsert する方式（共有関数 `uaUpsertInternalLinkCandidateRow_`）に変更。
 - 修正2（根本原因・`@287`）: 復旧後にユーザーが再実行しても**両サイトとも「URL取得0件」**（エラーは出ない）。原因は、`uaFetchSitemapUrls_`/`uaFetchPageInfo_`が使っていた**認証なしのsitemap.xml取得・記事ページの直接HTML取得**が、両サイトに入っているセキュリティプラグイン（DRIVE BASE: SiteGuard、たくみパパ: SiteGuard＋Wordfence）にブロックされ、エラーは出ないまま0件を返していたためと判明。**サイトマップ経由をやめ、自動投稿でも使っている認証済みWordPress REST API（`uaCallWordPressApi_`/`uaGetWpConfig_`、`/wp-json/wp/v2/posts?status=publish`）から直接記事一覧を取得する方式に全面書き換え**（新関数 `uaFetchPublishedWpPostsForInternalLinks_`）。
 - 新規テスト`test_internal_link_sitemap_refresh_safety.js`で、(a) 取得失敗時に既存データが消えないこと、(b) 0件取得時も既存データが消えないこと、(c) 正常時は既存URLの上書き更新（手動編集列は保持）と新規URLの追加が両方正しく動くこと、を確認済み。
-- 本番デプロイ済み: **`@287`**（"Fetch internal-link candidates via WordPress REST API instead of sitemap.xml"）。**次のエージェントは、ユーザーが「内部リンク候補をサイトマップ更新」をもう一度実行して42件から増えるか（DRIVE BASE 89件・たくみパパも相応数に近づくか）を確認すること。**
+- 本番デプロイ済み: **`@287`**（"Fetch internal-link candidates via WordPress REST API instead of sitemap.xml"）。
+- **✅ ユーザーが再実行して動作確認済み: 42件→140件（DRIVE BASE＋たくみパパ合計として妥当な件数）に復旧・増加。この事故は完全に解決済み。次のエージェントが追加対応する必要はない。**
 - 教訓1: 「シート全体を消してから再構築する」系のバッチ処理は、部分的な取得失敗が起きただけで大量のデータ消失につながる。同種の一括更新処理（既存記事移行系など）を今後触るときは、同じパターン（全クリア→成功分だけ書き戻し）になっていないか要注意。
 - 教訓2: 外部サイトへの認証なしHTTPアクセス（sitemap.xml、記事ページの直接取得など）は、SiteGuard/Wordfenceのようなセキュリティプラグインに**エラーも出さず黙って弾かれる**ことがある。同様の仕組みを新設する場合は、可能な限り既に動作実績のある認証済みWordPress REST API経由にする。
 

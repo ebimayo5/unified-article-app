@@ -859,25 +859,15 @@ function uaBuildManagedAffiliateCtaBlock_(spec, ctaText, appConfig) {
       ].join('\n');
     }
 
-    const swellTagContent = tagContent.replace(/<a\b([^>]*)>/i, function(match, attrs) {
-      const classMatch = /\sclass=(['"])(.*?)\1/i.exec(attrs);
-      if (classMatch) {
-        const classes = String(classMatch[2] || '').split(/\s+/).filter(Boolean);
-        ['wp-block-button__link', 'wp-element-button'].forEach(function(className) {
-          if (classes.indexOf(className) === -1) classes.push(className);
-        });
-        return '<a' + attrs.replace(classMatch[0], ' class="' + classes.join(' ') + '"') + '>';
-      }
-      return '<a' + attrs + ' class="wp-block-button__link wp-element-button">';
-    });
+    const buttonColor = uaGetSwellButtonColor_(appConfig);
 
     return [
       '<!-- UA_MAIN_AFFILIATE_CTA_START -->',
       '<!-- wp:group {"className":"article-compass-affiliate-cta"} -->',
       '<div class="wp-block-group article-compass-affiliate-cta">',
-      '<!-- wp:html -->',
-      '<div class="wp-block-button is-style-btn_solid">' + swellTagContent + '</div>',
-      '<!-- /wp:html -->',
+      '<!-- wp:loos/button {"isCount":true,"color":"' + buttonColor + '","btnSize":"l","className":"is-style-btn_shiny"} -->',
+      '<div class="swell-block-button -html ' + buttonColor + '_ -size-l is-style-btn_shiny" data-id="article-compass-cta">' + tagContent + '</div>',
+      '<!-- /wp:loos/button -->',
       '</div>',
       '<!-- /wp:group -->',
       '<!-- UA_MAIN_AFFILIATE_CTA_END -->'
@@ -964,10 +954,12 @@ function uaTestSwellBlockDialect() {
     ['home uses SWELL', uaUsesSwellBlocks_(homeConfig)],
     ['drive uses SWELL', uaUsesSwellBlocks_(driveConfig)],
     ['SWELL CTA marker', swellCta.indexOf('UA_MAIN_AFFILIATE_CTA_START') !== -1],
-    ['SWELL CTA core class', swellCta.indexOf('wp-block-button__link') !== -1],
+    ['SWELL CTA native button block', swellCta.indexOf('wp:loos/button') !== -1 && swellCta.indexOf('swell-block-button') !== -1],
+    ['SWELL CTA home color', swellCta.indexOf('orange_') !== -1],
     ['SWELL CTA no Cocoon', swellCta.indexOf('cocoon-blocks') === -1],
     ['SWELL CTA URL preserved', swellCta.indexOf(spec.url) !== -1],
-    ['DRIVE SWELL CTA core class', driveSwellCta.indexOf('wp-block-button__link') !== -1],
+    ['DRIVE SWELL CTA native button block', driveSwellCta.indexOf('wp:loos/button') !== -1 && driveSwellCta.indexOf('swell-block-button') !== -1],
+    ['DRIVE SWELL CTA drive color', driveSwellCta.indexOf('green_') !== -1],
     ['DRIVE SWELL CTA no Cocoon', driveSwellCta.indexOf('cocoon-blocks') === -1],
     ['DRIVE SWELL CTA URL preserved', driveSwellCta.indexOf(spec.url) !== -1],
     ['SWELL notice', swellNotice.indexOf('article-compass-notice-danger') !== -1 && swellNotice.indexOf('cocoon-blocks') === -1],

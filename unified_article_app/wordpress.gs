@@ -113,7 +113,7 @@ function uaCreateDriveSwellMigrationTestDraft() {
   const checks = [
     ['draft status', String(verified && verified.status || '') === 'draft'],
     ['point box', verifiedBody.indexOf('article-compass-point-box') !== -1],
-    ['SWELL CTA', verifiedBody.indexOf('wp-block-button__link') !== -1 && verifiedBody.indexOf('cocoon-blocks') === -1],
+    ['SWELL CTA', verifiedBody.indexOf('wp:loos/button') !== -1 && verifiedBody.indexOf('swell-block-button') !== -1 && verifiedBody.indexOf('cocoon-blocks') === -1],
     ['internal link', verifiedBody.indexOf('wp:loos/post-link') !== -1],
     ['Rinker', verifiedBody.indexOf('[itemlink post_id="899"]') !== -1],
     ['image', verifiedBody.indexOf(imageUrl) !== -1]
@@ -317,6 +317,97 @@ function uaPreviewRecentSwellManagedGroups() {
 
 function uaApplyRecentSwellManagedGroups() {
   const result = uaMigrateRecentSwellManagedGroups({ maxPosts: 20, dryRun: false });
+  console.log(JSON.stringify(result));
+  return result;
+}
+
+/**
+ * Replaces the old "wp:html + wp-block-button is-style-btn_solid" main
+ * affiliate CTA (a fake SWELL button) with the real native SWELL button
+ * block (wp:loos/button), matching what uaBuildManagedAffiliateCtaBlock_
+ * now generates for new articles. Read-only preview by default; every
+ * write is checked for URL and image preservation before and after.
+ */
+function uaMigrateRecentSwellAffiliateCtaButtons(options) {
+  const opts = options || {};
+  const requestedKey = String(opts.appKey || '').trim().toLowerCase();
+  const appKeys = requestedKey ? [requestedKey] : ['drive', 'home'];
+  const maxPosts = Math.max(1, Math.min(50, Number(opts.maxPosts || 20)));
+  const dryRun = opts.dryRun !== false;
+  const result = { dryRun: dryRun, scanned: 0, changed: 0, updated: 0, details: [] };
+
+  appKeys.forEach(function(appKey) {
+    const appConfig = UA_APP_TYPES[appKey];
+    if (!appConfig || !uaUsesSwellBlocks_(appConfig) || appConfig.useWordPress === false) {
+      throw new Error('SWELL CTAボタン修復: 対象サイトが不正です: ' + appKey);
+    }
+    const wpConfig = uaGetWpConfig_(appConfig);
+    const posts = uaCallWordPressApi_(
+      wpConfig,
+      '/wp-json/wp/v2/posts?status=publish&per_page=' + maxPosts + '&orderby=date&order=desc&context=edit',
+      'get'
+    ) || [];
+
+    posts.forEach(function(post) {
+      result.scanned++;
+      const postId = Number(post && post.id || 0);
+      const before = uaGetWpPostRawContent_(post);
+      const after = uaNormalizeSwellAffiliateCtaButtons_(before, appConfig);
+      if (!postId || after === before) return;
+
+      if (uaFindMissingPublishedWpImages_(before, after).length) {
+        throw new Error('SWELL CTAボタン修復で画像が減るため停止しました: 投稿ID ' + postId);
+      }
+      const beforeUrls = uaExtractDriveSwellMigrationUrls_(before);
+      const afterUrls = uaExtractDriveSwellMigrationUrls_(after);
+      if (JSON.stringify(beforeUrls) !== JSON.stringify(afterUrls)) {
+        throw new Error('SWELL CTAボタン修復でURLが変わるため停止しました: 投稿ID ' + postId);
+      }
+
+      result.changed++;
+      const detail = {
+        appType: appConfig.label,
+        postId: postId,
+        title: String(post && post.title && (post.title.raw || post.title.rendered) || ''),
+        buttonsBefore: (before.match(/wp-block-button is-style-btn_solid/g) || []).length,
+        buttonsAfter: (after.match(/<!--\s*wp:loos\/button\b/gi) || []).length,
+        updated: false
+      };
+
+      if (!dryRun) {
+        uaCallWordPressApi_(
+          wpConfig,
+          '/wp-json/wp/v2/posts/' + encodeURIComponent(postId),
+          'post',
+          { content: after, status: 'publish' }
+        );
+        const verified = uaFetchWpPostForEdit_(wpConfig, postId);
+        const verifiedBody = uaGetWpPostRawContent_(verified);
+        if (
+          String(verified && verified.status || '') !== 'publish' ||
+          uaNormalizeSwellAffiliateCtaButtons_(verifiedBody, appConfig) !== verifiedBody ||
+          JSON.stringify(uaExtractDriveSwellMigrationUrls_(verifiedBody)) !== JSON.stringify(afterUrls) ||
+          uaFindMissingPublishedWpImages_(before, verifiedBody).length
+        ) {
+          throw new Error('SWELL CTAボタン修復後の再取得確認に失敗しました: 投稿ID ' + postId);
+        }
+        detail.updated = true;
+        result.updated++;
+      }
+      result.details.push(detail);
+    });
+  });
+  return result;
+}
+
+function uaPreviewRecentSwellAffiliateCtaButtons() {
+  const result = uaMigrateRecentSwellAffiliateCtaButtons({ maxPosts: 20, dryRun: true });
+  console.log(JSON.stringify(result));
+  return result;
+}
+
+function uaApplyRecentSwellAffiliateCtaButtons() {
+  const result = uaMigrateRecentSwellAffiliateCtaButtons({ maxPosts: 20, dryRun: false });
   console.log(JSON.stringify(result));
   return result;
 }

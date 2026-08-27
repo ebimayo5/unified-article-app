@@ -1382,6 +1382,22 @@ function uaNormalizeSwellManagedCoreGroups_(body, appConfig) {
   return html;
 }
 
+function uaNormalizeSwellAffiliateCtaButtons_(body, appConfig) {
+  let html = String(body || '');
+  if (!html || !uaUsesSwellBlocks_(appConfig)) return html;
+
+  const buttonColor = uaGetSwellButtonColor_(appConfig);
+  const pattern = /<!--\s*wp:html\s*-->\s*<div class="wp-block-button is-style-btn_solid">([\s\S]*?)<\/div>\s*<!--\s*\/wp:html\s*-->/gi;
+
+  return html.replace(pattern, function(match, inner) {
+    return [
+      '<!-- wp:loos/button {"isCount":true,"color":"' + buttonColor + '","btnSize":"l","className":"is-style-btn_shiny"} -->',
+      '<div class="swell-block-button -html ' + buttonColor + '_ -size-l is-style-btn_shiny" data-id="article-compass-cta">' + inner + '</div>',
+      '<!-- /wp:loos/button -->'
+    ].join('\n');
+  });
+}
+
 function uaSerializeSwellManagedGroupChildren_(inner) {
   const source = String(inner || '')
     .replace(/^\s*<div\b[^>]*wp-block-group__inner-container[^>]*>/i, '')

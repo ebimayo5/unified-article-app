@@ -86,6 +86,7 @@ const UA_APP_TYPES = {
     articleSheetName: 'DRIVE BASE',
     candidateSheetName: 'DRIVE BASE_キーワード候補',
     theme: 'green',
+    swellButtonColor: 'green',
     inputLabel: 'メインキーワード',
     useVolume: true,
     useInternalLinks: true,
@@ -100,6 +101,7 @@ const UA_APP_TYPES = {
     articleSheetName: 'たくみパパ',
     candidateSheetName: 'たくみパパ_キーワード候補',
     theme: 'brown',
+    swellButtonColor: 'orange',
     inputLabel: 'メインキーワード',
     useVolume: true,
     useInternalLinks: true,
@@ -131,6 +133,11 @@ function uaGetWpEditorTheme_(appConfig) {
 
 function uaUsesSwellBlocks_(appConfig) {
   return uaGetWpEditorTheme_(appConfig) === 'swell';
+}
+
+function uaGetSwellButtonColor_(appConfig) {
+  const color = String(appConfig && appConfig.swellButtonColor || '').trim().toLowerCase();
+  return color || 'blue';
 }
 
 const UA_COLUMNS = {

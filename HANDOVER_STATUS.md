@@ -12,7 +12,22 @@
 - 最終更新: 2026-08-27（Claude Code、このセクションを新設）
 
 ## 最終更新
-- 更新者: Claude Code
+- 更新者: Claude Code（このセクションを直近で更新）
+- 日時: 2026-08-27
+- 切り替え理由: SWELLボタン統一の続き。既存公開記事へ実際に反映し、ブラウザ経由の直接編集で完了させた。
+
+## 直前まで何をしていたか（その3: 既存記事への反映を実行）
+- ユーザーの指示で、ユーザー自身のChrome（Claude in Chrome連携）を使い、WordPressへ実際にログインした状態でCTAボタンの修正を直接反映した。`clasp run`が使えない制約を、認証済みブラウザから`wp.apiFetch`（WordPress公式のREST APIクライアント、Gutenbergエディタ自身が使っているもの）を使うことで回避した。
+- 実施内容（すべてURL・ボタン文言・画像・公開状態を変更前後で確認しながら実施）:
+  1. DRIVE BASE 投稿ID 2190（認定中古車はやめとけ？）のメインCTAボタンを新形式へ修正。
+  2. その過程で、**実際に保存されているHTMLは属性のクォートが `"` から `'` に書き換えられている**ことが判明（WordPress保存時の正規化と思われる）。[links.gs](unified_article_app/links.gs)の`uaNormalizeSwellAffiliateCtaButtons_`の正規表現がダブルクォート決め打ちで、このままでは既存記事に一切マッチしない不具合だったため修正し、コミット・本番デプロイ（`@284`）済み。
+  3. DRIVE BASEの直近20記事をスキャンし、同じ旧形式ボタンが残っていた7記事（投稿ID 2180, 2170, 2151, 2141, 2131, 2121, 2103）も同じ方法で修正・確認済み。
+  4. たくみパパ（kurashi-ie.com）の直近20記事もスキャンしたが、対象0件（このサイトはRinker中心でこの形式のボタンをほぼ使っていないため）。
+  5. 投稿ID 2190の本文中に残っていた、Codexが見本として置いたと思われる**中身が空のSWELLボタン**（リンク先・文字なし、公開ページ上で空白のボタンとして表示されていた）をユーザー確認のうえ削除。CTAボタン・URL・画像には影響なし。
+- **本番デプロイの最新版は `@284`**（"Fix quote-style handling in SWELL CTA button migration regex"）。Apps Script側の`uaMigrateRecentSwellAffiliateCtaButtons`／`uaPreviewRecentSwellAffiliateCtaButtons`／`uaApplyRecentSwellAffiliateCtaButtons`（wordpress.gs）は今回使わなかったが、クォート修正が反映済みなので、次に使うときは正しく動くはず。
+- 次に確認するとよいこと: DRIVE BASEの21件目以降の古い記事（直近20件より前）にも同じ旧形式ボタンが残っている可能性がある。必要なら`uaPreviewRecentSwellAffiliateCtaButtons({maxPosts: 50, dryRun:true})`のように`maxPosts`を増やして確認する。
+
+
 - 日時: 2026-08-27
 - 切り替え理由: 「今からN記事開始」機能に続けて、DRIVE BASE最新記事で見つかった「CTAボタンがSWELL本来のボタンになっていない」問題も修正・本番デプロイ・GitHub反映まで完了したための更新。
 

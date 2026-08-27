@@ -3,51 +3,49 @@
 ## 最終更新
 - 更新者: Claude Code
 - 日時: 2026-08-27
-- 切り替え理由: Claude Code側での初回セットアップ（CLAUDE.md / HANDOVER_STATUS.md の新規作成）。ユーザーから「Article Compass System 詳細引き継ぎデータ（2026-08-27作成）」を受領し、本ファイルへ反映。
+- 切り替え理由: 「今からN記事開始」機能のレビュー・バグ修正・本番デプロイ・GitHub反映まで完了したための更新。
 
 ## 直前まで何をしていたか
-- 本セッション開始時点で、**Codexによる未コミットの作業**がリポジトリに残っていた（誰がいつ着手したかはコミット履歴からは不明。直近コミットは `0f04fb6 Fix invalid SWELL managed group blocks`）。
-- 内容: 自動投稿設定に「今からN記事開始」機能（保存済みの画像・WordPress到達点を使って1〜5記事を1回限りで即時開始するボタン）を追加する実装。
-  - 対象ファイル: `unified_article_app/automation.gs`, `unified_article_app/app_panel.html`, `unified_article_app/ua_web_app.html`, `unified_article_app/CURRENT_SPEC.md`
-  - 未追跡の新規テストファイル `test_manual_automation_batch.js`（ルート直下）あり。Claude Codeが `node test_manual_automation_batch.js` を実行し、**PASS** を確認済み（構文チェック・必須文言の存在チェックのみ。実際のApps Script環境での動作確認は未実施）。
-  - 目的: 毎日の自動運転設定（時刻・記事数・ON/OFF）は変更せず、手動で「今すぐN記事だけ処理を始めたい」場合に対応する機能。同時実行は1記事のみ、進行中/エラー停止中のジョブがあれば新規開始しない設計になっている。
-- **この変更はまだ `git commit` されておらず、`clasp push` もされていない**（ローカルに `.clasp.json` が存在せず、このリポジトリからは直接pushできない状態。別途 `C:\Users\ebima\Documents\Codex\deploy_stale_guard` がclasp本番反映用ステージングとのこと＝ユーザー提供情報）。
-- Claude Codeはこのセッションで、上記の内容確認（diff読み取り・テスト実行）のみ行い、**コード変更・コミット・push・自動投稿の操作は一切行っていない**。
+- セッション開始時点で、**Codexが実装した「今からN記事開始」機能**（保存済みの画像・WordPress到達点を使って1〜5記事を1回限りで即時開始するボタン。毎日の自動運転設定は変更しない）がリポジトリに未コミットのまま残っていた。
+- **重要な発見**: この機能はローカルでは未コミットだったが、**Codexはすでにclasp経由で本番Webアプリへデプロイ済み**だった（本番デプロイIDのバージョンが `@281 - Add one-time immediate article batch start` になっているのをClaude Codeが `clasp deployments` で発見。ユーザーが当初報告していた「本番は@280のまま」という情報は、この時点ですでに古くなっていた）。
+- Claude Codeがコードを精査し、Codexの実装に**2つの不具合**を発見・修正した:
+  1. 対象サイトの「自動運転」がOFFのとき、「今からN記事開始」で開始したジョブが1歩も進まず無言で止まる不具合（`uaRunAutomaticPostingWorker` の `if (!settings.enabled) return;` が手動バッチの例外を考慮していなかった）。→ `job.manualBatch !== true` の条件を追加して修正。
+  2. 手動実行した記事数が、その日の自動運転「1日の記事数」上限のカウンタと共有されており、手動実行が自動運転の当日残り枠を消費してしまう（逆もあり得る）不具合。→ ユーザーに確認したところ「別枠にしてほしい」との回答だったため、手動バッチはカウンタを共有しないよう分離。
+- 修正後、リポジトリ内ファイルを直接読むローカルテスト（`test_manual_automation_batch.js`、`test_trefai_flow_guard.js` ほか計10本）をすべて実行し、PASSを確認済み。
+  - `test_active_automation_panel.js` はリポジトリ外の古いスナップショットファイル（`C:/Users/ebima/Documents/Codex/...`）を参照する作りで実行不可（今回の変更とは無関係、対応不要）。
+  - `test_complementary_affiliate.js` は今回の変更と無関係な既存の失敗（`article.gs` を単体で読み込むテストが、別ファイル `wordpress.gs` にある `uaUsesSwellBlocks_` の未定義エラーで落ちる。テスト側の依存不足で、今回の変更前から存在していたはず）。
 
 ## Gitの状態
 - ブランチ: `main`
-- 直近コミット: `0f04fb6 Fix invalid SWELL managed group blocks`（直前 `407cce4`, `02463cf`, `bfa5a77`, `fefbbc5`）
-- 未コミットの変更（4ファイル、Codexによるものと推測）:
-  - `unified_article_app/CURRENT_SPEC.md`（「今からN記事開始」の仕様追記）
-  - `unified_article_app/app_panel.html`（同ボタンUI追加）
-  - `unified_article_app/automation.gs`（同機能のサーバー側ロジック追加）
-  - `unified_article_app/ua_web_app.html`（同ボタンUI追加、app_panel.htmlと同内容）
-- 未追跡ファイル: `test_manual_automation_batch.js`（上記機能のテスト。実行してPASS確認済み）
-- ステージ済みの変更: なし（すべてワーキングツリー上の変更）
+- 直近コミット（すべてPush済み・GitHub反映済み）:
+  - `cf98c3a Add one-time manual "start N articles now" automation trigger`（今回の機能＋バグ修正2件、対象: `unified_article_app/automation.gs`, `app_panel.html`, `ua_web_app.html`, `CURRENT_SPEC.md`, 新規 `test_manual_automation_batch.js`）
+  - `74e3f39 Add Codex/Claude Code handover rules and status file`（`CLAUDE.md` / `HANDOVER_STATUS.md` 新規作成）
+  - その前: `0f04fb6 Fix invalid SWELL managed group blocks`
+- 未コミットの変更: なし（`git status --short` はクリーンな想定。次のセッション開始時に必ず再確認すること）
 
 ## 自動投稿・本番デプロイの状態
-- **Claude Codeはこのセッションで、Google Apps Scriptの本番Webアプリ（アーコンパネル）へブラウザでアクセスを試みたが、Google認証がされておらず中身が表示できなかった。そのため「処理中の記事を表示」のライブ確認は未実施。**
-- 以下はユーザー提供の「2026-08-27実画面確認」情報（本セッション内でユーザーから直接受領、実画面ベース）:
-  - 本番デプロイ: `@280`（内容: Gutenbergで無効になるSWELLポイント枠・注意枠の修正。上記の未コミット「今からN記事開始」機能は**含まれていない**）
+- **本番デプロイID** `AKfycbzGbxQA5AuXH3MlUZSlfTjDn1hrpH4MnNNG0NVKty0wUz1Bd-4oVXbMQUBloQvd-HCm` は、Claude Codeが `clasp deploy -i <上記ID>` で **`@282`**（説明: "Fix manual batch: run when automation OFF, separate daily quota"）へ更新済み。バグ修正版が本番で稼働中。
+  - 直前の本番バージョンは `@281`（Codexが手動バッチ機能を初めてデプロイしたバージョン。上記の不具合2件を含む）だった。
+  - clasp pushの実行元: `C:\Users\ebima\Documents\Codex\deploy_stale_guard`（`.clasp.json` のscriptIdは `1OIzsyQgzT9dDNeUvytDNIXgtOgTXrXJomlhhNFtNbFyhmkf7KZ0jBMa7` で一致確認済み）。GitHub本体の `unified_article_app/` とこのステージングフォルダは、Claude Codeがpush前にファイル単位で内容一致を確認済み（`automation.gs` 以外はCodexがすでに同期済みだった）。
+- **Claude Codeはこのセッションでライブの「アーコンパネル」へブラウザでアクセスを試みたが、Google認証がされておらず中身が表示できなかった**（`このアプリケーションは Google Apps Script のユーザーによって作成されたものです` の案内画面のみ表示）。そのため「処理中の記事を表示」による実際の進行状況の直接確認は**今回もできていない**。
+- ユーザーから受領した「2026-08-27実画面確認」情報（本セッション冒頭、上記の本番@281デプロイ発覚より前の時点）:
   - DRIVE BASE: 自動運転ON／毎日4時ごろ開始／1日最大3記事／画像あり／WordPress到達点=投稿まで（公開）／エラー通知OFF／最終表示「完了（WordPress公開）：新型ハスラー 買って後悔」
   - たくみパパ: 自動運転ON／毎日5時ごろ開始／1日最大3記事／画像あり／WordPress到達点=投稿まで（公開）／エラー通知ON／最終表示「完了（WordPress公開）：スタバ 氷少なめ」
   - Codex定時監視（automation, 名前「アーコン定時監視」）: ACTIVE、日本時間 5:00(DRIVE BASE)・6:00(たくみパパ)・16:00(両サイト)
-- **2026-08-23に55.47ドルのAPI消費事故が発生済み**（自動投稿ワーカーが停止・待機中の記事を1〜2分おきに相互再予約し、24時間で200件超・OpenAI 829リクエスト・入力約1,796万トークンを消費）。再発防止策（トリガー重複削除、response ID再利用、待機確認5分間隔、20分上限での異常停止など）は実装済みとのこと。**画面の「処理中」表示だけで正常と判断しないこと。**
+  - 両サイトとも自動運転ONだったため、修正1の「OFF時に無言で止まる」不具合は**発生していなかった可能性が高い**（自動運転OFFのサイトで手動バッチが実行された場合のみ顕在化する）。修正2（日次カウンタ共有）は、@281デプロイ後に誰かが実際に「今からN記事開始」を使っていれば影響した可能性があるが、使用履歴は未確認。
+- **2026-08-23に55.47ドルのAPI消費事故が発生済み**（自動投稿ワーカーが停止・待機中の記事を1〜2分おきに相互再予約し、24時間で200件超・OpenAI 829リクエスト・入力約1,796万トークンを消費）。**画面の「処理中」表示だけで正常と判断しないこと。**
 
 ## 次に引き継ぐ側が最初に確認すべきこと
-1. アーコンパネル（本番Webアプリ）を開き、「処理中の記事を表示」で実際の進行状況を確認する。
+1. アーコンパネル（本番Webアプリ、URL下記）を開き、「処理中の記事を表示」で実際の進行状況を確認する。進行中ジョブがあれば `stepStartedAt` からの経過時間が20分以上でないか確認し、超えていれば再開せず先に停止・OpenAI側のresponseキャンセル状況を確認する。
    - URL: `https://script.google.com/macros/s/AKfycbzGbxQA5AuXH3MlUZSlfTjDn1hrpH4MnNNG0NVKty0wUz1Bd-4oVXbMQUBloQvd-HCm/exec`
-   - 進行中ジョブがある場合、`stepStartedAt` からの経過時間が20分以上なら再開せず、先に停止・OpenAI側のresponseキャンセル状況を確認する。
-2. 未コミットの「今からN記事開始」機能をどう扱うか判断する。
-   - レビュー→問題なければ `git commit` → 該当テスト実行 → clasp push（本番デプロイ@280へ新バージョン）→ 本番Webアプリで表示確認、の順で進めるのが基本フロー（`CURRENT_SPEC.md` §23「テスト」の変更時最低確認手順に準拠）。
-   - この機能はOpenAI生成回数を増やす可能性がある変更（手動で最大5記事を即時開始できる）ため、ユーザーの承認なしに有効化・pushしない。
-3. `git status --short` / `git log -5` を実行し、本ファイルの記述と食い違いがないか確認する。
-4. 本番デプロイが `@280` のままか、進んでいるかを実画面で確認する。
+2. 本番デプロイが `@282` のままか（それ以降に誰かが別バージョンをデプロイしていないか）を `clasp deployments`（`C:\Users\ebima\Documents\Codex\deploy_stale_guard` から実行）で確認する。
+3. 「今からN記事開始」を実際にパネルから1回試し、①自動運転ONのサイトで正しく1〜N記事を順番に処理する、②その日の自動運転の残り枠が減っていない、の2点を実地確認できると理想的（今回はコードレビューと自動テストのみで、実際のパネル操作による動作確認はできていない）。
+4. `git status --short` / `git log -5` を実行し、本ファイルの記述と食い違いがないか確認する。
 
 ## 次のエージェントへのメモ（自由記述）
-- 本リポジトリには `.clasp.json` が見当たらない（`.gitignore` には `.clasprc.json` の除外のみ記載）。clasp pushの実行元はユーザー環境の別フォルダ（下記詳細データ参照）の可能性が高いので、pushする前にユーザーに実行元を確認すること。
-- Claude Codeはこのセッションで、ライブのアーコンパネルにブラウザからアクセス（Google認証なし）を試みたが中身を確認できなかった。今後の引き継ぎでも同様の制約がある可能性が高い。正確な自動投稿状況の確認は、ユーザー本人の実画面報告、または認証済みの手段（ユーザーに確認してもらう）に頼ること。
-- 以下は、ユーザーが本セッション中に提供した詳細引き継ぎデータ全文（2026-08-27作成）。`CURRENT_SPEC.md` より新しい情報を含むため、矛盾がある場合はこちらと実コード・実パネルを優先する。
+- 今回の教訓: **ユーザー報告の「実画面確認」情報や `HANDOVER_STATUS.md` の記載であっても、本番デプロイの実バージョンは `clasp deployments` で必ず自分で確認すること。** 今回、ユーザーの直近報告では本番は`@280`とされていたが、実際には調査時点ですでにCodexが`@281`をデプロイ済みだった（ユーザーが確認した後、Codexが利用制限に達する直前に反映した可能性が高い）。この食い違いに気づけたのはコードをレビューしにいったからで、もしそのまま「まだ本番に入っていない」と信じてスキップしていたら、本番の不具合を見逃していた。
+- Claude Codeはこのセッションで、ライブのアーコンパネルにブラウザからアクセス（Google認証なし）を試みたが中身を確認できなかった。今後の引き継ぎでも同様の制約がある可能性が高い。正確な自動投稿状況の確認は、ユーザー本人の実画面報告、`clasp deployments`/`clasp versions`、またはスプレッドシートの「自動投稿設定」シートの直接確認に頼ること。
+- 以下は、ユーザーが本セッション中に提供した詳細引き継ぎデータ全文（2026-08-27作成、本番@281発覚より前に受領）。`CURRENT_SPEC.md` より新しい情報を含むため、矛盾がある場合はこちらと実コード・実パネルを優先する。ただし本番バージョン番号（@280との記載）は上記の通りすでに更新されている点に注意。
 
 ---
 

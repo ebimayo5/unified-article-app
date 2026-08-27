@@ -94,19 +94,20 @@ function uaSetupInternalLinkSheet() {
   sheet.autoResizeColumns(1, 11);
 }
 
+/**
+ * Refreshes internal-link candidates from each site's sitemap.
+ * Safety rule: this NEVER clears/replaces the sheet in bulk. Each URL that
+ * is successfully re-fetched is upserted in place (existing 核記事・使う場面・
+ * 優先度・手動保持 are preserved); a URL that fails to fetch, or a site whose
+ * sitemap URL isn't configured or can't be reached, is simply left untouched
+ * for this run rather than being deleted. This sheet previously used a
+ * "clear everything, keep only 手動保持 rows" strategy, which silently wiped
+ * almost all candidates whenever the crawl mostly failed (e.g. a security
+ * plugin blocking the fetches) — do not reintroduce that pattern.
+ */
 function uaUpdateInternalLinksFromSitemaps() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  let sheet = ss.getSheetByName(UA_INTERNAL_LINK_SHEET_NAME);
-
-  if (!sheet) {
-    sheet = ss.insertSheet(UA_INTERNAL_LINK_SHEET_NAME);
-  }
-
   uaSetupInternalLinkSheet();
-
-  const existingMap = uaGetExistingInternalLinkMap_(sheet);
-  const rows = [];
-  const seenUrls = {};
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(UA_INTERNAL_LINK_SHEET_NAME);
   const messages = [];
 
   Object.keys(UA_APP_TYPES).forEach(function(key) {
@@ -119,81 +120,42 @@ function uaUpdateInternalLinksFromSitemaps() {
     const sitemapUrl = uaGetInternalLinkSitemapUrl_(appConfig);
 
     if (!sitemapUrl) {
-      messages.push(appConfig.label + ': サイトマップURL未設定');
+      messages.push(appConfig.label + ': サイトマップURL未設定（既存の候補は変更しません）');
       return;
     }
 
-    const urls = uaFetchSitemapUrls_(sitemapUrl).slice(0, UA_INTERNAL_LINK_MAX_URLS);
+    let urls;
+    try {
+      urls = uaFetchSitemapUrls_(sitemapUrl).slice(0, UA_INTERNAL_LINK_MAX_URLS);
+    } catch (e) {
+      messages.push(appConfig.label + ': サイトマップ取得に失敗（既存の候補は変更しません）: ' + (e && e.message ? e.message : e));
+      return;
+    }
 
     if (urls.length === 0) {
-      messages.push(appConfig.label + ': URL取得0件');
+      messages.push(appConfig.label + ': URL取得0件（既存の候補は変更しません）');
       return;
     }
 
-    let count = 0;
+    let updated = 0;
+    let failed = 0;
 
     urls.forEach(function(url) {
-      const oldData = existingMap[url] || {};
       const info = uaFetchPageInfo_(url);
 
       if (!info || !info.title) {
+        failed++;
         return;
       }
 
-      const inferred = uaInferInternalLinkMetadata_(appConfig, url, info);
-
-      seenUrls[url] = true;
-      count++;
-
-      rows.push([
-        appConfig.label,
-        url,
-        info.title || oldData.title || '',
-        info.description || oldData.description || '',
-        info.intro || oldData.intro || '',
-        oldData.keywords || info.keywords || inferred.keywords || '',
-        oldData.isCore ? true : '',
-        new Date(),
-        oldData.isManualKeep ? true : '',
-        oldData.usage || inferred.usage || '',
-        oldData.priority || inferred.priority || ''
-      ]);
+      uaUpsertInternalLinkCandidateRow_(sheet, appConfig, url, info);
+      updated++;
     });
 
-    messages.push(appConfig.label + ': ' + count + '件');
+    messages.push(appConfig.label + ': ' + updated + '件更新' + (failed > 0 ? '（取得失敗' + failed + '件はそのまま維持）' : ''));
   });
 
-  Object.keys(existingMap).forEach(function(url) {
-    const oldData = existingMap[url];
-
-    if (!oldData.isManualKeep || seenUrls[url]) {
-      return;
-    }
-
-    rows.push([
-      oldData.site || '',
-      oldData.url || url,
-      oldData.title || '',
-      oldData.description || '',
-      oldData.intro || '',
-      oldData.keywords || '',
-      oldData.isCore ? true : '',
-      oldData.fetchedAt || '',
-      true,
-      oldData.usage || '',
-      oldData.priority || ''
-    ]);
-  });
-
-  if (sheet.getLastRow() > 1) {
-    sheet.getRange(2, 1, sheet.getLastRow() - 1, 11).clearContent();
-  }
-
-  if (rows.length > 0) {
-    sheet.getRange(2, 1, rows.length, 11).setValues(rows);
-  }
-
-  SpreadsheetApp.getUi().alert('内部リンク候補を更新しました。\n' + messages.join('\n') + '\n合計: ' + rows.length + '件');
+  SpreadsheetApp.getUi().alert('内部リンク候補を更新しました。\n' + messages.join('\n'));
 }
 
 function uaInferInternalLinkMetadata_(appConfig, url, info) {
@@ -366,10 +328,21 @@ function uaUpsertInternalLinkCandidateForPost_(appConfig, url, title, descriptio
 
   const introText = uaCleanText_(uaStripHtml_(String(bodyHtml || ''))).slice(0, 200);
   const info = { title: uaCleanText_(title), description: uaCleanText_(description || ''), intro: introText, keywords: uaCleanText_(keywords || '') };
-  const inferred = uaInferInternalLinkMetadata_(appConfig, url, info);
 
   uaSetupInternalLinkSheet();
   const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(UA_INTERNAL_LINK_SHEET_NAME);
+  uaUpsertInternalLinkCandidateRow_(sheet, appConfig, url, info);
+}
+
+/**
+ * Shared low-level writer: updates the existing row for `url` in place if
+ * one exists (preserving 核記事・手動保持・使う場面・優先度・関連キーワード unless
+ * fresh data is available), otherwise appends a new row. Never clears or
+ * removes rows — callers that can't get fresh info for a URL should simply
+ * not call this for it, leaving the existing candidate as-is.
+ */
+function uaUpsertInternalLinkCandidateRow_(sheet, appConfig, url, info) {
+  const inferred = uaInferInternalLinkMetadata_(appConfig, url, info);
   const existingMap = uaGetExistingInternalLinkMap_(sheet);
   const oldData = existingMap[url] || {};
 

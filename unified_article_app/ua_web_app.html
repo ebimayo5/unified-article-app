@@ -312,6 +312,20 @@
           </div>
           <div id="autoPostingSummary" class="muted" style="margin-top:8px; line-height:1.6;">毎日4時ごろ・1日1記事。重大NGがある場合は公開せず下書きで停止します。</div>
           <button class="primary" type="button" style="width:100%; margin-top:10px;" onclick="saveAutomaticPostingSettings(this)">自動投稿設定を保存</button>
+          <div class="row" style="align-items:end; margin-top:10px;">
+            <div>
+              <label for="autoPostingImmediateCount">今から開始する記事数</label>
+              <select id="autoPostingImmediateCount" onchange="updateAutomaticPostingNowButtonLabel(true)">
+                <option value="1">1記事</option>
+                <option value="2">2記事</option>
+                <option value="3" selected>3記事</option>
+                <option value="4">4記事</option>
+                <option value="5">5記事</option>
+              </select>
+            </div>
+            <div><button id="autoPostingStartNowButton" class="secondary" type="button" style="width:100%;" onclick="startAutomaticPostingNow(this)">今から3記事開始</button></div>
+          </div>
+          <div class="muted" style="margin-top:6px;">1回限りの開始です。毎日の時刻・記事数・ON/OFFは変更しません。</div>
           <div id="autoPostingStatus" class="auto-posting-status">設定を読み込み中...</div>
           <button id="autoPostingOpenArticleButton" class="secondary hidden" type="button" style="width:100%; margin-top:8px;" onclick="loadActiveAutomaticPostingArticle(this)">処理中の記事を表示</button>
           <button id="autoPostingResumeButton" class="danger hidden" type="button" style="width:100%; margin-top:8px;" onclick="resumeAutomaticPosting(this)">停止位置から再開</button>
@@ -828,11 +842,15 @@
         document.getElementById('autoPostingPublishMode').value = settings.publishMode === '公開まで' ? '公開まで' : '下書きまで';
         document.getElementById('autoPostingHour').value = Number(settings.hour) >= 0 ? Number(settings.hour) : 4;
         document.getElementById('autoPostingDailyLimit').value = Number(settings.dailyLimit) || 1;
+        const immediateCount = document.getElementById('autoPostingImmediateCount');
+        if (immediateCount && !immediateCount.dataset.changed) immediateCount.value = String(Math.max(1, Math.min(5, Number(settings.dailyLimit) || 1)));
+        updateAutomaticPostingNowButtonLabel(false);
         document.getElementById('autoPostingNotificationEnabled').value = settings.notificationEnabled === false ? 'OFF' : 'ON';
         document.getElementById('autoPostingNotificationEmail').value = settings.notificationEmail || '';
         document.getElementById('autoPostingSummary').textContent = '毎日' + document.getElementById('autoPostingHour').value + '時ごろ・最大' + document.getElementById('autoPostingDailyLimit').value + '記事。重大NG時は停止し、通知ONならスマホで確認・再開できます。';
         const parts = [settings.status || ''];
         if (settings.activeKeyword) parts.push('処理中: ' + settings.activeKeyword + (settings.activeStep ? ' / ' + settings.activeStep : ''));
+        if (Number(settings.manualBatchRemaining) > 0) parts.push('今すぐ開始の残り: ' + settings.manualBatchRemaining + '記事');
         if (settings.lastError) parts.push('エラー: ' + settings.lastError);
         const status = document.getElementById('autoPostingStatus');
         const hasError = Boolean(settings.lastError) || settings.activeJobStatus === 'error';
@@ -892,6 +910,30 @@
           })
           .withFailureHandler(fail)
           .uaSkipAutomaticPostingFromPanel(appType);
+      }
+
+      function updateAutomaticPostingNowButtonLabel(markChanged) {
+        const select = document.getElementById('autoPostingImmediateCount');
+        const button = document.getElementById('autoPostingStartNowButton');
+        if (!select || !button) return;
+        if (markChanged) select.dataset.changed = 'true';
+        button.textContent = '今から' + select.value + '記事開始';
+      }
+
+      function startAutomaticPostingNow(button) {
+        const appType = document.getElementById('appType').value;
+        const articleCount = Number(document.getElementById('autoPostingImmediateCount').value);
+        if (!window.confirm(appType + 'で今から' + articleCount + '記事を開始します。\n保存済みの画像・WordPress到達点を使い、1記事ずつ順番に処理します。よろしいですか？')) return;
+        setBusy('今から' + articleCount + '記事の開始準備中...', button);
+        google.script.run
+          .withSuccessHandler(function(result) {
+            clearBusy();
+            setProgress('done');
+            renderAutomaticPostingSettings(result);
+            setNotice(result && result.message ? result.message : '今すぐ開始を受け付けました。', false);
+          })
+          .withFailureHandler(fail)
+          .uaStartAutomaticPostingNowFromPanel(appType, articleCount);
       }
 
       function saveAutomaticPostingSettings(button) {

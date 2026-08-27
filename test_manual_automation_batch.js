@@ -24,5 +24,19 @@ assert.ok(automation.includes('if (!settings.enabled && !isManualStart) return f
 assert.ok(automation.includes('manualBatch: isManualStart'), 'manual jobs must be marked for safe resume');
 assert.ok(automation.includes('uaRestoreAutomaticPostingManualBatchArticle_'), 'skipped manual articles must be replaced');
 assert.ok(automation.includes('if (manualBatch && Number(manualBatch.remaining) > 0) return true;'), 'remaining manual articles must continue sequentially');
+assert.ok(automation.includes("const UA_AUTOMATION_STEP_PRODUCT_LINKS = 'product_links';"), 'product-link guarantee step is missing');
+assert.ok(
+  automation.includes('uaAdvanceAutomaticPostingJob_(job, UA_AUTOMATION_STEP_PRODUCT_LINKS, 60000);'),
+  'every article must advance through the product-link guarantee step'
+);
+assert.ok(
+  automation.includes('if (job.step === UA_AUTOMATION_STEP_PRODUCT_LINKS)') &&
+  automation.includes('uaEnsureAutomaticProductLinksForData_(Object.assign({}, data, { automaticPosting: true }));'),
+  'saved and resumed bodies must run the idempotent product-link guarantee'
+);
+assert.ok(
+  automation.includes('const finalWpData = uaGetAutomaticPostingRowData_(job);'),
+  'final WordPress sync must reload the body after the product-link guarantee'
+);
 
 console.log('manual automation batch tests: OK');

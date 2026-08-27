@@ -86,6 +86,121 @@ function uaNormalizeProductPlan_(value) {
   };
 }
 
+function uaCleanMainKeywordProductQuery_(keyword) {
+  return String(keyword || '')
+    .replace(/[「」『』【】（）()！？!?]/g, ' ')
+    .replace(/(?:暮らし|生活|家庭|家族|自宅|部屋)に合う(?:の)?は/g, ' ')
+    .replace(/どっち|どちら|おすすめ|ランキング|比較|選び方|口コミ|評判|レビュー/g, ' ')
+    .replace(/後悔(?:する|しない)?|デメリット|メリット|いらない|必要(?:か)?|不要/g, ' ')
+    .replace(/どこが安い|どこで買う|どこに売ってる|価格|値段|費用|相場/g, ' ')
+    .replace(/使い方|置き方|置き場所|判断軸|見分け方|注意点|確認ポイント/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function uaGetMainKeywordProductProfile_(rowData, appConfig) {
+  if (!appConfig || appConfig.key !== 'home') return null;
+
+  const keyword = String(rowData && rowData.mainInput || '').replace(/\s+/g, ' ').trim();
+  if (!keyword) return null;
+
+  const catalog = [
+    {
+      pattern: /(?:Yogibo|ヨギボー|人をダメにするソファ|体にフィットするソファ|ビーズソファ|ビーズクッション)/i,
+      query: 'ビーズソファ 本体',
+      label: 'ビーズソファ',
+      queries: ['無印良品 体にフィットするソファ 本体', 'Yogibo ビーズソファ 本体', 'ビーズソファ 本体']
+    },
+    {
+      pattern: /室内(?:用)?(?:ジャングルジム|遊具)|ジャングルジム/,
+      query: '室内ジャングルジム',
+      label: '室内ジャングルジム',
+      queries: ['室内ジャングルジム 折りたたみ', '室内ジャングルジム すべり台', '室内ジャングルジム コンパクト']
+    },
+    {
+      pattern: /シーリングライト|天井照明|調色(?:機能)?(?:付き)?照明/,
+      query: 'シーリングライト 調色',
+      label: '調色対応シーリングライト',
+      queries: ['シーリングライト 調色', 'シーリングライト 調光 調色', 'シーリングライト 昼光色 電球色']
+    },
+    {
+      pattern: /窓(?:の)?前.*テレビ|テレビ.*窓(?:の)?前/,
+      query: 'テレビスタンド 配線収納',
+      label: '配線を整理しやすいテレビスタンド',
+      queries: ['テレビスタンド 配線収納', 'テレビ台 ロータイプ', 'テレビ 配線カバー']
+    },
+    {
+      pattern: /テレビ(?:\s*\d+台)?/,
+      query: 'テレビ 省スペース',
+      label: '省スペースで置けるテレビ',
+      queries: ['テレビ 省スペース', 'テレビ 小型', 'テレビ']
+    },
+    {
+      pattern: /洗濯機.*(?:隙間|すき間)|(?:隙間|すき間).*洗濯機/,
+      query: '洗濯機 隙間 ガード',
+      label: '洗濯機まわりの隙間対策用品',
+      queries: ['洗濯機 隙間 ガード', '洗濯機 防水パン 隙間 カバー', '洗濯機 排水口 防臭 キャップ']
+    },
+    {
+      pattern: /キッチン.*(?:汚れ防止シート|保護シート)|(?:汚れ防止シート|保護シート).*キッチン/,
+      query: 'キッチン 汚れ防止シート',
+      label: 'キッチン用汚れ防止シート',
+      queries: ['キッチン 汚れ防止シート', 'キッチン 壁 保護シート', 'キッチン 油はね ガード']
+    }
+  ];
+  const troubleshootingSignal = /映らない|映らず|見れない|音が出ない|音が鳴らない|つかない|点かない|反応しない|動かない|接続できない|繋がらない|繋がりません|故障|直し方|修理|エラー|初期設定|設定方法|使い方|説明書|原因|対処法/;
+  const matched = catalog.find(function(item) {
+    return item.pattern.test(keyword) && !troubleshootingSignal.test(keyword);
+  });
+  if (matched) {
+    return {
+      query: matched.query,
+      label: matched.label,
+      queries: matched.queries.slice(0, 3),
+      comparison: /比較|どっち|どちら|選び方|おすすめ|対|vs|VS/.test(keyword),
+      source: 'catalog'
+    };
+  }
+
+  const productSignal = /(ソファ|クッション|チェア|椅子|いす|テーブル|机|デスク|ベッド|マットレス|布団|枕|テレビ|モニター|照明|ライト|カーテン|ブラインド|ラグ|カーペット|チェスト|ラック|棚|ワゴン|収納ケース|収納ボックス|収納用品|洗濯機|冷蔵庫|掃除機|炊飯器|電子レンジ|トースター|食洗機|乾燥機|エアコン|除湿機|除湿器|加湿器|サーキュレーター|扇風機|ヒーター|空気清浄機|物干し|ベビーゲート|見守りカメラ|防災用品|スロープ|サンシェード|日よけ|トイレブラシ|掃除用品|汚れ防止シート|保護シート|ジャングルジム|室内遊具|家電|家具|暮らし用品)/i;
+  const productMatch = productSignal.exec(keyword);
+  if (!productMatch) return null;
+  const hasPurchaseIntent = /比較|どっち|どちら|おすすめ|ランキング|選び方|口コミ|評判|レビュー|後悔|デメリット|メリット|いらない|必要|不要|どこで買う|どこに売ってる|価格|値段|費用|相場|購入|買う/.test(keyword);
+  const compactKeyword = keyword.replace(/[\s　・、,／/|｜]/g, '');
+  const compactProduct = String(productMatch[0] || '').replace(/[\s　]/g, '');
+  const isShortProductKeyword = compactKeyword.length <= compactProduct.length + 4;
+  if (!hasPurchaseIntent && !isShortProductKeyword) return null;
+
+  const query = uaCleanMainKeywordProductQuery_(keyword);
+  if (!query || query.length < 2) return null;
+  return {
+    query: query,
+    label: query,
+    queries: [query],
+    comparison: /比較|どっち|どちら|選び方|おすすめ|ランキング|対|vs|VS/.test(keyword),
+    source: 'keyword'
+  };
+}
+
+function uaBuildMainKeywordProductPlan_(productProfile, productPlan) {
+  if (!productProfile) return uaNormalizeProductPlan_(productPlan);
+  const plan = uaNormalizeProductPlan_(productPlan) || {};
+  return uaNormalizeProductPlan_(Object.assign({}, plan, {
+    shouldInsert: true,
+    primaryProduct: productProfile.label,
+    marketQuery: productProfile.query,
+    // 比較記事ではAIの比較観点（サイズ・取扱表示など）が本文で確認する条件として
+    // requiredFeaturesに入りがちで、楽天の商品名に全語が含まれる必須条件として
+    // 誤って扱われるとブランド違いの商品まで弾かれる。比較記事のときだけ無効化し、
+    // 通常の商品記事ではAIが出した必須条件のフィルタリングをそのまま活かす。
+    requiredFeatures: productProfile.comparison ? [] : plan.requiredFeatures,
+    purpose: plan.purpose || 'メインキーワードの商品を比較し、暮らしに合う候補を選ぶ',
+    purchaseScale: plan.purchaseScale || 'standard',
+    benefit: plan.benefit || '本文の判断条件に合う商品候補を具体的に比較しやすくなります',
+    ctaReason: plan.ctaReason || productProfile.label + 'のサイズや仕様を比較してから選べます'
+  }));
+}
+
 function uaCanUseSupplementalProductPlan_(productPlan, body, rowData, appConfig) {
   const plan = uaNormalizeProductPlan_(productPlan);
   if (!plan || plan.shouldInsert || !appConfig || appConfig.key !== 'home') return false;
@@ -1615,6 +1730,59 @@ function uaAddRakutenBannerForData_(data) {
   return uaAddRakutenBannerForContext_(context);
 }
 
+function uaEnsureAutomaticProductLinksForData_(data) {
+  const sheet = uaGetSheetForData_(data || {});
+  const row = Number(data && data.row) || sheet.getActiveCell().getRow();
+  const context = uaGetRakutenRowContext_(sheet, row);
+  if (!context.appConfig || context.appConfig.key === 'general' || !context.body) {
+    return uaBuildRowData_(sheet, row);
+  }
+
+  const existingAssessment = uaGetExistingProductLinkAssessment_(
+    context.body,
+    context.rowData,
+    context.appConfig
+  );
+  if (existingAssessment.adequate) {
+    const existing = uaBuildRowData_(sheet, row);
+    existing.message = existingAssessment.managed
+      ? 'メインキーワードに合う既存の商品導線を保持しました。重複追加はしていません。'
+      : '手動商品リンクを保持しました。自動置換はしていません。';
+    return existing;
+  }
+
+  const notes = String(context.rowData && context.rowData.affiliateNotes || '');
+  const mainKeywordProfile = uaGetMainKeywordProductProfile_(context.rowData, context.appConfig);
+  const productLinkRequired = !!mainKeywordProfile && !/楽天バナーなし|楽天なし/.test(notes);
+
+  UA_LAST_RAKUTEN_STATUS = '';
+  if (!uaShouldInsertRakutenAffiliateBanner_(context.body, context.rowData, context.appConfig)) {
+    const skipped = uaBuildRowData_(sheet, row);
+    skipped.message = '商品導線は意図的にスキップしました: ' +
+      String(UA_LAST_RAKUTEN_STATUS || '商品購入が検索意図の解決策ではありません');
+    return skipped;
+  }
+
+  const result = uaAddRakutenBannerForContext_(context);
+  const refreshed = uaBuildRowData_(sheet, row);
+  const refreshedAssessment = uaGetExistingProductLinkAssessment_(
+    refreshed.body,
+    context.rowData,
+    context.appConfig
+  );
+  if (productLinkRequired && !refreshedAssessment.adequate) {
+    const reason = String(
+      UA_LAST_RAKUTEN_STATUS || refreshedAssessment.reason || '適切な商品候補を取得できませんでした'
+    );
+    throw new Error(
+      'メインキーワードが商品を示す記事ですが、適切なRinker・楽天・Amazon導線を作成できませんでした。' +
+      '無関係商品で埋めず、WordPress下書き前で停止します。検索条件: ' +
+      mainKeywordProfile.queries.join(' / ') + '。理由: ' + reason
+    );
+  }
+  return result;
+}
+
 function uaBuildProductLinkNotInsertedResult_(context, sourceBody, replacedExisting, reason, factLabel) {
   if (replacedExisting) {
     context.sheet.getRange(context.row, UA_COLUMNS.body).setValue(sourceBody);
@@ -1913,6 +2081,66 @@ function uaHasRakutenBanner_(body) {
     text.indexOf('rel=\'nofollow sponsored\'') !== -1 && text.indexOf('楽天') !== -1;
 }
 
+function uaIsManagedProductLinkBlock_(body) {
+  const text = String(body || '');
+  return text.indexOf('UA_PRODUCT_FOLLOWUP_START') !== -1 ||
+    text.indexOf('UA_RINKER_PRODUCTS_START') !== -1 ||
+    text.indexOf('条件に合わなければ、無理に購入する必要はありません。') !== -1 &&
+      text.indexOf('楽天で見る') !== -1;
+}
+
+function uaCountManagedProductChoices_(body) {
+  const text = String(body || '');
+  const rinkerCount = (text.match(/\[itemlink\s+post_id=["']?\d+/gi) || []).length;
+  if (rinkerCount > 0) return rinkerCount;
+  return (text.match(/>\s*楽天で見る\s*<\/a>/gi) || []).length;
+}
+
+function uaDoesProductPlanMatchMainKeyword_(body, productProfile) {
+  if (!productProfile) return true;
+  const plan = uaExtractProductPlan_(body);
+  if (!plan || !plan.shouldInsert) return false;
+  const plannedText = [plan.primaryProduct, plan.marketQuery].join(' ').toLowerCase();
+  const anchorTerms = [productProfile.query, productProfile.label].concat(productProfile.queries || [])
+    .join(' ')
+    .split(/[\s　・、,／/|｜]+/)
+    .map(function(term) { return term.trim().toLowerCase(); })
+    .filter(function(term) {
+      return term.length >= 2 && !/^(?:比較|おすすめ|家庭用|コンパクト)$/.test(term);
+    });
+  return anchorTerms.some(function(term) {
+    return plannedText.indexOf(term) !== -1;
+  });
+}
+
+function uaGetExistingProductLinkAssessment_(body, rowData, appConfig) {
+  const text = String(body || '');
+  if (!uaHasRakutenBanner_(text)) {
+    return { exists: false, adequate: false, managed: false, count: 0, reason: '商品導線なし' };
+  }
+
+  const managed = uaIsManagedProductLinkBlock_(text);
+  if (!managed) {
+    return { exists: true, adequate: true, managed: false, count: 1, reason: '手動商品リンクを保持' };
+  }
+
+  const profile = uaGetMainKeywordProductProfile_(rowData, appConfig);
+  const count = uaCountManagedProductChoices_(text);
+  const requiredCount = profile && profile.comparison ? 2 : 1;
+  const planMatches = uaDoesProductPlanMatchMainKeyword_(text, profile);
+  return {
+    exists: true,
+    adequate: count >= requiredCount && planMatches,
+    managed: true,
+    count: count,
+    reason: count < requiredCount
+      ? '比較記事に必要な商品候補数が不足'
+      : planMatches
+        ? 'メインキーワードと一致'
+        : '自動商品リンクがメインキーワードと不一致'
+  };
+}
+
 function uaRemoveGeneratedRakutenBanner_(body) {
   return String(body || '').replace(
     /<!--\s*UA_PRODUCT_FOLLOWUP_START\s*-->[\s\S]*?<!--\s*UA_PRODUCT_FOLLOWUP_END\s*-->\s*/gi,
@@ -1931,6 +2159,7 @@ function uaRemoveGeneratedRakutenBanner_(body) {
 
 function uaAppendFactCheckPoint_(sheet, row, line) {
   const current = String(sheet.getRange(row, UA_COLUMNS.factCheckPoints).getValue() || '').trim();
+  if (current.split(/\r?\n/).indexOf(String(line || '').trim()) !== -1) return;
   const next = !current || current === '特になし'
     ? line
     : current + '\n' + line;
@@ -1989,37 +2218,45 @@ function uaApplyRakutenAffiliateBanner_(body, rowData, appConfig) {
     return body;
   }
 
+  const effectiveProductPlan = UA_LAST_RAKUTEN_EFFECTIVE_PRODUCT_PLAN || uaExtractProductPlan_(body);
+  const sourceBody = effectiveProductPlan
+    ? uaAttachProductPlanMarker_(body, effectiveProductPlan)
+    : body;
   const productPlan = uaExtractProductPlan_(body);
   const selectedQuery = uaSelectRakutenProductQuery_(body, rowData, appConfig);
   UA_LAST_RAKUTEN_STATUS = '挿入済み｜主役商品: ' +
     String(productPlan && productPlan.primaryProduct || selectedQuery || '関連商品') +
     '｜検索条件: ' + String(selectedQuery || '自動判定');
 
-  const contextualIndex = uaFindRakutenContextualInsertIndex_(body, rowData, appConfig);
+  const contextualIndex = uaFindRakutenContextualInsertIndex_(sourceBody, rowData, appConfig);
   if (contextualIndex > -1) {
-    return body.slice(0, contextualIndex).trimEnd() + '\n\n' + banner + '\n\n' + body.slice(contextualIndex).trimStart();
+    return sourceBody.slice(0, contextualIndex).trimEnd() + '\n\n' + banner + '\n\n' + sourceBody.slice(contextualIndex).trimStart();
   }
 
-  const faqIndex = body.search(/<h2[^>]*>\s*よくある質問\s*<\/h2>/i);
+  const faqIndex = sourceBody.search(/<h2[^>]*>\s*よくある質問\s*<\/h2>/i);
 
   if (faqIndex > -1) {
-    return body.slice(0, faqIndex) + banner + '\n\n' + body.slice(faqIndex);
+    return sourceBody.slice(0, faqIndex) + banner + '\n\n' + sourceBody.slice(faqIndex);
   }
 
-  const summaryIndex = body.search(/<h2[^>]*>[\s\S]*?まとめ[\s\S]*?<\/h2>/i);
+  const summaryIndex = sourceBody.search(/<h2[^>]*>[\s\S]*?まとめ[\s\S]*?<\/h2>/i);
 
   if (summaryIndex > -1) {
-    return body.slice(0, summaryIndex) + banner + '\n\n' + body.slice(summaryIndex);
+    return sourceBody.slice(0, summaryIndex) + banner + '\n\n' + sourceBody.slice(summaryIndex);
   }
 
-  return body + '\n\n' + banner;
+  return sourceBody + '\n\n' + banner;
 }
 
 function uaBuildRakutenAffiliateBanner_(body, rowData, appConfig) {
   const productPlan = uaExtractProductPlan_(body);
+  const mainKeywordProfile = uaGetMainKeywordProductProfile_(rowData, appConfig);
   let effectiveProductPlan = uaCanUseSupplementalProductPlan_(productPlan, body, rowData, appConfig)
     ? uaBuildSupplementalProductPlan_(productPlan, rowData, appConfig)
     : productPlan;
+  if (mainKeywordProfile) {
+    effectiveProductPlan = uaBuildMainKeywordProductPlan_(mainKeywordProfile, effectiveProductPlan);
+  }
   if (!effectiveProductPlan && appConfig && appConfig.key === 'home' && !uaHasMainAffiliateProject_(rowData)) {
     const fallbackQuery = uaSelectRakutenKeywordFallbackQuery_(rowData && rowData.mainInput, 'home');
     if (fallbackQuery) {
@@ -2053,7 +2290,8 @@ function uaBuildRakutenAffiliateBanner_(body, rowData, appConfig) {
   let items = [];
 
   if (!hasMainAffiliate) {
-    const queryPool = effectiveProductPlan ? [query] : [query].concat(categoryQueries);
+    const profileQueries = mainKeywordProfile ? mainKeywordProfile.queries : [];
+    const queryPool = [query].concat(profileQueries).concat(effectiveProductPlan && !mainKeywordProfile ? [] : categoryQueries);
     const keywordAndContextQueries = queryPool.filter(function(value, index, values) {
       return value && values.indexOf(value) === index;
     }).slice(0, 3);
@@ -2104,8 +2342,10 @@ function uaBuildRakutenAffiliateBanner_(body, rowData, appConfig) {
   }
 
   return [
+    '<!-- UA_PRODUCT_FOLLOWUP_START -->',
     '<p>本文の対策を実際に試すための商品候補を見比べたい場合は、下の楽天バナーから関連アイテムの価格や種類を確認できます。</p>',
-    uaNormalizeRakutenAffiliateBanner_(fallbackHtml)
+    uaNormalizeRakutenAffiliateBanner_(fallbackHtml),
+    '<!-- UA_PRODUCT_FOLLOWUP_END -->'
   ].join('\n');
 }
 
@@ -2115,6 +2355,11 @@ function uaSelectRakutenProductQuery_(body, rowData, appConfig) {
 
   if (override && override[1]) {
     return override[1].trim();
+  }
+
+  const mainKeywordProfile = uaGetMainKeywordProductProfile_(rowData, appConfig);
+  if (mainKeywordProfile) {
+    return mainKeywordProfile.query;
   }
 
   const productPlan = uaExtractProductPlan_(body);
@@ -2394,6 +2639,11 @@ function uaSelectRakutenKeywordFallbackQuery_(keyword, appKey) {
   const value = String(keyword || '').replace(/\s+/g, ' ').trim();
   if (!value) return '';
 
+  if (appKey === 'home') {
+    const productProfile = uaGetMainKeywordProductProfile_({ mainInput: value }, { key: 'home' });
+    if (productProfile) return productProfile.query;
+  }
+
   const productPattern = appKey === 'home'
     ? /(ポップアップテント|ワンタッチテント|テント|サンシェード|日よけ|収納|チェスト|棚|ラック|マット|カーテン|照明|ライト|カメラ|エアコン|除湿機|サーキュレーター|物干し|掃除|ブラシ|防災|ゲート|スロープ|家電|家具)/
     : /(ブレーキパッド|カーナビ|ナビゲーション|アンドロイドナビ|ディスプレイオーディオ|ドラレコ|ドライブレコーダー|レーダー探知機|バックカメラ|モニター|HDMI|USB|スピーカー|スマホホルダー|サンシェード|フロアマット|シートマット|シートカバー|シートクッション|収納|ドリンクホルダー|ルーフキャリア|ポータブル電源|ジャンプスターター|バッテリー|タイヤ|ホイール|タイヤチェーン|洗車|クリーナー|コーティング|ワックス|カー用品|車中泊)/i;
@@ -2477,6 +2727,11 @@ function uaGetRakutenKeywordSuggestions_(data) {
 
   if (override && override[1]) {
     addSuggestion(override[1]);
+  }
+
+  const mainKeywordProfile = uaGetMainKeywordProductProfile_(data, appConfig);
+  if (mainKeywordProfile) {
+    mainKeywordProfile.queries.forEach(addSuggestion);
   }
 
   uaPrioritizedRakutenQueriesFromBody_(text, appConfig.key).forEach(addSuggestion);
@@ -2643,6 +2898,11 @@ function uaSelectRakutenCategoryQueries_(body, rowData, appConfig, primaryQuery)
     });
   }
 
+  const mainKeywordProfile = uaGetMainKeywordProductProfile_(rowData, appConfig);
+  if (mainKeywordProfile) {
+    mainKeywordProfile.queries.forEach(add);
+  }
+
   if (appKey === 'drive') {
     if (hasAny(['ディテールブラシ', '細かい部分に使えるブラシ', '段差・隙間', 'スポイラー下面', '隙間の砂'])) {
       add('ディテールブラシ 車 洗車');
@@ -2715,6 +2975,7 @@ function uaSelectRakutenCategoryQueries_(body, rowData, appConfig, primaryQuery)
 function uaFetchRakutenItemsByQueries_(queries, maxItems, selectionSeed, productPlan) {
   const results = [];
   const seenItems = {};
+  const seenNames = {};
   const limit = Math.max(1, Math.min(3, Number(maxItems) || 3));
 
   (queries || []).forEach(function(query) {
@@ -2724,8 +2985,10 @@ function uaFetchRakutenItemsByQueries_(queries, maxItems, selectionSeed, product
     items.forEach(function(item) {
       if (results.length >= limit) return;
       const key = uaRakutenItemUniqueKey_(item);
-      if (!key || seenItems[key]) return;
+      const nameKey = uaRakutenItemNameKey_(item);
+      if (!key || seenItems[key] || nameKey && seenNames[nameKey]) return;
       seenItems[key] = true;
+      if (nameKey) seenNames[nameKey] = true;
       results.push(item);
     });
   });
@@ -2781,12 +3044,22 @@ function uaRakutenItemUniqueKey_(item) {
   return name ? 'name:' + name : '';
 }
 
+function uaRakutenItemNameKey_(item) {
+  return String(item && item.name || '')
+    .replace(/[\s　\-_/／・,，.。()（）【】\[\]「」『』]+/g, '')
+    .trim()
+    .toLowerCase();
+}
+
 function uaDedupeRakutenItems_(items) {
   const seen = {};
+  const seenNames = {};
   return (items || []).filter(function(item) {
     const key = uaRakutenItemUniqueKey_(item);
-    if (!key || seen[key]) return false;
+    const nameKey = uaRakutenItemNameKey_(item);
+    if (!key || seen[key] || nameKey && seenNames[nameKey]) return false;
     seen[key] = true;
+    if (nameKey) seenNames[nameKey] = true;
     return true;
   });
 }
@@ -2858,6 +3131,11 @@ function uaDriveRakutenProductCandidates_() {
 
 function uaHomeRakutenProductCandidates_() {
   return [
+    { query: 'ビーズソファ', keywords: ['ビーズソファ', 'ビーズクッション', 'Yogibo', 'ヨギボー', '人をダメにするソファ', '体にフィットするソファ'] },
+    { query: '室内ジャングルジム', keywords: ['室内ジャングルジム', '室内遊具', 'ジャングルジム'] },
+    { query: 'シーリングライト 調色', keywords: ['シーリングライト', '調色', '天井照明'] },
+    { query: 'テレビスタンド 配線収納', keywords: ['テレビスタンド', 'テレビ台', 'テレビ 配線'] },
+    { query: 'キッチン 汚れ防止シート', keywords: ['汚れ防止シート', 'キッチン 保護シート', '油はねガード'] },
     { query: 'サンシェード ベランダ 日よけ', keywords: ['サンシェード', '日よけシェード', '強風対策'] },
     { query: '除湿機 コンパクト', keywords: ['カビ', '湿気', '除湿', 'ランドリー', '脱衣所', '洗面所'] },
     { query: 'サーキュレーター 部屋干し', keywords: ['換気', '部屋干し', 'サーキュレーター', '湿気', 'ランドリー'] },
@@ -2890,6 +3168,10 @@ function uaDecideRakutenItemCount_(body, rowData, appConfig, query) {
     query,
     body
   ].join(' ');
+  const mainKeywordProfile = uaGetMainKeywordProductProfile_(rowData, appConfig);
+  if (mainKeywordProfile && mainKeywordProfile.comparison) {
+    return 3;
+  }
   const compareWords = [
     '比較',
     '選び方',
@@ -3190,6 +3472,15 @@ function uaIsRakutenItemRelevant_(itemName, query) {
   const queryText = String(query || '').replace(/[\s　]+/g, '').toLowerCase();
   if (!name || !queryText) return false;
 
+  const brandRequirements = [
+    { query: /(?:yogibo|ヨギボー)/i, item: /(?:yogibo|ヨギボー)/i },
+    { query: /(?:無印良品|muji)/i, item: /(?:無印良品|muji)/i }
+  ];
+  for (let brandIndex = 0; brandIndex < brandRequirements.length; brandIndex++) {
+    const requirement = brandRequirements[brandIndex];
+    if (requirement.query.test(query) && !requirement.item.test(itemName)) return false;
+  }
+
   if ((queryText.indexOf('サンシェード') !== -1 || queryText.indexOf('日よけ') !== -1) &&
     (queryText.indexOf('ベランダ') !== -1 || queryText.indexOf('屋外') !== -1)) {
     const vehicleOnlyTerms = ['車用', '車載', '自動車', 'カー用品', 'フロントガラス', 'サイドウィンドウ', '後部座席'];
@@ -3197,6 +3488,11 @@ function uaIsRakutenItemRelevant_(itemName, query) {
   }
 
   const synonymGroups = [
+    ['ビーズソファ', 'ビーズクッション', '体にフィットするソファ', 'Yogibo', 'ヨギボー'],
+    ['室内ジャングルジム', 'ジャングルジム', '室内遊具'],
+    ['シーリングライト', '天井照明'],
+    ['テレビスタンド', 'テレビ台'],
+    ['汚れ防止シート', '保護シート', '油はねガード'],
     ['サンシェード', '日よけ', '日除け', 'シェード'],
     ['収納ボックス', '収納ケース', 'ストレージボックス'],
     ['ランドリーチェスト', 'ランドリー収納', 'ランドリーボックス', 'チェスト'],
@@ -3273,6 +3569,13 @@ function uaScoreRakutenItem_(item, query, productPlan) {
   const normalizedQuery = String(query || '').replace(/[\s　]+/g, '').toLowerCase();
   let score = 40;
 
+  const explicitlyRequestsUsed = /中古|ジャンク|used/i.test([
+    query,
+    plan && plan.primaryProduct,
+    plan && plan.marketQuery
+  ].join(' '));
+  if (!explicitlyRequestsUsed && /中古|ジャンク|レンタル品|used\b/i.test(itemName)) return -1000;
+
   const planFit = uaEvaluateProductPlanFit_(itemName, plan);
   if (!planFit.pass) return -1000;
 
@@ -3312,6 +3615,17 @@ function uaScoreRakutenItem_(item, query, productPlan) {
     const planAsksAccessory = accessoryTerms.some(function(term) {
       return String(plan.primaryProduct || '').indexOf(term) !== -1 || String(plan.marketQuery || '').indexOf(term) !== -1;
     });
+    const accessoryOnlyTerms = ['カバーのみ', '専用カバー', '替えカバー', '交換用カバー', '補充ビーズ', '中材のみ'];
+    if (!planAsksAccessory && accessoryOnlyTerms.some(function(term) { return itemName.indexOf(term) !== -1; })) {
+      return -1000;
+    }
+    const mainUnitExplicitlyExcluded = /本体(?:は)?(?:含まれ(?:ませ)?ん|含みません|なし|別売り?|付属しません)|カバーのみ|カバー単品/i.test(itemName);
+    const isCoverWithoutMainUnit = /カバー/i.test(itemName) &&
+      (mainUnitExplicitlyExcluded ||
+        !/(?:本体(?:付き|セット)?|本体とカバー|本体・カバー|ソファセット|クッションセット)/i.test(itemName));
+    const requiresMainUnit = /本体/i.test(String(plan.marketQuery || '')) ||
+      /(?:ビーズソファ|ビーズクッション)/i.test(String(plan.primaryProduct || ''));
+    if (!planAsksAccessory && requiresMainUnit && isCoverWithoutMainUnit) return -1000;
     if (!planAsksAccessory && accessoryTerms.some(function(term) { return itemName.indexOf(term) !== -1; })) score -= 25;
   }
 
@@ -3600,6 +3914,7 @@ function uaBuildRakutenItemBannerHtml_(items, query, productPlan, appConfig) {
   }
 
   return [
+    '<!-- UA_PRODUCT_FOLLOWUP_START -->',
     leadText,
     '<!-- wp:html -->',
     '<div style=\'background:#fff;border:1px solid #d7dde3;border-radius:8px;padding:14px;margin:16px 0;max-width:760px;box-sizing:border-box;\'>',
@@ -3607,7 +3922,8 @@ function uaBuildRakutenItemBannerHtml_(items, query, productPlan, appConfig) {
     itemHtml,
     amazonButton,
     '</div>',
-    '<!-- /wp:html -->'
+    '<!-- /wp:html -->',
+    '<!-- UA_PRODUCT_FOLLOWUP_END -->'
   ].filter(Boolean).join('\n');
 }
 
@@ -3851,6 +4167,12 @@ function uaShouldInsertRakutenAffiliateBanner_(body, rowData, appConfig) {
   }
 
   if (notes.indexOf('楽天バナーあり') !== -1 || notes.indexOf('楽天あり') !== -1) {
+    return true;
+  }
+
+  const mainKeywordProfile = uaGetMainKeywordProductProfile_(rowData, appConfig);
+  if (mainKeywordProfile) {
+    UA_LAST_RAKUTEN_STATUS = 'メインキーワードの商品を優先して挿入: ' + mainKeywordProfile.label;
     return true;
   }
 

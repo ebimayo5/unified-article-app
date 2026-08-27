@@ -17,6 +17,7 @@ const UA_AUTOMATION_STEP_READER_MIND = 'reader_mind';
 const UA_AUTOMATION_STEP_STRUCTURE = 'structure';
 const UA_AUTOMATION_STEP_WAIT_TREFAI = 'wait_trefai';
 const UA_AUTOMATION_STEP_ARTICLE = 'article';
+const UA_AUTOMATION_STEP_PRODUCT_LINKS = 'product_links';
 const UA_AUTOMATION_STEP_INITIAL_WP = 'initial_wp';
 const UA_AUTOMATION_STEP_IMAGES = 'images';
 const UA_AUTOMATION_STEP_CHECK = 'check';
@@ -107,6 +108,7 @@ function uaBuildAutomaticPostingProgress_(job) {
     { keys: [UA_AUTOMATION_STEP_READER_MIND], label: '読者心理メモ' },
     { keys: [UA_AUTOMATION_STEP_STRUCTURE, UA_AUTOMATION_STEP_WAIT_TREFAI], label: '競合調査・構成案' },
     { keys: [UA_AUTOMATION_STEP_ARTICLE], label: '本文生成' },
+    { keys: [UA_AUTOMATION_STEP_PRODUCT_LINKS], label: '商品導線保証' },
     { keys: [UA_AUTOMATION_STEP_INITIAL_WP], label: 'WP下書き準備' }
   ];
   if (currentJob.includeImages !== false) {
@@ -611,6 +613,12 @@ function uaRunAutomaticPostingWorker() {
       if (!String(data.body || '').trim()) {
         uaRunArticleFromPanel(Object.assign({}, data, { automaticPosting: true }));
       }
+      uaAdvanceAutomaticPostingJob_(job, UA_AUTOMATION_STEP_PRODUCT_LINKS, 60000);
+      return;
+    }
+
+    if (job.step === UA_AUTOMATION_STEP_PRODUCT_LINKS) {
+      uaEnsureAutomaticProductLinksForData_(Object.assign({}, data, { automaticPosting: true }));
       uaAdvanceAutomaticPostingJob_(job, UA_AUTOMATION_STEP_INITIAL_WP, 60000);
       return;
     }
@@ -645,7 +653,9 @@ function uaRunAutomaticPostingWorker() {
     }
 
     if (job.step === UA_AUTOMATION_STEP_FINAL_WP) {
-      uaCreateWpDraftFromPanel(data);
+      uaEnsureAutomaticProductLinksForData_(Object.assign({}, data, { automaticPosting: true }));
+      const finalWpData = uaGetAutomaticPostingRowData_(job);
+      uaCreateWpDraftFromPanel(finalWpData);
       if (job.publishMode === '公開まで') {
         uaAdvanceAutomaticPostingJob_(job, UA_AUTOMATION_STEP_PUBLISH, 60000);
       } else {
@@ -1178,6 +1188,7 @@ function uaGetAutomaticPostingStepLabel_(step) {
   labels[UA_AUTOMATION_STEP_STRUCTURE] = '記事構成';
   labels[UA_AUTOMATION_STEP_WAIT_TREFAI] = 'トレファイ待ち';
   labels[UA_AUTOMATION_STEP_ARTICLE] = '本文生成';
+  labels[UA_AUTOMATION_STEP_PRODUCT_LINKS] = '商品導線保証';
   labels[UA_AUTOMATION_STEP_INITIAL_WP] = 'WP下書き';
   labels[UA_AUTOMATION_STEP_IMAGES] = '画像生成';
   labels[UA_AUTOMATION_STEP_CHECK] = '公開前チェック';
@@ -1193,7 +1204,7 @@ function uaTestAutomaticPostingLogic() {
   if (draft.publishMode === publish.publishMode) throw new Error('公開モード分岐テスト失敗');
   const steps = [
     UA_AUTOMATION_STEP_READER_MIND, UA_AUTOMATION_STEP_STRUCTURE, UA_AUTOMATION_STEP_WAIT_TREFAI,
-    UA_AUTOMATION_STEP_ARTICLE, UA_AUTOMATION_STEP_INITIAL_WP, UA_AUTOMATION_STEP_IMAGES,
+    UA_AUTOMATION_STEP_ARTICLE, UA_AUTOMATION_STEP_PRODUCT_LINKS, UA_AUTOMATION_STEP_INITIAL_WP, UA_AUTOMATION_STEP_IMAGES,
     UA_AUTOMATION_STEP_CHECK, UA_AUTOMATION_STEP_REVISION, UA_AUTOMATION_STEP_FINAL_WP,
     UA_AUTOMATION_STEP_PUBLISH
   ];

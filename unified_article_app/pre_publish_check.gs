@@ -432,6 +432,8 @@ function uaProtectPrePublishRevisionBody_(body) {
     ['SWELL対応ポイント枠', /<!--\s*wp:group\b[^>]*article-compass-point-box[\s\S]*?<!--\s*\/wp:group\s*-->/gi],
     ['SWELL対応注意書き', /<!--\s*wp:group\b[^>]*article-compass-notice-box[\s\S]*?<!--\s*\/wp:group\s*-->/gi],
     ['SWELL記事リンクカード', /<!--\s*wp:loos\/post-link\b[^>]*\/-->/gi],
+    ['Rinker商品リンク', /<!--\s*UA_RINKER_PRODUCTS_START\s*-->[\s\S]*?<!--\s*UA_RINKER_PRODUCTS_END\s*-->/gi],
+    ['楽天商品リンク後入れ', /<!--\s*UA_PRODUCT_FOLLOWUP_START\s*-->[\s\S]*?<!--\s*UA_PRODUCT_FOLLOWUP_END\s*-->/gi],
     ['旧SWELL対応内部リンク', /<!--\s*wp:paragraph\b[^>]*article-compass-internal-link[\s\S]*?<!--\s*\/wp:paragraph\s*-->/gi],
     ['Cocoon情報ボックス', /<!--\s*wp:cocoon-blocks\/info-box\b[\s\S]*?<!--\s*\/wp:cocoon-blocks\/info-box\s*-->/gi],
     ['この記事のポイント', /<!--\s*wp:cocoon-blocks\/tab-caption-box-1\b[\s\S]*?<!--\s*\/wp:cocoon-blocks\/tab-caption-box-1\s*-->/gi],

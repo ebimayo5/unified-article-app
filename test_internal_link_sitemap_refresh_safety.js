@@ -41,8 +41,8 @@ function makeSheetMock(initialRows) {
 }
 
 // Simulate a sheet that already has 3 established candidates, none of them
-// marked 手動保持 (manual keep) -- the exact shape that a prior sitemap crawl
-// (or the automatic per-post capture) would have produced.
+// marked 手動保持 (manual keep) -- the exact shape that a prior refresh (or the
+// automatic per-post capture) would have produced.
 const header = ['サイト', 'URL', 'タイトル', 'メタディスクリプション', '本文冒頭', '関連キーワード', '核記事', '取得日時', '手動保持', '使う場面', '優先度'];
 const existingRows = [
   header,
@@ -61,23 +61,23 @@ function makeSpreadsheetAppMock(sheet, alerts) {
   };
 }
 
-function run(scenario) {
+function run(callWordPressApiImpl) {
   const sheet = makeSheetMock(existingRows);
   const alerts = [];
   const moduleBox = { exports: {} };
 
   new Function(
     'SpreadsheetApp',
-    'PropertiesService',
-    'UrlFetchApp',
+    'uaGetWpConfig_',
+    'uaCallWordPressApi_',
     'module',
     config + '\n' + utils + '\n' + links + `
 module.exports = { run: uaUpdateInternalLinksFromSitemaps };
 `
   )(
     makeSpreadsheetAppMock(sheet, alerts),
-    { getScriptProperties: () => ({ getProperty: (name) => scenario.sitemapUrlSet ? 'https://ebimayo5.com/sitemap.xml' : '' }) },
-    { fetch: scenario.urlFetchImpl },
+    (appConfig) => ({ siteUrl: 'https://ebimayo5.com', label: appConfig.label }),
+    callWordPressApiImpl,
     moduleBox
   );
 
@@ -86,28 +86,49 @@ module.exports = { run: uaUpdateInternalLinksFromSitemaps };
   return { sheet, alerts };
 }
 
-// Scenario: the sitemap fetch itself throws (e.g. a security plugin blocks
-// UrlFetchApp, or the sitemap URL is wrong). This must NOT touch existing rows.
+// Scenario: the WordPress REST API call throws (auth failure, network error,
+// WAF block, etc). This must NOT touch existing rows.
 {
-  const { sheet } = run({
-    sitemapUrlSet: true,
-    urlFetchImpl: () => { throw new Error('WAF blocked the request'); }
-  });
-  assert.strictEqual(sheet.getLastRow(), 4, 'A failed sitemap fetch must not remove any existing rows');
-  assert.strictEqual(sheet._rows[1][2], '記事A', 'Existing row A must be untouched after a failed crawl');
-  assert.strictEqual(sheet._rows[2][2], '記事B', 'Existing row B must be untouched after a failed crawl');
-  assert.strictEqual(sheet._rows[3][2], '記事C', 'Existing row C must be untouched after a failed crawl');
+  const { sheet } = run(() => { throw new Error('403 Forbidden'); });
+  assert.strictEqual(sheet.getLastRow(), 4, 'A failed WordPress fetch must not remove any existing rows');
+  assert.strictEqual(sheet._rows[1][2], '記事A', 'Existing row A must be untouched after a failed refresh');
+  assert.strictEqual(sheet._rows[2][2], '記事B', 'Existing row B must be untouched after a failed refresh');
+  assert.strictEqual(sheet._rows[3][2], '記事C', 'Existing row C must be untouched after a failed refresh');
 }
 
-// Scenario: the sitemap URL script property was never configured for this
-// site. This must also leave existing rows untouched (previously this wiped
-// everything down to only 手動保持 rows).
+// Scenario: the API call succeeds but returns zero posts. Also must not
+// touch existing rows (this is exactly what happened in production: the
+// old sitemap-scrape path silently returned 0 URLs with no thrown error).
 {
-  const { sheet } = run({
-    sitemapUrlSet: false,
-    urlFetchImpl: () => { throw new Error('should not be called'); }
+  const { sheet, alerts } = run(() => []);
+  assert.strictEqual(sheet.getLastRow(), 4, 'Zero posts returned must not remove any existing rows');
+  assert(alerts[0].indexOf('記事取得0件') !== -1, 'The alert must clearly say 0 posts were fetched');
+}
+
+// Scenario: a successful fetch upserts an existing URL in place (preserving
+// 使う場面) and appends a brand-new URL as a new row.
+{
+  const { sheet } = run((wpConfig, path) => {
+    if (path.indexOf('page=1') === -1) return [];
+    return [
+      {
+        link: 'https://ebimayo5.com/archives/a/',
+        title: { rendered: '記事A（更新後タイトル）' },
+        excerpt: { rendered: '<p>更新後の説明。</p>' },
+        content: { rendered: '<p>更新後の本文冒頭。</p>' }
+      },
+      {
+        link: 'https://ebimayo5.com/archives/d/',
+        title: { rendered: '新しい記事D' },
+        excerpt: { rendered: '<p>Dの説明。</p>' },
+        content: { rendered: '<p>Dの本文冒頭。</p>' }
+      }
+    ];
   });
-  assert.strictEqual(sheet.getLastRow(), 4, 'A missing sitemap URL setting must not remove any existing rows');
+  assert.strictEqual(sheet.getLastRow(), 5, 'One updated row plus one appended row must total 5 rows (4 + the new D row)');
+  assert.strictEqual(sheet._rows[1][2], '記事A（更新後タイトル）', 'Row A must refresh to the latest title');
+  assert.strictEqual(sheet._rows[1][9], '使う場面A', 'Manually-set 使う場面 on row A must survive the refresh');
+  assert.strictEqual(sheet._rows[4][2], '新しい記事D', 'A brand-new post must be appended as a new row');
 }
 
 console.log('internal link sitemap-refresh safety tests: OK');

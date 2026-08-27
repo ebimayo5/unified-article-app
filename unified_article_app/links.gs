@@ -95,15 +95,22 @@ function uaSetupInternalLinkSheet() {
 }
 
 /**
- * Refreshes internal-link candidates from each site's sitemap.
- * Safety rule: this NEVER clears/replaces the sheet in bulk. Each URL that
- * is successfully re-fetched is upserted in place (existing 核記事・使う場面・
- * 優先度・手動保持 are preserved); a URL that fails to fetch, or a site whose
- * sitemap URL isn't configured or can't be reached, is simply left untouched
- * for this run rather than being deleted. This sheet previously used a
- * "clear everything, keep only 手動保持 rows" strategy, which silently wiped
- * almost all candidates whenever the crawl mostly failed (e.g. a security
- * plugin blocking the fetches) — do not reintroduce that pattern.
+ * Refreshes internal-link candidates for each site from its own WordPress
+ * REST API (the same authenticated endpoint automation.gs/wordpress.gs
+ * already use reliably), instead of crawling the public sitemap.xml and
+ * scraping each page's HTML. The sitemap/HTML-scrape approach returned 0
+ * URLs on both sites once their security plugins (SiteGuard/Wordfence)
+ * started blocking the unauthenticated, non-browser requests — with no
+ * error thrown, just an empty result, which is much easier to miss.
+ * Authenticated REST calls aren't subject to that same bot-blocking.
+ *
+ * Safety rule: this NEVER clears/replaces the sheet in bulk. Each post
+ * successfully returned by the API is upserted in place (existing
+ * 核記事・使う場面・優先度・手動保持 are preserved); if a site's API call fails
+ * or returns nothing, its existing candidates are left untouched for this
+ * run rather than being deleted. Do not reintroduce a "clear everything,
+ * keep only 手動保持 rows" pattern here — that previously wiped almost the
+ * entire sheet the moment a fetch step failed.
  */
 function uaUpdateInternalLinksFromSitemaps() {
   uaSetupInternalLinkSheet();
@@ -113,49 +120,70 @@ function uaUpdateInternalLinksFromSitemaps() {
   Object.keys(UA_APP_TYPES).forEach(function(key) {
     const appConfig = UA_APP_TYPES[key];
 
-    if (!appConfig.useInternalLinks) {
+    if (!appConfig.useInternalLinks || appConfig.useWordPress === false) {
       return;
     }
 
-    const sitemapUrl = uaGetInternalLinkSitemapUrl_(appConfig);
-
-    if (!sitemapUrl) {
-      messages.push(appConfig.label + ': サイトマップURL未設定（既存の候補は変更しません）');
-      return;
-    }
-
-    let urls;
+    let posts;
     try {
-      urls = uaFetchSitemapUrls_(sitemapUrl).slice(0, UA_INTERNAL_LINK_MAX_URLS);
+      posts = uaFetchPublishedWpPostsForInternalLinks_(appConfig);
     } catch (e) {
-      messages.push(appConfig.label + ': サイトマップ取得に失敗（既存の候補は変更しません）: ' + (e && e.message ? e.message : e));
+      messages.push(appConfig.label + ': WordPress取得に失敗（既存の候補は変更しません）: ' + (e && e.message ? e.message : e));
       return;
     }
 
-    if (urls.length === 0) {
-      messages.push(appConfig.label + ': URL取得0件（既存の候補は変更しません）');
+    if (posts.length === 0) {
+      messages.push(appConfig.label + ': 記事取得0件（既存の候補は変更しません）');
       return;
     }
 
     let updated = 0;
-    let failed = 0;
 
-    urls.forEach(function(url) {
-      const info = uaFetchPageInfo_(url);
+    posts.forEach(function(post) {
+      const url = String(post && post.link || '');
+      const title = uaCleanText_(uaDecodeHtmlEntities_(uaStripHtml_(String(post && post.title && post.title.rendered || ''))));
+      if (!url || !title) return;
 
-      if (!info || !info.title) {
-        failed++;
-        return;
-      }
+      const description = uaCleanText_(uaStripHtml_(String(post && post.excerpt && post.excerpt.rendered || '')));
+      const intro = uaCleanText_(uaStripHtml_(String(post && post.content && post.content.rendered || ''))).slice(0, 200);
 
-      uaUpsertInternalLinkCandidateRow_(sheet, appConfig, url, info);
+      uaUpsertInternalLinkCandidateRow_(sheet, appConfig, url, {
+        title: title,
+        description: description,
+        intro: intro,
+        keywords: ''
+      });
       updated++;
     });
 
-    messages.push(appConfig.label + ': ' + updated + '件更新' + (failed > 0 ? '（取得失敗' + failed + '件はそのまま維持）' : ''));
+    messages.push(appConfig.label + ': ' + updated + '件更新');
   });
 
   SpreadsheetApp.getUi().alert('内部リンク候補を更新しました。\n' + messages.join('\n'));
+}
+
+function uaFetchPublishedWpPostsForInternalLinks_(appConfig) {
+  const wpConfig = uaGetWpConfig_(appConfig);
+  const perPage = 100;
+  const all = [];
+  let page = 1;
+
+  while (all.length < UA_INTERNAL_LINK_MAX_URLS) {
+    const batch = uaCallWordPressApi_(
+      wpConfig,
+      '/wp-json/wp/v2/posts?status=publish&per_page=' + perPage + '&page=' + page + '&orderby=date&order=desc',
+      'get'
+    ) || [];
+
+    if (!batch.length) break;
+
+    all.push.apply(all, batch);
+
+    if (batch.length < perPage) break;
+    page++;
+  }
+
+  return all.slice(0, UA_INTERNAL_LINK_MAX_URLS);
 }
 
 function uaInferInternalLinkMetadata_(appConfig, url, info) {

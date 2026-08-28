@@ -103,7 +103,14 @@ function uaGetMainKeywordProductProfile_(rowData, appConfig) {
 
   const keyword = String(rowData && rowData.mainInput || '').replace(/\s+/g, ' ').trim();
   if (!keyword) return null;
-  const requiredBrands = uaExtractRequiredProductBrands_(keyword);
+  const keywordBrands = uaExtractRequiredProductBrands_(keyword);
+  const titleBrands = uaExtractRequiredProductBrands_(rowData && rowData.titleIdeas);
+  const intentBrands = uaExtractRequiredProductBrands_(rowData && rowData.readerMindMemo);
+  const requiredBrands = keywordBrands.slice();
+  titleBrands.forEach(function(brand) {
+    if (!intentBrands.some(function(intentBrand) { return intentBrand.key === brand.key; })) return;
+    if (!requiredBrands.some(function(existing) { return existing.key === brand.key; })) requiredBrands.push(brand);
+  });
 
   const catalog = [
     {
@@ -132,9 +139,9 @@ function uaGetMainKeywordProductProfile_(rowData, appConfig) {
     },
     {
       pattern: /テレビ(?:\s*\d+台)?/,
-      query: 'テレビ 省スペース',
+      query: '液晶テレビ 24V型',
       label: '省スペースで置けるテレビ',
-      queries: ['テレビ 省スペース', 'テレビ 小型', 'テレビ']
+      queries: ['液晶テレビ 24V型', '小型 液晶テレビ 24型', '液晶テレビ 32V型']
     },
     {
       pattern: /洗濯機.*(?:隙間|すき間)|(?:隙間|すき間).*洗濯機/,
@@ -233,11 +240,14 @@ function uaBuildMainKeywordProductPlan_(productProfile, productPlan) {
     shouldInsert: true,
     primaryProduct: productProfile.label,
     marketQuery: productProfile.query,
-    // 比較記事ではAIの比較観点（サイズ・取扱表示など）が本文で確認する条件として
+    // 比較記事や主役商品本体では、AIの比較観点（サイズ・取扱表示など）が本文で確認する条件として
     // requiredFeaturesに入りがちで、楽天の商品名に全語が含まれる必須条件として
     // 誤って扱われるとブランド違いの商品まで弾かれる。比較記事のときだけ無効化し、
-    // 通常の商品記事ではAIが出した必須条件のフィルタリングをそのまま活かす。
-    requiredFeatures: productProfile.comparison ? [] : plan.requiredFeatures,
+    // 本体検索では検索語と商品名で確認できる型数・調色等を専用判定し、それ以外の
+    // 通常商品だけAIが出した必須条件のフィルタリングをそのまま活かす。
+    requiredFeatures: productProfile.comparison || uaIsMainUnitRakutenQuery_(productProfile.query)
+      ? []
+      : plan.requiredFeatures,
     purpose: plan.purpose || 'メインキーワードの商品を比較し、暮らしに合う候補を選ぶ',
     purchaseScale: plan.purchaseScale || 'standard',
     benefit: plan.benefit || '本文の判断条件に合う商品候補を具体的に比較しやすくなります',
@@ -2374,7 +2384,9 @@ function uaBuildRakutenAffiliateBanner_(body, rowData, appConfig) {
 
   if (!hasMainAffiliate) {
     const profileQueries = mainKeywordProfile ? mainKeywordProfile.queries : [];
-    const queryPool = [query].concat(profileQueries).concat(effectiveProductPlan && !mainKeywordProfile ? [] : categoryQueries);
+    const queryPool = mainKeywordProfile
+      ? profileQueries.concat([query])
+      : [query].concat(effectiveProductPlan ? [] : categoryQueries);
     const keywordAndContextQueries = queryPool.filter(function(value, index, values) {
       return value && values.indexOf(value) === index;
     }).slice(0, 3);
@@ -2407,6 +2419,16 @@ function uaBuildRakutenAffiliateBanner_(body, rowData, appConfig) {
     if (items.length > 0) {
       effectiveProductPlan = standardPlan;
     }
+  }
+
+  if (mainKeywordProfile && mainKeywordProfile.requiredBrands && mainKeywordProfile.requiredBrands.length > 0) {
+    items = uaEnsureRequiredBrandRakutenItems_(
+      items,
+      mainKeywordProfile,
+      desiredCount,
+      selectionSeed,
+      effectiveProductPlan
+    );
   }
 
   if (items.length > 0) {
@@ -3059,24 +3081,103 @@ function uaFetchRakutenItemsByQueries_(queries, maxItems, selectionSeed, product
   const results = [];
   const seenItems = {};
   const seenNames = {};
+  const seenModels = {};
   const limit = Math.max(1, Math.min(3, Number(maxItems) || 3));
 
-  (queries || []).forEach(function(query) {
+  (queries || []).forEach(function(query, queryIndex) {
     if (results.length >= limit) return;
 
+    if (queryIndex > 0) uaPauseBetweenRakutenQueries_();
     const items = uaFetchRakutenItems_(query, 1, String(selectionSeed || '') + '|' + query, productPlan);
     items.forEach(function(item) {
       if (results.length >= limit) return;
       const key = uaRakutenItemUniqueKey_(item);
       const nameKey = uaRakutenItemNameKey_(item);
-      if (!key || seenItems[key] || nameKey && seenNames[nameKey]) return;
+      const modelKey = uaRakutenItemModelKey_(item);
+      if (!key || seenItems[key] || nameKey && seenNames[nameKey] || modelKey && seenModels[modelKey]) return;
       seenItems[key] = true;
       if (nameKey) seenNames[nameKey] = true;
+      if (modelKey) seenModels[modelKey] = true;
       results.push(item);
     });
   });
 
   return results;
+}
+
+function uaPauseBetweenRakutenQueries_() {
+  if (typeof Utilities !== 'undefined' && Utilities && typeof Utilities.sleep === 'function') {
+    Utilities.sleep(1100);
+  }
+}
+
+function uaEnsureRequiredBrandRakutenItems_(items, productProfile, maxItems, selectionSeed, productPlan) {
+  const requiredBrands = productProfile && Array.isArray(productProfile.requiredBrands)
+    ? productProfile.requiredBrands
+    : [];
+  const limit = Math.max(requiredBrands.length, Math.max(1, Math.min(3, Number(maxItems) || 1)));
+  let candidates = uaDedupeRakutenItems_(items || []);
+
+  requiredBrands.forEach(function(brand) {
+    if (candidates.some(function(item) { return uaProductNameMatchesBrand_(item && item.name, brand); })) return;
+
+    const existingBrandQueries = (productProfile.queries || []).filter(function(query) {
+      return uaProductNameMatchesBrand_(query, brand);
+    });
+    const retryQueries = existingBrandQueries.concat([
+      brand.label + ' ' + String(productProfile.label || productProfile.query || '').trim(),
+      brand.label + ' 本体',
+      brand.label
+    ]).map(function(query) {
+      return String(query || '').replace(/\s+/g, ' ').trim();
+    }).filter(function(query, index, values) {
+      return query && values.indexOf(query) === index;
+    });
+
+    for (let retryIndex = 0; retryIndex < retryQueries.length; retryIndex++) {
+      uaPauseBetweenRakutenQueries_();
+      const fetched = uaFetchRakutenItems_(
+        retryQueries[retryIndex],
+        1,
+        String(selectionSeed || '') + '|required-brand|' + brand.key + '|' + retryIndex,
+        productPlan
+      );
+      const matched = fetched.find(function(item) {
+        return uaProductNameMatchesBrand_(item && item.name, brand);
+      });
+      if (matched) {
+        candidates = uaDedupeRakutenItems_(candidates.concat([matched]));
+        break;
+      }
+    }
+  });
+
+  const missingBrands = requiredBrands.filter(function(brand) {
+    return !candidates.some(function(item) {
+      return uaProductNameMatchesBrand_(item && item.name, brand);
+    });
+  });
+  if (missingBrands.length > 0) {
+    UA_LAST_RAKUTEN_STATUS = 'メインキーワードで明示されたブランドの商品本体を取得できませんでした: ' +
+      missingBrands.map(function(brand) { return brand.label; }).join(' / ');
+    return [];
+  }
+
+  const prioritized = [];
+  requiredBrands.forEach(function(brand) {
+    const matched = candidates.find(function(item) {
+      return uaProductNameMatchesBrand_(item && item.name, brand);
+    });
+    if (matched) prioritized.push(matched);
+  });
+  candidates.forEach(function(item) {
+    if (prioritized.length >= limit) return;
+    const key = uaRakutenItemUniqueKey_(item);
+    if (!prioritized.some(function(selected) { return uaRakutenItemUniqueKey_(selected) === key; })) {
+      prioritized.push(item);
+    }
+  });
+  return uaDedupeRakutenItems_(prioritized).slice(0, Math.min(3, limit));
 }
 
 function uaFetchRakutenItemsAcrossQueries_(queries, maxItems, selectionSeed, productPlan) {
@@ -3097,6 +3198,7 @@ function uaFetchRakutenItemsAcrossQueries_(queries, maxItems, selectionSeed, pro
   const results = uaFetchRakutenItemsByQueries_(uniqueQueries, limit, selectionSeed, productPlan);
   if (results.length >= limit) return results.slice(0, limit);
 
+  uaPauseBetweenRakutenQueries_();
   const supplemental = uaFetchRakutenItems_(
     uniqueQueries[0],
     limit,
@@ -3134,15 +3236,31 @@ function uaRakutenItemNameKey_(item) {
     .toLowerCase();
 }
 
+function uaRakutenItemModelKey_(item) {
+  const name = String(item && item.name || item && item.itemName || '').toLowerCase();
+  const matches = name.match(/\b[a-z]{1,6}-?\d[a-z0-9-]{3,}\b/ig) || [];
+  const model = matches.map(function(value) {
+    return value.replace(/[^a-z0-9]/gi, '').toLowerCase();
+  }).filter(function(value) {
+    return value.length >= 6 && /[a-z]/.test(value) && /\d/.test(value);
+  }).sort(function(a, b) {
+    return b.length - a.length;
+  })[0];
+  return model ? 'model:' + model : '';
+}
+
 function uaDedupeRakutenItems_(items) {
   const seen = {};
   const seenNames = {};
+  const seenModels = {};
   return (items || []).filter(function(item) {
     const key = uaRakutenItemUniqueKey_(item);
     const nameKey = uaRakutenItemNameKey_(item);
-    if (!key || seen[key] || nameKey && seenNames[nameKey]) return false;
+    const modelKey = uaRakutenItemModelKey_(item);
+    if (!key || seen[key] || nameKey && seenNames[nameKey] || modelKey && seenModels[modelKey]) return false;
     seen[key] = true;
     if (nameKey) seenNames[nameKey] = true;
+    if (modelKey) seenModels[modelKey] = true;
     return true;
   });
 }
@@ -3312,8 +3430,8 @@ function uaFetchRakutenItems_(query, maxItems, selectionSeed, productPlan) {
   const affiliateId = String(PropertiesService.getScriptProperties().getProperty('UA_RAKUTEN_AFFILIATE_ID') || '').trim();
   const refererUrl = uaGetRakutenRefererUrl_();
   const hits = Math.max(1, Math.min(3, Number(maxItems) || 1));
-  const candidateHits = 20;
-  const searchTuning = uaBuildRakutenSearchTuning_(productPlan);
+  const candidateHits = 30;
+  const searchTuning = uaBuildRakutenSearchTuning_(productPlan, query);
   const params = [
     'format=json',
     'formatVersion=2',
@@ -3535,9 +3653,15 @@ function uaTestDiverseRakutenItemSelection() {
   return { ok: true, count: checks.length, selected: urls };
 }
 
-function uaBuildRakutenSearchTuning_(productPlan) {
+function uaBuildRakutenSearchTuning_(productPlan, query) {
   const plan = uaNormalizeProductPlan_(productPlan);
   const scale = plan && plan.purchaseScale || 'standard';
+  if (uaExtractRequiredProductBrands_(query).length > 0 || uaIsMainUnitRakutenQuery_(query)) {
+    return {
+      sort: 'standard',
+      ngKeyword: 'ふるさと納税'
+    };
+  }
   if (scale === 'standard' || scale === 'trial') {
     return {
       sort: '+itemPrice',
@@ -3550,10 +3674,50 @@ function uaBuildRakutenSearchTuning_(productPlan) {
   };
 }
 
+function uaIsMainUnitRakutenQuery_(query) {
+  const value = String(query || '').replace(/[\s　]+/g, '').toLowerCase();
+  if (!value) return false;
+  if (/テレビスタンド|テレビ台|配線カバー/.test(value)) return false;
+  return /テレビ|シーリングライト|天井照明|室内ジャングルジム|ジャングルジム|室内遊具|ビーズソファ|ビーズクッション/.test(value);
+}
+
+function uaIsMainUnitRakutenItem_(itemName, query) {
+  if (!uaIsMainUnitRakutenQuery_(query)) return true;
+  const name = String(itemName || '').replace(/[\s　]+/g, '').toLowerCase();
+  const queryText = String(query || '').replace(/[\s　]+/g, '').toLowerCase();
+
+  if (/テレビ/.test(queryText) && !/テレビスタンド|テレビ台|配線カバー/.test(queryText)) {
+    if (/リモコン|壁掛け金具|壁掛けラック|テレビ台|テレビスタンド|保護パネル|液晶保護|アンテナ|同軸ケーブル|hdmiケーブル|録画用|ハードディスク|テレビカバー/.test(name)) return false;
+    if (!/液晶テレビ|ledテレビ|スマートテレビ|チューナーレステレビ|テレビ本体|\d+(?:v型|型|インチ).*テレビ|テレビ.*\d+(?:v型|型|インチ)/i.test(name)) return false;
+    const requestedSize = queryText.match(/(24|32)(?:v型|型)/i);
+    return !requestedSize || new RegExp(requestedSize[1] + '(?:v型|型|インチ)', 'i').test(name);
+  }
+
+  if (/シーリングライト|天井照明/.test(queryText)) {
+    if (/リモコンのみ|交換用リモコン|リモコン単品|カバーのみ|シェードのみ|交換部品|アダプターのみ|電球のみ/.test(name)) return false;
+    if (!/シーリングライト|天井照明/.test(name)) return false;
+    return queryText.indexOf('調色') === -1 || /調色|色調整|光色切替/.test(name);
+  }
+
+  if (/室内ジャングルジム|ジャングルジム|室内遊具/.test(queryText)) {
+    if (/マットのみ|プレイマット|保護マット|カバーのみ|交換部品|補修部品|パーツのみ/.test(name)) return false;
+    if (!/室内ジャングルジム|ジャングルジム|室内遊具/.test(name)) return false;
+    if (queryText.indexOf('折りたたみ') !== -1 && !/折りたたみ|折畳|折り畳み/.test(name)) return false;
+    if (queryText.indexOf('すべり台') !== -1 && !/すべり台|滑り台/.test(name)) return false;
+    return true;
+  }
+
+  if (/ビーズソファ|ビーズクッション/.test(queryText)) {
+    return !/カバーのみ|専用カバー|替えカバー|交換用カバー|補充ビーズ|中材のみ/.test(name);
+  }
+  return true;
+}
+
 function uaIsRakutenItemRelevant_(itemName, query) {
   const name = String(itemName || '').replace(/[\s　]+/g, '').toLowerCase();
   const queryText = String(query || '').replace(/[\s　]+/g, '').toLowerCase();
   if (!name || !queryText) return false;
+  if (!uaIsMainUnitRakutenItem_(itemName, query)) return false;
 
   const brandRequirements = uaExtractRequiredProductBrands_(query);
   for (let brandIndex = 0; brandIndex < brandRequirements.length; brandIndex++) {

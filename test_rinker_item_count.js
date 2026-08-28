@@ -125,6 +125,16 @@ assert.deepStrictEqual(
   ['yogibo', 'muji'],
   'メインキーワードで明示された比較ブランドを必須対象として保持する'
 );
+const contextualYogiboProfile = context.uaGetMainKeywordProductProfile_({
+  mainInput: '無印良品 人をダメにするソファ',
+  titleIdeas: '案3：無印良品の人をダメにするソファとYogibo、暮らしに合うのはどっち？',
+  readerMindMemo: '無印良品とYogiboのどちらを選ぶべきか、違いを比較したい。'
+}, homeConfig);
+assert.deepStrictEqual(
+  Array.from(contextualYogiboProfile.requiredBrands).map((brand) => brand.key),
+  ['muji', 'yogibo'],
+  'タイトル案と読者心理の両方で比較対象になったブランドも必須商品へ含める'
+);
 assert.strictEqual(
   context.uaExtractRequiredProductBrands_('タワーファン おすすめ').length,
   0,
@@ -218,6 +228,88 @@ assert.deepStrictEqual(
   '比較ブランドごとに最低1商品を取得してから汎用候補を補う'
 );
 assert.strictEqual(
+  context.uaBuildRakutenSearchTuning_({ purchase_scale: 'standard' }, 'Yogibo Max').sort,
+  'standard',
+  'ブランド指定検索は安いアクセサリー順ではなく検索関連度順を使う'
+);
+assert.strictEqual(
+  context.uaBuildRakutenSearchTuning_({ purchase_scale: 'standard' }, 'テレビ 小型').sort,
+  'standard',
+  'テレビ本体検索は安い周辺用品順ではなく検索関連度順を使う'
+);
+assert.ok(
+  context.uaIsRakutenItemRelevant_('32V型 液晶テレビ ダブルチューナー搭載', 'テレビ 小型'),
+  '小型テレビ本体は候補として残す'
+);
+assert.ok(
+  !context.uaIsRakutenItemRelevant_('テレビ用 壁掛け金具 32型対応', 'テレビ 小型'),
+  'テレビ検索へ壁掛け金具を混ぜない'
+);
+assert.ok(
+  !context.uaIsRakutenItemRelevant_('テレビ リモコン 汎用', 'テレビ 省スペース'),
+  'テレビ検索へリモコンを混ぜない'
+);
+assert.ok(
+  !context.uaIsRakutenItemRelevant_('32V型 液晶テレビ ダブルチューナー搭載', '液晶テレビ 24V型'),
+  '24V型検索へ32V型テレビを混ぜない'
+);
+assert.ok(
+  context.uaIsRakutenItemRelevant_('LEDシーリングライト 8畳 調光 調色', 'シーリングライト 調色'),
+  '調光調色シーリングライト本体は候補として残す'
+);
+assert.ok(
+  !context.uaIsRakutenItemRelevant_('シーリングライト 交換用リモコン単品', 'シーリングライト 調色'),
+  'シーリングライト検索へ交換用リモコンを混ぜない'
+);
+assert.ok(
+  !context.uaIsRakutenItemRelevant_('LEDシーリングライト 8畳 調光のみ', 'シーリングライト 調色'),
+  '調色検索へ調光だけの照明本体を混ぜない'
+);
+assert.ok(
+  context.uaIsRakutenItemRelevant_('折りたたみ室内ジャングルジム すべり台付き', '室内ジャングルジム 折りたたみ'),
+  '室内ジャングルジム本体は候補として残す'
+);
+assert.ok(
+  !context.uaIsRakutenItemRelevant_('ジャングルジム用 プレイマット', '室内ジャングルジム 折りたたみ'),
+  '室内ジャングルジム検索へ保護マットだけを混ぜない'
+);
+assert.ok(
+  !context.uaIsRakutenItemRelevant_('固定式 室内ジャングルジム', '室内ジャングルジム 折りたたみ'),
+  '折りたたみ検索へ固定式ジャングルジムを混ぜない'
+);
+const fetchBeforeRequiredBrandRetry = context.uaFetchRakutenItems_;
+context.uaFetchRakutenItems_ = (query) => /Yogibo/.test(query)
+  ? [{ name: 'Yogibo Max ヨギボー ビーズソファ 本体', url: 'https://example.com/yogibo-retry', itemCode: 'yogibo:retry' }]
+  : [];
+const retriedBrandItems = context.uaEnsureRequiredBrandRakutenItems_(
+  [
+    { name: '無印良品 体にフィットするソファ 本体', url: 'https://example.com/muji-existing', itemCode: 'muji:existing' },
+    { name: '国産 ビーズソファ 本体', url: 'https://example.com/generic-existing', itemCode: 'generic:existing' }
+  ],
+  yogiboProfile,
+  3,
+  'brand-retry-test',
+  { should_insert: true, primary_product: 'ビーズソファ', market_query: 'ビーズソファ 本体' }
+);
+assert.deepStrictEqual(
+  Array.from(retriedBrandItems).map((item) => item.itemCode),
+  ['yogibo:retry', 'muji:existing', 'generic:existing'],
+  '明示ブランドが欠けた場合は汎用品で埋めず、そのブランドを再検索して先頭候補へ含める'
+);
+context.uaFetchRakutenItems_ = () => [];
+assert.strictEqual(
+  context.uaEnsureRequiredBrandRakutenItems_(
+    [{ name: '国産 ビーズソファ 本体', url: 'https://example.com/only-generic', itemCode: 'generic:only' }],
+    yogiboProfile,
+    3,
+    'missing-brand-test',
+    { should_insert: true, primary_product: 'ビーズソファ', market_query: 'ビーズソファ 本体' }
+  ).length,
+  0,
+  '明示ブランドを取得できない場合は汎用品だけの商品導線を作らない'
+);
+context.uaFetchRakutenItems_ = fetchBeforeRequiredBrandRetry;
+assert.strictEqual(
   context.uaDedupeRakutenItems_([
     { name: '洗濯機 隙間パッキン 2本セット', itemCode: 'shop-a:item-1', url: 'https://example.com/a' },
     { name: '洗濯機 隙間パッキン 2本セット', itemCode: 'shop-b:item-9', url: 'https://example.com/b' },
@@ -225,6 +317,15 @@ assert.strictEqual(
   ]).length,
   2,
   '別店舗・別商品コードでも商品名が同じ候補を重複表示しない'
+);
+assert.strictEqual(
+  context.uaDedupeRakutenItems_([
+    { name: 'テレビ 24V型 液晶テレビ アイリスオーヤマ LT-24WSX-F1', itemCode: 'shop-a:tv', url: 'https://example.com/tv-a' },
+    { name: 'アイリスオーヤマ 液晶テレビ 24V型 LT-24WSX-F1', itemCode: 'shop-b:tv', url: 'https://example.com/tv-b' },
+    { name: 'テレビ 32V型 液晶テレビ アイリスオーヤマ LT-32WSX-F1', itemCode: 'shop-c:tv', url: 'https://example.com/tv-c' }
+  ]).length,
+  2,
+  '商品名の語順や店舗が違っても同じ型番のテレビは1商品にまとめる'
 );
 assert.strictEqual(
   context.uaGetMainKeywordProductProfile_({ mainInput: 'スタバ 氷少なめ' }, homeConfig),
@@ -437,6 +538,11 @@ assert.ok(
   context.uaGetMainKeywordProductProfile_({ mainInput: 'テレビ 省スペース おすすめ' }, homeConfigForProfile),
   '購入検討系のテレビ記事は引き続きカタログにマッチする'
 );
+assert.deepStrictEqual(
+  Array.from(context.uaGetMainKeywordProductProfile_({ mainInput: 'リビング ダイニング テレビ 2台' }, homeConfigForProfile).queries),
+  ['液晶テレビ 24V型', '小型 液晶テレビ 24型', '液晶テレビ 32V型'],
+  '2台目テレビは曖昧な省スペース語ではなく実在する小型テレビ本体の型数で検索する'
+);
 
 const comparisonPlan = context.uaBuildMainKeywordProductPlan_(
   { label: 'ビーズソファ', query: 'ビーズソファ 本体', comparison: true },
@@ -453,8 +559,8 @@ const nonComparisonPlan = context.uaBuildMainKeywordProductPlan_(
 );
 assert.deepStrictEqual(
   Array.from(nonComparisonPlan.requiredFeatures || []),
-  ['調色機能'],
-  '比較記事でない場合はAIのrequiredFeaturesフィルタリングを維持する'
+  [],
+  '主役商品本体は比較記事でなくても商品名で確認できないAI条件を必須語にしない'
 );
 
 const coverWithNegation = context.uaScoreRakutenItem_(

@@ -33,6 +33,8 @@ const projects = {
 
 const context = {
   console,
+  uaUsesSwellBlocks_: () => true,
+  uaGetSwellButtonColor_: (appConfig) => appConfig && appConfig.key === 'home' ? 'orange' : 'green',
   uaRelocateManagedAffiliateTokenByContext_: (body) => String(body || ''),
   uaNormalizeAffiliateName_: (value) => String(value || '').trim(),
   uaNormalizeAffiliateCodeInput_: (value) => String(value || '').trim(),

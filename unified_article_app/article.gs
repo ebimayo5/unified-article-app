@@ -103,6 +103,7 @@ function uaGetMainKeywordProductProfile_(rowData, appConfig) {
 
   const keyword = String(rowData && rowData.mainInput || '').replace(/\s+/g, ' ').trim();
   if (!keyword) return null;
+  const requiredBrands = uaExtractRequiredProductBrands_(keyword);
 
   const catalog = [
     {
@@ -157,6 +158,7 @@ function uaGetMainKeywordProductProfile_(rowData, appConfig) {
       query: matched.query,
       label: matched.label,
       queries: matched.queries.slice(0, 3),
+      requiredBrands: requiredBrands,
       comparison: /比較|どっち|どちら|選び方|おすすめ|対|vs|VS/.test(keyword),
       source: 'catalog'
     };
@@ -177,9 +179,51 @@ function uaGetMainKeywordProductProfile_(rowData, appConfig) {
     query: query,
     label: query,
     queries: [query],
+    requiredBrands: requiredBrands,
     comparison: /比較|どっち|どちら|選び方|おすすめ|ランキング|対|vs|VS/.test(keyword),
     source: 'keyword'
   };
+}
+
+function uaGetProductBrandDefinitions_() {
+  return [
+    { key: 'yogibo', label: 'Yogibo', aliases: ['yogibo', 'ヨギボー'] },
+    { key: 'muji', label: '無印良品', aliases: ['無印良品', 'muji'] },
+    { key: 'nitori', label: 'ニトリ', aliases: ['ニトリ', 'nitori'] },
+    { key: 'iris_ohyama', label: 'アイリスオーヤマ', aliases: ['アイリスオーヤマ', 'iris ohyama'] },
+    { key: 'panasonic', label: 'パナソニック', aliases: ['パナソニック', 'panasonic'] },
+    { key: 'hitachi', label: '日立', aliases: ['日立', 'hitachi'] },
+    { key: 'sharp', label: 'シャープ', aliases: ['シャープ', 'sharp'] },
+    { key: 'daikin', label: 'ダイキン', aliases: ['ダイキン', 'daikin'] },
+    { key: 'toshiba', label: '東芝', aliases: ['東芝', 'toshiba'] },
+    { key: 'mitsubishi_electric', label: '三菱電機', aliases: ['三菱電機', 'mitsubishi electric'] },
+    { key: 'balmuda', label: 'バルミューダ', aliases: ['バルミューダ', 'balmuda'] },
+    { key: 'yamazaki', label: '山崎実業', aliases: ['山崎実業'] },
+    { key: 'dyson', label: 'Dyson', aliases: ['dyson', 'ダイソン'] },
+    { key: 'ikea', label: 'IKEA', aliases: ['ikea', 'イケア'] }
+  ];
+}
+
+function uaExtractRequiredProductBrands_(text) {
+  const source = String(text || '').toLowerCase();
+  return uaGetProductBrandDefinitions_().filter(function(brand) {
+    return brand.aliases.some(function(alias) {
+      return source.indexOf(String(alias || '').toLowerCase()) !== -1;
+    });
+  }).map(function(brand) {
+    return {
+      key: brand.key,
+      label: brand.label,
+      aliases: brand.aliases.slice()
+    };
+  });
+}
+
+function uaProductNameMatchesBrand_(productName, brand) {
+  const source = String(productName || '').toLowerCase();
+  return !!(brand && Array.isArray(brand.aliases) && brand.aliases.some(function(alias) {
+    return source.indexOf(String(alias || '').toLowerCase()) !== -1;
+  }));
 }
 
 function uaBuildMainKeywordProductPlan_(productProfile, productPlan) {
@@ -2096,6 +2140,40 @@ function uaCountManagedProductChoices_(body) {
   return (text.match(/>\s*楽天で見る\s*<\/a>/gi) || []).length;
 }
 
+function uaBuildManagedProductSelectionMeta_(items) {
+  const names = (items || []).map(function(item) {
+    return String(item && (item.name || item.title) || '').replace(/\s+/g, ' ').trim();
+  }).filter(Boolean).slice(0, 3);
+  if (names.length === 0) return '';
+  return '<!-- UA_RINKER_SELECTION_META ' + encodeURIComponent(JSON.stringify(names)) + ' -->';
+}
+
+function uaExtractManagedProductSelectionNames_(body) {
+  const match = String(body || '').match(/<!--\s*UA_RINKER_SELECTION_META\s+([^\s>]+)\s*-->/i);
+  if (!match || !match[1]) return [];
+  try {
+    const parsed = JSON.parse(decodeURIComponent(match[1]));
+    return Array.isArray(parsed) ? parsed.map(function(name) {
+      return String(name || '').replace(/\s+/g, ' ').trim();
+    }).filter(Boolean).slice(0, 3) : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+function uaGetMissingRequiredProductBrands_(body, productProfile) {
+  const requiredBrands = productProfile && Array.isArray(productProfile.requiredBrands)
+    ? productProfile.requiredBrands
+    : [];
+  if (requiredBrands.length === 0) return [];
+  const selectedNames = uaExtractManagedProductSelectionNames_(body);
+  return requiredBrands.filter(function(brand) {
+    return !selectedNames.some(function(name) {
+      return uaProductNameMatchesBrand_(name, brand);
+    });
+  });
+}
+
 function uaDoesProductPlanMatchMainKeyword_(body, productProfile) {
   if (!productProfile) return true;
   const plan = uaExtractProductPlan_(body);
@@ -2128,16 +2206,21 @@ function uaGetExistingProductLinkAssessment_(body, rowData, appConfig) {
   const count = uaCountManagedProductChoices_(text);
   const requiredCount = profile && profile.comparison ? 2 : 1;
   const planMatches = uaDoesProductPlanMatchMainKeyword_(text, profile);
+  const missingBrands = uaGetMissingRequiredProductBrands_(text, profile);
+  const brandCoverageMatches = missingBrands.length === 0;
   return {
     exists: true,
-    adequate: count >= requiredCount && planMatches,
+    adequate: count >= requiredCount && planMatches && brandCoverageMatches,
     managed: true,
     count: count,
+    missingBrands: missingBrands.map(function(brand) { return brand.label; }),
     reason: count < requiredCount
       ? '比較記事に必要な商品候補数が不足'
-      : planMatches
-        ? 'メインキーワードと一致'
-        : '自動商品リンクがメインキーワードと不一致'
+      : !planMatches
+        ? '自動商品リンクがメインキーワードと不一致'
+        : !brandCoverageMatches
+          ? 'メインキーワードで明示されたブランドの商品が不足: ' + missingBrands.map(function(brand) { return brand.label; }).join(' / ')
+          : 'メインキーワードとブランド構成が一致'
   };
 }
 
@@ -3472,13 +3555,9 @@ function uaIsRakutenItemRelevant_(itemName, query) {
   const queryText = String(query || '').replace(/[\s　]+/g, '').toLowerCase();
   if (!name || !queryText) return false;
 
-  const brandRequirements = [
-    { query: /(?:yogibo|ヨギボー)/i, item: /(?:yogibo|ヨギボー)/i },
-    { query: /(?:無印良品|muji)/i, item: /(?:無印良品|muji)/i }
-  ];
+  const brandRequirements = uaExtractRequiredProductBrands_(query);
   for (let brandIndex = 0; brandIndex < brandRequirements.length; brandIndex++) {
-    const requirement = brandRequirements[brandIndex];
-    if (requirement.query.test(query) && !requirement.item.test(itemName)) return false;
+    if (!uaProductNameMatchesBrand_(itemName, brandRequirements[brandIndex])) return false;
   }
 
   if ((queryText.indexOf('サンシェード') !== -1 || queryText.indexOf('日よけ') !== -1) &&
@@ -3963,9 +4042,10 @@ function uaBuildHomeRinkerItemsHtml_(items, fallbackQuery, appConfig) {
     );
     const shortcodeHtml = uaBuildRinkerShortcodeBlocks_(savedItems);
     if (!shortcodeHtml) return '';
+    const selectionMeta = uaBuildManagedProductSelectionMeta_(sourceItems);
 
     UA_LAST_RAKUTEN_STATUS = 'Rinker商品ボックス挿入済み｜楽天で選定した同一商品名をAmazon検索にも使用';
-    return shortcodeHtml;
+    return [selectionMeta, shortcodeHtml].filter(Boolean).join('\n');
   } catch (e) {
     UA_LAST_RAKUTEN_STATUS = 'Rinker連携を利用できなかったため、従来の商品比較ボタンへ自動フォールバックしました: ' + e.toString();
     return '';

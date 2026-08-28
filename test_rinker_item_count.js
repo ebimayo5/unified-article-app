@@ -120,6 +120,16 @@ assert.deepStrictEqual(
   ['無印良品 体にフィットするソファ 本体', 'Yogibo ビーズソファ 本体', 'ビーズソファ 本体'],
   '比較対象を別々の商品検索へ分ける'
 );
+assert.deepStrictEqual(
+  Array.from(yogiboProfile.requiredBrands).map((brand) => brand.key),
+  ['yogibo', 'muji'],
+  'メインキーワードで明示された比較ブランドを必須対象として保持する'
+);
+assert.strictEqual(
+  context.uaExtractRequiredProductBrands_('タワーファン おすすめ').length,
+  0,
+  '一般カテゴリ語のタワーを山崎実業ブランドと誤判定しない'
+);
 const falseYogiboPlanBody = context.uaAttachProductPlanMarker_(
   '<h2>無印良品とYogiboを比較</h2><p>サイズと手入れを比べます。</p>',
   { should_insert: false, purpose: '部屋への置きやすさを判断する' }
@@ -182,6 +192,31 @@ assert.ok(
   ) < 0,
   '通常の商品導線へ中古・ジャンク商品を混ぜない'
 );
+const originalFetchRakutenItems = context.uaFetchRakutenItems_;
+const previousFetchRakutenItemsByQueries = context.uaFetchRakutenItemsByQueries_;
+context.uaFetchRakutenItemsByQueries_ = originalMultiFetch;
+context.uaFetchRakutenItems_ = (query) => {
+  if (/無印良品/.test(query)) {
+    return [{ name: '無印良品 体にフィットするソファ 本体', url: 'https://example.com/muji', itemCode: 'muji:body' }];
+  }
+  if (/Yogibo/.test(query)) {
+    return [{ name: 'Yogibo Max ヨギボー ビーズソファ 本体', url: 'https://example.com/yogibo', itemCode: 'yogibo:max' }];
+  }
+  return [{ name: '国産 ビーズソファ 本体', url: 'https://example.com/generic', itemCode: 'generic:body' }];
+};
+const comparedBrandItems = context.uaFetchRakutenItemsAcrossQueries_(
+  yogiboProfile.queries,
+  3,
+  'brand-comparison-test',
+  { should_insert: true, primary_product: 'ビーズソファ', market_query: 'ビーズソファ 本体' }
+);
+context.uaFetchRakutenItems_ = originalFetchRakutenItems;
+context.uaFetchRakutenItemsByQueries_ = previousFetchRakutenItemsByQueries;
+assert.deepStrictEqual(
+  Array.from(comparedBrandItems).map((item) => item.itemCode),
+  ['muji:body', 'yogibo:max', 'generic:body'],
+  '比較ブランドごとに最低1商品を取得してから汎用候補を補う'
+);
 assert.strictEqual(
   context.uaDedupeRakutenItems_([
     { name: '洗濯機 隙間パッキン 2本セット', itemCode: 'shop-a:item-1', url: 'https://example.com/a' },
@@ -242,7 +277,12 @@ assert.ok(
   '悩み解決用品として必要なカバーはソファ等のカバー単品と区別して残す'
 );
 const alignedYogiboBody = context.uaAttachProductPlanMarker_(
-  '<!-- UA_RINKER_PRODUCTS_START -->\n[itemlink post_id="601"]\n[itemlink post_id="602"]\n<!-- UA_RINKER_PRODUCTS_END -->',
+  '<!-- UA_RINKER_PRODUCTS_START -->\n' +
+    context.uaBuildManagedProductSelectionMeta_([
+      { name: 'Yogibo Max ヨギボー ビーズソファ 本体' },
+      { name: '無印良品 体にフィットするソファ 本体' }
+    ]) +
+    '\n[itemlink post_id="601"]\n[itemlink post_id="602"]\n<!-- UA_RINKER_PRODUCTS_END -->',
   { should_insert: true, primary_product: 'ビーズソファ', market_query: 'ビーズソファ' }
 );
 assert.ok(
@@ -250,12 +290,39 @@ assert.ok(
   '比較記事ではメインキーワードに合う複数候補を保証済みと判定する'
 );
 const oneChoiceYogiboBody = context.uaAttachProductPlanMarker_(
-  '<!-- UA_RINKER_PRODUCTS_START -->\n[itemlink post_id="601"]\n<!-- UA_RINKER_PRODUCTS_END -->',
+  '<!-- UA_RINKER_PRODUCTS_START -->\n' +
+    context.uaBuildManagedProductSelectionMeta_([
+      { name: 'Yogibo Max ヨギボー ビーズソファ 本体' }
+    ]) +
+    '\n[itemlink post_id="601"]\n<!-- UA_RINKER_PRODUCTS_END -->',
   { should_insert: true, primary_product: 'ビーズソファ', market_query: 'ビーズソファ' }
 );
 assert.ok(
   !context.uaGetExistingProductLinkAssessment_(oneChoiceYogiboBody, yogiboRow, homeConfig).adequate,
   '商品比較記事を1商品だけで保証済みにしない'
+);
+const missingBrandYogiboBody = context.uaAttachProductPlanMarker_(
+  '<!-- UA_RINKER_PRODUCTS_START -->\n' +
+    context.uaBuildManagedProductSelectionMeta_([
+      { name: '無印良品 体にフィットするソファ 本体 小' },
+      { name: '無印良品 体にフィットするソファ 本体 大' }
+    ]) +
+    '\n[itemlink post_id="611"]\n[itemlink post_id="612"]\n<!-- UA_RINKER_PRODUCTS_END -->',
+  { should_insert: true, primary_product: 'ビーズソファ', market_query: 'ビーズソファ' }
+);
+const missingBrandAssessment = context.uaGetExistingProductLinkAssessment_(missingBrandYogiboBody, yogiboRow, homeConfig);
+assert.ok(
+  !missingBrandAssessment.adequate && Array.from(missingBrandAssessment.missingBrands).includes('Yogibo'),
+  '比較候補が複数あっても、明示ブランドの一方が欠けていれば再選定する'
+);
+assert.ok(
+  !context.uaGetExistingProductLinkAssessment_(
+    '<!-- UA_RINKER_PRODUCTS_START -->\n[itemlink post_id="621"]\n[itemlink post_id="622"]\n<!-- UA_RINKER_PRODUCTS_END -->' +
+      '<!-- UA_PRODUCT_PLAN {"should_insert":true,"primary_product":"ビーズソファ","market_query":"ビーズソファ"} -->',
+    yogiboRow,
+    homeConfig
+  ).adequate,
+  '旧管理ブロックにブランド選定メタがなければ、ブランド比較記事は一度だけ安全に再選定する'
 );
 const wrongChoiceYogiboBody = context.uaAttachProductPlanMarker_(
   '<!-- UA_RINKER_PRODUCTS_START -->\n[itemlink post_id="701"]\n[itemlink post_id="702"]\n<!-- UA_RINKER_PRODUCTS_END -->',

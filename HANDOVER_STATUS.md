@@ -4,11 +4,13 @@
 作業を始める前・区切りがつくたびに、必ずここを読み書きすること（CLAUDE.md / AGENTS.md の「並行作業ルール」参照）。
 複数エージェントが同時に動く前提のため、このセクションだけは「最終更新」より新しい情報になり得る。
 
-- 状態: 一区切り（完了）
+- 状態: 作業中
 - エージェント: Claude Code
-- 開始時刻: 2026-08-29 20:30頃（日本時間）
-- やったこと: ユーザーから「記事を見て文章の出力の精度や記事品質どう？」と聞かれ、公開済み記事6本（DRIVE BASE 3本・たくみパパ 3本）を実際にWordPress REST APIとブラウザで確認。文章自体の質は高いが、たくみパパのRinker商品カードが楽天APIの生の商品名（出品者のSEOキーワード詰め込みタイトル、例:「＼楽天ランキング1位！／隙間パッキン ホームセンター 洗濯機 洗面台...」）をそのまま表示してしまっており、丁寧な本文と比べて見た目が浮くことを実際のページで確認。ユーザーが「整形して短くする」を選択したため、[unified_article_app/article.gs](unified_article_app/article.gs)の`uaBuildHomeRinkerItemsHtml_`を修正: 既存のAmazon検索キーワード整形ロジック（`uaBuildAmazonSameProductQuery_`）を`uaCleanRakutenItemName_`として共通化し、＼〜／装飾タグの除去も追加、Rinkerへ送るtitleは整形後60文字で切り詰め（`uaTruncateForDisplay_`）。ブランド保証用の`sourceItems`（生の商品名）には影響しない。新規テスト追加、全21ファイルPASS。
-- 本番に影響する操作: 完了。`git push`済み（`8cf20d8`）→ clasp push → 本番`@315`へデプロイ済み（"Clean up raw Rakuten titles before Rinker cards"）。停止中の自動投稿「エアコン位置 失敗」は触れていない。既存記事のRinkerカードは次回の再選定時に整形後タイトルへ更新される（過去記事を遡って一括更新はしていない）。
+- 開始時刻: 2026-08-29 21:00頃（日本時間）
+- やっていること: ユーザーから「外部リンクもシステム的に同じようなものばかりしか入らない」と指摘され、コードを精査。`外部出典`シート（固定のキュレーション一覧）をキーワード一致でスコアリングして選ぶ仕組みだが、記事間で「最近どのURLを使ったか」を一切追跡していなかったため、鮮度ワード（最新・現在・価格等）を含まない記事は毎回同じ上位候補（例: 国土交通省の自動車点検整備案内）を再利用していたと確認（フィアットパンダ記事とセレナ記事で全く同じ出典を確認）。ユーザー承認の上、[unified_article_app/links.gs](unified_article_app/links.gs)の`uaGetExternalSourceCandidates_`/`uaScoreExternalSource_`を修正: 各サイトの記事シートから直近12行（投稿済み/WP下書き済みのみ）の本文をスキャンし、既に使われているURLをスコアから減点（`UA_EXTERNAL_SOURCE_RECENT_USE_PENALTY=5`、[config.gs](unified_article_app/config.gs)）することで、別の候補が自然に選ばれやすくする。新規テスト`test_external_source_recency.js`追加、全22ファイルPASS。
+- 本番に影響する操作: これから実施予定（git commit→push→clasp push→clasp deploy）。まだ本番未反映。
+- 最終更新: (作業中のため未更新)
+- **次のエージェントへの引き継ぎ**: この「本番に影響する操作」欄が「完了」に変わっていない場合、作業が中断された可能性があるため、実際のgit状態・`clasp deployments`を確認してから触ること。
 - 最終更新: 2026-08-29 20:50頃（Claude Code）— 本番@315。
 - **次のエージェントへの引き継ぎ**: 特になし。
 - 最終更新: 2026-08-29 20:15頃（Claude Code）— 本番@314。

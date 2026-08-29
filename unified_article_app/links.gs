@@ -1079,6 +1079,7 @@ function uaGetExternalSourceCandidates_(mainInput, appConfig) {
   }
 
   const values = sheet.getRange(2, 1, sheet.getLastRow() - 1, Math.min(sheet.getLastColumn(), 8)).getValues();
+  const recentBodies = uaGetRecentExternalSourceArticleBodies_(appConfig);
 
   return values
     .map(function(row) {
@@ -1093,7 +1094,7 @@ function uaGetExternalSourceCandidates_(mainInput, appConfig) {
         checkedAt: row[7] || ''
       };
 
-      data.score = uaScoreExternalSource_(mainInput, appConfig, data);
+      data.score = uaScoreExternalSource_(mainInput, appConfig, data, recentBodies);
       return data;
     })
     .filter(function(item) {
@@ -1110,7 +1111,35 @@ function uaGetExternalSourceCandidates_(mainInput, appConfig) {
     .slice(0, UA_EXTERNAL_SOURCE_MAX_CANDIDATES);
 }
 
-function uaScoreExternalSource_(mainInput, appConfig, data) {
+// Same handful of high-scoring sheet entries (e.g. a generic government safety
+// page) otherwise get cited in nearly every article on a topic, since nothing
+// previously tracked which sources recent articles already used. Scanning the
+// last few finished article bodies for this site lets the scorer nudge a
+// recently-used source down so a different, still-relevant candidate surfaces
+// instead -- without excluding it outright when it's genuinely the best fit.
+function uaGetRecentExternalSourceArticleBodies_(appConfig) {
+  if (!appConfig || !appConfig.articleSheetName) return [];
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(appConfig.articleSheetName);
+  if (!sheet) return [];
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) return [];
+
+  const startRow = Math.max(2, lastRow - UA_EXTERNAL_SOURCE_RECENT_ROW_SCAN + 1);
+  const numRows = lastRow - startRow + 1;
+  const statusValues = sheet.getRange(startRow, UA_COLUMNS.status, numRows, 1).getValues();
+  const bodyValues = sheet.getRange(startRow, UA_COLUMNS.body, numRows, 1).getValues();
+
+  const bodies = [];
+  for (let i = 0; i < numRows; i++) {
+    const status = String(statusValues[i][0] || '').trim();
+    if (status !== UA_STATUS_POSTED && status !== UA_STATUS_WP_DRAFTED) continue;
+    const body = String(bodyValues[i][0] || '');
+    if (body) bodies.push(body);
+  }
+  return bodies;
+}
+
+function uaScoreExternalSource_(mainInput, appConfig, data, recentBodies) {
   const key = uaNormalizeForScore_(mainInput);
   const typeWords = appConfig ? uaNormalizeForScore_(appConfig.label + ' ' + appConfig.key) : '';
   const text = uaNormalizeForScore_([
@@ -1133,6 +1162,11 @@ function uaScoreExternalSource_(mainInput, appConfig, data) {
 
   if (String(data.priority).indexOf('高') !== -1) score += 2;
   if (String(data.priority).indexOf('中') !== -1) score += 1;
+
+  const url = String(data.url || '').trim();
+  if (url && Array.isArray(recentBodies) && recentBodies.some(function(body) { return body.indexOf(url) !== -1; })) {
+    score -= UA_EXTERNAL_SOURCE_RECENT_USE_PENALTY;
+  }
 
   return score;
 }

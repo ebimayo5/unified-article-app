@@ -1993,11 +1993,28 @@ function uaRefreshTakumiRefrigeratorStoveRakutenBanner() {
   return uaRefreshRakutenBannerForArticleRow_(UA_APP_TYPES.home, 54);
 }
 
+function uaDebugTakumiRefrigeratorStoveRakutenQuery() {
+  const appConfig = UA_APP_TYPES.home;
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(appConfig.articleSheetName);
+  const row = 54;
+  const rowData = uaBuildRowData_(sheet, row);
+  Logger.log('affiliateNotes=' + JSON.stringify(rowData.affiliateNotes));
+  Logger.log('mainInput=' + JSON.stringify(rowData.mainInput));
+  const directQuery = uaSelectRakutenProductQuery_(rowData.body, rowData, appConfig);
+  Logger.log('uaSelectRakutenProductQuery_ result=' + JSON.stringify(directQuery));
+  const productPlan = uaExtractProductPlan_(rowData.body);
+  Logger.log('productPlan=' + JSON.stringify(productPlan));
+  const mainKeywordProfile = uaGetMainKeywordProductProfile_(rowData, appConfig);
+  Logger.log('mainKeywordProfile=' + JSON.stringify(mainKeywordProfile));
+  const hasMainAffiliate = uaHasMainAffiliateProject_(rowData);
+  Logger.log('hasMainAffiliate=' + hasMainAffiliate);
+}
+
 function uaFixTakumiRefrigeratorStoveRakutenBanner() {
   const appConfig = UA_APP_TYPES.home;
   const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(appConfig.articleSheetName);
   const row = 54;
-  sheet.getRange(row, UA_COLUMNS.affiliateNotes).setValue('楽天商品キーワード：キッチン 防熱パネル コンロ');
+  sheet.getRange(row, UA_COLUMNS.affiliateNotes).setValue('楽天商品キーワード：防熱ボード');
   return uaRefreshRakutenBannerForArticleRow_(appConfig, row);
 }
 

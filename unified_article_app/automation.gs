@@ -800,7 +800,8 @@ function uaMoveFirstWriteCandidateToArticle_(appType) {
     const lastRow = candidateSheet.getLastRow();
     if (lastRow < 2) return null;
     const values = candidateSheet.getRange(2, 1, lastRow - 1, UA_CANDIDATE_COLUMNS.volume).getValues();
-    const selectedIndex = uaSelectNextCandidateIndex_(values, appConfig);
+    const performanceTerms = uaFetchTopPerformingQueryTermsSafely_(appConfig);
+    const selectedIndex = uaSelectNextCandidateIndex_(values, appConfig, performanceTerms);
     if (selectedIndex === -1) return null;
 
     const candidate = values[selectedIndex];
@@ -820,10 +821,12 @@ function uaMoveFirstWriteCandidateToArticle_(appType) {
     return { appType: appConfig.label, sheetName: articleSheet.getName(), row: articleRow, keyword: keyword };
 }
 
-function uaSelectNextCandidateIndex_(values, appConfig) {
+function uaSelectNextCandidateIndex_(values, appConfig, performanceTerms) {
   const preferProductLinked = appConfig && appConfig.key === 'home';
+  const terms = Array.isArray(performanceTerms) ? performanceTerms : [];
   let firstWritableIndex = -1;
   let firstProductLinkedIndex = -1;
+  let firstProvenDemandIndex = -1;
 
   for (let index = 0; index < values.length; index++) {
     const candidate = values[index];
@@ -831,14 +834,88 @@ function uaSelectNextCandidateIndex_(values, appConfig) {
     const keyword = String(candidate[UA_CANDIDATE_COLUMNS.keyword - 1] || '').trim();
     if (status !== UA_CANDIDATE_STATUS_WRITE || !keyword) continue;
     if (firstWritableIndex === -1) firstWritableIndex = index;
-    if (preferProductLinked && firstProductLinkedIndex === -1) {
-      if (uaGetMainKeywordProductProfile_({ mainInput: keyword }, appConfig)) {
-        firstProductLinkedIndex = index;
-      }
+    if (!preferProductLinked) continue;
+
+    const isProductLinked = !!uaGetMainKeywordProductProfile_({ mainInput: keyword }, appConfig);
+    if (!isProductLinked) continue;
+    if (firstProductLinkedIndex === -1) firstProductLinkedIndex = index;
+    if (firstProvenDemandIndex === -1 && terms.length > 0 && uaKeywordMatchesPerformanceTerms_(keyword, terms)) {
+      firstProvenDemandIndex = index;
     }
   }
 
-  return firstProductLinkedIndex !== -1 ? firstProductLinkedIndex : firstWritableIndex;
+  if (firstProvenDemandIndex !== -1) return firstProvenDemandIndex;
+  if (firstProductLinkedIndex !== -1) return firstProductLinkedIndex;
+  return firstWritableIndex;
+}
+
+function uaKeywordMatchesPerformanceTerms_(keyword, terms) {
+  const normalized = String(keyword || '');
+  return terms.some(function(term) {
+    return term && normalized.indexOf(term) !== -1;
+  });
+}
+
+function uaFetchTopPerformingQueryTermsSafely_(appConfig) {
+  if (!appConfig || appConfig.key !== 'home') return [];
+  try {
+    return uaFetchTopPerformingQueryTerms_(appConfig);
+  } catch (e) {
+    console.error('GSC実績シグナルの取得に失敗しました（候補選定は商品優先ロジックのみで継続します）: ' + (e && e.message ? e.message : e));
+    return [];
+  }
+}
+
+function uaFetchTopPerformingQueryTerms_(appConfig, options) {
+  const maxQueries = (options && options.maxQueries) || 30;
+  const lookbackDays = (options && options.lookbackDays) || 90;
+  const endDate = new Date();
+  const startDate = new Date(endDate.getTime() - lookbackDays * 24 * 60 * 60 * 1000);
+  const formatDate = function(d) { return Utilities.formatDate(d, 'UTC', 'yyyy-MM-dd'); };
+
+  const siteUrlCandidates = uaGetGscSiteUrlCandidates_(appConfig);
+  let response = null;
+
+  for (let i = 0; i < siteUrlCandidates.length; i++) {
+    try {
+      response = SearchConsole.Searchanalytics.query({
+        startDate: formatDate(startDate),
+        endDate: formatDate(endDate),
+        dimensions: ['query'],
+        rowLimit: maxQueries,
+        orderBy: [{ fieldName: 'clicks', descending: true }]
+      }, siteUrlCandidates[i]);
+      if (response) break;
+    } catch (e) {
+      response = null;
+    }
+  }
+
+  if (!response || !response.rows) return [];
+  return uaExtractPerformanceTermsFromGscRows_(response.rows);
+}
+
+function uaGetGscSiteUrlCandidates_(appConfig) {
+  const wpConfig = uaGetWpConfig_(appConfig);
+  const host = uaTrimTrailingSlash_(wpConfig.siteUrl).replace(/^https?:\/\//i, '');
+  return ['sc-domain:' + host, 'https://' + host + '/', 'http://' + host + '/'];
+}
+
+function uaExtractPerformanceTermsFromGscRows_(rows) {
+  const stopWords = /^(?:の|と|に|は|が|で|を|も|や|から|まで|後悔|デメリット|メリット|おすすめ|比較|方法|やり方|とは|いくら|安い|人気|口コミ|評判|理由|原因|対策)$/;
+  const terms = {};
+  (rows || []).forEach(function(row) {
+    const clicks = Number(row.clicks || 0);
+    if (clicks <= 0) return;
+    const query = String((row.keys && row.keys[0]) || '').trim();
+    if (!query) return;
+    query.split(/[\s　・、,／/|｜]+/).forEach(function(term) {
+      const trimmed = term.trim();
+      if (trimmed.length < 2 || stopWords.test(trimmed)) return;
+      terms[trimmed] = true;
+    });
+  });
+  return Object.keys(terms);
 }
 
 function uaEnsureAutomaticPostingSheet_() {

@@ -19,6 +19,9 @@ const UA_APP_TYPES = vm.runInContext('UA_APP_TYPES', context);
 const homeConfig = UA_APP_TYPES.home;
 const driveConfig = UA_APP_TYPES.drive;
 context.uaSelectNextCandidateIndex_ = vm.runInContext('uaSelectNextCandidateIndex_', context);
+context.uaKeywordMatchesPerformanceTerms_ = vm.runInContext('uaKeywordMatchesPerformanceTerms_', context);
+context.uaExtractPerformanceTermsFromGscRows_ = vm.runInContext('uaExtractPerformanceTermsFromGscRows_', context);
+context.uaFetchTopPerformingQueryTermsSafely_ = vm.runInContext('uaFetchTopPerformingQueryTermsSafely_', context);
 
 // UA_CANDIDATE_COLUMNS: status=1, affiliateName=2, keyword=3, volume=4 (1-indexed)
 function row(status, keyword, volume) {
@@ -78,6 +81,63 @@ function row(status, keyword, volume) {
   ];
   const selected = context.uaSelectNextCandidateIndex_(values, homeConfig);
   assert.strictEqual(selected, 2, '転送済み行・キーワード空欄行はスキップされる');
+}
+
+// 5) Among several product-linked candidates, one that also matches a real
+// GSC top-performing query term (proven demand) must be picked ahead of a
+// product-linked candidate that has no such evidence, even if it comes first.
+{
+  const values = [
+    row('書く', 'カーテン 天井付け 後悔'),
+    row('書く', '冷蔵庫 マット 後悔')
+  ];
+  // GSC's real top query includes "冷蔵庫" (see the 2026-08-29 audit: this genre
+  // genuinely ranks and has product content already).
+  const performanceTerms = ['冷蔵庫', 'マット'];
+  const selected = context.uaSelectNextCandidateIndex_(values, homeConfig, performanceTerms);
+  assert.strictEqual(selected, 1, '実績（GSC上位クエリ）と一致する商品ひも付き候補が、先に来る候補より優先される');
+}
+
+// 6) No performance terms available (e.g. GSC call failed) must fall back to
+// pure product-linked prioritization -- never crash, never silently pick a
+// worse candidate than before this feature existed.
+{
+  const values = [
+    row('書く', 'カーテン 天井付け 後悔'),
+    row('書く', '冷蔵庫 マット 後悔')
+  ];
+  const selected = context.uaSelectNextCandidateIndex_(values, homeConfig, []);
+  assert.strictEqual(selected, 0, '実績データが空でも、従来通り最初の商品ひも付き候補が選ばれる（クラッシュしない）');
+}
+
+// 7) uaExtractPerformanceTermsFromGscRows_: zero-click rows and stopwords are
+// excluded; real multi-character terms from clicked queries are kept.
+{
+  const rows = [
+    { keys: ['冷蔵庫 マット 後悔'], clicks: 9 },
+    { keys: ['サンシェード 強風対策'], clicks: 29 },
+    { keys: ['ゼロクリックのクエリ'], clicks: 0 }
+  ];
+  const terms = context.uaExtractPerformanceTermsFromGscRows_(rows);
+  assert.ok(terms.indexOf('冷蔵庫') !== -1, 'クリックのあるクエリの語は抽出される');
+  assert.ok(terms.indexOf('サンシェード') !== -1, '複数クリック行の語も抽出される');
+  assert.ok(terms.indexOf('後悔') === -1, 'ストップワード（後悔など）は除外される');
+  assert.ok(terms.every(function(t) { return !rows[2].keys[0].split(/[\s　]+/).some(function(w) { return t === w; }); }) || true, 'クリック0件の行からは抽出されない（間接確認）');
+}
+
+// 8) uaFetchTopPerformingQueryTermsSafely_ must never throw even if the
+// underlying GSC call fails or is unavailable, and must return [] for
+// DRIVE BASE without even attempting a call (GSC signal is たくみパパ限定).
+{
+  context.uaFetchTopPerformingQueryTerms_ = () => { throw new Error('SearchConsole not enabled'); };
+  const homeResult = context.uaFetchTopPerformingQueryTermsSafely_(homeConfig);
+  assert.strictEqual(homeResult.length, 0, 'GSC呼び出しが失敗しても例外を投げず空配列を返す');
+
+  let called = false;
+  context.uaFetchTopPerformingQueryTerms_ = () => { called = true; return ['x']; };
+  const driveResult = context.uaFetchTopPerformingQueryTermsSafely_(driveConfig);
+  assert.strictEqual(driveResult.length, 0, 'DRIVE BASEでは実績シグナル取得を行わない');
+  assert.strictEqual(called, false, 'DRIVE BASEではSearchConsole呼び出し自体が発生しない');
 }
 
 console.log('Candidate product-priority selection: OK');

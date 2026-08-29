@@ -1989,6 +1989,10 @@ function uaRefreshTakumiRefrigeratorMatRakutenBanner() {
   return uaRefreshRakutenBannerForArticleRow_(UA_APP_TYPES.home, 13);
 }
 
+function uaRefreshTakumiRefrigeratorStoveRakutenBanner() {
+  return uaRefreshRakutenBannerForArticleRow_(UA_APP_TYPES.home, 54);
+}
+
 function uaRegisterExistingRefrigeratorStoveArticle() {
   const appConfig = UA_APP_TYPES.home;
   const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(appConfig.articleSheetName);

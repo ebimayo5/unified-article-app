@@ -3722,12 +3722,31 @@ function uaFetchRakutenItems_(query, maxItems, selectionSeed, productPlan) {
   }
 }
 
+const UA_RAKUTEN_PRIMARY_TIE_TOLERANCE = 5;
+
+function uaPickPriceTierAwarePrimaryItem_(sortedSource, selectionSeed) {
+  const topRelevance = Number(sortedSource[0].relevanceScore || 0);
+  const tieBandIndices = [];
+  sortedSource.forEach(function(item, index) {
+    if (Number(item.relevanceScore || 0) >= topRelevance - UA_RAKUTEN_PRIMARY_TIE_TOLERANCE) {
+      tieBandIndices.push(index);
+    }
+  });
+  if (tieBandIndices.length <= 1) return sortedSource[0];
+
+  const byPrice = tieBandIndices.slice().sort(function(a, b) {
+    return Number(sortedSource[a].price || 0) - Number(sortedSource[b].price || 0);
+  });
+  const offset = uaStableRakutenSelectionOffset_(String(selectionSeed || '') + '|primary-price-tier', byPrice.length);
+  return sortedSource[byPrice[offset]];
+}
+
 function uaSelectDiverseRakutenItems_(candidates, maxItems, selectionSeed) {
   const limit = Math.max(1, Math.min(3, Number(maxItems) || 1));
   const source = (candidates || []).filter(function(item) {
     return item && item.name && item.url;
   });
-  if (source.length <= 1 || limit === 1) return source.slice(0, limit);
+  if (source.length <= 1) return source.slice(0, limit);
 
   source.sort(function(a, b) {
     if (Number(b.relevanceScore || 0) !== Number(a.relevanceScore || 0)) {
@@ -3739,6 +3758,18 @@ function uaSelectDiverseRakutenItems_(candidates, maxItems, selectionSeed) {
     return uaStableRakutenSelectionOffset_(String(selectionSeed || '') + '|' + a.url, 1000) -
       uaStableRakutenSelectionOffset_(String(selectionSeed || '') + '|' + b.url, 1000);
   });
+
+  // Single-item requests are the common case (most articles show exactly one
+  // primary product) and previously always took the single highest-scoring
+  // item with zero price awareness -- meaning the same specific SKU would win
+  // forever for a given product category, regardless of article. Multi-item
+  // requests (limit > 1) already get price-aware diversity below via
+  // uaRakutenChoiceDifferenceScore_, so this only applies to the limit === 1
+  // path and never overrides a genuinely stronger match (only kicks in among
+  // candidates within UA_RAKUTEN_PRIMARY_TIE_TOLERANCE of the top score).
+  if (limit === 1) {
+    return [uaPickPriceTierAwarePrimaryItem_(source, selectionSeed)];
+  }
 
   const selected = [source.shift()];
   const topRelevance = Number(selected[0].relevanceScore || 0);

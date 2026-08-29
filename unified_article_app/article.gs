@@ -1985,6 +1985,10 @@ function uaRefreshTakumiSunshadeRakutenBanner() {
   return uaRefreshRakutenBannerForArticleRow_(UA_APP_TYPES.home, 14);
 }
 
+function uaRefreshTakumiRefrigeratorMatRakutenBanner() {
+  return uaRefreshRakutenBannerForArticleRow_(UA_APP_TYPES.home, 13);
+}
+
 function uaGetRakutenActiveRowContext_() {
   const sheet = SpreadsheetApp.getActiveSheet();
   const row = sheet.getActiveCell().getRow();

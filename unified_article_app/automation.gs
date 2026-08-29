@@ -938,6 +938,44 @@ function uaSaveGscPerformanceRows_(rows) {
   return { ok: true, written: values.length };
 }
 
+// One-off: seed たくみパパ_GSC実績 with the real Search Console top-30 queries
+// (kurashi-ie.com, 3か月, pulled 2026-08-30). Re-run uaSaveGscPerformanceRows_
+// with a fresh export periodically to keep this current.
+function uaSeedGscPerformanceSheet20260830_() {
+  return uaSaveGscPerformanceRows_([
+    { query: '二階 洗面台 後悔', clicks: 31 },
+    { query: '排水口 不織布 つまる', clicks: 12 },
+    { query: '排水溝ネット 不織布 詰まる', clicks: 9 },
+    { query: '冷蔵庫 コンロ 向かい合わせ', clicks: 8 },
+    { query: '冷蔵庫 マット 後悔', clicks: 8 },
+    { query: 'ランドリールーム 木製 チェスト カビ', clicks: 8 },
+    { query: 'ランドリー チェスト カビない', clicks: 6 },
+    { query: 'サンシェード強風対策', clicks: 6 },
+    { query: 'キッチン 排水溝ネット すぐ詰まる', clicks: 6 },
+    { query: '冷蔵庫 コンロ 向かい合わせ 対策', clicks: 5 },
+    { query: '水切りフィルター 不織布 詰まる', clicks: 5 },
+    { query: '隣の家との距離 1m', clicks: 4 },
+    { query: '冷蔵庫 コンロ 向かい合わせ 狭い', clicks: 3 },
+    { query: 'トイレ掃除シート いらない', clicks: 3 },
+    { query: 'トイレ掃除シート 代用', clicks: 3 },
+    { query: 'ランドリーチェスト カビない', clicks: 3 },
+    { query: 'セカンド洗面台 後悔', clicks: 2 },
+    { query: 'サンシェード 強風対策', clicks: 2 },
+    { query: '2階 洗面台 後悔', clicks: 2 },
+    { query: 'ポップアップテント たためない', clicks: 2 },
+    { query: 'ランドリールーム チェスト 湿気', clicks: 2 },
+    { query: '洗面所 タンス カビ', clicks: 2 },
+    { query: '冷蔵庫 コンロ 向かい合わせ 距離', clicks: 1 },
+    { query: '100均 水切りネット 詰まる', clicks: 1 },
+    { query: 'コンロ 冷蔵庫 向かい合わせ', clicks: 1 },
+    { query: 'ランドリー チェスト 湿気に強い', clicks: 1 },
+    { query: '洗面所 窓なし 後悔', clicks: 1 },
+    { query: '洗い桶 ステンレス デメリット', clicks: 1 },
+    { query: 'サンシェード 台風対策', clicks: 1 },
+    { query: '2階 洗面台後悔', clicks: 1 }
+  ]);
+}
+
 function uaEnsureAutomaticPostingSheet_() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   let sheet = ss.getSheetByName(UA_AUTOMATION_SHEET_NAME);

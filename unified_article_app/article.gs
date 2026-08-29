@@ -3115,6 +3115,17 @@ function uaEnsureRequiredBrandRakutenItems_(items, productProfile, maxItems, sel
   const requiredBrands = productProfile && Array.isArray(productProfile.requiredBrands)
     ? productProfile.requiredBrands
     : [];
+  if (requiredBrands.length > 3) {
+    // The comparison banner never shows more than 3 items (uaBuildRakutenItemBannerHtml_ /
+    // uaBuildHomeRinkerItemsHtml_ both cap at 3). Fetching and then silently truncating here
+    // would drop a brand the keyword explicitly named while still reporting success, and the
+    // downstream re-assessment would only surface it later as a misleading "商品本体を取得
+    // できませんでした" (implies the fetch failed, when it actually succeeded and was clipped).
+    // Fail fast with an accurate reason instead, and skip the wasted API calls.
+    UA_LAST_RAKUTEN_STATUS = '比較ブランドが' + requiredBrands.length + '件のため、1つの商品比較ボックス（最大3商品）では全ブランドを保証できません: ' +
+      requiredBrands.map(function(brand) { return brand.label; }).join(' / ');
+    return [];
+  }
   const limit = Math.max(requiredBrands.length, Math.max(1, Math.min(3, Number(maxItems) || 1)));
   let candidates = uaDedupeRakutenItems_(items || []);
 
@@ -3177,7 +3188,7 @@ function uaEnsureRequiredBrandRakutenItems_(items, productProfile, maxItems, sel
       prioritized.push(item);
     }
   });
-  return uaDedupeRakutenItems_(prioritized).slice(0, Math.min(3, limit));
+  return uaDedupeRakutenItems_(prioritized).slice(0, limit);
 }
 
 function uaFetchRakutenItemsAcrossQueries_(queries, maxItems, selectionSeed, productPlan) {

@@ -309,6 +309,40 @@ assert.strictEqual(
   '明示ブランドを取得できない場合は汎用品だけの商品導線を作らない'
 );
 context.uaFetchRakutenItems_ = fetchBeforeRequiredBrandRetry;
+
+// A keyword naming more brands than the comparison banner can ever display (max 3 items)
+// must refuse up front with an accurate reason, instead of fetching every brand successfully
+// and then silently dropping one at the final slice -- which used to happen because the
+// guarantee's own `limit` (already brand-aware) was overridden by a hardcoded slice(0, 3).
+{
+  const fourBrandProfile = {
+    label: '扇風機',
+    query: '扇風機',
+    queries: ['扇風機'],
+    requiredBrands: context.uaExtractRequiredProductBrands_('ダイソン バルミューダ シャープ パナソニック 扇風機 比較'),
+    comparison: true
+  };
+  assert.strictEqual(fourBrandProfile.requiredBrands.length, 4, 'test setup: keyword must name exactly 4 known brands');
+
+  let fetchCallCount = 0;
+  const fourBrandFetchMock = (query) => {
+    fetchCallCount++;
+    const brands = context.uaGetProductBrandDefinitions_();
+    const q = String(query || '').toLowerCase();
+    const hit = brands.find(function(b) { return b.aliases.some(function(a) { return q.indexOf(a.toLowerCase()) !== -1; }); });
+    return hit ? [{ name: hit.label + ' 扇風機 本体', url: 'https://example.com/' + hit.key, itemCode: hit.key + ':fan' }] : [];
+  };
+  context.uaFetchRakutenItems_ = fourBrandFetchMock;
+
+  const fourBrandResult = context.uaEnsureRequiredBrandRakutenItems_([], fourBrandProfile, 3, 'four-brand-test', null);
+  assert.strictEqual(fourBrandResult.length, 0, '4ブランド以上の明示比較は、1つでも欠けたブランドを黙って落とすより未挿入にして停止する');
+  assert.strictEqual(fetchCallCount, 0, '3商品しか出せないと分かっている時点で、無駄な楽天API呼び出しをしない');
+  assert.ok(
+    /比較ブランドが4件/.test(vm.runInContext('UA_LAST_RAKUTEN_STATUS', context)),
+    '停止理由は「取得できなかった」ではなく「4ブランドは1つの比較ボックスで保証できない」という正確な説明にする'
+  );
+  context.uaFetchRakutenItems_ = fetchBeforeRequiredBrandRetry;
+}
 assert.strictEqual(
   context.uaDedupeRakutenItems_([
     { name: '洗濯機 隙間パッキン 2本セット', itemCode: 'shop-a:item-1', url: 'https://example.com/a' },
@@ -565,14 +599,24 @@ assert.deepStrictEqual(
 
 const coverWithNegation = context.uaScoreRakutenItem_(
   { name: 'ビーズソファカバー Lサイズ 本体は含まれません', url: 'https://item.rakuten.co.jp/shop/cover-only/' },
-  { primaryProduct: 'ビーズソファ', marketQuery: 'ビーズソファ 本体' },
   'ビーズソファ 本体',
-  0
+  { primaryProduct: 'ビーズソファ', marketQuery: 'ビーズソファ 本体' }
 );
 assert.strictEqual(
   coverWithNegation,
   -1000,
   '「本体は含まれません」という否定文言のカバー単品商品は主役商品として選ばない'
+);
+// Same item name minus the negation phrase must score positively -- otherwise the assertion
+// above could pass for an unrelated reason (e.g. a broken relevance check) instead of the
+// negation guard actually firing.
+assert.ok(
+  context.uaScoreRakutenItem_(
+    { name: 'ビーズソファ 本体付き Lサイズ', url: 'https://item.rakuten.co.jp/shop/with-body/' },
+    'ビーズソファ 本体',
+    { primaryProduct: 'ビーズソファ', marketQuery: 'ビーズソファ 本体' }
+  ) > 0,
+  '対照群: 同種の商品名でも本体付きなら正のスコアになる（上の否定判定が本当に効いていることの確認）'
 );
 
 context.PropertiesService = { getScriptProperties: () => ({ getProperty: () => '' }) };
@@ -588,4 +632,4 @@ assert.ok(
   'Rinker未使用サイトの商品バナーもUA_PRODUCT_FOLLOWUP印を付けて自動生成ブロックと分かるようにする'
 );
 
-console.log('Rinker and product routing tests: OK (32 checks)');
+console.log('Rinker and product routing tests: OK (37 checks)');

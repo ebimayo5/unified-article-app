@@ -610,7 +610,8 @@ function uaApplyManagedAffiliateCta_(body, rowData, appConfig) {
     const tokenMatch = /\[UA_AFFILIATE_CTA[:：]\s*([^\]\r\n]{1,160})\]/i.exec(cleanHtml);
     const ctaText = uaNormalizeManagedAffiliateCtaText_(
       tokenMatch && tokenMatch[1],
-      spec.name
+      spec.name,
+      rowData && rowData.mainInput
     );
     const ctaBlock = uaBuildManagedAffiliateCtaBlock_(spec, ctaText, appConfig);
 
@@ -972,7 +973,27 @@ function uaReplaceManagedAffiliateCtaToken_(body, replacement) {
   return html;
 }
 
-function uaNormalizeManagedAffiliateCtaText_(value, affiliateName) {
+const UA_CTA_PHRASE_TEMPLATES = [
+  '対応内容を確認する',
+  '対応車種と施工条件を確認する',
+  '費用と施工条件を確認する',
+  '関連商品を比較する',
+  '在庫と価格を確認する',
+  '対応アイテムを確認する',
+  '申し込み条件を確認する',
+  '相性が合うか確認する'
+];
+
+function uaSelectCtaPhraseTemplate_(seed) {
+  const text = String(seed || '');
+  let hash = 0;
+  for (let i = 0; i < text.length; i++) {
+    hash = (hash * 31 + text.charCodeAt(i)) >>> 0;
+  }
+  return UA_CTA_PHRASE_TEMPLATES[hash % UA_CTA_PHRASE_TEMPLATES.length];
+}
+
+function uaNormalizeManagedAffiliateCtaText_(value, affiliateName, seed) {
   const name = String(affiliateName || '').trim();
   let text = String(value || '')
     .replace(/<!--[^]*?-->/g, ' ')
@@ -983,7 +1004,8 @@ function uaNormalizeManagedAffiliateCtaText_(value, affiliateName) {
 
   const vague = !text || /^(詳しくはこちら|公式サイトはこちら|詳細を見る|こちら)$/i.test(text);
   if (vague || (name && text.indexOf(name) === -1)) {
-    text = name ? name + 'で対応内容を確認する' : '対応内容を確認する';
+    const phrase = uaSelectCtaPhraseTemplate_(seed || name);
+    text = name ? name + 'で' + phrase : phrase;
   }
   return text.slice(0, 100);
 }

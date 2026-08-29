@@ -49,6 +49,7 @@ function uaBuildAffiliatePrompt_(rowData) {
   const url = noAffiliateSelected ? '' : String(rowData.affiliateUrl || '').trim();
   const notes = String(rowData.affiliateNotes || '').trim();
   const managedCta = uaGetManagedAffiliateCtaSpec_(rowData);
+  const ctaPhrase = uaSelectCtaPhraseTemplate_(rowData && rowData.mainInput);
 
   if (managedCta) {
     const usesNaviokunIntroSet = /ナビ男くん/.test(name);
@@ -82,7 +83,7 @@ function uaBuildAffiliatePrompt_(rowData) {
       usesNaviokunIntroSet && naviokunHighRelevance
         ? 'ナビ・モニター・車内エンタメが主題に近いため、読者が対応車種・施工内容・純正機能との兼ね合いを確認する流れで直接つないでください。'
         : '',
-      '例:「' + name + 'で対応内容を確認する」「' + name + 'で対応車種と施工条件を確認する」「' + name + 'で関連商品を比較する」。',
+      '例:「' + name + 'で' + ctaPhrase + '」。この例をそのまま使わず、記事内容に合わせて具体的な確認行動に言い換えてください。',
       '「詳しくはこちら」「公式サイトはこちら」「詳細を見る」のような曖昧な文言は禁止です。',
       '置換記号は導入文、「この記事のポイント」、Q&A内には入れないでください。',
       '実際の囲みボタン、アフィリエイトHTML、計測画像、ショートコードは本文生成後にシステム側で安全に挿入します。'
@@ -123,12 +124,12 @@ function uaBuildAffiliatePrompt_(rowData) {
     'リンク直前では、「買う」よりも「悩みを解決できる選択肢があるか確認する」「自分の車種・暮らしに合うか見る」「施工例や対応内容を確認する」というクリック理由を作ってください。',
     '読者が「この悩みを解決するものがあるかもしれない」と感じる導線にしてください。',
     'アンカーテキストやボタン文言は曖昧にしないでください。「詳しくはこちら」「公式サイトはこちら」「詳細を見る」「関連アイテムを確認」のような汎用文言は禁止です。',
-    'アンカーテキストやボタン文言には、案件名と行動を入れてください。例:「' + name + 'で対応内容を確認する」「' + name + 'で対応アイテムを確認する」「' + name + 'で費用と施工条件を確認する」「' + name + 'で関連商品を比較する」。',
+    'アンカーテキストやボタン文言には、案件名と行動を入れてください。例:「' + name + 'で' + ctaPhrase + '」。この例をそのまま使わず、記事内容に合わせて具体的な確認行動に言い換えてください。',
     '囲みCTAを作る場合は、独自の<div class=\'affiliate-cta\'>や通常のテキストリンクではなく、必ずCocoonのボタンブロック形式にしてください。',
     'CTA前には、クリック先で何を確認できるかを1〜2文で説明してください。その直後にCocoonボタンを置きます。',
-    'Cocoonボタンは次の形式にしてください。hrefにはメインアフィリエイトURLを入れ、ボタン文言は必ず「案件名 + 具体的な行動」にしてください。',
-    '<!-- wp:cocoon-blocks/button-wrap-1 {"tag":"<a href=\\"' + url + '\\" target=\\"_blank\\" rel=\\"nofollow sponsored noopener\\">' + name + 'で対応内容を確認する</a>\\n","isCircle":true,"isShine":true,"align":"center","backgroundColor":"teal","textColor":"cocoon-white","width":"75"} -->',
-    '<div class="wp-block-cocoon-blocks-button-wrap-1 aligncenter btn-wrap btn-wrap-block button-block btn-wrap-circle btn-wrap-shine has-text-color has-background has-cocoon-white-color has-teal-background-color has-custom-width cocoon-block-button__width-75"><a href="' + url + '" target="_blank" rel="nofollow sponsored noopener">' + name + 'で対応内容を確認する</a></div>',
+    'Cocoonボタンは次の形式にしてください。hrefにはメインアフィリエイトURLを入れ、ボタン文言は必ず「案件名 + 具体的な行動」にしてください（下の例文言をそのまま使わず、記事に合わせて言い換えてください）。',
+    '<!-- wp:cocoon-blocks/button-wrap-1 {"tag":"<a href=\\"' + url + '\\" target=\\"_blank\\" rel=\\"nofollow sponsored noopener\\">' + name + 'で' + ctaPhrase + '</a>\\n","isCircle":true,"isShine":true,"align":"center","backgroundColor":"teal","textColor":"cocoon-white","width":"75"} -->',
+    '<div class="wp-block-cocoon-blocks-button-wrap-1 aligncenter btn-wrap btn-wrap-block button-block btn-wrap-circle btn-wrap-shine has-text-color has-background has-cocoon-white-color has-teal-background-color has-custom-width cocoon-block-button__width-75"><a href="' + url + '" target="_blank" rel="nofollow sponsored noopener">' + name + 'で' + ctaPhrase + '</a></div>',
     '<!-- /wp:cocoon-blocks/button-wrap-1 -->',
     'ただし「絶対おすすめ」「最安」「一番良い」などの断定や、購入を急がせる表現は使わないでください。',
     '導入文、「この記事のポイント」、Q&A内には入れないでください。',

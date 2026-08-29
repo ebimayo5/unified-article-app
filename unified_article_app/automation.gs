@@ -2,6 +2,7 @@ const UA_AUTOMATION_SHEET_NAME = '自動投稿設定';
 const UA_AUTOMATION_JOB_PROPERTY = 'UA_AUTOMATION_ACTIVE_JOB';
 const UA_AUTOMATION_LAST_STARTED_DATE_PROPERTY = 'UA_AUTOMATION_LAST_STARTED_DATE';
 const UA_AUTOMATION_DAILY_PROGRESS_PROPERTY = 'UA_AUTOMATION_DAILY_PROGRESS';
+const UA_AUTOMATION_DAILY_LOG_PROPERTY = 'UA_AUTOMATION_DAILY_LOG';
 const UA_AUTOMATION_MANUAL_BATCH_PROPERTY = 'UA_AUTOMATION_MANUAL_BATCH';
 const UA_AUTOMATION_DAILY_HANDLER = 'uaStartAutomaticPostingDaily';
 const UA_AUTOMATION_DAILY_HANDLERS = {
@@ -58,8 +59,15 @@ function uaGetAutomaticPostingSettingsForPanel(appType) {
   });
   const isThisSiteJob = job && job.status !== 'complete' && String(job.appType || '') === appConfig.label;
   const todayCount = uaGetAutomaticPostingDailyProgress_(today, appConfig.key).count;
+  const todayPosted = uaGetAutomaticPostingDailyLog_(today, appConfig.key).items;
+  const remainingSlots = manualBatch
+    ? Math.max(0, Number(manualBatch.remaining) || 0)
+    : Math.max(0, (Number(settings.dailyLimit) || 1) - todayCount);
+  const todayUpcoming = uaListUpcomingAutomaticPostingCandidates_(appConfig, remainingSlots);
   return {
     todayCount: todayCount,
+    todayPosted: todayPosted,
+    todayUpcoming: todayUpcoming,
     appType: appConfig.label,
     appKey: appConfig.key,
     siteLabel: appConfig.label,
@@ -1038,6 +1046,13 @@ function uaCompleteAutomaticPostingJob_(job, message) {
   uaSaveAutomaticPostingJob_(job);
   const appConfig = uaGetAutomationAppConfig_(job.appType);
   uaWriteAutomaticPostingStatus_(appConfig.key, message + '：' + job.keyword, '');
+  if (String(message || '').indexOf('完了') === 0) {
+    uaAppendAutomaticPostingDailyLog_({
+      keyword: job.keyword,
+      time: job.completedAt,
+      mode: message.indexOf('公開') !== -1 ? 'published' : 'drafted'
+    }, appConfig.key);
+  }
   if (job.manualBatch === true) {
     const manualBatch = uaGetAutomaticPostingManualBatch_(appConfig.key, job.date);
     if (!manualBatch || Number(manualBatch.remaining) <= 0) {
@@ -1079,6 +1094,52 @@ function uaSaveAutomaticPostingDailyProgress_(progress, appType) {
     date: String(progress && progress.date || ''),
     count: Math.max(0, Number(progress && progress.count) || 0)
   }));
+}
+
+function uaGetAutomaticPostingDailyLog_(dateText, appType) {
+  const appConfig = uaGetAutomationAppConfig_(appType);
+  const targetDate = String(dateText || '');
+  const propertyName = UA_AUTOMATION_DAILY_LOG_PROPERTY + '_' + appConfig.key;
+  const raw = PropertiesService.getScriptProperties().getProperty(propertyName);
+  if (raw) {
+    try {
+      const parsed = JSON.parse(raw);
+      if (parsed && String(parsed.date || '') === targetDate && Array.isArray(parsed.items)) {
+        return { date: targetDate, items: parsed.items };
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  }
+  return { date: targetDate, items: [] };
+}
+
+function uaAppendAutomaticPostingDailyLog_(entry, appType) {
+  const appConfig = uaGetAutomationAppConfig_(appType);
+  const today = Utilities.formatDate(new Date(), UA_AUTOMATION_TIMEZONE, 'yyyy-MM-dd');
+  const log = uaGetAutomaticPostingDailyLog_(today, appConfig.key);
+  log.items.push(entry);
+  PropertiesService.getScriptProperties().setProperty(
+    UA_AUTOMATION_DAILY_LOG_PROPERTY + '_' + appConfig.key,
+    JSON.stringify({ date: today, items: log.items.slice(-20) })
+  );
+}
+
+function uaListUpcomingAutomaticPostingCandidates_(appConfig, limit) {
+  const maxCount = Math.floor(Number(limit)) || 0;
+  if (maxCount <= 0 || !appConfig || !appConfig.candidateSheetName) return [];
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(appConfig.candidateSheetName);
+  if (!sheet) return [];
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) return [];
+  const values = sheet.getRange(2, 1, lastRow - 1, UA_CANDIDATE_COLUMNS.volume).getValues();
+  const results = [];
+  for (let index = 0; index < values.length && results.length < maxCount; index++) {
+    const status = String(values[index][UA_CANDIDATE_COLUMNS.status - 1] || '').trim();
+    const keyword = String(values[index][UA_CANDIDATE_COLUMNS.keyword - 1] || '').trim();
+    if (status === UA_CANDIDATE_STATUS_WRITE && keyword) results.push(keyword);
+  }
+  return results;
 }
 
 function uaGetAutomaticPostingManualBatch_(appType, dateText) {

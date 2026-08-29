@@ -59,6 +59,10 @@
       .dashboard-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }
       .dashboard-stat-value { font-size: 27px; font-weight: 900; color: var(--ink); margin-top: 4px; }
       .dashboard-stat-label { color: var(--muted); font-size: 12px; font-weight: 800; }
+      .dashboard-article-lists { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; }
+      .dashboard-article-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; max-height: 220px; overflow-y: auto; }
+      .dashboard-article-list li { padding: 8px 10px; border-radius: 8px; background: var(--soft); font-size: 13px; color: var(--ink); }
+      .dashboard-article-list li.muted { background: transparent; padding: 4px 10px; }
       h1 { margin: 0 0 4px; color: var(--ink); font-size: 22px; line-height: 1.2; letter-spacing: 0; }
       .sidebar h1 { color: #ffffff; }
       .topbar h1 { color: #ffffff; }
@@ -382,6 +386,20 @@
             <div class="card">
               <div class="dashboard-stat-label">本日の投稿</div>
               <div id="dashboardTodayCount" class="dashboard-stat-value">-</div>
+            </div>
+          </div>
+
+          <div class="card" style="margin-top:12px;">
+            <h2 style="margin:0 0 12px;">本日の記事</h2>
+            <div class="dashboard-article-lists">
+              <div>
+                <div class="dashboard-stat-label" style="margin-bottom:8px;">公開・完了済み</div>
+                <ul id="dashboardPostedList" class="dashboard-article-list"><li class="muted">まだありません</li></ul>
+              </div>
+              <div>
+                <div class="dashboard-stat-label" style="margin-bottom:8px;">これから投稿予定</div>
+                <ul id="dashboardUpcomingList" class="dashboard-article-list"><li class="muted">なし</li></ul>
+              </div>
             </div>
           </div>
         </div>
@@ -861,6 +879,9 @@
         if (dashboardHero) dashboardHero.classList.toggle('hidden', unsupported);
         const dashboardStats = document.querySelector('#dashboardView .dashboard-stats');
         if (dashboardStats) dashboardStats.classList.toggle('hidden', unsupported);
+        const dashboardArticleLists = document.querySelector('#dashboardView .dashboard-article-lists');
+        const dashboardArticleListsCard = dashboardArticleLists ? dashboardArticleLists.closest('.card') : null;
+        if (dashboardArticleListsCard) dashboardArticleListsCard.classList.toggle('hidden', unsupported);
         if (unsupported) return;
         google.script.run
           .withSuccessHandler(renderAutomaticPostingSettings)
@@ -930,13 +951,12 @@
         if (todayCountEl) {
           todayCountEl.textContent = (Number(settings.todayCount) || 0) + ' / ' + (Number(settings.dailyLimit) || 1) + '件';
         }
+        renderAutomaticPostingArticleLists(settings);
         if (settings.activeProgress) {
           renderAutomaticPostingProgress(settings.activeProgress);
         }
-        const loadedKeyword = String((document.getElementById('mainInput') || {}).value || '').trim();
-        const isWatchingActiveJob = Boolean(settings.activeKeyword) && loadedKeyword && loadedKeyword === settings.activeKeyword;
-        if (isWatchingActiveJob && !window.uaCurrentOperationToken) {
-          const notice = document.getElementById('notice');
+        const notice = document.getElementById('notice');
+        if (settings.activeKeyword && !window.uaCurrentOperationToken) {
           if (notice) {
             const now = new Date();
             const timeText = [now.getHours(), now.getMinutes(), now.getSeconds()]
@@ -945,6 +965,53 @@
             notice.textContent = '自動投稿が進行中です: ' + settings.activeKeyword +
               (settings.activeStep ? ' / ' + settings.activeStep : '') + '（更新 ' + timeText + '）';
             notice.className = 'status working';
+            notice.dataset.autoWatch = '1';
+          }
+        } else if (notice && notice.dataset.autoWatch === '1' && !window.uaCurrentOperationToken) {
+          notice.textContent = '自動投稿は現在停止中です。';
+          notice.className = 'status';
+          delete notice.dataset.autoWatch;
+        }
+      }
+
+      function renderAutomaticPostingArticleLists(settings) {
+        const postedList = document.getElementById('dashboardPostedList');
+        if (postedList) {
+          const items = Array.isArray(settings.todayPosted) ? settings.todayPosted : [];
+          postedList.innerHTML = '';
+          if (!items.length) {
+            const li = document.createElement('li');
+            li.className = 'muted';
+            li.textContent = 'まだありません';
+            postedList.appendChild(li);
+          } else {
+            items.slice().reverse().forEach(function(item) {
+              const li = document.createElement('li');
+              const time = item && item.time ? new Date(item.time) : null;
+              const timeText = time && !isNaN(time.getTime())
+                ? [time.getHours(), time.getMinutes()].map(function(n) { return String(n).padStart(2, '0'); }).join(':') + ' '
+                : '';
+              const modeText = item && item.mode === 'published' ? '公開' : '下書き完了';
+              li.textContent = timeText + (item && item.keyword ? item.keyword : '') + '（' + modeText + '）';
+              postedList.appendChild(li);
+            });
+          }
+        }
+        const upcomingList = document.getElementById('dashboardUpcomingList');
+        if (upcomingList) {
+          const items = Array.isArray(settings.todayUpcoming) ? settings.todayUpcoming : [];
+          upcomingList.innerHTML = '';
+          if (!items.length) {
+            const li = document.createElement('li');
+            li.className = 'muted';
+            li.textContent = 'なし';
+            upcomingList.appendChild(li);
+          } else {
+            items.forEach(function(keyword) {
+              const li = document.createElement('li');
+              li.textContent = keyword;
+              upcomingList.appendChild(li);
+            });
           }
         }
       }

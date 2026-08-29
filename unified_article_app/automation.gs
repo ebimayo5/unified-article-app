@@ -933,7 +933,10 @@ function uaSaveGscPerformanceRows_(rows) {
   const values = rows.map(function(row) {
     return [String(row.query || '').trim(), Number(row.clicks) || 0, now];
   });
-  sheet.getRange(2, 1, sheet.getLastRow() > 1 ? sheet.getLastRow() - 1 : 0, UA_GSC_PERFORMANCE_HEADERS.length).clearContent();
+  const existingDataRows = sheet.getLastRow() - 1;
+  if (existingDataRows > 0) {
+    sheet.getRange(2, 1, existingDataRows, UA_GSC_PERFORMANCE_HEADERS.length).clearContent();
+  }
   sheet.getRange(2, 1, values.length, UA_GSC_PERFORMANCE_HEADERS.length).setValues(values);
   return { ok: true, written: values.length };
 }

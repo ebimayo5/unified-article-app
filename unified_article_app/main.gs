@@ -1406,6 +1406,13 @@ function uaGetInitialPanelData() {
 }
 
 function uaSaveActiveRowData(data) {
+  if (!data || Object.keys(data).length === 0) {
+    throw new Error(
+      'uaSaveActiveRowData: dataが空です。パネル（readForm()）以外からこの関数や、これを呼ぶ' +
+      '*FromPanel/*FromWeb系の関数をApps Scriptエディタの「実行」で直接叩かないでください。' +
+      '行のほぼ全列が空文字で上書きされます。'
+    );
+  }
   const sheet = uaGetSheetForData_(data);
   const row = Number(data && data.row) || sheet.getActiveCell().getRow();
   const sheetConfig = uaGetAppConfigByArticleSheet_(sheet.getName());

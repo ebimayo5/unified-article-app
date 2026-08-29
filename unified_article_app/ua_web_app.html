@@ -933,6 +933,20 @@
         if (settings.activeProgress) {
           renderAutomaticPostingProgress(settings.activeProgress);
         }
+        const loadedKeyword = String((document.getElementById('mainInput') || {}).value || '').trim();
+        const isWatchingActiveJob = Boolean(settings.activeKeyword) && loadedKeyword && loadedKeyword === settings.activeKeyword;
+        if (isWatchingActiveJob && !window.uaCurrentOperationToken) {
+          const notice = document.getElementById('notice');
+          if (notice) {
+            const now = new Date();
+            const timeText = [now.getHours(), now.getMinutes(), now.getSeconds()]
+              .map(function(n) { return String(n).padStart(2, '0'); })
+              .join(':');
+            notice.textContent = '自動投稿が進行中です: ' + settings.activeKeyword +
+              (settings.activeStep ? ' / ' + settings.activeStep : '') + '（更新 ' + timeText + '）';
+            notice.className = 'status working';
+          }
+        }
       }
 
       function loadActiveAutomaticPostingArticle(button) {
@@ -1260,6 +1274,7 @@
         updateSourceControls();
         showTab(state.activeTab || 'summary');
         isFillingForm = false;
+        if (values.row) showMainView('editor');
         restorePanelWorkflowSnapshot(state.workflow);
         restoreFullWorkflowResumeState({ appType: state.appType, row: state.row });
         if (state.noticeWorking) {

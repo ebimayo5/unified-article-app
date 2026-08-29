@@ -1989,6 +1989,63 @@ function uaRefreshTakumiRefrigeratorMatRakutenBanner() {
   return uaRefreshRakutenBannerForArticleRow_(UA_APP_TYPES.home, 13);
 }
 
+function uaRegisterExistingRefrigeratorStoveArticle() {
+  const appConfig = UA_APP_TYPES.home;
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(appConfig.articleSheetName);
+  if (!sheet) {
+    throw new Error('記事管理シートが見つかりません: ' + appConfig.articleSheetName);
+  }
+
+  const postId = 193;
+  const wpConfig = uaGetWpConfig_(appConfig);
+  const post = uaCallWordPressApi_(wpConfig, '/wp-json/wp/v2/posts/' + postId + '?context=edit', 'get');
+  if (!post || Number(post.id) !== postId) {
+    throw new Error('WP投稿の取得に失敗しました: postId=' + postId);
+  }
+
+  const rawBody = (post.content && (post.content.raw || post.content.rendered)) || '';
+  const rawTitle = (post.title && (post.title.raw || post.title.rendered)) || '';
+  const slug = post.slug || '';
+  const editUrl = uaBuildWpEditUrl_(wpConfig.siteUrl, postId);
+  const draftedAt = post.date ? new Date(post.date) : new Date();
+
+  const values = [
+    appConfig.label,
+    '冷蔵庫 コンロ 向かい合わせ 後悔',
+    '',
+    '',
+    '',
+    '',
+    '',
+    '',
+    '',
+    '',
+    UA_STATUS_POSTED,
+    draftedAt,
+    '',
+    rawBody,
+    rawTitle,
+    '',
+    '',
+    slug,
+    '・シート管理外だった既存記事を登録し、Rinker連携対象に追加',
+    postId,
+    editUrl,
+    draftedAt,
+    ''
+  ];
+
+  sheet.appendRow(values);
+  const newRow = sheet.getLastRow();
+
+  return {
+    ok: true,
+    row: newRow,
+    postId: postId,
+    message: '既存記事（WP投稿ID ' + postId + '）をシートの' + newRow + '行目として登録しました。'
+  };
+}
+
 function uaGetRakutenActiveRowContext_() {
   const sheet = SpreadsheetApp.getActiveSheet();
   const row = sheet.getActiveCell().getRow();

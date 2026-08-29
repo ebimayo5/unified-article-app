@@ -57,7 +57,9 @@ function uaGetAutomaticPostingSettingsForPanel(appType) {
     return String(row[0] || '').trim();
   });
   const isThisSiteJob = job && job.status !== 'complete' && String(job.appType || '') === appConfig.label;
+  const todayCount = uaGetAutomaticPostingDailyProgress_(today, appConfig.key).count;
   return {
+    todayCount: todayCount,
     appType: appConfig.label,
     appKey: appConfig.key,
     siteLabel: appConfig.label,

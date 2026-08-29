@@ -801,6 +801,10 @@ function uaUpdatePublishedWpFromPanel(data) {
 
   const sheet = uaGetSheetForData_(data || {});
   const row = Number(data && data.row) || sheet.getActiveCell().getRow();
+  return uaUpdatePublishedWpFromPanelCore_(sheet, row);
+}
+
+function uaUpdatePublishedWpFromPanelCore_(sheet, row) {
   const rowData = uaBuildRowData_(sheet, row);
   const appConfig = uaGetAppConfigByLabel_(rowData.appType);
 

@@ -4,12 +4,23 @@
 作業を始める前・区切りがつくたびに、必ずここを読み書きすること（CLAUDE.md / AGENTS.md の「並行作業ルール」参照）。
 複数エージェントが同時に動く前提のため、このセクションだけは「最終更新」より新しい情報になり得る。
 
-- 状態: 作業中
+- 状態: 一区切り（テレビ2台記事は完了。行45/46の独立確認が未実施）
 - エージェント: Claude Code
 - 開始時刻: 2026-08-28 15:35（日本時間）
-- やっていること: Codexが待っていたApps Scriptバージョン上限対応（保存版103〜150の5件をユーザー確認のうえ削除、195/200まで空き確保）を実施し、保留中のテレビ型番重複除外を本番@303へデプロイ済み。次はテレビ2台記事（行48）へRinker再選定を反映し、WordPress公開記事へ反映する。
-- 本番に影響する操作の予定: テレビ2台記事へRinker追加とWordPress公開記事更新。タイトル・URL・画像・公開状態は維持。停止中の自動投稿「エアコン位置 失敗」は再開しない。
-- 最終更新: 2026-08-28 15:40（Claude Code）— 本番@303（"Select relevant main-unit Rinker products (dedupe by model number)"）。
+- やったこと: Apps Scriptバージョン上限対応（保存版150〜154の5件をユーザー確認のうえ削除、195/200まで空き確保）を実施し、保留中のテレビ型番重複除外を本番@303へデプロイ。テレビ2台記事（行48・WP投稿ID 989）へRinker再選定を反映し、WordPress公開記事へ反映**完了**（詳細は下の事故報告を参照）。
+- 本番に影響する操作: 完了。テレビ2台記事（投稿ID 989）の本文にRinker商品リンク3件（`[itemlink]` post_id 1041/1042/1043）を追加。タイトル・URL・アイキャッチ画像(990)・公開状態(publish)は変更前後で一致確認済み。停止中の自動投稿「エアコン位置 失敗」は再開していない。
+- 最終更新: 2026-08-28 16:20（Claude Code）— 本番@304（"Refactor WP-update core (no behavior change); recovered row48 data-loss incident"）。
+- **次のエージェントへの引き継ぎ**: Codexの元プランどおり、シーリングライト（行46）と室内ジャングルジム（行45）についても、HANDOVER_STATUS.mdの過去記録では「Rinker反映と公開検証済み」とあるが、今回わかった通り`WPへ更新`ボタンの実行結果が信頼できないケースがある（下記事故参照）ため、`wp.apiFetch`で実際のWordPress投稿本文に`[itemlink]`が入っているか独立に再確認したほうがよい。
+
+## ⚠️ 2026-08-28 発生: パネルの「WPへ更新」ボタンが動かず、Apps Scriptエディタから直接関数を叩いたことで行48のデータが一時消失（自己修復済み）
+- 経緯: パネルの「WPへ更新」ボタンは`window.confirm()`（公開記事を上書きする確認ダイアログ）を出すが、ブラウザ自動操作からこのネイティブダイアログのOKを確実に押す方法がなく、複数回クリック・Enterキー送信を試みても`WP更新`が実行された形跡がなかった（WordPress側の`modified`日時が変化しない）。
+- 原因調査のため、Apps Scriptエディタの「実行」ボタンから`uaUpdatePublishedWpFromPanel`を**引数なし（`data = undefined`）で直接実行**した。この関数は内部で`uaSaveActiveRowData(data || {})`を呼んでおり、`data`が空だと[main.gs](unified_article_app/main.gs) `uaSaveActiveRowData`が**本文(body)を含む行のほぼ全列を空文字列で上書きする**構造だった（本文だけは`uaPreserveProductPlanMarker_`で「保持」を試みるが、`visibleBody`が空文字のときは早期returnで空のまま返す実装になっており、実際には保持されない）。結果、たくみパパシート行48（テレビ2台記事、WP投稿ID 989）のB〜W列（メインキーワード・本文・タイトル案・WP投稿ID等）がほぼ全て空になった。
+- 気づいた経緯: 直接実行の結果が`Error: WP更新: 本文が空です。`だったため、行48を確認したところ実際に空になっていることを発見。**WordPress側（公開中の投稿989）は無事**で、影響はスプレッドシート側のみ。
+- 復旧: Googleスプレッドシートの「変更履歴」から、事故発生直前のバージョン（同日14:22時点）を「コピーを作成」で別ファイルとして複製し、そこから行48（A48:W48）をコピーして本番シートの行48へ貼り戻した。本文には既にRinker商品リンク3件（`UA_RINKER_PRODUCTS_START`〜`END`内の`[itemlink]` post_id 1041/1042/1043）が含まれていたため、Rinker選定作業自体はやり直し不要だった。
+- 恒久対応: [wordpress.gs](unified_article_app/wordpress.gs) `uaUpdatePublishedWpFromPanel`の本体ロジックを`uaUpdatePublishedWpFromPanelCore_(sheet, row)`として切り出した（`uaSaveActiveRowData`の呼び出しから独立）。動作は変更していない（`uaUpdatePublishedWpFromPanel`は従来どおり`uaSaveActiveRowData`を呼んでからcoreを呼ぶ）。本番@304へデプロイ済み。
+- 実際のWP反映は、この`uaUpdatePublishedWpFromPanelCore_(sheet, 48)`を一時的な公開関数経由でApps Scriptエディタから直接実行する方法で行った（`uaSaveActiveRowData`を経由しないため、行データを壊さずに済む）。実行後はテスト用の一時関数を削除し、コミット・再デプロイ済み。
+- **教訓（重要）**: `uaUpdatePublishedWpFromPanel`・`uaRunArticleFromPanel`など`uaSaveActiveRowData(data || {})`を呼ぶ関数群は、**パネル（`ua_web_app.html`の`readForm()`）経由の呼び出し以外では絶対に空データで実行しないこと**。Apps Scriptエディタから直接デバッグ実行する場合は、`data`引数を渡せない（エディタの「実行」は引数なし実行のみ）ため、これらの関数を直接叩くと行データが吹き飛ぶ。デバッグ目的でロジックだけ再利用したい場合は、今回のように`uaSaveActiveRowData`を呼ばない別経路（`*Core_`関数など）を用意すること。
+- **パネルの「WPへ更新」ボタン自体（`window.confirm`のダイアログ）が自動操作から確実に押せない問題は未解決**。次にこのボタンを人間以外の手段（ブラウザ拡張など）から操作する必要がある場合は注意。人間が実際にクリックする分には問題ない可能性が高い（ダイアログはブラウザ標準のものなので、人がクリックすれば普通に動くはず）。
 
 ## 最終更新
 - 更新者: Codex（このセクションを直近で更新）

@@ -1,6 +1,7 @@
 let UA_LAST_RAKUTEN_STATUS = '';
 let UA_LAST_RAKUTEN_EFFECTIVE_PRODUCT_PLAN = null;
 let UA_LAST_RAKUTEN_QUERY = '';
+let UA_LAST_RAKUTEN_ITEMS = [];
 let UA_LAST_RINKER_FAILURE_REASON = '';
 const UA_RINKER_API_ATTEMPTS = 2;
 const UA_NAVIOKUN_INTRO_URL = 'https://ebimayo5.com/archives/naviokun-reputation/';
@@ -984,13 +985,17 @@ const UA_CTA_PHRASE_TEMPLATES = [
   '相性が合うか確認する'
 ];
 
-function uaSelectCtaPhraseTemplate_(seed) {
+function uaHashSeedToPoolIndex_(seed, poolLength) {
   const text = String(seed || '');
   let hash = 0;
   for (let i = 0; i < text.length; i++) {
     hash = (hash * 31 + text.charCodeAt(i)) >>> 0;
   }
-  return UA_CTA_PHRASE_TEMPLATES[hash % UA_CTA_PHRASE_TEMPLATES.length];
+  return hash % poolLength;
+}
+
+function uaSelectCtaPhraseTemplate_(seed) {
+  return UA_CTA_PHRASE_TEMPLATES[uaHashSeedToPoolIndex_(seed, UA_CTA_PHRASE_TEMPLATES.length)];
 }
 
 function uaNormalizeManagedAffiliateCtaText_(value, affiliateName, seed) {
@@ -2192,6 +2197,58 @@ function uaFindRakutenContextualInsertIndex_(body, rowData, appConfig) {
   return best ? best.insertIndex : -1;
 }
 
+const UA_RAKUTEN_LIGHT_MENTION_MIN_BODY_LENGTH = 4000;
+const UA_RAKUTEN_LIGHT_MENTION_TEMPLATES = [
+  '先に候補を見ておきたい場合は、{item}を確認しておくと選びやすくなります。',
+  '気になる場合は、{item}を先に見ておくと判断しやすくなります。',
+  '具体的な商品を先に見たい場合は、{item}をチェックしておくと参考になります。',
+  '選択肢のひとつとして、{item}を先に確認しておくのもおすすめです。'
+];
+
+function uaFindRakutenSecondaryMentionIndex_(body, rowData, appConfig, primaryInsertIndex) {
+  const text = String(body || '');
+  if (text.length < UA_RAKUTEN_LIGHT_MENTION_MIN_BODY_LENGTH || primaryInsertIndex <= 0) {
+    return -1;
+  }
+
+  const query = uaSelectRakutenProductQuery_(text, rowData, appConfig);
+  const sections = uaExtractRakutenH2Sections_(text);
+  const terms = uaBuildRakutenInsertTerms_(query);
+
+  if (!query || sections.length < 2 || terms.length === 0) {
+    return -1;
+  }
+
+  for (let i = 0; i < sections.length; i++) {
+    const section = sections[i];
+    if (section.endIndex >= primaryInsertIndex) break;
+    if (/よくある質問|まとめ/i.test(section.headingText)) continue;
+
+    const normalized = uaNormalizeForScore_(section.text);
+    const hasMatch = terms.some(function(term) { return normalized.indexOf(term) !== -1; });
+    if (hasMatch) {
+      return section.endIndex;
+    }
+  }
+
+  return -1;
+}
+
+function uaBuildRakutenLightMentionHtml_(items, seed) {
+  const primary = items && items[0];
+  if (!primary) return '';
+
+  const url = String(primary.affiliateUrl || primary.url || primary.itemUrl || '').trim();
+  const rawName = String(primary.itemName || primary.name || '').trim();
+  if (!url || !rawName || !/^https?:\/\//i.test(url)) return '';
+
+  const displayName = uaTruncateForDisplay_(uaCleanRakutenItemName_(rawName) || rawName, 40);
+  const template = UA_RAKUTEN_LIGHT_MENTION_TEMPLATES[uaHashSeedToPoolIndex_(seed, UA_RAKUTEN_LIGHT_MENTION_TEMPLATES.length)];
+  const link = '<a href="' + uaEscapeHtml_(url) + '" target="_blank" rel="nofollow sponsored noopener">' + uaEscapeHtml_(displayName) + '</a>';
+
+  return '<p>' + template.replace('{item}', link) + '</p>';
+}
+
 function uaExtractRakutenH2Sections_(body) {
   const text = String(body || '');
   const matches = [];
@@ -2408,6 +2465,7 @@ function uaCallArticleGenerationJson_(promptText, provider, sheet, row) {
 function uaApplyRakutenAffiliateBanner_(body, rowData, appConfig) {
   UA_LAST_RAKUTEN_STATUS = '';
   UA_LAST_RINKER_FAILURE_REASON = '';
+  UA_LAST_RAKUTEN_ITEMS = [];
 
   if (!appConfig || appConfig.key === 'general') {
     return body;
@@ -2435,6 +2493,15 @@ function uaApplyRakutenAffiliateBanner_(body, rowData, appConfig) {
 
   const contextualIndex = uaFindRakutenContextualInsertIndex_(sourceBody, rowData, appConfig);
   if (contextualIndex > -1) {
+    const secondaryIndex = uaFindRakutenSecondaryMentionIndex_(sourceBody, rowData, appConfig, contextualIndex);
+    if (secondaryIndex > -1) {
+      const lightMention = uaBuildRakutenLightMentionHtml_(UA_LAST_RAKUTEN_ITEMS, rowData && rowData.mainInput);
+      if (lightMention) {
+        return sourceBody.slice(0, secondaryIndex).trimEnd() + '\n\n' + lightMention + '\n\n' +
+          sourceBody.slice(secondaryIndex, contextualIndex).trim() + '\n\n' + banner + '\n\n' +
+          sourceBody.slice(contextualIndex).trimStart();
+      }
+    }
     return sourceBody.slice(0, contextualIndex).trimEnd() + '\n\n' + banner + '\n\n' + sourceBody.slice(contextualIndex).trimStart();
   }
 
@@ -2546,6 +2613,7 @@ function uaBuildRakutenAffiliateBanner_(body, rowData, appConfig) {
 
   if (items.length > 0) {
     UA_LAST_RAKUTEN_EFFECTIVE_PRODUCT_PLAN = effectiveProductPlan;
+    UA_LAST_RAKUTEN_ITEMS = items;
     const bannerLabel = categoryQueries.length >= 2 ? '' : query;
     return uaBuildRakutenItemBannerHtml_(items, bannerLabel, effectiveProductPlan, appConfig);
   }

@@ -570,7 +570,9 @@ function uaRunAutomaticPostingWorker() {
         uaAdvanceAutomaticPostingJob_(job, UA_AUTOMATION_STEP_ARTICLE, 60000);
         return;
       }
-      const trefai = uaGetLatestTrefaiJobStatus_(job.appType, job.row, job.keyword);
+      const trefai = uaIsTrefaiBridgeEnabled_()
+        ? uaGetLatestTrefaiJobStatus_(job.appType, job.row, job.keyword)
+        : { status: UA_TREFAI_STATUS_DONE, competitorUrls: [], competitorPages: [] };
       if (trefai && trefai.status === UA_TREFAI_STATUS_ERROR) {
         throw new Error('トレファイ処理エラー: ' + (trefai.message || '詳細なし'));
       }
@@ -584,7 +586,9 @@ function uaRunAutomaticPostingWorker() {
             uaGetAutomationAppConfig_(job.appType),
             uaGetArticleProvider_(),
             {
-              messagePrefix: 'トレファイURLを使って記事構成を作成しました。',
+              messagePrefix: (trefai.competitorUrls || []).length
+                ? 'トレファイURLを使って記事構成を作成しました。'
+                : '記事構成を作成しました。',
               competitorUrls: trefai.competitorUrls || [],
               competitorPages: trefai.competitorPages || []
             }
@@ -1187,7 +1191,7 @@ function uaGetAutomaticPostingStepLabel_(step) {
   const labels = {};
   labels[UA_AUTOMATION_STEP_READER_MIND] = '読者心理';
   labels[UA_AUTOMATION_STEP_STRUCTURE] = '記事構成';
-  labels[UA_AUTOMATION_STEP_WAIT_TREFAI] = 'トレファイ待ち';
+  labels[UA_AUTOMATION_STEP_WAIT_TREFAI] = uaIsTrefaiBridgeEnabled_() ? 'トレファイ待ち' : '競合URL取得・構成案作成中';
   labels[UA_AUTOMATION_STEP_ARTICLE] = '本文生成';
   labels[UA_AUTOMATION_STEP_PRODUCT_LINKS] = '商品導線保証';
   labels[UA_AUTOMATION_STEP_INITIAL_WP] = 'WP下書き';

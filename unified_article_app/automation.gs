@@ -866,39 +866,45 @@ function uaFetchTopPerformingQueryTermsSafely_(appConfig) {
   }
 }
 
-function uaFetchTopPerformingQueryTerms_(appConfig, options) {
-  const maxQueries = (options && options.maxQueries) || 30;
-  const lookbackDays = (options && options.lookbackDays) || 90;
-  const endDate = new Date();
-  const startDate = new Date(endDate.getTime() - lookbackDays * 24 * 60 * 60 * 1000);
-  const formatDate = function(d) { return Utilities.formatDate(d, 'UTC', 'yyyy-MM-dd'); };
+const UA_GSC_PERFORMANCE_SHEET_NAME = 'たくみパパ_GSC実績';
+const UA_GSC_PERFORMANCE_COLUMNS = { query: 1, clicks: 2, updatedAt: 3 };
+const UA_GSC_PERFORMANCE_HEADERS = ['検索クエリ', 'クリック数', '更新日'];
 
-  const siteUrlCandidates = uaGetGscSiteUrlCandidates_(appConfig);
-  let response = null;
-
-  for (let i = 0; i < siteUrlCandidates.length; i++) {
-    try {
-      response = SearchConsole.Searchanalytics.query({
-        startDate: formatDate(startDate),
-        endDate: formatDate(endDate),
-        dimensions: ['query'],
-        rowLimit: maxQueries,
-        orderBy: [{ fieldName: 'clicks', descending: true }]
-      }, siteUrlCandidates[i]);
-      if (response) break;
-    } catch (e) {
-      response = null;
-    }
+function uaEnsureGscPerformanceSheet_() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName(UA_GSC_PERFORMANCE_SHEET_NAME);
+  if (!sheet) sheet = ss.insertSheet(UA_GSC_PERFORMANCE_SHEET_NAME);
+  const headerRange = sheet.getRange(1, 1, 1, UA_GSC_PERFORMANCE_HEADERS.length);
+  const currentHeaders = headerRange.getDisplayValues()[0];
+  const matches = UA_GSC_PERFORMANCE_HEADERS.every(function(header, index) {
+    return String(currentHeaders[index] || '').trim() === header;
+  });
+  if (!matches) {
+    headerRange.setValues([UA_GSC_PERFORMANCE_HEADERS]);
+    sheet.setFrozenRows(1);
   }
-
-  if (!response || !response.rows) return [];
-  return uaExtractPerformanceTermsFromGscRows_(response.rows);
+  return sheet;
 }
 
-function uaGetGscSiteUrlCandidates_(appConfig) {
-  const wpConfig = uaGetWpConfig_(appConfig);
-  const host = uaTrimTrailingSlash_(wpConfig.siteUrl).replace(/^https?:\/\//i, '');
-  return ['sc-domain:' + host, 'https://' + host + '/', 'http://' + host + '/'];
+// Google Search Console has no Apps Script Advanced Service, and pulling it via
+// raw UrlFetchApp would require manually re-declaring this project's entire
+// oauthScopes list (risking breakage of the unrelated, already-working daily
+// automatic posting). Instead this reads real GSC numbers that get pasted into
+// the UA_GSC_PERFORMANCE_SHEET_NAME sheet periodically (via browser export or by
+// asking Claude to refresh it) -- see uaSaveGscPerformanceRows_.
+function uaFetchTopPerformingQueryTerms_(appConfig) {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(UA_GSC_PERFORMANCE_SHEET_NAME);
+  if (!sheet) return [];
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) return [];
+  const values = sheet.getRange(2, 1, lastRow - 1, UA_GSC_PERFORMANCE_COLUMNS.clicks).getValues();
+  const rows = values.map(function(row) {
+    return {
+      query: String(row[UA_GSC_PERFORMANCE_COLUMNS.query - 1] || '').trim(),
+      clicks: Number(row[UA_GSC_PERFORMANCE_COLUMNS.clicks - 1]) || 0
+    };
+  });
+  return uaExtractPerformanceTermsFromGscRows_(rows);
 }
 
 function uaExtractPerformanceTermsFromGscRows_(rows) {
@@ -907,7 +913,7 @@ function uaExtractPerformanceTermsFromGscRows_(rows) {
   (rows || []).forEach(function(row) {
     const clicks = Number(row.clicks || 0);
     if (clicks <= 0) return;
-    const query = String((row.keys && row.keys[0]) || '').trim();
+    const query = String(row.query || '').trim();
     if (!query) return;
     query.split(/[\s　・、,／/|｜]+/).forEach(function(term) {
       const trimmed = term.trim();
@@ -916,6 +922,20 @@ function uaExtractPerformanceTermsFromGscRows_(rows) {
     });
   });
   return Object.keys(terms);
+}
+
+// One-off helper to (re)populate the manual GSC performance sheet. rows is an
+// array of {query, clicks} pulled from a real Search Console report.
+function uaSaveGscPerformanceRows_(rows) {
+  const sheet = uaEnsureGscPerformanceSheet_();
+  if (!Array.isArray(rows) || rows.length === 0) return { ok: true, written: 0 };
+  const now = new Date();
+  const values = rows.map(function(row) {
+    return [String(row.query || '').trim(), Number(row.clicks) || 0, now];
+  });
+  sheet.getRange(2, 1, sheet.getLastRow() > 1 ? sheet.getLastRow() - 1 : 0, UA_GSC_PERFORMANCE_HEADERS.length).clearContent();
+  sheet.getRange(2, 1, values.length, UA_GSC_PERFORMANCE_HEADERS.length).setValues(values);
+  return { ok: true, written: values.length };
 }
 
 function uaEnsureAutomaticPostingSheet_() {

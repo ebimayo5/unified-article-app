@@ -112,17 +112,88 @@ function row(status, keyword, volume) {
 
 // 7) uaExtractPerformanceTermsFromGscRows_: zero-click rows and stopwords are
 // excluded; real multi-character terms from clicked queries are kept.
+// Rows are {query, clicks} pairs read from the manual GSC performance sheet
+// (not the raw Search Console API shape -- see uaFetchTopPerformingQueryTerms_).
 {
   const rows = [
-    { keys: ['冷蔵庫 マット 後悔'], clicks: 9 },
-    { keys: ['サンシェード 強風対策'], clicks: 29 },
-    { keys: ['ゼロクリックのクエリ'], clicks: 0 }
+    { query: '冷蔵庫 マット 後悔', clicks: 9 },
+    { query: 'サンシェード 強風対策', clicks: 29 },
+    { query: 'ゼロクリックのクエリ', clicks: 0 }
   ];
   const terms = context.uaExtractPerformanceTermsFromGscRows_(rows);
   assert.ok(terms.indexOf('冷蔵庫') !== -1, 'クリックのあるクエリの語は抽出される');
   assert.ok(terms.indexOf('サンシェード') !== -1, '複数クリック行の語も抽出される');
   assert.ok(terms.indexOf('後悔') === -1, 'ストップワード（後悔など）は除外される');
-  assert.ok(terms.every(function(t) { return !rows[2].keys[0].split(/[\s　]+/).some(function(w) { return t === w; }); }) || true, 'クリック0件の行からは抽出されない（間接確認）');
+  assert.ok(terms.indexOf('ゼロクリックのクエリ') === -1, 'クリック0件の行からは抽出されない');
+}
+
+// 7b) uaSaveGscPerformanceRows_ / uaFetchTopPerformingQueryTerms_ round-trip
+// through the actual sheet, using a lightweight in-memory SpreadsheetApp mock.
+{
+  const sheetsByName = {};
+  function makeSheetMock(name) {
+    let data = [];
+    const sheet = {
+      name: name,
+      getRange: function(r, c, numRows, numCols) {
+        return {
+          getValues: function() {
+            const out = [];
+            for (let i = 0; i < (numRows || 1); i++) {
+              const rowIndex = r - 1 + i;
+              const line = [];
+              for (let j = 0; j < (numCols || 1); j++) line.push((data[rowIndex] || [])[c - 1 + j]);
+              out.push(line);
+            }
+            return out;
+          },
+          getDisplayValues: function() {
+            const out = [];
+            for (let i = 0; i < (numRows || 1); i++) {
+              const rowIndex = r - 1 + i;
+              const line = [];
+              for (let j = 0; j < (numCols || 1); j++) line.push(String((data[rowIndex] || [])[c - 1 + j] || ''));
+              out.push(line);
+            }
+            return out;
+          },
+          setValues: function(values) {
+            values.forEach(function(rowValues, i) {
+              const rowIndex = r - 1 + i;
+              data[rowIndex] = data[rowIndex] || [];
+              rowValues.forEach(function(v, j) { data[rowIndex][c - 1 + j] = v; });
+            });
+            return sheet;
+          },
+          clearContent: function() {
+            for (let i = 0; i < (numRows || 1); i++) {
+              const rowIndex = r - 1 + i;
+              if (data[rowIndex]) data[rowIndex] = [];
+            }
+            return sheet;
+          }
+        };
+      },
+      getLastRow: function() { return data.length; },
+      setFrozenRows: function() { return sheet; }
+    };
+    return sheet;
+  }
+  context.SpreadsheetApp = {
+    getActiveSpreadsheet: function() {
+      return {
+        getSheetByName: function(name) { return sheetsByName[name] || null; },
+        insertSheet: function(name) { sheetsByName[name] = makeSheetMock(name); return sheetsByName[name]; }
+      };
+    }
+  };
+  vm.runInContext('uaEnsureGscPerformanceSheet_', context)();
+  vm.runInContext('uaSaveGscPerformanceRows_', context)([
+    { query: '冷蔵庫 マット 後悔', clicks: 9 },
+    { query: '二階 洗面台 後悔', clicks: 31 }
+  ]);
+  const roundTripTerms = vm.runInContext('uaFetchTopPerformingQueryTerms_', context)(homeConfig);
+  assert.ok(roundTripTerms.indexOf('冷蔵庫') !== -1, 'シートへ保存した実績データが読み戻せる');
 }
 
 // 8) uaFetchTopPerformingQueryTermsSafely_ must never throw even if the

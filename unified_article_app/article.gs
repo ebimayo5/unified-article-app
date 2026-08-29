@@ -1997,7 +1997,7 @@ function uaFixTakumiRefrigeratorStoveRakutenBanner() {
   const appConfig = UA_APP_TYPES.home;
   const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(appConfig.articleSheetName);
   const row = 54;
-  sheet.getRange(row, UA_COLUMNS.affiliateNotes).setValue('楽天商品キーワード：防熱ボード');
+  sheet.getRange(row, UA_COLUMNS.affiliateNotes).setValue('楽天商品キーワード：キッチンパネル 防熱');
   return uaRefreshRakutenBannerForArticleRow_(appConfig, row);
 }
 

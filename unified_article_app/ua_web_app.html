@@ -82,7 +82,7 @@
       .secondary { color: var(--brand-dark); background: linear-gradient(180deg, #ffffff, #e9f8ef 55%, #d7f0e3); border-color: #79c59f; box-shadow: inset 0 1px 0 rgba(255,255,255,0.85), 0 3px 8px rgba(6,44,35,0.08); }
       .neutral { color: var(--brand-dark); background: linear-gradient(180deg, #ffffff, #f7fcf9 55%, #e8f5ee); border-color: #aed6c3; box-shadow: inset 0 1px 0 rgba(255,255,255,0.85), 0 3px 8px rgba(6,44,35,0.06); }
       .danger { color: #fff; background: linear-gradient(180deg, #e8574a, var(--danger)); border-color: #7f180f; box-shadow: inset 0 1px 0 rgba(255,255,255,0.35), 0 4px 10px rgba(180,35,24,0.3); }
-      .auto-posting-status { margin-top: 9px; padding: 9px 10px; border: 1px solid #4b8b73; border-radius: 7px; color: var(--sidebar-muted); background: rgba(255,255,255,0.08); line-height: 1.55; white-space: pre-line; }
+      .auto-posting-status { margin-top: 9px; padding: 9px 10px; border: 1px solid #8ed2ad; border-radius: 7px; color: var(--brand-dark); background: #f2fff8; font-weight: 700; line-height: 1.6; white-space: pre-line; }
       .auto-posting-status.error { color: #7a271a; background: #fff1f0; border-color: #f97066; box-shadow: inset 4px 0 0 var(--danger); }
       .card { margin-bottom: 12px; padding: 14px; border: 1px solid var(--line); border-radius: 10px; background: linear-gradient(160deg, #ffffff 0%, var(--panel) 55%, var(--soft-strong) 130%); box-shadow: 0 14px 30px rgba(6, 44, 35, 0.1), inset 0 1px 0 rgba(255,255,255,0.85); position: relative; overflow: hidden; }
       .main > .card::before, .main-grid > .card::before, #dashboardView .card::before { content: ""; position: absolute; inset: 0 0 auto; height: 4px; background: linear-gradient(90deg, var(--accent-start), var(--brand), var(--accent-end)); }
@@ -897,7 +897,8 @@
         document.getElementById('autoPostingNotificationEmail').value = settings.notificationEmail || '';
         document.getElementById('autoPostingSummary').textContent = '毎日' + document.getElementById('autoPostingHour').value + '時ごろ・最大' + document.getElementById('autoPostingDailyLimit').value + '記事。重大NG時は停止し、通知ONならスマホで確認・再開できます。';
         const parts = [settings.status || ''];
-        if (settings.activeKeyword) parts.push('処理中: ' + settings.activeKeyword + (settings.activeStep ? ' / ' + settings.activeStep : ''));
+        const statusAlreadyMentionsKeyword = Boolean(settings.activeKeyword) && String(settings.status || '').indexOf(settings.activeKeyword) !== -1;
+        if (settings.activeKeyword && !statusAlreadyMentionsKeyword) parts.push('処理中: ' + settings.activeKeyword + (settings.activeStep ? ' / ' + settings.activeStep : ''));
         if (Number(settings.manualBatchRemaining) > 0) parts.push('今すぐ開始の残り: ' + settings.manualBatchRemaining + '記事');
         if (settings.lastError) parts.push('エラー: ' + settings.lastError);
         const status = document.getElementById('autoPostingStatus');

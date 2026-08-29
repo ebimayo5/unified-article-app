@@ -120,6 +120,14 @@ function uaApplyPrePublishFixesOnceFromPanel(data) {
     backgroundState = null;
   }
 
+  if (backgroundState && uaIsExpiredPrePublishBackgroundState_(backgroundState)) {
+    uaClearPrePublishBackgroundState_(backgroundStateKey);
+    throw new Error(
+      '前回のOpenAI修正リクエストが9分以上応答なしのため、保存済み処理IDを破棄しました。' +
+      '重複課金を防ぐため自動再送はしていません。もう一度「続きから再開」を押すと新しい修正依頼を送信します。'
+    );
+  }
+
   let backgroundResponse;
   if (backgroundState && backgroundState.responseId) {
     try {
@@ -224,14 +232,14 @@ function uaApplyPrePublishFixesOnceFromPanel(data) {
 
   let rejectedRevisionReason = '';
   try {
-    uaValidatePrePublishRevision_(originalBody, revisedBody, allowedNewUrls);
+    uaValidatePrePublishRevision_(originalBody, revisedBody, allowedNewUrls, appConfig);
   } catch (revisionError) {
     rejectedRevisionReason = revisionError && revisionError.message
       ? revisionError.message
       : String(revisionError || '安全検証に失敗しました。');
     revision = uaBuildRejectedPrePublishRevisionFallback_(revision, rowData, rejectedRevisionReason);
     revisedBody = originalBody;
-    uaValidatePrePublishRevision_(originalBody, revisedBody, allowedNewUrls);
+    uaValidatePrePublishRevision_(originalBody, revisedBody, allowedNewUrls, appConfig);
   }
 
   sheet.getRange(row, UA_COLUMNS.body, 1, 5).setValues([[
@@ -1309,7 +1317,7 @@ function uaFormatPrePublishCheckReport_(ruleCheck, editorCheck, modelLabel, edit
   return lines.join('\n');
 }
 
-function uaValidatePrePublishRevision_(beforeBody, afterBody, allowedNewUrls) {
+function uaValidatePrePublishRevision_(beforeBody, afterBody, allowedNewUrls, appConfig) {
   const before = String(beforeBody || '').trim();
   const after = String(afterBody || '').trim();
   if (!after) {
@@ -1322,7 +1330,15 @@ function uaValidatePrePublishRevision_(beforeBody, afterBody, allowedNewUrls) {
     throw new Error('修正後の本文が許容範囲を超えて増えたため、大きな書き直しと判定して修正案を不採用にしました。');
   }
 
-  const protectedTokens = [
+  // uaProtectPrePublishRevisionBody_で保護・復元される要素と実質重複する二重チェックだが、
+  // 将来どちらかの実装がずれても片方が検知できるよう、テーマに応じたマーカーで独立に数える。
+  const protectedTokens = uaUsesSwellBlocks_(appConfig) ? [
+    ['「この記事のポイント」ブロック', 'article-compass-point-box'],
+    ['CTAブロック', 'UA_MAIN_AFFILIATE_CTA_START'],
+    ['SWELL記事リンクカード', 'wp:loos/post-link'],
+    ['YMYL注意書き', 'article-compass-notice-box'],
+    ['本文画像', '<!-- wp:image']
+  ] : [
     ['「この記事のポイント」ブロック', '<!-- wp:cocoon-blocks/tab-caption-box-1'],
     ['CTAブロック', '<!-- wp:cocoon-blocks/button-wrap-1'],
     ['Cocoonブログカード', '<!-- wp:cocoon-blocks/blogcard'],

@@ -1993,6 +1993,14 @@ function uaRefreshTakumiRefrigeratorStoveRakutenBanner() {
   return uaRefreshRakutenBannerForArticleRow_(UA_APP_TYPES.home, 54);
 }
 
+function uaFixTakumiRefrigeratorStoveRakutenBanner() {
+  const appConfig = UA_APP_TYPES.home;
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(appConfig.articleSheetName);
+  const row = 54;
+  sheet.getRange(row, UA_COLUMNS.affiliateNotes).setValue('楽天商品キーワード：キッチン 防熱パネル コンロ');
+  return uaRefreshRakutenBannerForArticleRow_(appConfig, row);
+}
+
 function uaRegisterExistingRefrigeratorStoveArticle() {
   const appConfig = UA_APP_TYPES.home;
   const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(appConfig.articleSheetName);

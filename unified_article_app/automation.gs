@@ -800,26 +800,45 @@ function uaMoveFirstWriteCandidateToArticle_(appType) {
     const lastRow = candidateSheet.getLastRow();
     if (lastRow < 2) return null;
     const values = candidateSheet.getRange(2, 1, lastRow - 1, UA_CANDIDATE_COLUMNS.volume).getValues();
-    for (let index = 0; index < values.length; index++) {
-      const candidate = values[index];
-      const status = String(candidate[UA_CANDIDATE_COLUMNS.status - 1] || '').trim();
-      const keyword = String(candidate[UA_CANDIDATE_COLUMNS.keyword - 1] || '').trim();
-      if (status !== UA_CANDIDATE_STATUS_WRITE || !keyword) continue;
-      const affiliateName = String(candidate[UA_CANDIDATE_COLUMNS.affiliateName - 1] || '').trim();
-      const affiliate = uaGetAffiliateProjectByName_(affiliateName);
-      const articleRow = uaFindNextArticleRow_(articleSheet);
-      articleSheet.getRange(articleRow, 1, 1, UA_ARTICLE_COLUMN_COUNT).setValues([uaBuildArticleRowFromCandidate_(
-        keyword,
-        candidate[UA_CANDIDATE_COLUMNS.volume - 1] || '',
-        appConfig,
-        affiliate
-      )]);
-      candidateSheet.getRange(index + 2, UA_CANDIDATE_COLUMNS.status).setValue(UA_CANDIDATE_STATUS_SENT);
-      uaApplyCandidateSheetRules_(candidateSheet);
-      SpreadsheetApp.flush();
-      return { appType: appConfig.label, sheetName: articleSheet.getName(), row: articleRow, keyword: keyword };
+    const selectedIndex = uaSelectNextCandidateIndex_(values, appConfig);
+    if (selectedIndex === -1) return null;
+
+    const candidate = values[selectedIndex];
+    const keyword = String(candidate[UA_CANDIDATE_COLUMNS.keyword - 1] || '').trim();
+    const affiliateName = String(candidate[UA_CANDIDATE_COLUMNS.affiliateName - 1] || '').trim();
+    const affiliate = uaGetAffiliateProjectByName_(affiliateName);
+    const articleRow = uaFindNextArticleRow_(articleSheet);
+    articleSheet.getRange(articleRow, 1, 1, UA_ARTICLE_COLUMN_COUNT).setValues([uaBuildArticleRowFromCandidate_(
+      keyword,
+      candidate[UA_CANDIDATE_COLUMNS.volume - 1] || '',
+      appConfig,
+      affiliate
+    )]);
+    candidateSheet.getRange(selectedIndex + 2, UA_CANDIDATE_COLUMNS.status).setValue(UA_CANDIDATE_STATUS_SENT);
+    uaApplyCandidateSheetRules_(candidateSheet);
+    SpreadsheetApp.flush();
+    return { appType: appConfig.label, sheetName: articleSheet.getName(), row: articleRow, keyword: keyword };
+}
+
+function uaSelectNextCandidateIndex_(values, appConfig) {
+  const preferProductLinked = appConfig && appConfig.key === 'home';
+  let firstWritableIndex = -1;
+  let firstProductLinkedIndex = -1;
+
+  for (let index = 0; index < values.length; index++) {
+    const candidate = values[index];
+    const status = String(candidate[UA_CANDIDATE_COLUMNS.status - 1] || '').trim();
+    const keyword = String(candidate[UA_CANDIDATE_COLUMNS.keyword - 1] || '').trim();
+    if (status !== UA_CANDIDATE_STATUS_WRITE || !keyword) continue;
+    if (firstWritableIndex === -1) firstWritableIndex = index;
+    if (preferProductLinked && firstProductLinkedIndex === -1) {
+      if (uaGetMainKeywordProductProfile_({ mainInput: keyword }, appConfig)) {
+        firstProductLinkedIndex = index;
+      }
     }
-  return null;
+  }
+
+  return firstProductLinkedIndex !== -1 ? firstProductLinkedIndex : firstWritableIndex;
 }
 
 function uaEnsureAutomaticPostingSheet_() {

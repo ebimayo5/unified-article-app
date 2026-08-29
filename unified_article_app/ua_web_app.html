@@ -269,26 +269,29 @@
             </details>
           </div>
 
-          <button class="secondary" type="button" style="width:100%; margin-top:10px;" onclick="createBlankArticle(this)">&#26032;&#35215;&#35352;&#20107;&#34892;&#12434;&#20316;&#12427;</button>
-          <div class="api-grid">
-            <div>
-              <label for="textModel">OpenAI 文章モデル</label>
-              <select id="textModel" onchange="saveOpenAiModels()"></select>
+          <details style="margin-top:10px;">
+            <summary class="muted" style="cursor:pointer;">モデル・画像スタイル設定（詳細）</summary>
+            <button class="secondary" type="button" style="width:100%; margin-top:10px;" onclick="createBlankArticle(this)">&#26032;&#35215;&#35352;&#20107;&#34892;&#12434;&#20316;&#12427;</button>
+            <div class="api-grid">
+              <div>
+                <label for="textModel">OpenAI 文章モデル</label>
+                <select id="textModel" onchange="saveOpenAiModels()"></select>
+              </div>
+              <div>
+                <label for="imageModel">OpenAI 画像モデル</label>
+                <select id="imageModel" onchange="saveOpenAiModels()"></select>
+              </div>
             </div>
-            <div>
-              <label for="imageModel">OpenAI 画像モデル</label>
-              <select id="imageModel" onchange="saveOpenAiModels()"></select>
+            <label for="imageStylePrompt">画像スタイル指定</label>
+            <div class="api-grid">
+              <select id="imageStylePreset">
+                <option value="latestAnime">最新アニメ風</option>
+                <option value="softFree">柔らかいフリー素材風</option>
+                <option value="custom">手入力の指定</option>
+              </select>
             </div>
-          </div>
-          <label for="imageStylePrompt">画像スタイル指定</label>
-          <div class="api-grid">
-            <select id="imageStylePreset">
-              <option value="latestAnime">最新アニメ風</option>
-              <option value="softFree">柔らかいフリー素材風</option>
-              <option value="custom">手入力の指定</option>
-            </select>
-          </div>
-          <textarea id="imageStylePrompt" class="notes-input" placeholder="手入力を選んだ場合の画風指定。例: 淡い色、人物なし、余白多め"></textarea>
+            <textarea id="imageStylePrompt" class="notes-input" placeholder="手入力を選んだ場合の画風指定。例: 淡い色、人物なし、余白多め"></textarea>
+          </details>
         </div>
 
         <div id="automaticPostingPanel" class="card">

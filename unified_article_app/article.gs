@@ -1993,23 +1993,6 @@ function uaRefreshTakumiRefrigeratorStoveRakutenBanner() {
   return uaRefreshRakutenBannerForArticleRow_(UA_APP_TYPES.home, 54);
 }
 
-function uaDebugTakumiRefrigeratorStoveRakutenQuery() {
-  const appConfig = UA_APP_TYPES.home;
-  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(appConfig.articleSheetName);
-  const row = 54;
-  const rowData = uaBuildRowData_(sheet, row);
-  Logger.log('affiliateNotes=' + JSON.stringify(rowData.affiliateNotes));
-  Logger.log('mainInput=' + JSON.stringify(rowData.mainInput));
-  const directQuery = uaSelectRakutenProductQuery_(rowData.body, rowData, appConfig);
-  Logger.log('uaSelectRakutenProductQuery_ result=' + JSON.stringify(directQuery));
-  const productPlan = uaExtractProductPlan_(rowData.body);
-  Logger.log('productPlan=' + JSON.stringify(productPlan));
-  const mainKeywordProfile = uaGetMainKeywordProductProfile_(rowData, appConfig);
-  Logger.log('mainKeywordProfile=' + JSON.stringify(mainKeywordProfile));
-  const hasMainAffiliate = uaHasMainAffiliateProject_(rowData);
-  Logger.log('hasMainAffiliate=' + hasMainAffiliate);
-}
-
 function uaFixTakumiRefrigeratorStoveRakutenBanner() {
   const appConfig = UA_APP_TYPES.home;
   const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(appConfig.articleSheetName);
@@ -2449,15 +2432,16 @@ function uaApplyRakutenAffiliateBanner_(body, rowData, appConfig) {
 }
 
 function uaBuildRakutenAffiliateBanner_(body, rowData, appConfig) {
+  const manualQueryOverride = uaGetManualRakutenQueryOverride_(rowData);
   const productPlan = uaExtractProductPlan_(body);
-  const mainKeywordProfile = uaGetMainKeywordProductProfile_(rowData, appConfig);
+  const mainKeywordProfile = manualQueryOverride ? null : uaGetMainKeywordProductProfile_(rowData, appConfig);
   let effectiveProductPlan = uaCanUseSupplementalProductPlan_(productPlan, body, rowData, appConfig)
     ? uaBuildSupplementalProductPlan_(productPlan, rowData, appConfig)
     : productPlan;
   if (mainKeywordProfile) {
     effectiveProductPlan = uaBuildMainKeywordProductPlan_(mainKeywordProfile, effectiveProductPlan);
   }
-  if (!effectiveProductPlan && appConfig && appConfig.key === 'home' && !uaHasMainAffiliateProject_(rowData)) {
+  if (!effectiveProductPlan && !manualQueryOverride && appConfig && appConfig.key === 'home' && !uaHasMainAffiliateProject_(rowData)) {
     const fallbackQuery = uaSelectRakutenKeywordFallbackQuery_(rowData && rowData.mainInput, 'home');
     if (fallbackQuery) {
       const fallbackProductLabel = uaGetFallbackProductDisplayLabel_(fallbackQuery);
@@ -2561,12 +2545,16 @@ function uaBuildRakutenAffiliateBanner_(body, rowData, appConfig) {
   ].join('\n');
 }
 
-function uaSelectRakutenProductQuery_(body, rowData, appConfig) {
+function uaGetManualRakutenQueryOverride_(rowData) {
   const notes = String(rowData && rowData.affiliateNotes || '');
   const override = notes.match(/楽天商品(?:キーワード|KW)[:：]\s*([^\n\r]+)/);
+  return override && override[1] ? override[1].trim() : '';
+}
 
-  if (override && override[1]) {
-    return override[1].trim();
+function uaSelectRakutenProductQuery_(body, rowData, appConfig) {
+  const manualOverride = uaGetManualRakutenQueryOverride_(rowData);
+  if (manualOverride) {
+    return manualOverride;
   }
 
   const mainKeywordProfile = uaGetMainKeywordProductProfile_(rowData, appConfig);
@@ -3110,7 +3098,9 @@ function uaSelectRakutenCategoryQueries_(body, rowData, appConfig, primaryQuery)
     });
   }
 
-  const mainKeywordProfile = uaGetMainKeywordProductProfile_(rowData, appConfig);
+  const mainKeywordProfile = uaGetManualRakutenQueryOverride_(rowData)
+    ? null
+    : uaGetMainKeywordProductProfile_(rowData, appConfig);
   if (mainKeywordProfile) {
     mainKeywordProfile.queries.forEach(add);
   }

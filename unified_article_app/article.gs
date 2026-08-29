@@ -1,6 +1,8 @@
 let UA_LAST_RAKUTEN_STATUS = '';
 let UA_LAST_RAKUTEN_EFFECTIVE_PRODUCT_PLAN = null;
 let UA_LAST_RAKUTEN_QUERY = '';
+let UA_LAST_RINKER_FAILURE_REASON = '';
+const UA_RINKER_API_ATTEMPTS = 2;
 const UA_NAVIOKUN_INTRO_URL = 'https://ebimayo5.com/archives/naviokun-reputation/';
 
 function uaRemoveRedundantAffiliateDisclosure_(body) {
@@ -1875,6 +1877,7 @@ function uaAddRakutenBannerForContext_(context) {
   UA_LAST_RAKUTEN_STATUS = '';
   UA_LAST_RAKUTEN_EFFECTIVE_PRODUCT_PLAN = null;
   UA_LAST_RAKUTEN_QUERY = '';
+  UA_LAST_RINKER_FAILURE_REASON = '';
 
   if (!uaShouldInsertRakutenAffiliateBanner_(sourceBody, context.rowData, context.appConfig)) {
     const reason = UA_LAST_RAKUTEN_STATUS || '楽天バナー挿入対象外です。';
@@ -1913,16 +1916,26 @@ function uaAddRakutenBannerForContext_(context) {
   uaAppendFactCheckPoint_(context.sheet, context.row, replacedExisting
     ? '・楽天バナー再選定｜既存の自動生成バナーを削除し、現在のキーワードで置換済み'
     : '・楽天バナー後入れ｜既存本文に小リライトとして追加済み');
+  if (context.appConfig && context.appConfig.key === 'home' && UA_LAST_RINKER_FAILURE_REASON) {
+    // Rinker integration failed but the plain Rakuten/Amazon fallback still succeeded,
+    // so uaAddRakutenBannerForContext_ would otherwise report a normal success message
+    // with no trace that the site's primary monetization channel (Rinker) was skipped.
+    // Flag it in fact-check so it surfaces for a manual re-run instead of going unnoticed.
+    uaAppendFactCheckPoint_(context.sheet, context.row, '・Rinker連携失敗｜従来の商品比較ボタンへフォールバック済み: ' + UA_LAST_RINKER_FAILURE_REASON);
+  }
 
   const nextData = uaBuildRowData_(context.sheet, context.row);
   const isForcedHomeRinker = context.appConfig && context.appConfig.key === 'home' &&
     Number(context.rowData && context.rowData.forceRakutenItemCount || 0) > 0;
   const rinkerItemCount = (String(block || '').match(/\[itemlink\b/gi) || []).length;
-  nextData.message = isForcedHomeRinker
+  const rinkerFailedNote = UA_LAST_RINKER_FAILURE_REASON
+    ? '\n注意: Rinker連携が失敗したため、従来の商品比較ボタンにフォールバックしています。'
+    : '';
+  nextData.message = (isForcedHomeRinker
     ? 'Rinker商品リンクを' + rinkerItemCount + '種類、本文へ追加しました。重複商品は除外済みです。検索条件: ' + String(UA_LAST_RAKUTEN_QUERY || '自動判定') + '。本文生成APIは使っていません。'
     : replacedExisting
       ? '楽天バナーを現在のキーワードで再選定して置き換えました。本文生成APIは使っていません。'
-      : '楽天バナーを本文へ追加しました。本文生成APIは使っていません。';
+      : '楽天バナーを本文へ追加しました。本文生成APIは使っていません。') + rinkerFailedNote;
   return nextData;
 }
 
@@ -1944,6 +1957,9 @@ function uaRefreshRakutenBannerForArticleRow_(appConfig, row) {
   }
   sheet.getRange(row, UA_COLUMNS.body).setValue(nextBody);
   uaAppendFactCheckPoint_(sheet, row, '・楽天バナー再選定｜既存の自動生成バナーを削除し、現在の主役商品で置換済み');
+  if (appConfig && appConfig.key === 'home' && UA_LAST_RINKER_FAILURE_REASON) {
+    uaAppendFactCheckPoint_(sheet, row, '・Rinker連携失敗｜従来の商品比較ボタンへフォールバック済み: ' + UA_LAST_RINKER_FAILURE_REASON);
+  }
   const refreshed = uaBuildRowData_(sheet, row);
   const postId = Number(refreshed.wpPostId || 0);
 
@@ -2296,6 +2312,7 @@ function uaCallArticleGenerationJson_(promptText, provider, sheet, row) {
 
 function uaApplyRakutenAffiliateBanner_(body, rowData, appConfig) {
   UA_LAST_RAKUTEN_STATUS = '';
+  UA_LAST_RINKER_FAILURE_REASON = '';
 
   if (!appConfig || appConfig.key === 'general') {
     return body;
@@ -4207,23 +4224,42 @@ function uaBuildHomeRinkerItemsHtml_(items, fallbackQuery, appConfig) {
     if (payloadItems.length === 0) return '';
 
     const wpConfig = uaGetWpConfig_(appConfig);
-    const response = uaCallWordPressApi_(
-      wpConfig,
-      '/wp-json/article-compass/v1/rinker-items',
-      'post',
-      { items: payloadItems }
-    );
+    let response = null;
+    let lastError = null;
+    for (let attempt = 1; attempt <= UA_RINKER_API_ATTEMPTS; attempt++) {
+      try {
+        response = uaCallWordPressApi_(
+          wpConfig,
+          '/wp-json/article-compass/v1/rinker-items',
+          'post',
+          { items: payloadItems }
+        );
+        lastError = null;
+        break;
+      } catch (attemptError) {
+        lastError = attemptError;
+        if (attempt < UA_RINKER_API_ATTEMPTS) {
+          Utilities.sleep(1500);
+        }
+      }
+    }
+    if (lastError) throw lastError;
+
     const savedItems = uaDedupeRinkerSavedItems_(
       response && Array.isArray(response.items) ? response.items : []
     );
     const shortcodeHtml = uaBuildRinkerShortcodeBlocks_(savedItems);
-    if (!shortcodeHtml) return '';
+    if (!shortcodeHtml) {
+      UA_LAST_RINKER_FAILURE_REASON = 'Rinker連携APIは応答しましたが、有効な商品ボックスを作成できませんでした';
+      return '';
+    }
     const selectionMeta = uaBuildManagedProductSelectionMeta_(sourceItems);
 
     UA_LAST_RAKUTEN_STATUS = 'Rinker商品ボックス挿入済み｜楽天で選定した同一商品名をAmazon検索にも使用';
     return [selectionMeta, shortcodeHtml].filter(Boolean).join('\n');
   } catch (e) {
     UA_LAST_RAKUTEN_STATUS = 'Rinker連携を利用できなかったため、従来の商品比較ボタンへ自動フォールバックしました: ' + e.toString();
+    UA_LAST_RINKER_FAILURE_REASON = 'Rinker連携APIが' + UA_RINKER_API_ATTEMPTS + '回とも失敗: ' + e.toString();
     return '';
   }
 }

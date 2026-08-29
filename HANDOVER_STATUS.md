@@ -4,13 +4,13 @@
 作業を始める前・区切りがつくたびに、必ずここを読み書きすること（CLAUDE.md / AGENTS.md の「並行作業ルール」参照）。
 複数エージェントが同時に動く前提のため、このセクションだけは「最終更新」より新しい情報になり得る。
 
-- 状態: 作業中
+- 状態: 一区切り（完了）
 - エージェント: Claude Code
 - 開始時刻: 2026-08-29 18:50頃（日本時間）
-- やっていること: パネルUI（[unified_article_app/ua_web_app.html](unified_article_app/ua_web_app.html)）と自動投稿ロジック（[unified_article_app/automation.gs](unified_article_app/automation.gs)）を修正中。(1)上部通知欄が「表示中の記事＝自動投稿中の記事」の時だけ更新され、自動投稿が別記事へ進んだ後は表示中の記事を切り替えても古いメッセージのまま固まるバグを修正。(2)ユーザー要望によりダッシュボードへ「本日公開・完了した記事」「これから投稿予定」の一覧を追加。新規テスト`test_dashboard_today_articles.js`含め全テストPASS確認済み。
-- 本番に影響する操作: これから実施予定（git commit→push→clasp push→clasp deploy）。まだ本番未反映。
-- 最終更新: (作業中のため未更新)
-- **次のエージェントへの引き継ぎ**: この「本番に影響する操作」欄が「完了」に変わっていない場合、作業が中断された可能性があるため、実際のgit状態・`clasp deployments`を確認してから触ること。
+- やったこと: パネルUI（[unified_article_app/ua_web_app.html](unified_article_app/ua_web_app.html)）と自動投稿ロジック（[unified_article_app/automation.gs](unified_article_app/automation.gs)）を修正。(1)上部通知欄が「表示中の記事＝自動投稿中の記事」の時だけ更新され、自動投稿が別記事へ進んだ後は表示中の記事を切り替えても古いメッセージのまま固まるバグを修正（グローバルなactiveKeywordを常に反映し、ジョブ終了時は中立表示へ戻す）。(2)ユーザー要望によりダッシュボードへ「本日公開・完了した記事」「これから投稿予定」の一覧を追加（完了ログをスクリプトプロパティ`UA_AUTOMATION_DAILY_LOG_*`に記録、投稿予定は候補シートの「書く」行から残り枠分を表示）。新規テスト`test_dashboard_today_articles.js`含め全21テストPASS。
+- 本番に影響する操作: 完了。`git push`済み（`e0d3f5e`）→ clasp push → 本番`@313`へデプロイ済み（"Fix frozen topbar notice on article switch; add today's article lists"）。停止中の自動投稿「エアコン位置 失敗」は触れていない。
+- 最終更新: 2026-08-29 19:00頃（Claude Code）— 本番@313。
+- **次のエージェントへの引き継ぎ**: 特になし。ユーザーがパネルで動作確認するのを待つ段階。
 
 ## ⚠️ 2026-08-28 発生: パネルの「WPへ更新」ボタンが動かず、Apps Scriptエディタから直接関数を叩いたことで行48のデータが一時消失（自己修復済み）
 - 経緯: パネルの「WPへ更新」ボタンは`window.confirm()`（公開記事を上書きする確認ダイアログ）を出すが、ブラウザ自動操作からこのネイティブダイアログのOKを確実に押す方法がなく、複数回クリック・Enterキー送信を試みても`WP更新`が実行された形跡がなかった（WordPress側の`modified`日時が変化しない）。

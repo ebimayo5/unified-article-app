@@ -632,4 +632,60 @@ assert.ok(
   'Rinker未使用サイトの商品バナーもUA_PRODUCT_FOLLOWUP印を付けて自動生成ブロックと分かるようにする'
 );
 
-console.log('Rinker and product routing tests: OK (37 checks)');
+// Rakuten item names are real seller listings and are often keyword-stuffed with
+// decorative marketing tags (e.g. "＼楽天ランキング1位！／") -- the Rinker product card
+// must not show that raw text verbatim, since it clashes with the article's own prose.
+assert.strictEqual(
+  context.uaCleanRakutenItemName_('＼楽天ランキング1位！／ 隙間パッキン 差し込むだけ 隙間パッキン2本セット'),
+  '隙間パッキン 差し込むだけ 隙間パッキン2本セット',
+  '先頭の＼〜／装飾タグは商品名から除去する'
+);
+assert.strictEqual(
+  context.uaCleanRakutenItemName_('【レビュー特典あり】山崎実業 洗濯機ラック'),
+  '山崎実業 洗濯機ラック',
+  '先頭の【〜】装飾タグも除去する'
+);
+assert.strictEqual(
+  context.uaTruncateForDisplay_('あ'.repeat(70), 60),
+  'あ'.repeat(60) + '…',
+  '60文字を超える商品名は末尾を…で切り詰める'
+);
+assert.strictEqual(
+  context.uaTruncateForDisplay_('短い商品名', 60),
+  '短い商品名',
+  '60文字以内の商品名は変更しない'
+);
+{
+  const originalWpApi = context.uaCallWordPressApi_;
+  const originalGetWpConfig = context.uaGetWpConfig_;
+  let capturedPayload = null;
+  context.uaGetWpConfig_ = () => ({});
+  context.uaCallWordPressApi_ = (config, path, method, body) => {
+    capturedPayload = body;
+    return { items: (body.items || []).map((item, index) => ({ post_id: 900 + index })) };
+  };
+  context.uaBuildHomeRinkerItemsHtml_(
+    [{
+      name: '＼楽天ランキング1位！／ 隙間パッキン ホームセンター 洗濯機 洗面台 差し込むだけ 隙間パッキン2本セット',
+      url: 'https://item.rakuten.co.jp/shop/gap-packing/',
+      itemCode: 'shop:gap-packing',
+      imageUrl: '',
+      price: 980
+    }],
+    '洗濯機まわりの隙間対策用品',
+    { key: 'home' }
+  );
+  context.uaCallWordPressApi_ = originalWpApi;
+  context.uaGetWpConfig_ = originalGetWpConfig;
+  assert.ok(capturedPayload && capturedPayload.items && capturedPayload.items[0], 'Rinker連携APIへ商品ペイロードが送られる');
+  assert.ok(
+    !/＼|楽天ランキング1位/.test(capturedPayload.items[0].title),
+    'RinkerへPOSTするtitleは装飾タグを含まない整形済みの表示名にする'
+  );
+  assert.ok(
+    capturedPayload.items[0].title.length <= 61,
+    'Rinkerカードのtitleは表示崩れしないよう切り詰め済みにする'
+  );
+}
+
+console.log('Rinker and product routing tests: OK (44 checks)');

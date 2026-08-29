@@ -4,11 +4,13 @@
 作業を始める前・区切りがつくたびに、必ずここを読み書きすること（CLAUDE.md / AGENTS.md の「並行作業ルール」参照）。
 複数エージェントが同時に動く前提のため、このセクションだけは「最終更新」より新しい情報になり得る。
 
-- 状態: 一区切り（完了）
+- 状態: 作業中
 - エージェント: Claude Code
-- 開始時刻: 2026-08-29 19:10頃（日本時間）
-- やったこと: (1)ユーザー要望「RINKERの商品選定ロジックも精査して」に対応し、[unified_article_app/article.gs](unified_article_app/article.gs)の`uaEnsureRequiredBrandRakutenItems_`を修正。4ブランド以上を明示した比較記事では比較ボックスが最大3商品までしか表示できない制約により、全ブランド取得に成功していても最後の`slice`で1ブランド分を黙って落としていた（実際には再チェック側で検出され「取得できませんでした」という誤解を招くエラーで停止していた）。4ブランド超のときは無駄なAPI呼び出しをせず正確な理由で早期に未挿入とするよう修正。`test_rinker_item_count.js`の否定文言テストの引数順序ミス（本来の判定ロジックを検証できていなかった）も修正。(2)ユーザー要望でサイドバーの「新規記事行を作る」「OpenAI文章/画像モデル」「画像スタイル指定」を`<details>`に格納し前面から下げた。全21テストPASS。
-- 本番に影響する操作: 完了。`git push`済み（`eeb3b4a`）→ clasp push → 本番`@314`へデプロイ済み（"Fix silent brand-drop in Rinker selection; collapse advanced sidebar settings"）。停止中の自動投稿「エアコン位置 失敗」は触れていない。
+- 開始時刻: 2026-08-29 20:30頃（日本時間）
+- やっていること: ユーザーから「記事を見て文章の出力の精度や記事品質どう？」と聞かれ、公開済み記事6本（DRIVE BASE 3本・たくみパパ 3本）を実際にWordPress REST APIとブラウザで確認。文章自体の質は高いが、たくみパパのRinker商品カードが楽天APIの生の商品名（出品者のSEOキーワード詰め込みタイトル、例:「＼楽天ランキング1位！／隙間パッキン ホームセンター 洗濯機 洗面台...」）をそのまま表示してしまっており、丁寧な本文と比べて見た目が浮くことを実際のページで確認。ユーザーに確認の上「整形して短くする」を選択されたため、[unified_article_app/article.gs](unified_article_app/article.gs)の`uaBuildHomeRinkerItemsHtml_`を修正: 既存のAmazon検索キーワード整形ロジック（`uaBuildAmazonSameProductQuery_`）を`uaCleanRakutenItemName_`として共通化し、＼〜／装飾タグの除去も追加、Rinkerへ送るtitleは整形後60文字で切り詰め（`uaTruncateForDisplay_`）。ブランド保証用の`sourceItems`（生の商品名）には影響しないことを確認済み。新規テスト追加、全21ファイルPASS。
+- 本番に影響する操作: これから実施予定（git commit→push→clasp push→clasp deploy）。まだ本番未反映。
+- 最終更新: (作業中のため未更新)
+- **次のエージェントへの引き継ぎ**: この「本番に影響する操作」欄が「完了」に変わっていない場合、作業が中断された可能性があるため、実際のgit状態・`clasp deployments`を確認してから触ること。
 - 最終更新: 2026-08-29 20:15頃（Claude Code）— 本番@314。
 - **次のエージェントへの引き継ぎ**: 特になし。ユーザーから記事品質のレビュー依頼があり、続けて対応中。
 - 最終更新: 2026-08-29 19:00頃（Claude Code）— 本番@313。

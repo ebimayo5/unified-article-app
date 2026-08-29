@@ -4189,8 +4189,9 @@ function uaBuildHomeRinkerItemsHtml_(items, fallbackQuery, appConfig) {
     const payloadItems = sourceItems.map(function(item) {
       const itemName = String(item && item.name || '').trim();
       const keyword = uaBuildAmazonSameProductQuery_(itemName, fallbackQuery);
+      const displayTitle = uaTruncateForDisplay_(uaCleanRakutenItemName_(itemName) || itemName, 60);
       return {
-        title: itemName,
+        title: displayTitle,
         keyword: keyword,
         rakuten_itemcode: String(item && item.itemCode || '').trim(),
         rakuten_title_url: String(item && item.url || '').trim(),
@@ -4334,13 +4335,24 @@ function uaBuildAmazonSameProductButton_(itemName, fallbackQuery, appConfig) {
   return '<a href=\'' + uaEscapeHtml_(url) + '\' target=\'_blank\' rel=\'nofollow sponsored noopener\' style=\'display:inline-block;background:#ff9900;color:#111;text-decoration:none;font-weight:700;border-radius:6px;padding:8px 12px;\'>同じ商品をAmazonで探す</a>';
 }
 
-function uaBuildAmazonSameProductQuery_(itemName, fallbackQuery) {
-  let query = String(itemName || '')
+function uaCleanRakutenItemName_(itemName) {
+  return String(itemName || '')
+    .replace(/[＼\\][^＼\\／/]{0,30}[／/]/g, ' ')
     .replace(/【[^】]{0,50}】/g, ' ')
     .replace(/\[[^\]]{0,50}\]/g, ' ')
     .replace(/送料無料|送料込み|ポイント\s*\d+倍|クーポン(?:利用)?|期間限定|楽天市場/gi, ' ')
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+function uaTruncateForDisplay_(text, maxLength) {
+  const value = String(text || '').trim();
+  if (value.length <= maxLength) return value;
+  return value.slice(0, maxLength).trim() + '…';
+}
+
+function uaBuildAmazonSameProductQuery_(itemName, fallbackQuery) {
+  let query = uaCleanRakutenItemName_(itemName);
 
   if (!query) query = String(fallbackQuery || '').trim();
   if (query.length > 100) query = query.slice(0, 100).trim();

@@ -941,6 +941,10 @@ function uaSaveGscPerformanceRows_(rows) {
 // One-off: seed たくみパパ_GSC実績 with the real Search Console top-30 queries
 // (kurashi-ie.com, 3か月, pulled 2026-08-30). Re-run uaSaveGscPerformanceRows_
 // with a fresh export periodically to keep this current.
+function uaRunGscPerformanceSeed20260830() {
+  return uaSeedGscPerformanceSheet20260830_();
+}
+
 function uaSeedGscPerformanceSheet20260830_() {
   return uaSaveGscPerformanceRows_([
     { query: '二階 洗面台 後悔', clicks: 31 },

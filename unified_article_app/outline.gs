@@ -640,6 +640,15 @@ function uaSaveAutoCompetitorUrls_(sheet, row, rowData, pages) {
 }
 
 function uaFetchSearchResultUrls_(query, maxCount) {
+  if (uaGetSerperApiKey_()) {
+    try {
+      const serperUrls = uaFetchGoogleTopUrlsViaSerper_(query, maxCount);
+      if (serperUrls.length > 0) return serperUrls;
+    } catch (e) {
+      // Serper側で取得できない場合はスクレイピングにフォールバックする
+    }
+  }
+
   const urls = [];
   const searchUrls = [
     'https://www.bing.com/search?q=' + encodeURIComponent(query) + '&cc=jp&mkt=ja-JP',
@@ -662,6 +671,50 @@ function uaFetchSearchResultUrls_(query, maxCount) {
   });
 
   return urls.slice(0, maxCount);
+}
+
+function uaGetSerperApiKey_() {
+  return String(PropertiesService.getScriptProperties().getProperty('UA_SERPER_API_KEY') || '').trim();
+}
+
+// Serper.dev経由でGoogle検索の上位URLを取得する。
+// PC側ブリッジ（トレファイ）やHTMLスクレイピングに依存せず、GASから直接HTTPS APIを呼ぶだけで完結する。
+function uaFetchGoogleTopUrlsViaSerper_(query, maxCount) {
+  const apiKey = uaGetSerperApiKey_();
+  if (!apiKey) return [];
+
+  const response = UrlFetchApp.fetch('https://google.serper.dev/search', {
+    method: 'post',
+    contentType: 'application/json',
+    muteHttpExceptions: true,
+    headers: {
+      'X-API-KEY': apiKey
+    },
+    payload: JSON.stringify({
+      q: query,
+      gl: 'jp',
+      hl: 'ja',
+      num: Math.max(maxCount, UA_STRUCTURE_COMPETITOR_SEARCH_MAX_RESULTS)
+    })
+  });
+
+  if (response.getResponseCode() >= 400) {
+    throw new Error('Serper API error ' + response.getResponseCode() + ': ' + response.getContentText('UTF-8'));
+  }
+
+  const data = JSON.parse(response.getContentText('UTF-8'));
+  const organic = (data && data.organic) || [];
+  const urls = [];
+
+  organic.forEach(function(item) {
+    if (urls.length >= maxCount) return;
+    const url = String((item && item.link) || '').trim();
+    if (!uaIsUsefulCompetitorUrl_(url)) return;
+    if (urls.indexOf(url) !== -1) return;
+    urls.push(url);
+  });
+
+  return urls;
 }
 
 function uaFetchSearchHtml_(url) {

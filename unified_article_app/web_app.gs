@@ -515,6 +515,7 @@ function uaMarkArticlePostedFromWeb(data) {
   }
 
   sheet.getRange(row, UA_COLUMNS.status).setValue(UA_STATUS_POSTED);
+  uaClearPrePublishCompletedStateForRow_(sheet, row);
 
   const nextData = uaBuildRowData_(sheet, row);
   nextData.message = '投稿済みにしました。';

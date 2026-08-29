@@ -326,6 +326,63 @@ function uaClearPrePublishCompletedFingerprint_(key) {
   PropertiesService.getScriptProperties().deleteProperty(key);
 }
 
+// 公開が完了した記事は公開前チェックのスキップ判定を二度と使わないため、
+// スクリプトプロパティに溜まり続けないようここで消す。
+function uaClearPrePublishCompletedStateForRow_(sheet, row) {
+  try {
+    uaClearPrePublishCompletedFingerprint_(uaGetPrePublishCompletedStateKey_(sheet, row));
+  } catch (e) {
+    // 掃除の失敗で公開処理自体を止めない
+  }
+}
+
+// 今回のクリーンアップ機能を入れる前から溜まっていた「投稿済み」記事分の
+// UA_PREPUB_DONE_* を一度だけ掃除する。メニューから手動実行する想定。
+function uaCleanupPublishedPrePublishState() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const properties = PropertiesService.getScriptProperties();
+  const existingKeys = {};
+  Object.keys(properties.getProperties()).forEach(function(key) {
+    if (key.indexOf('UA_PREPUB_DONE_') === 0) existingKeys[key] = true;
+  });
+
+  let deleted = 0;
+  let checked = 0;
+
+  Object.keys(UA_APP_TYPES).forEach(function(appKey) {
+    const sheetName = UA_APP_TYPES[appKey].articleSheetName;
+    const sheet = ss.getSheetByName(sheetName);
+    if (!sheet) return;
+
+    const lastRow = sheet.getLastRow();
+    if (lastRow < 2) return;
+
+    const statusValues = sheet.getRange(2, UA_COLUMNS.status, lastRow - 1, 1).getValues();
+    for (let i = 0; i < statusValues.length; i++) {
+      const row = i + 2;
+      checked++;
+      const status = String(statusValues[i][0] || '').trim();
+      if (status !== UA_STATUS_POSTED) continue;
+
+      const key = uaGetPrePublishCompletedStateKey_(sheet, row);
+      if (existingKeys[key]) {
+        uaClearPrePublishCompletedFingerprint_(key);
+        delete existingKeys[key];
+        deleted++;
+      }
+    }
+  });
+
+  const remaining = Object.keys(existingKeys).length;
+  const message = '確認した行: ' + checked + '件 / 削除した記録: ' + deleted + '件 / 残り(未公開分など): ' + remaining + '件';
+  Logger.log(message);
+  try {
+    SpreadsheetApp.getUi().alert('公開前チェック記録の掃除', message, SpreadsheetApp.getUi().ButtonSet.OK);
+  } catch (e) {
+    // エディタから直接実行した場合はUIが無いためログのみ
+  }
+}
+
 function uaBuildPrePublishRevisionFingerprint_(rowData, report) {
   const source = rowData && typeof rowData === 'object' ? rowData : {};
   return uaHashPrePublishText_([

@@ -19,7 +19,10 @@ function onOpen() {
     .addItem('内部リンクシートを作る', 'uaSetupInternalLinkSheet')
     .addItem('内部リンク候補をサイトマップ更新', 'uaUpdateInternalLinksFromSitemaps')
     .addItem('外部出典シートを作る', 'uaSetupExternalSourceSheet')
-    .addItem('WordPress接続テスト', 'uaTestWordPressConnections');
+    .addItem('WordPress接続テスト', 'uaTestWordPressConnections')
+    .addSeparator()
+    .addItem('Serper APIキーを設定', 'uaPromptAndSaveSerperApiKey')
+    .addItem('公開前チェック記録を掃除（投稿済み分）', 'uaCleanupPublishedPrePublishState');
   const automaticPostingMenu = ui
     .createMenu('自動投稿')
     .addItem('設定を開く', 'uaOpenAutomaticPostingSettings')
@@ -35,6 +38,26 @@ function onOpen() {
     .addSubMenu(maintenanceMenu)
     .addToUi();
 
+}
+
+function uaPromptAndSaveSerperApiKey() {
+  const ui = SpreadsheetApp.getUi();
+  const existing = String(PropertiesService.getScriptProperties().getProperty('UA_SERPER_API_KEY') || '').trim();
+  const promptText = existing
+    ? 'Serper.devのAPIキーを入力してください（現在: 設定済み・末尾' + existing.slice(-4) + '）。空欄でOKを押すと変更しません。'
+    : 'Serper.devのAPIキーを入力してください（未設定）。';
+  const response = ui.prompt('Serper APIキーを設定', promptText, ui.ButtonSet.OK_CANCEL);
+
+  if (response.getSelectedButton() !== ui.Button.OK) return;
+
+  const value = response.getResponseText().trim();
+  if (!value) {
+    ui.alert('入力が空だったため変更しませんでした。');
+    return;
+  }
+
+  PropertiesService.getScriptProperties().setProperty('UA_SERPER_API_KEY', value);
+  ui.alert('Serper APIキーを保存しました（末尾' + value.slice(-4) + '）。');
 }
 
 function uaRenameSpreadsheetFileIfLegacyName_() {
@@ -633,6 +656,7 @@ function uaMarkActiveArticlePosted(data) {
   }
 
   sheet.getRange(row, UA_COLUMNS.status).setValue(UA_STATUS_POSTED);
+  uaClearPrePublishCompletedStateForRow_(sheet, row);
 
   const nextData = uaBuildRowData_(sheet, row);
   nextData.message = '投稿済みにしました。';

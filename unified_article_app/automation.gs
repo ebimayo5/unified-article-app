@@ -756,6 +756,7 @@ function uaPublishWpPostFromAutomation_(data, requireImages) {
     throw new Error('WordPressの公開完了を確認できませんでした。');
   }
   sheet.getRange(row, UA_COLUMNS.status).setValue(UA_STATUS_POSTED);
+  uaClearPrePublishCompletedStateForRow_(sheet, row);
   SpreadsheetApp.flush();
 
   try {

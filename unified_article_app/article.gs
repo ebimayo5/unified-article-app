@@ -2400,7 +2400,7 @@ function uaFindRakutenSecondaryMentionIndex_(body, rowData, appConfig, primaryIn
   return -1;
 }
 
-function uaBuildRakutenLightMentionHtml_(items, seed) {
+function uaBuildRakutenLightMentionHtml_(items, seed, displayLabelOverride) {
   const primary = items && items[0];
   if (!primary) return '';
 
@@ -2408,7 +2408,13 @@ function uaBuildRakutenLightMentionHtml_(items, seed) {
   const rawName = String(primary.itemName || primary.name || '').trim();
   if (!url || !rawName || !/^https?:\/\//i.test(url)) return '';
 
-  const displayName = uaTruncateForDisplay_(uaCleanRakutenItemName_(rawName) || rawName, 40);
+  // The raw item name is the seller's own keyword-stuffed listing title
+  // (e.g. "自動車 フロアマット 防水 3列目用 3seats 立体成形 滑り止め 砂埃 汚れ防止"),
+  // which reads as unnatural spam when dropped verbatim into article prose.
+  // Callers that already know the matched product category (a short, natural
+  // noun like "フロアマット") should pass it as displayLabelOverride instead.
+  const displayName = String(displayLabelOverride || '').trim() ||
+    uaTruncateForDisplay_(uaCleanRakutenItemName_(rawName) || rawName, 40);
   const template = UA_RAKUTEN_LIGHT_MENTION_TEMPLATES[uaHashSeedToPoolIndex_(seed, UA_RAKUTEN_LIGHT_MENTION_TEMPLATES.length)];
   const link = '<a href="' + uaEscapeHtml_(url) + '" target="_blank" rel="nofollow sponsored noopener">' + uaEscapeHtml_(displayName) + '</a>';
 
@@ -2739,7 +2745,7 @@ function uaApplySecondaryProductMention_(body, rowData, appConfig, primaryQuery)
   }
   if (!items || items.length === 0) return html;
 
-  const mentionBody = uaBuildRakutenLightMentionHtml_(items, seed);
+  const mentionBody = uaBuildRakutenLightMentionHtml_(items, seed, match.categoryLabel);
   if (!mentionBody) return html;
 
   const mentionBlock = [
@@ -2802,7 +2808,11 @@ function uaFindSecondaryProductSectionQuery_(body, appConfig, primaryQuery) {
       const canonicalQuery = uaSelectRakutenKeywordFallbackQuery_(match[0], appKey) || match[0];
       if (!canonicalQuery) continue;
       if (primaryNormalized && uaNormalizeForScore_(canonicalQuery) === primaryNormalized) continue;
-      return { query: canonicalQuery, section: section };
+      // match[0] is the short, natural category noun actually matched in the
+      // article's own text (e.g. "フロアマット") -- pass it through so the
+      // mention's link text can use it instead of the raw Rakuten listing
+      // title (a seller's keyword-stuffed search string, not article prose).
+      return { query: canonicalQuery, section: section, categoryLabel: match[0] };
     }
     return null;
   }

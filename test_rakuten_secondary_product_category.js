@@ -189,6 +189,13 @@ function buildTaftLikeBody() {
   assert.ok(requestedKeywords.indexOf('フロアマット 車種適合') !== -1, '楽天APIへ用品側のクエリで検索が飛ぶ: ' + JSON.stringify(requestedKeywords));
   assert.ok(result.includes('UA_SECONDARY_PRODUCT_START'), 'セカンダリ商品メンションのマーカーが挿入される');
   assert.ok(result.includes('item.rakuten.co.jp/shop/floor-mat'), '取得した商品への実リンクが含まれる');
+  // Real 2026-08-30 feedback: the link text was the seller's raw, keyword-
+  // stuffed Rakuten listing title verbatim ("カー用フロアマット 4点セット"),
+  // which reads as unnatural ad copy dropped into article prose. It must
+  // use the short, natural category noun actually matched in the article's
+  // own text instead.
+  assert.ok(/>フロアマット<\/a>/.test(result), 'リンク文字はマッチしたカテゴリ語（フロアマット）になる: ' + result.slice(result.indexOf('UA_SECONDARY_PRODUCT_START'), result.indexOf('UA_SECONDARY_PRODUCT_END')));
+  assert.ok(!result.includes('カー用フロアマット 4点セット'), '楽天の出品タイトルをそのままリンク文字にしない');
   const h2Index = result.indexOf('納車後の用品は優先順位を付けて選ぶ');
   const markerIndex = result.indexOf('UA_SECONDARY_PRODUCT_START');
   assert.ok(markerIndex > h2Index, 'メンションは該当H2セクションの後に挿入される');

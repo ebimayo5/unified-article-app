@@ -32,6 +32,13 @@ const projects = {
     url: 'https://px.example/naviokun',
     linkInput: '<a href="https://px.example/naviokun" rel="nofollow">ナビ男くん</a>'
   },
+  // Real production data (2026-08-30): ナビ男くんの案件管理シートの実際の値は
+  // linkInput===url の裸URLで、<a>タグではなかった。
+  'ナビ男くんBareUrl': {
+    name: 'ナビ男くん',
+    url: 'https://px.example/naviokun-bare',
+    linkInput: 'https://px.example/naviokun-bare'
+  },
   'ottocast': {
     name: 'ottocast',
     url: 'https://t.example/ottocast',
@@ -210,4 +217,24 @@ const unrelatedSectionIndex = spreadResult.indexOf('関係のない話題');
 assert.ok(subIndex > relevantSectionIndex, 'ナビ男くん sub-offer must land inside/after the section that actually discusses HDMI/後席モニター');
 assert.ok(subIndex > unrelatedSectionIndex, 'sub-offer must be spread away from the main CTA, past the unrelated section in between');
 
-console.log('complementary affiliate tests: OK (25 checks)');
+// Real 2026-08-30 bug: ナビ男くんの実際の案件管理データはlinkInput===url の裸URLで、
+// <a>タグではなかった。uaBuildManagedNaviokunSubBlock_'s anchor-tag regex found
+// nothing and silently produced no sub-offer at all on a real, live article
+// (display-audio-regret-guide) despite every relevance check passing. Fixed
+// with the same bare-URL fallback uaBuildManagedSubAffiliateBlock_ already had.
+const bareUrlOriginalReader = context.uaReadAffiliateProjectByName_;
+context.uaReadAffiliateProjectByName_ = function(name) {
+  if (name === 'ナビ男くん') return projects['ナビ男くんBareUrl'];
+  return projects[name] || null;
+};
+const bareUrlBody = '<p>純正機能を残したままHDMI増設や後席モニター連携をしたい場合を比較します。</p>\n' + mainBlock(projects['ottocast'].url) + '\n<h2>まとめ</h2>';
+const bareUrlResult = context.uaApplyManagedAffiliateCta_(bareUrlBody, {
+  appType: 'DRIVE BASE',
+  mainInput: 'ディスプレイオーディオ 後席モニター',
+  affiliateName: 'ottocast'
+}, drive);
+context.uaReadAffiliateProjectByName_ = bareUrlOriginalReader;
+assert.ok(bareUrlResult.includes('UA_NAVIOKUN_SUB_START'), 'bare-URL linkInput (real production shape) must still produce a ナビ男くん sub-offer, not silently nothing');
+assert.ok(/href="https:\/\/px\.example\/naviokun-bare" target="_blank" rel="nofollow sponsored noopener">ナビ男くんで施工内容と対応車種を確認する<\/a>/.test(bareUrlResult), 'bare-URL fallback must build a proper anchor with the custom CTA text and rel="sponsored"');
+
+console.log('complementary affiliate tests: OK (27 checks)');

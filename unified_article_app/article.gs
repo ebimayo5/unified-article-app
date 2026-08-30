@@ -788,6 +788,11 @@ function uaBuildManagedOttocastAffiliateBlock_(project) {
     linkHtml = uaIsAffiliateFreeTextPlaceholder_(anchorMatch[2])
       ? source.replace(anchorMatch[0], '<a' + anchorMatch[1] + '>' + uaEscapeHtml_(anchorText) + '</a>')
       : source;
+  } else if (/^https?:\/\/[^\s"'<>]+$/i.test(String(project && project.url || ''))) {
+    // Some 案件管理 entries (confirmed for ナビ男くん) store a bare URL as
+    // linkInput rather than a pasted <a> tag -- mirrors the same fallback
+    // uaBuildManagedSubAffiliateBlock_ already has.
+    linkHtml = '<a href="' + String(project.url).trim() + '" target="_blank" rel="nofollow sponsored noopener">' + uaEscapeHtml_(anchorText) + '</a>';
   }
   if (!linkHtml) return '';
 
@@ -891,15 +896,26 @@ function uaFindNaviokunSubInsertionIndex_(body, mainCtaEndIndex) {
 
 function uaBuildManagedNaviokunSubBlock_(project) {
   const anchorText = 'ナビ男くんで施工内容と対応車種を確認する';
-  const source = uaEnsureAffiliateRelSponsored_(uaNormalizeAnchorRelAttributes_(
-    uaNormalizeAffiliateCodeInput_(project && project.linkInput || '')
-  ));
-  const anchorMatch = /<a\b([^>]*)>([\s\S]*?)<\/a>/i.exec(source);
+  const rawLinkInput = String(project && project.linkInput || '').trim();
+  const rawUrl = String(project && project.url || '').trim();
   let linkHtml = '';
-  if (anchorMatch) {
-    linkHtml = uaIsAffiliateFreeTextPlaceholder_(anchorMatch[2])
-      ? source.replace(anchorMatch[0], '<a' + anchorMatch[1] + '>' + uaEscapeHtml_(anchorText) + '</a>')
-      : source;
+
+  // Some 案件管理 entries (confirmed for ナビ男くん) store a bare URL as
+  // linkInput rather than a pasted <a> tag -- uaGetManagedAffiliateCtaSpec_'s
+  // 'url' type handles this same shape for the main CTA by building the
+  // anchor manually; do the same here instead of silently producing nothing.
+  if (rawLinkInput && rawLinkInput === rawUrl && /^https?:\/\/[^\s"'<>]+$/i.test(rawLinkInput)) {
+    linkHtml = '<a href="' + rawUrl + '" target="_blank" rel="nofollow sponsored noopener">' + uaEscapeHtml_(anchorText) + '</a>';
+  } else {
+    const source = uaEnsureAffiliateRelSponsored_(uaNormalizeAnchorRelAttributes_(
+      uaNormalizeAffiliateCodeInput_(rawLinkInput)
+    ));
+    const anchorMatch = /<a\b([^>]*)>([\s\S]*?)<\/a>/i.exec(source);
+    if (anchorMatch) {
+      linkHtml = uaIsAffiliateFreeTextPlaceholder_(anchorMatch[2])
+        ? source.replace(anchorMatch[0], '<a' + anchorMatch[1] + '>' + uaEscapeHtml_(anchorText) + '</a>')
+        : source;
+    }
   }
   if (!linkHtml) return '';
 

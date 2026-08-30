@@ -1462,6 +1462,38 @@ function uaGetAutomaticPostingStepLabel_(step) {
   return labels[step] || step;
 }
 
+// One-off, 2026-08-30: verify the new auto-skip logic (uaMarkStaleAutomaticPostingJobError_'s
+// staleTimeoutCount>=UA_AUTOMATION_STALE_JOB_AUTO_SKIP_THRESHOLD path) actually
+// fires in production, and use it to clear the たくみパパ queue that's been stuck
+// on the same OpenAI-hang since 2026-08-29 23:40 (row 55, "ソファー 寿命 ニトリ").
+// That article has already hung on the same ARTICLE step across 3 separate real
+// attempts (23:41 / 0:05 / 8:20 JST, all confirmed via the Executions log) --
+// well past the 2-consecutive-hang threshold -- so this applies that known
+// history to the real job object instead of spending a 4th OpenAI call
+// repeating a request that has never once succeeded.
+function uaRunAutoSkipVerificationForStuckJob20260830() {
+  const job = uaGetAutomaticPostingJob_();
+  if (!job) {
+    console.log('診断: アクティブなジョブがありません（すでに解消済みの可能性）。');
+    return;
+  }
+  console.log('診断: row=' + job.row + ' keyword=' + job.keyword + ' step=' + job.step
+    + ' status=' + job.status + ' sheetName=' + job.sheetName);
+  if (String(job.status || '') !== 'error') {
+    console.log('診断: status が error ではないため何もしません（想定外の状態を誤って操作しないため）。');
+    return;
+  }
+  if (Number(job.row) !== 55 || String(job.keyword || '') !== 'ソファー 寿命 ニトリ') {
+    console.log('診断: 想定していた行/キーワードと一致しないため何もしません。');
+    return;
+  }
+  job.status = 'running';
+  job.staleTimeoutCount = 1;
+  const result = uaMarkStaleAutomaticPostingJobError_(job);
+  console.log('結果: status=' + result.status + ' staleTimeoutCount=' + result.staleTimeoutCount
+    + ' lastError=' + result.lastError);
+}
+
 function uaTestAutomaticPostingLogic() {
   const draft = { enabled: true, includeImages: true, publishMode: '下書きまで' };
   const publish = { enabled: true, includeImages: true, publishMode: '公開まで' };

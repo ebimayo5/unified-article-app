@@ -4,11 +4,13 @@
 作業を始める前・区切りがつくたびに、必ずここを読み書きすること（CLAUDE.md / AGENTS.md の「並行作業ルール」参照）。
 複数エージェントが同時に動く前提のため、このセクションだけは「最終更新」より新しい情報になり得る。
 
-- 状態: 作業中
-- エージェント: Claude Code
-- 開始時刻: 2026-08-30 10:20（日本時間）
-- やっていること: たくみパパ自動投稿が停止していた原因調査と再発防止。原因はOpenAIバックグラウンド生成APIへの単発`UrlFetchApp`呼び出しが55行目「ソファー 寿命 ニトリ」の記事で応答を返さずApps Scriptの6分実行上限までハングし続けていたこと（今日のコード変更が原因ではない。@319稼働中に最初のハングが発生済み）。`unified_article_app/automation.gs`に、同じ工程で20分無進捗の安全停止が2回連続で起きた場合に自動でその記事を対象外にして次へ進む仕組み（`UA_AUTOMATION_STALE_JOB_AUTO_SKIP_THRESHOLD`、`uaSkipAutomaticPostingJob_`共通化）を追加。テスト`test_automation_stale_job_auto_skip.js`追加、全29本PASS。これからgit commit→clasp push/deployを行う。
-- 本番に影響する操作: これから行う（clasp push/deploy）。55行目自体はまだ対象外にしていない（ユーザーは自動スキップの仕組み追加のみ選択、この記事を今すぐ対象外にする操作は依頼されていない）。
+- 状態: 空き
+- エージェント: なし
+- 開始時刻: -
+- やっていること: なし
+- 完了内容: たくみパパ自動投稿の停止原因を調査・修正。原因はOpenAIバックグラウンド生成APIへの単発`UrlFetchApp`呼び出しが55行目「ソファー 寿命 ニトリ」の記事で応答を返さずApps Scriptの6分実行上限までハングし続けていたこと（今日それまでのコード変更が原因ではない。楽天バナー修正のみだった@319稼働中に最初のハングが発生済み。20分無進捗の安全停止自体は動いていたが、人が再開するたびに同じ記事で同じ理由のハングが繰り返されていた）。`unified_article_app/automation.gs`に、同じジョブ・同じ工程で安全停止が2回連続発生した場合に自動でその記事を対象外にして次へ進む仕組み（`UA_AUTOMATION_STALE_JOB_AUTO_SKIP_THRESHOLD=2`、`uaSkipAutomaticPostingJob_`を手動スキップと共通化、`uaAdvanceAutomaticPostingJob_`で工程が実際に進んだ時だけカウンタをリセット）を追加。テスト`test_automation_stale_job_auto_skip.js`追加、全29本PASS。git push済み（`0d1ff83`）、clasp push/deploy済み。
+- 本番デプロイ: `@328`。
+- 自動投稿: 55行目「ソファー 寿命 ニトリ」自体はまだ対象外にしていない（ユーザーは自動スキップの仕組み追加のみを選択、この記事を今すぐ対象外にする操作は依頼していない）。次にこの記事で安全停止が発生すれば新しい仕組みで自動的に対象外へ進む想定。手動で今すぐ対象外にしたい場合はパネルの「対象外にする」を使用。
 - 完了内容: 「Claude Code向け」4項目すべて完了。①CTA文言のテンプレ均一化解消（`UA_CTA_PHRASE_TEMPLATES`、@325）、②商品導線の複数タッチポイント化（序盤に軽めのテキストリンクを追加、`uaFindRakutenSecondaryMentionIndex_`/`uaBuildRakutenLightMentionHtml_`、@326）、③CTA文言バリエーションは①と同一修正で解消済み、④商品選定への価格帯シグナル追加（`uaPickPriceTierAwarePrimaryItem_`、単一商品選定時のみ対象、@327）。全テスト（test_*.js 28本）PASS、都度git push・clasp push/deploy済み。詳細はメモリ`project_quality_monetization_roadmap.md`参照。
 - 本番デプロイ: `@327`。
 - 自動投稿: 操作していない（前回の状態から変更なし）。

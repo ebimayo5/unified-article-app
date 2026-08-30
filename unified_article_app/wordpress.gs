@@ -2855,3 +2855,43 @@ function uaFixTakumiMissingFeaturedImageAlt20260830() {
     console.log('投稿' + postId + ' media id=' + featuredMediaId + ' alt_text更新後="' + (updated.alt_text || '') + '"');
   });
 }
+
+// One-off, 2026-08-30: fix DRIVE BASE featured images whose alt text still
+// has the raw "案1 / タイトル候補A / 案2 / タイトル候補B / 案3 / タイトル候補C"
+// title-selection text baked in, instead of the final chosen title (found
+// via a code review comparing this session's evaluation of
+// display-audio-regret-guide against Codex's independent review -- these 4
+// posts show up as its related-article thumbnails). Same fix as
+// uaFixTakumiMissingFeaturedImageAlt20260830: alt_text := current post title.
+function uaFixDriveRelatedPostAltTitleLeak20260830() {
+  const wpConfig = uaGetWpConfig_(UA_APP_TYPES.drive);
+  [1892, 1876, 1858, 1843].forEach(function(postId) {
+    const post = uaCallWordPressApi_(
+      wpConfig,
+      '/wp-json/wp/v2/posts/' + postId + '?context=edit&_fields=id,title,featured_media',
+      'get'
+    );
+    const title = String(post && post.title && (post.title.rendered || post.title.raw) || '').trim();
+    const featuredMediaId = Number(post && post.featured_media || 0);
+
+    if (!title || !featuredMediaId) {
+      console.log('投稿' + postId + ': title または featured_media が取得できないためスキップします。');
+      return;
+    }
+
+    const before = uaCallWordPressApi_(
+      wpConfig,
+      '/wp-json/wp/v2/media/' + featuredMediaId + '?context=edit&_fields=id,alt_text',
+      'get'
+    );
+    const updated = uaCallWordPressApi_(
+      wpConfig,
+      '/wp-json/wp/v2/media/' + featuredMediaId,
+      'post',
+      { alt_text: title.slice(0, 120) }
+    );
+    console.log('投稿' + postId + ' media id=' + featuredMediaId
+      + ' alt_text更新前="' + (before.alt_text || '') + '"'
+      + ' alt_text更新後="' + (updated.alt_text || '') + '"');
+  });
+}

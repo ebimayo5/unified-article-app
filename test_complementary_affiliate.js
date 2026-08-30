@@ -74,6 +74,7 @@ const gulliverResult = context.uaApplyManagedAffiliateCta_(gulliverBody, {
 assert.ok(gulliverResult.includes('UA_SUB_AFFILIATE_START'), 'sub marker must be inserted');
 assert.ok(gulliverResult.includes('カーネクストで今の車の査定条件を確認する'), 'Carnext must be the text-link sub offer');
 assert.ok(gulliverResult.indexOf('UA_SUB_AFFILIATE_START') > gulliverResult.indexOf('wp:cocoon-blocks/button-wrap-1'), 'sub link must follow the main button');
+assert.ok(/href="https:\/\/t\.example\/carnext" rel="nofollow sponsored noopener"/.test(gulliverResult), 'Carnext sub-affiliate link must gain rel="sponsored" from nofollow-only source HTML');
 
 const idempotent = context.uaApplyManagedAffiliateCta_(gulliverResult, {
   appType: 'DRIVE BASE',
@@ -109,6 +110,11 @@ assert.ok(naviResult.includes('UA_OTTOCAST_AFFILIATE_START'), 'Ottocast marker m
 assert.ok(naviResult.includes('OttocastでCarPlay AI Boxの対応機種を確認する'), 'Ottocast free text must be replaced with the contextual CTA');
 assert.ok(naviResult.includes('https://track.example/ottocast'), 'Ottocast tracking pixel must be preserved');
 assert.ok(naviResult.indexOf('UA_OTTOCAST_AFFILIATE_START') < naviResult.indexOf('wp:cocoon-blocks/button-wrap-1'), 'Ottocast branch must appear before the Naviokun button');
+// The ASP's own boilerplate for this product only ever supplies rel="nofollow"
+// (confirmed against afb's real ad-code page for this product), so the
+// fixture matches that real-world input. "sponsored" must be added even
+// though the source HTML never had it.
+assert.ok(/href="https:\/\/t\.example\/ottocast" rel="nofollow sponsored noopener"/.test(naviResult), 'Ottocast link must gain rel="sponsored" even though the ASP-supplied code only has nofollow');
 
 const naviIdempotent = context.uaApplyManagedAffiliateCta_(naviResult, {
   appType: 'DRIVE BASE',
@@ -125,4 +131,16 @@ const genericNaviResult = context.uaApplyManagedAffiliateCta_(genericNaviBody, {
 }, drive);
 assert.ok(!genericNaviResult.includes('UA_OTTOCAST_AFFILIATE_START'), 'generic navigation articles must not receive Ottocast');
 
-console.log('complementary affiliate tests: OK (14 checks)');
+// Real 2026-08-30 case: the row's own affiliateName IS "ottocast" (not a
+// ナビ男くん sub-offer) -- this exercises uaBuildManagedAffiliateCtaBlock_'s
+// 'html' branch directly, the same rel="nofollow"-only source as the afb ASP
+// page confirmed.
+const ottocastMainBody = '<p>ディスプレイオーディオの接続方法を比較します。</p>\n[UA_AFFILIATE_CTA: Ottocastで対応機種を確認する]\n<h2>まとめ</h2>';
+const ottocastMainResult = context.uaApplyManagedAffiliateCta_(ottocastMainBody, {
+  appType: 'DRIVE BASE',
+  mainInput: 'ディスプレイオーディオ 後悔',
+  affiliateName: 'ottocast'
+}, drive);
+assert.ok(/href="https:\/\/t\.example\/ottocast" rel="nofollow sponsored noopener"/.test(ottocastMainResult), 'Ottocast as the MAIN affiliate CTA must also gain rel="sponsored"');
+
+console.log('complementary affiliate tests: OK (18 checks)');

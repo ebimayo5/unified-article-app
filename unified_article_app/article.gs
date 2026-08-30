@@ -772,9 +772,9 @@ function uaGetManagedOttocastProject_(rowData, appConfig, body) {
 
 function uaBuildManagedOttocastAffiliateBlock_(project) {
   const anchorText = 'OttocastでCarPlay AI Boxの対応機種を確認する';
-  const source = uaNormalizeAnchorRelAttributes_(
+  const source = uaEnsureAffiliateRelSponsored_(uaNormalizeAnchorRelAttributes_(
     uaNormalizeAffiliateCodeInput_(project && project.linkInput || '')
-  );
+  ));
   const anchorMatch = /<a\b([^>]*)>([\s\S]*?)<\/a>/i.exec(source);
   let linkHtml = '';
   if (anchorMatch) {
@@ -819,9 +819,9 @@ function uaBuildManagedSubAffiliateBlock_(mainName, project) {
   const anchorText = isCarnextSub
     ? 'カーネクストで今の車の査定条件を確認する'
     : 'ガリバーで希望に合う中古車の提案を確認する';
-  const source = uaNormalizeAnchorRelAttributes_(
+  const source = uaEnsureAffiliateRelSponsored_(uaNormalizeAnchorRelAttributes_(
     uaNormalizeAffiliateCodeInput_(project && project.linkInput || '')
-  );
+  ));
   const anchorMatch = /<a\b([^>]*)>([\s\S]*?)<\/a>/i.exec(source);
   let linkHtml = '';
 
@@ -1027,7 +1027,7 @@ function uaBuildManagedAffiliateCtaBlock_(spec, ctaText, appConfig) {
     }
     tagContent = '<a href="' + exactUrl + '" target="_blank" rel="nofollow sponsored noopener">' + uaEscapeHtml_(ctaText) + '</a>';
   } else {
-    const sourceHtml = uaNormalizeAnchorRelAttributes_(uaNormalizeAffiliateCodeInput_(spec.content));
+    const sourceHtml = uaEnsureAffiliateRelSponsored_(uaNormalizeAnchorRelAttributes_(uaNormalizeAffiliateCodeInput_(spec.content)));
     const safeText = uaEscapeHtml_(ctaText);
     const anchorMatch = /<a\b([^>]*)>([\s\S]*?)<\/a>/i.exec(sourceHtml);
     if (!anchorMatch) {
@@ -1206,6 +1206,32 @@ function uaNormalizeAnchorRelAttributes_(value) {
 
     const withoutRel = tag.replace(relPattern, '');
     return withoutRel.replace(/\s*(\/?)>$/, ' rel="' + relValues.join(' ') + '"$1>');
+  });
+}
+
+// The 'url' branch of uaBuildManagedAffiliateCtaBlock_ hardcodes a correct
+// rel value, but the 'shortcode' branch (and the ottocast/カーネクスト・ガリバー
+// sub-affiliate blocks) trust whatever raw HTML the 案件管理 sheet stores for
+// that ASP -- which, for at least one live case (Ottocast), only had
+// rel="nofollow" with no "sponsored". uaNormalizeAnchorRelAttributes_ only
+// dedupes existing rel tokens, so it can't fix a value that was incomplete to
+// begin with. Every anchor built from admin-entered affiliate HTML is
+// inherently a paid/commercial link, so this forces the full advertising
+// rel set regardless of what was pasted in.
+function uaEnsureAffiliateRelSponsored_(html) {
+  return String(html || '').replace(/<a\b[^>]*>/gi, function(tag) {
+    const relMatch = /\s+rel\s*=\s*(["'])([\s\S]*?)\1/i.exec(tag);
+    const tokens = relMatch
+      ? String(relMatch[2] || '').split(/\s+/).map(function(t) { return t.toLowerCase(); }).filter(Boolean)
+      : [];
+    ['nofollow', 'sponsored', 'noopener'].forEach(function(required) {
+      if (tokens.indexOf(required) === -1) tokens.push(required);
+    });
+    const relAttr = ' rel="' + tokens.join(' ') + '"';
+    if (relMatch) {
+      return tag.slice(0, relMatch.index) + relAttr + tag.slice(relMatch.index + relMatch[0].length);
+    }
+    return tag.replace(/\s*(\/?)>$/, relAttr + '$1>');
   });
 }
 

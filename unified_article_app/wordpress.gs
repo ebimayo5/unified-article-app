@@ -2921,12 +2921,31 @@ function uaFindDisplayAudioRegretGuideRow20260830() {
 // uaUpdatePublishedWpFromPanelCore_ path (same safety checks: refuses to
 // touch anything but a currently-published post, refuses if any existing
 // image would be dropped).
+//
+// First run (12:10) updated the post but changed nothing: this article's
+// Ottocast URL was already present in the stored body, so
+// uaManagedAffiliateCtaAlreadyExists_ took the "already exists" branch,
+// which only strips a leftover [UA_AFFILIATE_CTA] token -- it never rebuilds
+// the block, so the stale rel="nofollow"-only HTML passed straight through
+// untouched, and the sub-offer wrapper never got a fresh block to anchor to.
+// Strip the existing managed CTA block from the stored body first so the
+// pipeline is forced through uaBuildManagedAffiliateCtaBlock_ again.
 function uaReapplyCtaFixesToDisplayAudioRegretGuide20260830() {
   const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(UA_APP_TYPES.drive.articleSheetName);
   const lastRow = sheet.getLastRow();
   for (let row = 2; row <= lastRow; row++) {
     const wpPostId = Number(sheet.getRange(row, UA_COLUMNS.wpPostId).getValue() || 0);
     if (wpPostId === 2268) {
+      const rowData = uaBuildRowData_(sheet, row);
+      const spec = uaGetManagedAffiliateCtaSpec_(rowData);
+      if (!spec) {
+        console.log('案件仕様(spec)を取得できませんでした。affiliateName=' + rowData.affiliateName);
+        return;
+      }
+      const alreadyExists = uaManagedAffiliateCtaAlreadyExists_(rowData.body, spec);
+      const strippedBody = uaRemoveManagedAffiliateButtonBlocks_(rowData.body, spec);
+      console.log('既存CTA検出=' + alreadyExists + ' 除去前後の本文長=' + rowData.body.length + '->' + strippedBody.length);
+      sheet.getRange(row, UA_COLUMNS.body).setValue(strippedBody);
       const result = uaUpdatePublishedWpFromPanelCore_(sheet, row);
       console.log('更新完了: ' + JSON.stringify(result));
       return;

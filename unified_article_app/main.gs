@@ -1417,6 +1417,30 @@ function uaSaveActiveRowData(data) {
   const row = Number(data && data.row) || sheet.getActiveCell().getRow();
   const sheetConfig = uaGetAppConfigByArticleSheet_(sheet.getName());
 
+  // The panel's readForm() always includes every field key (body, mainInput,
+  // etc.) even when the value is an empty string, since it iterates the
+  // form's own field ids. A data object missing these keys entirely was
+  // never built from readForm() -- it's an ad-hoc object from a script call.
+  // Confirmed live, 2026-08-30: calling uaCreateWpDraftFromPanel({row, appType})
+  // directly from the Apps Script editor (bypassing the panel) wiped nearly
+  // every column of a real row (body, title, tags, WP post id, etc.) down to
+  // empty strings, because the above empty-object guard doesn't catch a
+  // *sparse* object -- only a *completely* empty one. Recovered via Google
+  // Sheets version history. This second guard only blocks the dangerous case
+  // (the row already holds real content) so a deliberate, empty first save
+  // on a brand-new blank row still works normally.
+  if (row !== 1 && (!('body' in data) || !('mainInput' in data))) {
+    const existingBody = String(sheet.getRange(row, UA_COLUMNS.body).getValue() || '').trim();
+    const existingMainInput = String(sheet.getRange(row, UA_COLUMNS.mainInput).getValue() || '').trim();
+    if (existingBody || existingMainInput) {
+      throw new Error(
+        'uaSaveActiveRowData: dataに body / mainInput のキーがありません。パネル（readForm()）以外から' +
+        'この関数や、これを呼ぶ*FromPanel/*FromWeb系の関数を直接呼び出すと、行のほぼ全列が空文字で' +
+        '上書きされます。この行にはすでに本文またはキーワードがあるため、保存を中止しました。'
+      );
+    }
+  }
+
   if (row === 1) {
     throw new Error('記事データの行を選択してください。1行目は見出しです。');
   }

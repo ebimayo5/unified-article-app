@@ -3124,13 +3124,16 @@ function uaCheckTaftManagedAffiliateSetup20260830() {
 // タフト 買って よかった row, then re-run the existing pre-publish revision
 // step through its normal short-circuit path (already has a completed
 // AI revision report, so this does NOT call OpenAI again -- no new API cost)
-// to confirm the accessory-H2 NG actually clears. If it clears, update the
-// existing WordPress draft (post 2288) with the fixed body so the article is
-// a ready, reviewable draft. Deliberately stops there -- does NOT call
-// uaPublishWpPostFromAutomation_ (making the post live requires a separate,
-// explicit user confirmation per the publishing-safety rule), and marks the
-// automatic-posting job complete as "draft" so it's cleared from its stuck
-// error state and the queue can move on.
+// to confirm the accessory-H2 NG actually clears.
+//
+// Deliberately stops there. An earlier version of this function also called
+// uaCreateWpDraftFromPanel({row, appType}) to update the WordPress draft --
+// that call is what actually caused the 2026-08-30 21:22 incident: passing a
+// sparse object (not a real readForm() snapshot) into a *FromPanel function
+// wiped nearly every column of this row (recovered via Sheets version
+// history; see uaSaveActiveRowData's guard in main.gs for the fix). Updating
+// the WordPress draft and touching the automatic-posting job/queue state are
+// both left to a separate, explicit, panel-driven action from here on.
 function uaResumeTaftAfterUsedCarFix20260830() {
   const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(UA_APP_TYPES.drive.articleSheetName);
   const lastRow = sheet.getLastRow();
@@ -3169,27 +3172,17 @@ function uaResumeTaftAfterUsedCarFix20260830() {
   }
   console.log('公開前チェック再検証: 成功 message=' + (revisionResult && revisionResult.message));
 
-  uaEnsureAutomaticProductLinksForData_(dataRef);
-  const draftResult = uaCreateWpDraftFromPanel(dataRef);
-  console.log('WordPress下書き更新: message=' + (draftResult && draftResult.message)
-    + ' wpPostId=' + (draftResult && draftResult.wpPostId)
-    + ' wpEditUrl=' + (draftResult && draftResult.wpEditUrl));
-
-  // Deliberately NOT touching the automatic-posting job/queue state here
-  // (uaCompleteAutomaticPostingJob_ etc.) -- clearing this job's error status
-  // could let the trigger-driven automatic posting worker pick up the next
-  // queued keyword and start spending API money on its own, which needs a
-  // separate explicit go-ahead from the user, not an implicit side effect of
-  // fixing this one article's body. Just report the job's current state.
+  // Deliberately NOT calling uaCreateWpDraftFromPanel or touching the
+  // automatic-posting job/queue state here -- see the function comment above.
   const job = uaGetAutomaticPostingJob_();
   if (job && Number(job.row) === row && String(job.keyword || '').trim() === String(rowData.mainInput || '').trim()) {
     console.log('自動投稿ジョブ(未変更): status=' + job.status + ' step=' + job.step + ' publishMode=' + job.publishMode
-      + '｜このジョブの状態はここでは変更していません。自動投稿の再開はユーザー確認の上で別途行ってください。');
+      + '｜このジョブの状態はここでは変更していません。');
   } else {
     console.log('この行に紐づく自動投稿ジョブは見つかりませんでした（すでに解消済み、または対象外）。');
   }
 
-  console.log('完了。WordPress下書き(post ' + (draftResult && draftResult.wpPostId) + ')は更新済みです。実際に公開する／自動投稿を再開するかはユーザー確認の上で判断してください。');
+  console.log('完了。本文とNG判定は修正済みです。WordPress下書きの更新・自動投稿の再開は、パネルから改めて手動で行ってください。');
 }
 
 // One-off, 2026-08-30: the secondary product mention was inserted (bodyLength

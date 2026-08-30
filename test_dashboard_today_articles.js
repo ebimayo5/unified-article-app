@@ -95,4 +95,17 @@ assert.ok(
   'the notice must be released back to neutral once no job is active, instead of staying frozen'
 );
 
+// --- 6) The topbar notice must distinguish a genuinely running job from one
+//        stopped on an NG (activeJobStatus === 'error'), instead of showing
+//        the same pulsing "進行中" banner with a live-updating timestamp for
+//        both. Confirmed live 2026-08-30: a job stopped on an NG kept
+//        showing "自動投稿が進行中です" indefinitely, making it impossible to
+//        tell from this banner alone that nothing was actually happening.
+assert.ok(
+  webHtml.includes("if (settings.activeJobStatus === 'error') {") &&
+  webHtml.includes("notice.textContent = '自動投稿は停止中です: '") &&
+  webHtml.includes("notice.className = 'status error';"),
+  'the live notice must switch to a stopped/error state when the active job has errored, not stay on the working banner'
+);
+
 console.log('dashboard today-articles + live-notice tests passed.');

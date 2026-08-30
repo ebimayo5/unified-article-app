@@ -965,9 +965,22 @@
             const timeText = [now.getHours(), now.getMinutes(), now.getSeconds()]
               .map(function(n) { return String(n).padStart(2, '0'); })
               .join(':');
-            notice.textContent = '自動投稿が進行中です: ' + settings.activeKeyword +
-              (settings.activeStep ? ' / ' + settings.activeStep : '') + '（更新 ' + timeText + '）';
-            notice.className = 'status working';
+            // A job with activeKeyword can be genuinely running OR stopped on
+            // an error (activeJobStatus === 'error') awaiting manual resume/
+            // skip -- these looked identical here (same pulsing "進行中"
+            // banner) even though the status card below already distinguishes
+            // them. Confirmed live 2026-08-30: a stopped-on-NG job kept
+            // showing "自動投稿が進行中です" with a live-updating timestamp,
+            // making it look like it was still working when nothing was.
+            if (settings.activeJobStatus === 'error') {
+              notice.textContent = '自動投稿は停止中です: ' + settings.activeKeyword +
+                (settings.activeStep ? ' / ' + settings.activeStep : '') + '（更新 ' + timeText + '）';
+              notice.className = 'status error';
+            } else {
+              notice.textContent = '自動投稿が進行中です: ' + settings.activeKeyword +
+                (settings.activeStep ? ' / ' + settings.activeStep : '') + '（更新 ' + timeText + '）';
+              notice.className = 'status working';
+            }
             notice.dataset.autoWatch = '1';
           }
         } else if (notice && notice.dataset.autoWatch === '1' && !window.uaCurrentOperationToken) {

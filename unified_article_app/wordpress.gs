@@ -3097,3 +3097,25 @@ function uaVerifyTaftSecondaryProductMention20260830() {
   }
   console.log('タフト 買って よかった に一致する行が見つかりませんでした。');
 }
+
+// One-off, 2026-08-30: check whether the タフト row already has a proper
+// managed used-car affiliate (ガリバー/カーネクスト) set, and whether its CTA
+// is already present in the body, before deciding how to fix the Rakuten
+// "中古車" search that structurally can never succeed.
+function uaCheckTaftManagedAffiliateSetup20260830() {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(UA_APP_TYPES.drive.articleSheetName);
+  const lastRow = sheet.getLastRow();
+  const mainInputs = sheet.getRange(2, UA_COLUMNS.mainInput, lastRow - 1, 1).getValues();
+  for (let i = 0; i < mainInputs.length; i++) {
+    const value = String(mainInputs[i][0] || '');
+    if (value.indexOf('タフト') === -1 || value.indexOf('買って') === -1) continue;
+    const row = i + 2;
+    const rowData = uaBuildRowData_(sheet, row);
+    console.log('affiliateName=' + rowData.affiliateName + ' affiliateUrl=' + rowData.affiliateUrl);
+    console.log('本文にUA_MAIN_AFFILIATE_CTA_STARTを含むか=' + String(rowData.body || '').includes('UA_MAIN_AFFILIATE_CTA_START'));
+    console.log('本文にガリバーを含むか=' + String(rowData.body || '').includes('ガリバー'));
+    console.log('本文にカーネクストを含むか=' + String(rowData.body || '').includes('カーネクスト'));
+    return;
+  }
+  console.log('タフト 買って よかった に一致する行が見つかりませんでした。');
+}

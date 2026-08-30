@@ -480,11 +480,21 @@ function uaMarkStaleAutomaticPostingJobError_(job) {
   job.staleTimeoutCount = (Number(job.staleTimeoutCount) || 0) + 1;
 
   // Same step, same row, hung past the stale threshold more than once in a
-  // row (e.g. an OpenAI background call that never responds even on a fresh
-  // retry): a human resuming it a third time just burns another full worker
-  // execution on the same likely-broken request. Skip automatically instead
-  // of leaving the queue blocked waiting for a manual "対象外にする" click.
-  if (job.staleTimeoutCount >= UA_AUTOMATION_STALE_JOB_AUTO_SKIP_THRESHOLD) {
+  // row (e.g. a synchronous competitor-fetch or LLM call that never returns
+  // even on a fresh retry): a human resuming it a third time just burns
+  // another full worker execution on the same likely-broken request. Skip
+  // automatically instead of leaving the queue blocked waiting for a manual
+  // "対象外にする" click.
+  //
+  // Exception: WAIT_TREFAI only ever hangs this way when the PC-side Trefai
+  // bridge (article_bridge.py) itself is down or unreachable for everyone,
+  // not because of anything specific to this one article. Per the 2026-08-25
+  // incident notes (CURRENT_SPEC.md), serially auto-skipping through the
+  // queue in that situation is the wrong response -- automation should stop
+  // and wait for a human to fix the bridge, not burn through every remaining
+  // candidate. So this step keeps the pre-existing error-and-wait behavior.
+  if (job.step !== UA_AUTOMATION_STEP_WAIT_TREFAI &&
+    job.staleTimeoutCount >= UA_AUTOMATION_STALE_JOB_AUTO_SKIP_THRESHOLD) {
     const skipMessage = job.staleTimeoutCount + '回連続で' + UA_AUTOMATION_STALE_JOB_MINUTES
       + '分以上進捗更新がなかったため、安全のため自動的にこの記事を対象外にして次へ進みました（工程: ' + job.step + '）。';
     job.lastError = skipMessage;

@@ -86,6 +86,18 @@ withStubs(function(calls, uaMarkStaleAutomaticPostingJobError_) {
   assert.ok(calls.notifications.length === 1 && /自動/.test(calls.notifications[0]), '自動スキップした旨の通知が送られる');
 });
 
+// 2b) Same repeat-hang situation, but on the WAIT_TREFAI step: must NOT
+// auto-skip. A WAIT_TREFAI hang can mean the PC-side Trefai bridge itself is
+// down for everyone (not just this article) -- per the 2026-08-25 incident
+// notes, serially auto-skipping through the queue in that case is wrong.
+// This step keeps the original error-and-wait-for-a-human behavior always.
+withStubs(function(calls, uaMarkStaleAutomaticPostingJobError_) {
+  const job = makeJob({ step: 'wait_trefai', staleTimeoutCount: 3 });
+  const result = uaMarkStaleAutomaticPostingJobError_(job);
+  assert.strictEqual(calls.skip, 0, 'wait_trefai工程では何回連続ハングしても自動スキップしない');
+  assert.strictEqual(result.status, 'error', 'wait_trefai工程は従来通りエラー停止のまま');
+});
+
 // 3) A job that is not actually running (already 'error' or 'complete') is left
 // untouched -- this guard only ever fires on a currently-running job.
 withStubs(function(calls, uaMarkStaleAutomaticPostingJobError_) {

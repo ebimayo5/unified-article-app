@@ -2990,3 +2990,24 @@ function uaDiagnoseNaviokunSubForDisplayAudioRegretGuide20260830() {
   }
   console.log('投稿ID 2268 の行が見つかりませんでした。');
 }
+
+// One-off, 2026-08-30: inspect the タフト 買って よかった row that stopped
+// with "修正後もNGが1件ある" before WordPress reflection, to see what the
+// remaining critical NG item actually is.
+function uaInspectTaftBuyGoodStopReason20260830() {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(UA_APP_TYPES.drive.articleSheetName);
+  const lastRow = sheet.getLastRow();
+  const mainInputs = sheet.getRange(2, UA_COLUMNS.mainInput, lastRow - 1, 1).getValues();
+  for (let i = 0; i < mainInputs.length; i++) {
+    const value = String(mainInputs[i][0] || '');
+    if (value.indexOf('タフト') !== -1 && value.indexOf('買って') !== -1) {
+      const row = i + 2;
+      const rowData = uaBuildRowData_(sheet, row);
+      console.log('row=' + row + ' mainInput=' + rowData.mainInput + ' status=' + rowData.status
+        + ' wpPostId=' + rowData.wpPostId + ' bodyLength=' + String(rowData.body || '').length);
+      console.log('factCheckPoints=' + rowData.factCheckPoints);
+      return;
+    }
+  }
+  console.log('タフト 買って よかった に一致する行が見つかりませんでした。');
+}

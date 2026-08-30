@@ -8,6 +8,10 @@
 - エージェント: なし
 - 開始時刻: -
 - やっていること: なし
+- 完了内容: ユーザー・Codex双方によるDRIVE BASE記事「[display-audio-regret-guide](https://ebimayo5.com/archives/display-audio-regret-guide/)」の品質レビューを起点に、DRIVE BASE全体に効くコード修正を実施。詳細は下記「2026-08-30 Claude Code担当分」節を参照。**Codexへの引き継ぎ：外部出典シート（95行）にApple/Google公式のCarPlay・Android Auto案内が1件もない**ことを確認済み。追加をお願いしたい（詳細は下記節）。
+- 本番デプロイ: `@331`。
+- 自動投稿: 操作していない。
+
 - 完了内容: たくみパパ自動投稿の停止原因を調査・修正。**当初「OpenAI本文生成のハング」と診断したが誤りで、実際は55行目「ソファー 寿命 ニトリ」がSTRUCTURE工程（`outline.gs`の`uaGenerateArticleStructureForRow_`、競合ページ最大10件の同期UrlFetchAppまたは構成案LLM呼び出し）でApps Scriptの6分実行上限までハングし続けていたことが原因**（本番の`実行`ログでjob.step=structureを確認して訂正）。PC側Trefaiブリッジ（`article_bridge.py`）は`UA_TREFAI_BRIDGE_ENABLED=false`で無効化されたままであることをスクリプトプロパティで確認済みで、今回の件とは無関係。今日それまでのコード変更が原因でもない（楽天バナー修正のみだった@319稼働中に最初のハングが発生済み）。20分無進捗の安全停止自体は動いていたが、人が再開するたびに同じ記事で同じ理由のハングが繰り返されていた。`unified_article_app/automation.gs`に、同じジョブ・同じ工程で安全停止が2回連続発生した場合に自動でその記事を対象外にして次へ進む仕組み（`UA_AUTOMATION_STALE_JOB_AUTO_SKIP_THRESHOLD=2`、`uaSkipAutomaticPostingJob_`を手動スキップと共通化、`uaAdvanceAutomaticPostingJob_`で工程が実際に進んだ時だけカウンタをリセット）を追加。ただし**WAIT_TREFAI工程だけは自動スキップの対象外**にした（CURRENT_SPEC.mdの2026-08-25事故記録にある「トレファイ全体障害時は次々スキップしない」方針を将来ブリッジ再有効化時も守るため。現状ブリッジ無効なのでこの工程自体発生しない）。テスト`test_automation_stale_job_auto_skip.js`追加、全29本PASS。git push済み（`0d1ff83`, `8b7cbab`, `7a00187`）、clasp push/deploy済み。本番の一回限りの検証用関数`uaRunAutoSkipVerificationForStuckJob20260830`をApps Scriptエディタから実行し、新仕組みが実際に発火してjob.status=completeになることを確認した上で55行目を解消済み。
 - 本番デプロイ: `@329`。
 - 自動投稿: 55行目「ソファー 寿命 ニトリ」は自動スキップ済み（候補シートは保留へ戻した）。キューは次の候補へ進行中（自動投稿設定シートで確認可能）。
@@ -25,6 +29,31 @@
   - Codex向け（完了）: ①DRIVE BASEの「ナビ／車載機器」困りごとジャンルのキーワード候補12件を`DRIVE BASE_キーワード候補`の2429〜2440行へ追加。②内部リンク候補プールの鮮度監査。③画像・altテキストの品質監査。詳細は直下の2026-08-30記録を参照。
   - Claude Code向け（article.gs等のコード変更、続けて触る想定）: ①DRIVE BASEのCTA文言・見出し構成のテンプレ均一化を崩す。②商品導線の挿入箇所を記事内複数箇所に増やす（`uaFindRakutenContextualInsertIndex_`は現状1箇所のみ）。③CTA文言のバリエーション追加。④商品選定に価格帯シグナルを追加（関連性のみで選定中）。
   - 作業前に必ずこの「現在作業中」欄を再確認し、対象ファイルが重ならないことを確認してから着手すること。
+
+### 2026-08-30 Claude Code担当分の完了記録（記事品質レビュー起点の修正）
+
+ユーザーが[display-audio-regret-guide](https://ebimayo5.com/archives/display-audio-regret-guide/)（DRIVE BASE）の品質評価を依頼し、私とCodexが独立にレビューした。Codexの指摘のうち検証できたもの（rel属性、alt文言崩れ、H2/H3数）は実データで裏付けが取れ、私の指摘（商品導線1箇所のみ）と合わせて以下を修正した。
+
+1. **rel="sponsored"の欠落を修正（DRIVE BASE全体に影響）**
+   - 根本原因: afb（アフィリエイトB）のASP標準コードが`rel="nofollow"`のみで、`sponsored`を含まない（afb公式の広告原稿ページで確認済み。案件データの入力ミスではない）。
+   - `uaNormalizeAnchorRelAttributes_`は重複統合のみで不足分の追加はしないため直らなかった。新規`uaEnsureAffiliateRelSponsored_`（[article.gs](unified_article_app/article.gs)）を追加し、案件管理シートの生HTMLを信頼する3箇所（メインCTAのhtml分岐、Ottocastサブ導線、ガリバー/カーネクストサブ導線）に適用。href・トラッキングpixelなど他の要素は一切変更しない設計。
+   - テスト`test_complementary_affiliate.js`に検証を追加（25 checks）。git push `d7a762f`、本番`@330`。
+
+2. **Ottocast（メイン案件）→ナビ男くん の逆方向サブ導線を追加**
+   - 既存の複数タッチポイント機構（ガリバー↔カーネクスト、ナビ男くん→Ottocast）はユーザーの記憶通り実装済みだったが、**Ottocastがメイン案件の記事では逆方向（→ナビ男くん）が存在せず**、display-audio-regret-guideのような記事はCTAが1箇所のみになっていた。
+   - `uaGetManagedNaviokunSubProject_`/`uaBuildManagedNaviokunSubBlock_`/`uaApplyManagedNaviokunSubTextLink_`を追加し、Ottocastがメインでも本文にHDMI増設・後席モニター・配線施工等の話題があればナビ男くんをサブ導線として追加するようにした。
+   - 配置は試行錯誤した：①メインCTA直後→分散にならない、②「まとめ」直前へ機械的に配置→文脈と無関係、の順にユーザーから指摘を受け、最終的に**該当キーワードを実際に含むH2セクションの直後**に配置する方式に変更（楽天2箇所目タッチポイントで確立した`uaExtractRakutenH2Sections_`の仕組みを再利用）。該当セクションが見つからない場合のみメインCTA直後にフォールバック。
+   - 1記事あたりのCTA上限は機械的に3箇所固定にはせず、「文脈的に関連するセクションがあるときだけ」発動する設計を維持（ユーザーとの合意）。
+   - テスト追加（25 checks、うち新規は分散配置の検証込み）。git push `99550d1`、本番`@331`。
+
+3. **DRIVE BASE関連記事4件のalt文言崩れを修正**
+   - 「案1 / タイトル候補A / 案2 / タイトル候補B / 案3 / タイトル候補C」がそのままアイキャッチaltに残っていた（Codex指摘、実ページで確認済み）。対象: 投稿1892（オートバックス工賃）、1876（フィットのナビ選び）、1858（カーナビ画面が映らない）、1843（フリード社外ナビ）。
+   - 一回限りの実行関数`uaFixDriveRelatedPostAltTitleLeak20260830`（[wordpress.gs](unified_article_app/wordpress.gs)）で、各投稿の確定タイトルをalt_textへ設定。Apps Scriptエディタの実行ログで更新前後の値を確認済み。git push `02ce51c`。コード変更のみでclasp deployは不要（一回限りの関数、本番デプロイポインタは`@331`のまま）。
+
+4. **Codexへの引き継ぎ: 外部出典シートの一次情報不足**
+   - Codexの指摘「Apple/Google公式のCarPlay/Android Auto案内がない」を検証: 外部出典シート（全95行）を`uaInspectExternalSourcesForCarplayAndroidAuto20260830`で確認したところ、トヨタ・ホンダ・日産・マツダ・パイオニア等メーカー公式や警察庁・e-Gov等の法規情報はあるが、**Apple・Googleの公式リンクが1件もない**ことを確認した。
+   - お願いしたい作業: ジャンル「メーカー公式」または新設「スマホ連携公式」で、Apple公式CarPlay案内・Google公式Android Auto案内の2件を外部出典シートへ追加。あわせて、他のDRIVE BASE車載機器系ジャンルにも同様の一次情報抜けがないか監査してもらえると助かる。
+   - 具体的な後悔ケース追加・目次簡潔化（Codex評価の#2・#3）はプロンプト調整寄りのため、外部出典の穴を埋めてから改めて検討する方針で保留中。
 
 ### 2026-08-30 Codex担当分の完了記録（候補追加・内部リンク・画像監査）
 
@@ -85,9 +114,9 @@
 - **パネルの「WPへ更新」ボタン自体（`window.confirm`のダイアログ）が自動操作から確実に押せない問題は未解決**。次にこのボタンを人間以外の手段（ブラウザ拡張など）から操作する必要がある場合は注意。人間が実際にクリックする分には問題ない可能性が高い（ダイアログはブラウザ標準のものなので、人がクリックすれば普通に動くはず）。
 
 ## 最終更新
-- 更新者: Codex
-- 日時: 2026-08-30 08:57（日本時間）
-- 切り替え理由: Codex担当の候補追加・内部リンク鮮度監査・画像／alt品質監査が完了し、ライブ作業欄を空きへ戻したため。
+- 更新者: Claude Code
+- 日時: 2026-08-30 12:03（日本時間）
+- 切り替え理由: display-audio-regret-guide記事の品質レビューを起点とした一連のコード修正（rel=sponsored強制付与、Ottocast→ナビ男くん逆方向サブ導線、DRIVE BASE alt文言崩れ4件修正）が完了し、ライブ作業欄を空きへ戻したため。Codexへ外部出典（Apple/Google公式リンク不足）の引き継ぎ事項あり。
 
 ## 2026-08-28: Rinkerブランド比較保証（本番 `@296`）
 - 公開確認で、ヨギボー比較記事には無印良品本体がある一方、Yogibo本体がなく汎用ビーズソファ2件で代替されていることを確認した。商品数だけを見る旧保証判定では、この構成を正常扱いしてしまう穴があった。

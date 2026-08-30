@@ -2796,3 +2796,32 @@ function uaBuildWpEditUrl_(siteUrl, postId) {
 function uaTrimTrailingSlash_(value) {
   return String(value || '').trim().replace(/\/+$/, '');
 }
+
+// One-off, 2026-08-30: たくみパパの画像監査（Codex実施）で見つかった、アイキャッチalt
+// 空欄の2記事（投稿979 muji-beads-sofa-choice, 投稿726 popup-tent-cannot-fold）の状況を
+// 確認する。まずは読み取りのみ（書き込みなし）でタイトル・現在のalt・画像URLをログへ出す。
+function uaInspectTakumiMissingFeaturedImageAlt20260830() {
+  const wpConfig = uaGetWpConfig_(UA_APP_TYPES.home);
+  [979, 726].forEach(function(postId) {
+    const post = uaCallWordPressApi_(
+      wpConfig,
+      '/wp-json/wp/v2/posts/' + postId + '?context=edit&_fields=id,slug,title,featured_media',
+      'get'
+    );
+    const title = post && post.title && (post.title.rendered || post.title.raw) || '';
+    const featuredMediaId = Number(post && post.featured_media || 0);
+    console.log('投稿' + postId + ' slug=' + (post && post.slug) + ' title=' + title + ' featured_media=' + featuredMediaId);
+
+    if (!featuredMediaId) {
+      console.log('  featured_media が設定されていません。');
+      return;
+    }
+
+    const media = uaCallWordPressApi_(
+      wpConfig,
+      '/wp-json/wp/v2/media/' + featuredMediaId + '?context=edit&_fields=id,alt_text,source_url,title',
+      'get'
+    );
+    console.log('  media id=' + media.id + ' alt_text="' + (media.alt_text || '') + '" source_url=' + media.source_url);
+  });
+}

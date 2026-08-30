@@ -577,6 +577,10 @@
       let autoSaveInFlight = false;
       let autoSaveIndicatorTimer = null;
       let isFillingForm = false;
+      // Tracks which active-job keyword we've already auto-loaded into the
+      // 詳細編集 form, so the 45-second settings poll doesn't keep re-fetching
+      // the same article. Reset to '' whenever no job is active.
+      let autoSyncedActiveKeyword = '';
       let loadedAppType = '';
       let rakutenSuggestionRequestToken = 0;
       let trefaiPollTimer = null;
@@ -988,6 +992,36 @@
           notice.className = 'status';
           delete notice.dataset.autoWatch;
         }
+        maybeSyncActiveArticleIntoForm(settings);
+      }
+
+      // The dashboard's notice/status card already shows the active (or
+      // stopped-on-error) automatic-posting job's keyword, but the 詳細編集
+      // form stayed empty until the user manually pressed "処理中の記事を表示"
+      // -- confirmed live 2026-08-30: a user edited the 案件注意点 field on an
+      // unloaded form (row was blank), so the edit silently had nowhere to
+      // save. Auto-load the active job's article into the form so the two
+      // stay in sync, but only when doing so can't clobber something else:
+      // skip if a different article is already loaded (row/mainInput doesn't
+      // match), and skip while an autosave is pending/in-flight.
+      function maybeSyncActiveArticleIntoForm(settings) {
+        if (!settings || !settings.activeKeyword) {
+          autoSyncedActiveKeyword = '';
+          return;
+        }
+        if (settings.activeKeyword === autoSyncedActiveKeyword) return;
+        if (autoSavePending || autoSaveInFlight || isFillingForm) return;
+        const rowEl = document.getElementById('row');
+        const mainInputEl = document.getElementById('mainInput');
+        const rowLoaded = rowEl && rowEl.value && Number(rowEl.value) > 1;
+        const currentMainInput = mainInputEl ? mainInputEl.value.trim() : '';
+        if (rowLoaded && currentMainInput && currentMainInput !== settings.activeKeyword) {
+          // Something else is already open and doesn't match the active job --
+          // don't yank it out from under the user; they can switch manually.
+          return;
+        }
+        autoSyncedActiveKeyword = settings.activeKeyword;
+        loadActiveAutomaticPostingArticle(null);
       }
 
       function renderAutomaticPostingArticleLists(settings) {

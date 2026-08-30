@@ -95,6 +95,25 @@ assert.ok(
   'the notice must be released back to neutral once no job is active, instead of staying frozen'
 );
 
+// --- 7) The 詳細編集 form must auto-load the active/stopped job's article so
+//        it stays in sync with the dashboard notice, instead of staying
+//        empty until the user manually presses "処理中の記事を表示".
+//        Confirmed live 2026-08-30: a user edited 案件注意点 on an unloaded
+//        form (row was blank) after seeing the dashboard's stopped-job
+//        notice, and the edit had nowhere to save. Must still avoid
+//        clobbering a different article the user has open, and avoid firing
+//        while a save is in flight.
+assert.ok(webHtml.includes('function maybeSyncActiveArticleIntoForm(settings)'), 'the active-article auto-sync function is missing');
+assert.ok(webHtml.includes('maybeSyncActiveArticleIntoForm(settings);'), 'renderAutomaticPostingSettings must call the auto-sync function');
+assert.ok(
+  webHtml.includes('if (autoSavePending || autoSaveInFlight || isFillingForm) return;'),
+  'auto-sync must not fire while a save is pending/in-flight or the form is already being filled'
+);
+assert.ok(
+  webHtml.includes('if (rowLoaded && currentMainInput && currentMainInput !== settings.activeKeyword) {'),
+  'auto-sync must not clobber a different article the user already has open'
+);
+
 // --- 6) The topbar notice must distinguish a genuinely running job from one
 //        stopped on an NG (activeJobStatus === 'error'), instead of showing
 //        the same pulsing "進行中" banner with a live-updating timestamp for

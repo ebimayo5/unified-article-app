@@ -3341,3 +3341,33 @@ function uaInspectTatesuberiCurtainStop20260830() {
     + ' keyword=' + job.keyword + ' row=' + job.row);
   console.log('lastError=' + job.lastError);
 }
+
+// One-off, 2026-08-30: confirmed via uaInspectTatesuberiCurtainStop20260830
+// that affiliateNotes on this row was actually empty (the user's earlier
+// "楽天バナーなし" entry never got saved to this row/column). Set it
+// directly via sheet.getRange().setValue() -- not through any *FromPanel
+// function -- to avoid the sparse-data class of bug from the 21:22 incident.
+function uaSetTatesuberiCurtainNoRakutenBanner20260830() {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(UA_APP_TYPES.home.articleSheetName);
+  const lastRow = sheet.getLastRow();
+  const mainInputs = sheet.getRange(2, UA_COLUMNS.mainInput, lastRow - 1, 1).getValues();
+  let row = 0;
+  for (let i = 0; i < mainInputs.length; i++) {
+    const value = String(mainInputs[i][0] || '');
+    if (value.indexOf('縦すべり出し窓') !== -1 && value.indexOf('カーテン') !== -1) {
+      row = i + 2;
+      break;
+    }
+  }
+  if (!row) {
+    console.log('縦すべり出し窓 カーテン いらない に一致する行が見つかりませんでした。');
+    return;
+  }
+  const before = String(sheet.getRange(row, UA_COLUMNS.affiliateNotes).getValue() || '');
+  console.log('row=' + row + ' affiliateNotes(変更前)=[' + before + ']');
+  sheet.getRange(row, UA_COLUMNS.affiliateNotes).setValue('楽天バナーなし');
+  SpreadsheetApp.flush();
+  const after = String(sheet.getRange(row, UA_COLUMNS.affiliateNotes).getValue() || '');
+  console.log('affiliateNotes(変更後)=[' + after + ']');
+  console.log('完了。パネルから「停止位置から再開」を押してください。');
+}

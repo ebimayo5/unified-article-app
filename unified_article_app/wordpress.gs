@@ -2895,3 +2895,42 @@ function uaFixDriveRelatedPostAltTitleLeak20260830() {
       + ' alt_text更新後="' + (updated.alt_text || '') + '"');
   });
 }
+
+// One-off, 2026-08-30: locate the DRIVE BASE sheet row for
+// display-audio-regret-guide (WP post 2268) and report its rowData
+// (read-only) before re-applying today's CTA fixes to the live post.
+function uaFindDisplayAudioRegretGuideRow20260830() {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(UA_APP_TYPES.drive.articleSheetName);
+  const lastRow = sheet.getLastRow();
+  for (let row = 2; row <= lastRow; row++) {
+    const wpPostId = Number(sheet.getRange(row, UA_COLUMNS.wpPostId).getValue() || 0);
+    if (wpPostId === 2268) {
+      const rowData = uaBuildRowData_(sheet, row);
+      console.log('row=' + row + ' affiliateName=' + rowData.affiliateName
+        + ' mainInput=' + rowData.mainInput + ' status=' + rowData.status
+        + ' bodyLength=' + String(rowData.body || '').length);
+      return;
+    }
+  }
+  console.log('投稿ID 2268 の行が見つかりませんでした。');
+}
+
+// One-off, 2026-08-30: re-apply the CTA pipeline (including today's
+// rel="sponsored" fix and the new Ottocast->ナビ男くん sub-offer) to the
+// already-published display-audio-regret-guide article, using the standard
+// uaUpdatePublishedWpFromPanelCore_ path (same safety checks: refuses to
+// touch anything but a currently-published post, refuses if any existing
+// image would be dropped).
+function uaReapplyCtaFixesToDisplayAudioRegretGuide20260830() {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(UA_APP_TYPES.drive.articleSheetName);
+  const lastRow = sheet.getLastRow();
+  for (let row = 2; row <= lastRow; row++) {
+    const wpPostId = Number(sheet.getRange(row, UA_COLUMNS.wpPostId).getValue() || 0);
+    if (wpPostId === 2268) {
+      const result = uaUpdatePublishedWpFromPanelCore_(sheet, row);
+      console.log('更新完了: ' + JSON.stringify(result));
+      return;
+    }
+  }
+  console.log('投稿ID 2268 の行が見つかりませんでした。');
+}

@@ -2953,3 +2953,38 @@ function uaReapplyCtaFixesToDisplayAudioRegretGuide20260830() {
   }
   console.log('投稿ID 2268 の行が見つかりませんでした。');
 }
+
+// One-off, 2026-08-30: diagnose why the ナビ男くん sub-offer wasn't added
+// during the reapply above (rel=sponsored fix worked; sub-offer did not).
+function uaDiagnoseNaviokunSubForDisplayAudioRegretGuide20260830() {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(UA_APP_TYPES.drive.articleSheetName);
+  const lastRow = sheet.getLastRow();
+  for (let row = 2; row <= lastRow; row++) {
+    const wpPostId = Number(sheet.getRange(row, UA_COLUMNS.wpPostId).getValue() || 0);
+    if (wpPostId !== 2268) continue;
+    const rowData = uaBuildRowData_(sheet, row);
+    const appConfig = UA_APP_TYPES.drive;
+    const mainName = uaNormalizeAffiliateName_(rowData.affiliateName);
+    console.log('mainName(normalized)=' + mainName);
+
+    const project = uaReadAffiliateProjectByName_('ナビ男くん', false);
+    console.log('ナビ男くん project=' + JSON.stringify(project));
+
+    const context = [
+      rowData.mainInput,
+      rowData.readerMindMemo,
+      rowData.structureMemo,
+      String(rowData.body || '').replace(/<!--[^]*?-->/g, ' ').replace(/<[^>]+>/g, ' ')
+    ].join(' ');
+    console.log('関連性判定=' + UA_NAVIOKUN_SUB_RELEVANCE_PATTERN.test(context));
+
+    const spec = uaGetManagedAffiliateCtaSpec_(rowData);
+    const bounds = uaFindManagedAffiliateCtaBounds_(rowData.body, spec);
+    console.log('メインCTA bounds見つかった=' + !!bounds);
+
+    const subProject = uaGetManagedNaviokunSubProject_(rowData, appConfig, rowData.body);
+    console.log('uaGetManagedNaviokunSubProject_結果=' + JSON.stringify(subProject));
+    return;
+  }
+  console.log('投稿ID 2268 の行が見つかりませんでした。');
+}

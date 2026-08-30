@@ -4,10 +4,10 @@
 作業を始める前・区切りがつくたびに、必ずここを読み書きすること（CLAUDE.md / AGENTS.md の「並行作業ルール」参照）。
 複数エージェントが同時に動く前提のため、このセクションだけは「最終更新」より新しい情報になり得る。
 
-- 状態: 空き
-- エージェント: なし
-- 開始時刻: -
-- やっていること: なし
+- 状態: 作業中
+- エージェント: Claude Code
+- 開始時刻: 2026-08-30 19:45頃
+- やっていること: ユーザー指示「中古車ジャンルはガリバー/カーネクスト導線を使うよう修正してほしい」への対応。`unified_article_app/article.gs`の`uaApplyRakutenAffiliateBanner_`に、商品選定設計が中古車ジャンル（`uaIsUsedCarProductPlan_`）かつ行に管理案件ガリバー/カーネクストが既に設定済み（`uaHasManagedUsedCarAffiliate_`）の場合は楽天検索自体を試みずスキップする分岐を追加済み・テスト追加済み（`test_used_car_rakuten_skip.js`、全34本PASS）。これからgit commit→push→clasp push/deploy→タフト行での実地確認を行う予定。本番影響あり（clasp deploy予定）。
 - 完了内容: ユーザー・Codex双方によるDRIVE BASE記事「[display-audio-regret-guide](https://ebimayo5.com/archives/display-audio-regret-guide/)」の品質レビューを起点に、DRIVE BASE全体に効くコード修正を実施。詳細は下記「2026-08-30 Claude Code担当分」節を参照。続くCodex担当で、外部出典シートへApple/Google公式を含む車載機器系一次情報6件を追加し、表示確認まで完了した。追加で、rel="sponsored"強制付与時にナビ男くんの案件データが裸URL形式（linkInput===url）で`<a>`タグの正規表現にマッチせずサブ導線が無音失敗する不具合と、サブ導線自体の「ナビ男くん」文言が既存の`uaApplyNaviokunIntroSet_`を誤発火させ紹介ボックスが二重に入る不具合を発見・修正（`57a877d`, `99c6250`, `e184263`）。本番`@332`→`@333`。バージョン履歴が200件上限に達したためユーザー許可のもと最古24件を削除（本番`@331`には影響なし）。display-audio-regret-guide自体（WP投稿2268）にもCTA修正を再適用し、rel=sponsored・ナビ男くんサブ導線（重複なし1件）を実サイトで確認済み。
 - 本番デプロイ: `@333`。
 - 自動投稿: 操作していない。

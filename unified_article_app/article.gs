@@ -2628,6 +2628,25 @@ function uaCallArticleGenerationJson_(promptText, provider, sheet, row) {
   return uaCallGeminiJson_(promptText, 16000, 512);
 }
 
+// 楽天市場は中古車を取り扱っていないため、商品選定設計が中古車ジャンルを
+// 狙っている記事で楽天検索を試みても常に失敗する（確認済み: タフト 買って
+// よかった、検索クエリ「ダイハツ タフト 中古車」で楽天APIが0件）。この行に
+// ガリバー/カーネクストの案件がすでに割り当たっている場合はそちらが正しい
+// 導線なので、楽天バナーの取得自体を試みずスキップする。
+const UA_USED_CAR_PRODUCT_PLAN_PATTERN = /中古車|中古\s*車両|車両本体/;
+const UA_MANAGED_USED_CAR_AFFILIATE_PATTERN = /^ガリバー中古車ご提案サービス$|^カーネクスト$/;
+
+function uaIsUsedCarProductPlan_(productPlan) {
+  if (!productPlan) return false;
+  const text = [productPlan.primaryProduct, productPlan.marketQuery].join(' ');
+  return UA_USED_CAR_PRODUCT_PLAN_PATTERN.test(text);
+}
+
+function uaHasManagedUsedCarAffiliate_(rowData) {
+  const mainName = uaNormalizeAffiliateName_(rowData && rowData.affiliateName);
+  return UA_MANAGED_USED_CAR_AFFILIATE_PATTERN.test(mainName);
+}
+
 function uaApplyRakutenAffiliateBanner_(body, rowData, appConfig) {
   UA_LAST_RAKUTEN_STATUS = '';
   UA_LAST_RINKER_FAILURE_REASON = '';
@@ -2635,6 +2654,12 @@ function uaApplyRakutenAffiliateBanner_(body, rowData, appConfig) {
 
   if (!appConfig || appConfig.key === 'general') {
     return body;
+  }
+
+  const productPlanForUsedCarCheck = uaExtractProductPlan_(body);
+  if (uaIsUsedCarProductPlan_(productPlanForUsedCarCheck) && uaHasManagedUsedCarAffiliate_(rowData)) {
+    UA_LAST_RAKUTEN_STATUS = '中古車ジャンルのため楽天検索は行わず、既存のガリバー/カーネクスト導線に任せます';
+    return uaApplySecondaryProductMention_(body, rowData, appConfig, null);
   }
 
   if (!uaShouldInsertRakutenAffiliateBanner_(body, rowData, appConfig)) {

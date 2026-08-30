@@ -1660,6 +1660,32 @@ function uaEscapeLinkHtml_(text) {
     .replace(/"/g, '&quot;');
 }
 
+// One-off, 2026-08-30: check whether the shared 外部出典 sheet has any
+// candidates for DRIVE BASE's CarPlay/Android Auto genre, ahead of deciding
+// whether the display-audio-regret-guide review's "missing Apple/Google
+// official links" finding is a content gap (no candidate exists) or a
+// prompt-following gap (candidate exists but wasn't used).
+function uaInspectExternalSourcesForCarplayAndroidAuto20260830() {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(UA_EXTERNAL_SOURCE_SHEET_NAME);
+  if (!sheet || sheet.getLastRow() < 2) {
+    console.log('外部出典シートが空です。');
+    return;
+  }
+  const lastRow = sheet.getLastRow();
+  console.log('外部出典シート総行数（ヘッダー除く）=' + (lastRow - 1));
+  const values = sheet.getRange(2, 1, lastRow - 1, 8).getValues();
+  const terms = ['carplay', 'android auto', 'apple', 'google', 'ディスプレイオーディオ', 'カーナビ', 'ナビ'];
+  let matchCount = 0;
+  values.forEach(function(row, index) {
+    const text = (row[0] + ' ' + row[1] + ' ' + row[3] + ' ' + row[4]).toLowerCase();
+    if (terms.some(function(t) { return text.indexOf(t) !== -1; })) {
+      matchCount++;
+      console.log('行' + (index + 2) + ' genre=' + row[0] + ' name=' + row[1] + ' url=' + row[2] + ' keywords=' + row[4]);
+    }
+  });
+  console.log('関連候補ヒット件数=' + matchCount);
+}
+
 function uaNormalizeForScore_(text) {
   return String(text || '')
     .toLowerCase()

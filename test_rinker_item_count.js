@@ -655,6 +655,20 @@ assert.strictEqual(
   '短い商品名',
   '60文字以内の商品名は変更しない'
 );
+// Real 2026-08-30 case: a Rakuten item name is a space-separated keyword
+// list, so a hard character-count cut regularly lands mid-word (confirmed
+// live: "...砂埃 汚…" from a title that continued "汚れ防止"). Must break on
+// the last space instead, when one exists past the midpoint.
+assert.strictEqual(
+  context.uaTruncateForDisplay_('自動車 フロアマット 防水 3列目用 3seats 立体成形 滑り止め 砂埃 汚れ防止', 40),
+  '自動車 フロアマット 防水 3列目用 3seats 立体成形 滑り止め 砂埃…',
+  '単語の途中ではなく直前のスペースで切り詰める'
+);
+assert.strictEqual(
+  context.uaTruncateForDisplay_('あ'.repeat(20) + ' ' + 'い'.repeat(60), 60),
+  'あ'.repeat(20) + ' ' + 'い'.repeat(39) + '…',
+  '直前のスペースが中間点より手前にしかない場合は従来通り文字数で切り詰める（極端に短くしない）'
+);
 {
   const originalWpApi = context.uaCallWordPressApi_;
   const originalGetWpConfig = context.uaGetWpConfig_;

@@ -4876,7 +4876,18 @@ function uaCleanRakutenItemName_(itemName) {
 function uaTruncateForDisplay_(text, maxLength) {
   const value = String(text || '').trim();
   if (value.length <= maxLength) return value;
-  return value.slice(0, maxLength).trim() + '…';
+  let cut = value.slice(0, maxLength);
+  // Rakuten item names are space-separated keyword strings (color, size,
+  // material, ...), so a hard character-count cut regularly lands mid-word
+  // (confirmed live: "...砂埃 汚…" from a title that continued "汚れ防止").
+  // Prefer breaking on the last space, but only if that space is still past
+  // the midpoint -- otherwise a title with one very long leading word would
+  // get truncated down to almost nothing.
+  const lastSpace = cut.lastIndexOf(' ');
+  if (lastSpace > maxLength / 2) {
+    cut = cut.slice(0, lastSpace);
+  }
+  return cut.trim() + '…';
 }
 
 function uaBuildAmazonSameProductQuery_(itemName, fallbackQuery) {

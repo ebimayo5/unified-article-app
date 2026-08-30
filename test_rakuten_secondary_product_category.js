@@ -61,6 +61,38 @@ function buildTaftLikeBody() {
   assert.ok(match.section.headingText.indexOf('納車後の用品') !== -1, '正しいH2セクションが選ばれる');
 }
 
+// 1b) Real 2026-08-30 regression: an EARLIER, non-dedicated H2 mentions an
+// accessory term only in passing (e.g. a cargo-space/rear-seat usability
+// section casually referencing ラゲッジマット), while the actual dedicated
+// "用品" H2 -- the one the pre-publish check flags -- comes later. Confirmed
+// live on タフト 買って よかった that the old "first H2 whose body text
+// matches" logic picked the earlier, wrong section, so the pre-publish NG
+// never cleared even after a mention was inserted. The dedicated-heading H2
+// must be preferred over an earlier incidental mention.
+{
+  const body = [
+    '<p>導入文です。</p>',
+    '<h2>タフトを買ってよかったと思いやすい人</h2>',
+    padParagraphs(12, '購入前に確認しておきたい典型的な悩みを説明します。'),
+    '<h2>荷室は後席の使い方で評価が変わる</h2>',
+    '<p>荷室のラゲッジマットの有無で積載時の使い勝手が変わります。</p>',
+    padParagraphs(12, '荷室と後席の使い方について具体的に説明します。'),
+    '<h2>納車後の用品は優先順位を付けて選ぶ</h2>',
+    '<p>フロアマットとスマホホルダーは特に優先度が高い用品です。</p>',
+    padParagraphs(12, '用品を選ぶときの注意点を具体的に説明します。'),
+    '<h2>よくある質問</h2>',
+    '<h3>Q. 質問です</h3><p>A. 回答です。</p>',
+    '<h2>まとめ</h2>',
+    '<p>まとめの本文です。</p>'
+  ].join('\n');
+  const match = uaFindSecondaryProductSectionQuery_(body, driveConfig, 'ダイハツ タフト 中古車');
+  assert.ok(match, 'セクションが見つかる');
+  assert.ok(
+    match.section.headingText.indexOf('納車後の用品') !== -1,
+    '見出しに「用品」を含む専用H2が、本文中でより早く用品語に触れているだけの別H2より優先される: ' + match.section.headingText
+  );
+}
+
 // 2) Must not fire when the primary query IS the same category (no point
 // adding a redundant second mention for the same product).
 {

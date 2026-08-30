@@ -2767,6 +2767,21 @@ const UA_SECONDARY_PRODUCT_PATTERN_BY_APP = {
   drive: /ブレーキパッド|カーナビ|ナビゲーション|ディスプレイオーディオ|ドライブレコーダー|ドラレコ|レーダー探知機|バックカメラ|スマホホルダー|サンシェード|フロアマット|シートマット|シートカバー|シートクッション|ラゲッジマット|荷室マット|トランクマット|ドリンクホルダー|ルーフキャリア|ポータブル電源|ジャンプスターター|タイヤチェーン/
 };
 
+// Mirrors pre_publish_check.gs's own dedicatedProductHeadingPattern (the NG
+// this feature exists to resolve is specifically about a H2 whose HEADING
+// names it as a dedicated product/accessory section). Matching on heading
+// title first -- not just "the first H2 whose body text happens to mention
+// an accessory word" -- matters because an earlier, unrelated H2 (e.g. a
+// cargo-space or rear-seat usability section) can casually mention an
+// accessory term in passing before the article's actual dedicated product H2
+// appears. Confirmed live on タフト 買って よかった: an earlier H2
+// "荷室は後席の使い方で評価が変わる" mentioned an accessory term and was
+// picked instead of the later, dedicated "納車後の用品は優先順位を付けて選ぶ"
+// H2 that the pre-publish check actually flags -- the mention landed in the
+// wrong section and the NG never cleared.
+const UA_DEDICATED_PRODUCT_HEADING_PATTERN =
+  /(?:用品|道具|アイテム|グッズ|商品(?:候補|紹介|選び)|おすすめ(?:用品|道具|アイテム|グッズ|商品)|用意すると|揃えておきたい|準備しておきたい|あると便利|あると助かる|備えておきたい)/;
+
 function uaFindSecondaryProductSectionQuery_(body, appConfig, primaryQuery) {
   const appKey = appConfig && appConfig.key;
   const pattern = UA_SECONDARY_PRODUCT_PATTERN_BY_APP[appKey];
@@ -2776,18 +2791,23 @@ function uaFindSecondaryProductSectionQuery_(body, appConfig, primaryQuery) {
   const primaryNormalized = uaNormalizeForScore_(primaryQuery || '');
   const sections = uaExtractRakutenH2Sections_(body);
 
-  for (let i = 0; i < sections.length; i++) {
-    const section = sections[i];
-    if (/よくある質問|まとめ/i.test(section.headingText)) continue;
-    const plainText = uaCleanText_(uaStripHtml_(section.text));
-    const match = pattern.exec(plainText);
-    if (!match) continue;
-    const canonicalQuery = uaSelectRakutenKeywordFallbackQuery_(match[0], appKey) || match[0];
-    if (!canonicalQuery) continue;
-    if (primaryNormalized && uaNormalizeForScore_(canonicalQuery) === primaryNormalized) continue;
-    return { query: canonicalQuery, section: section };
+  function findMatch(requireDedicatedHeading) {
+    for (let i = 0; i < sections.length; i++) {
+      const section = sections[i];
+      if (/よくある質問|まとめ/i.test(section.headingText)) continue;
+      if (requireDedicatedHeading && !UA_DEDICATED_PRODUCT_HEADING_PATTERN.test(section.headingText)) continue;
+      const plainText = uaCleanText_(uaStripHtml_(section.text));
+      const match = pattern.exec(plainText);
+      if (!match) continue;
+      const canonicalQuery = uaSelectRakutenKeywordFallbackQuery_(match[0], appKey) || match[0];
+      if (!canonicalQuery) continue;
+      if (primaryNormalized && uaNormalizeForScore_(canonicalQuery) === primaryNormalized) continue;
+      return { query: canonicalQuery, section: section };
+    }
+    return null;
   }
-  return null;
+
+  return findMatch(true) || findMatch(false);
 }
 
 function uaBuildRakutenAffiliateBanner_(body, rowData, appConfig) {

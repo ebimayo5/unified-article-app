@@ -3191,3 +3191,62 @@ function uaResumeTaftAfterUsedCarFix20260830() {
 
   console.log('完了。WordPress下書き(post ' + (draftResult && draftResult.wpPostId) + ')は更新済みです。実際に公開する／自動投稿を再開するかはユーザー確認の上で判断してください。');
 }
+
+// One-off, 2026-08-30: the secondary product mention was inserted (bodyLength
+// grew, hb.afl.rakuten link present per uaVerifyTaftSecondaryProductMention),
+// but uaBuildPrePublishRuleCheck_ still reports the accessory H2 NG. Dump
+// exactly what uaFindPrePublishStandaloneProductSectionsWithoutRakuten_ sees
+// for the CURRENTLY SAVED row 106 body (already has the fix applied) to find
+// why the inserted link isn't being detected inside that H2's boundary.
+function uaDebugTaftAccessoryNgStillPresent20260830() {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(UA_APP_TYPES.drive.articleSheetName);
+  const lastRow = sheet.getLastRow();
+  const mainInputs = sheet.getRange(2, UA_COLUMNS.mainInput, lastRow - 1, 1).getValues();
+  let row = 0;
+  for (let i = 0; i < mainInputs.length; i++) {
+    const value = String(mainInputs[i][0] || '');
+    if (value.indexOf('タフト') !== -1 && value.indexOf('買って') !== -1) {
+      row = i + 2;
+      break;
+    }
+  }
+  if (!row) {
+    console.log('行が見つかりませんでした。');
+    return;
+  }
+  const body = String(sheet.getRange(row, UA_COLUMNS.body).getValue() || '');
+  console.log('bodyLength=' + body.length);
+  console.log('本文にUA_SECONDARY_PRODUCT_STARTを含むか=' + body.includes('UA_SECONDARY_PRODUCT_START'));
+  console.log('本文にhb.afl.rakutenを含むか=' + body.includes('hb.afl.rakuten'));
+
+  const h2Pattern = /<h2\b[^>]*>([\s\S]*?)<\/h2>/gi;
+  let match;
+  const headings = [];
+  while ((match = h2Pattern.exec(body)) !== null) {
+    headings.push({
+      title: String(match[1]).replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim(),
+      start: match.index,
+      contentStart: h2Pattern.lastIndex
+    });
+  }
+  headings.forEach(function(h, idx) {
+    console.log('H2[' + idx + ']=' + h.title + ' start=' + h.start);
+  });
+
+  const targetIdx = headings.findIndex(function(h) { return h.title.indexOf('用品') !== -1; });
+  if (targetIdx === -1) {
+    console.log('「用品」を含むH2が見つかりませんでした。');
+    return;
+  }
+  const target = headings[targetIdx];
+  const end = targetIdx + 1 < headings.length ? headings[targetIdx + 1].start : body.length;
+  const sectionHtml = body.slice(target.contentStart, end);
+  console.log('対象H2=' + target.title);
+  console.log('セクション文字数=' + sectionHtml.length);
+  console.log('セクション内にhb.afl.rakutenを含むか=' + sectionHtml.includes('hb.afl.rakuten'));
+  console.log('セクション内にUA_SECONDARY_PRODUCT_STARTを含むか=' + sectionHtml.includes('UA_SECONDARY_PRODUCT_START'));
+  console.log('セクション末尾300文字: ' + sectionHtml.slice(-300));
+
+  const markerIdx = body.indexOf('UA_SECONDARY_PRODUCT_START');
+  console.log('UA_SECONDARY_PRODUCT_STARTの位置=' + markerIdx + '（このH2のstart=' + target.start + '、次H2境界=' + end + '）');
+}

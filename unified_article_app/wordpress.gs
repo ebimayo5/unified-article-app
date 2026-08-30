@@ -3024,3 +3024,45 @@ function uaInspectTaftBuyGoodStopReason20260830() {
     console.log('DRIVE BASE最後のエラー=' + settings.getRange('B9').getValue());
   }
 }
+
+// One-off, 2026-08-30: trace why the automated Rinker/楽天バナー insertion
+// didn't cover the accessories H2 in the タフト row, so we can decide whether
+// this is a real gap in uaShouldInsertRakutenAffiliateBanner_/
+// uaFindRakutenContextualInsertIndex_ or a case that genuinely needs a human
+// call (an intro paragraph naming 3 different accessory types, not one
+// specific sellable product).
+function uaTraceTaftAccessoryBannerGap20260830() {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(UA_APP_TYPES.drive.articleSheetName);
+  const lastRow = sheet.getLastRow();
+  const mainInputs = sheet.getRange(2, UA_COLUMNS.mainInput, lastRow - 1, 1).getValues();
+  for (let i = 0; i < mainInputs.length; i++) {
+    const value = String(mainInputs[i][0] || '');
+    if (value.indexOf('タフト') === -1 || value.indexOf('買って') === -1) continue;
+    const row = i + 2;
+    const rowData = uaBuildRowData_(sheet, row);
+    const appConfig = UA_APP_TYPES.drive;
+    console.log('affiliateName=' + rowData.affiliateName + ' affiliateNotes=' + rowData.affiliateNotes);
+
+    const body = String(rowData.body || '');
+    const hasAnyBanner = body.indexOf('UA_MAIN_AFFILIATE_CTA_START') !== -1
+      || /yyi-rinker-box|rinker-box|item\.rakuten\.co\.jp/.test(body);
+    console.log('本文内にRinker/楽天バナーが既にあるか=' + hasAnyBanner);
+
+    const h2Match = /<h2[^>]*>\s*納車後の用品は優先順位を付けて選ぶ\s*<\/h2>([\s\S]*?)(?=<h2|$)/.exec(body);
+    console.log('該当H2の本文=' + (h2Match ? h2Match[1].replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 500) : '見つかりませんでした'));
+
+    const shouldInsert = uaShouldInsertRakutenAffiliateBanner_(body, rowData, appConfig);
+    console.log('uaShouldInsertRakutenAffiliateBanner_結果=' + shouldInsert + ' UA_LAST_RAKUTEN_STATUS=' + UA_LAST_RAKUTEN_STATUS);
+
+    const mainKeywordProfile = uaGetMainKeywordProductProfile_(rowData, appConfig);
+    console.log('uaGetMainKeywordProductProfile_結果=' + JSON.stringify(mainKeywordProfile));
+
+    const productPlan = uaExtractProductPlan_(body);
+    console.log('uaExtractProductPlan_結果=' + JSON.stringify(productPlan));
+
+    const contextualIndex = uaFindRakutenContextualInsertIndex_(body, rowData, appConfig);
+    console.log('uaFindRakutenContextualInsertIndex_結果(挿入位置index)=' + contextualIndex);
+    return;
+  }
+  console.log('タフト 買って よかった に一致する行が見つかりませんでした。');
+}

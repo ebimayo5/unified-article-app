@@ -1477,23 +1477,23 @@
       }
 
       function updateCommerceLinkLabels(config) {
-        const isHome = !!(config && config.key === 'home');
+        const usesRinker = !!(config && (config.key === 'home' || config.key === 'drive'));
         const label = document.getElementById('commerceLinkLabel');
         const keyword = document.getElementById('rakutenProductKeyword');
         const addButton = document.getElementById('addCommerceLinkButton');
-        if (label) label.textContent = isHome ? '商品リンク（Rinker）' : '楽天バナー';
+        if (label) label.textContent = usesRinker ? '商品リンク（Rinker）' : '楽天バナー';
         if (keyword) {
-          keyword.setAttribute('aria-label', isHome ? '商品検索キーワード' : '楽天商品キーワード');
-          keyword.placeholder = isHome
+          keyword.setAttribute('aria-label', usesRinker ? '商品検索キーワード' : '楽天商品キーワード');
+          keyword.placeholder = usesRinker
             ? '商品検索キーワード 例: ランドリーチェスト 防カビ'
             : '楽天商品キーワード 例: ランドリーチェスト 防カビ';
         }
-        if (addButton) addButton.textContent = isHome ? 'Rinkerを追加' : '楽天バナーを追加';
+        if (addButton) addButton.textContent = usesRinker ? 'Rinkerを追加' : '楽天バナーを追加';
       }
 
       function commerceLinkText(rakutenText, homeText) {
         const config = currentConfig();
-        return config && config.key === 'home' ? homeText : rakutenText;
+        return config && (config.key === 'home' || config.key === 'drive') ? homeText : rakutenText;
       }
 
       function currentConfig() {
@@ -2772,7 +2772,7 @@
       function addRakutenBanner(button) {
         syncRakutenControlsToNotes();
         const payload = readForm();
-        if (currentConfig() && currentConfig().key === 'home') payload.forceRinkerItemCount = 3;
+        if (currentConfig() && (currentConfig().key === 'home' || currentConfig().key === 'drive')) payload.forceRinkerItemCount = 3;
         setBusy(commerceLinkText('楽天バナーを本文へ追加中...', 'Rinker商品を3種類選定中...'), button);
         google.script.run.withSuccessHandler(function(data) {
           clearBusy();

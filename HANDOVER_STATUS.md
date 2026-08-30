@@ -8,6 +8,8 @@
 - エージェント: なし
 - 開始時刻: -
 - やっていること: なし
+- 完了内容（2026-08-30 Codex）: ユーザー指示「DRIVE BASEでも、たくみパパと同じようにRinkerを使えるようにする」に対応。WordPress管理画面でDRIVE BASE側のRinker 1.13.0とArticle Compass Rinker Bridge 1.3.3がどちらも導入・有効済みであることを確認し、追加インストールは不要と判定。原因だったアーコン側の「たくみパパだけRinkerを呼ぶ」サイト制限を解除し、DRIVE BASEも楽天APIで商品選定→サイト別WordPressへRinker商品登録・再利用→`[itemlink]`挿入→失敗時のみ従来の楽天/Amazon表示へフォールバックする共通経路へ変更。`article.gs`、`app_panel.html`、`ua_web_app.html`、`CURRENT_SPEC.md`、関連テストを更新。全32テストPASS、`git diff --check` PASS。自動投稿が停止中であることを実画面で確認後、clasp pushし本番`@340`へデプロイ。本番DRIVE BASE画面で「商品リンク（Rinker）」「商品検索キーワード」「Rinkerを追加」表示を確認済み。自動投稿の開始・停止・再開や既存記事の一括変換は行っていない。`clasp run uaTestDriveRinkerConnectorStatus`は既知のGoogle側storage NOT_FOUND制限で実行不可。ローカル`.git`管理領域の書き込みがOS側で拒否され、GitHub Desktopもユーザー操作中／最小化状態として制御を中断したため、Git commit/pushのみ未実施。変更ファイルは正本へ保存済みで本番反映済み。既存の未追跡`design_mockup/`には触れていない。
+- 本番デプロイ: `@340`（Enable Rinker product links on DRIVE BASE）。
 - ⚠️**事故記録（2026-08-30 21:22、Claude Code）**: タフト 買って よかった（DRIVE BASE 106行目）の本文を、中古車ジャンルの楽天スキップ修正（`@335`）で再生成・再検証した直後、`uaCreateWpDraftFromPanel({row, appType})` をApps Scriptエディタから直接（パネルのreadForm()を経由せず）呼び出した結果、`uaSaveActiveRowData`が本文以外のほぼ全列（メイン案件名・タグ・メタディスクリプション・WordPress投稿ID・作成日時など）を空文字で上書きした。原因は、`uaSaveActiveRowData`の既存ガード（`data`が完全に空`{}`の場合のみ拒否）が、`{row, appType}`のような**部分的に空**のオブジェクトを検知できなかったこと。GoogleスプレッドシートのFile→変更履歴から事故直前（19:14版）のコピーを作成し、106行目（A106:W106、全23列）を値のみコピー＆貼り付けで復元。`uaInspectTaftBuyGoodStopReason20260830`で mainInput・status・wpPostId=2288・bodyLength・factCheckPointsが元通りであることを確認済み。
   - **再発防止**: `unified_article_app/main.gs`の`uaSaveActiveRowData`に第2のガードを追加。パネルのreadForm()は対象フィールドを常にキーとして含む（値が空文字でも）ため、`data`に`body`/`mainInput`キー自体が無く、かつ対象行にすでに本文またはメインキーワードがある場合は保存を拒否するようにした（空欄行への初回保存は従来通り許可）。テスト`test_save_active_row_guard.js`に回帰テスト追加（新規2ケース）。全35本PASS。git push済み（`acbefc4`）、clasp push/deploy済み（本番`@336`）。
   - **教訓**: `*FromPanel`/`*FromWeb`系の関数は、パネル以外から呼ぶ場合は必ずパネルと同様の完全なrowData（`uaBuildRowData_`の戻り値をそのまま渡すなど）を使うこと。「rowとappTypeさえあれば十分」という思い込みで直接呼び出さない。
@@ -459,7 +461,7 @@ SWELL移行後は、システム側の互換・正規化処理で表示を整え
 
 **たくみパパ**: `Article Compass Rinker Bridge` を使用（プラグイン現行版1.3.3、ソース `wordpress_plugins/article-compass-rinker-bridge`）。楽天APIで商品を取得しWordPress側へRinker商品として登録・再利用。本文には `[itemlink post_id="..."]` を挿入。同じ楽天商品コード・URLは重複登録せず既存Rinker IDを再利用。1つの商品ボックスに楽天商品リンクと、商品名・型番を使ったAmazon検索導線を出す。Amazon Creators APIが利用可能になるまではAmazon側の完全一致商品と断定しない。Rinker連携失敗だけで記事生成全体を止めず楽天商品カード＋Amazon検索へフォールバック。候補は最大3商品まで（同一商品を3つ出さない、用途・サイズ・仕様など違いを持たせる）。候補が1種類しか適切でない場合は1件だけでよい。手動で貼ったRinkerショートコードは自動削除しない。
 
-**DRIVE BASE**: Rinker連携は原則使わず楽天バナーを使用。メイン案件がない、または「案件無し」の場合はキーワードや本文の文脈に合う楽天商品を積極的に検討。毎回同じ商品を出さない（サンシェード記事ならサンシェードなど商品カテゴリを本文と一致させる）。
+**DRIVE BASE**: たくみパパと同じRinker連携を使用。楽天APIで商品を選定し、DRIVE BASE側のRinker商品として登録・再利用して本文へ`[itemlink]`を挿入する。Rinker連携が一時失敗した場合だけ従来の楽天商品カード＋Amazon検索へフォールバックする。メイン案件がない、または「案件無し」の場合はキーワードや本文の文脈に合う商品を積極的に検討し、毎回同じ商品を出さない（サンシェード記事ならサンシェードなど商品カテゴリを本文と一致させる）。
 
 **商品H2の条件**: 商品選びが検索意図の重要な解決策である／同じH2内へ一致するRinkerまたは楽天商品を入れられる。入れられない場合は商品専用H2を作らず、必要なら既存章へ1〜3段落で統合する。用品の話だけをして商品リンクがない章は原則不要。
 
@@ -527,4 +529,4 @@ DRIVE BASE: `UA_WP_DRIVE_SITE_URL` `UA_WP_DRIVE_USERNAME` `UA_WP_DRIVE_APP_PASSW
 ①本書を読む ②`git status --short` で未反映変更を確認 ③`git log -5` で最新コミットを確認 ④本番デプロイが@280以降か確認 ⑤アーコン実画面で両サイトの自動運転・開始時刻・記事数・画像・WP到達点を確認 ⑥`automation` がACTIVEで5:00・6:00・16:00監視になっているか確認 ⑦自動投稿中ならキーワード・工程・経過時間・実プロセス・トリガー・WP到達を確認 ⑧同じ工程が20分以上なら再開せず先に停止・キャンセル ⑨WordPressの最近の記事でメタディスクリプション・内部リンクカード・ポイント枠・商品リンク・画像を抜き取り確認 ⑩修正依頼では既存システムを大きく作り直さず、現在の仕組みに安全に追加する
 
 ### 26. 現在地の短い要約
-両サイトのSWELL移行と新規SWELL本文出力は完了。内部リンクはSWELLネイティブ関連記事カードへ修正済み。ポイント枠・注意枠のGutenberg無効ブロック問題は本番@280で修正済み。直近8公開記事も安全に修復済み。メタディスクリプションはWordPressプラグイン経由でSWELLメタへ同期する。たくみパパはRinker＋楽天/Amazon導線、DRIVE BASEは案件＋楽天バナーが基本。自動投稿はDRIVE BASE 4時、たくみパパ5時、各最大3記事、画像あり、公開まで、稼働ON。Codex監視は5時、6時、16時。最大の注意点はトレファイ・OpenAI待機処理の重複再実行。表示だけで正常扱いしない。次の重点は、数日間の実運転を観察し、投稿数・メタ・内部リンク・商品一致・API消費を根拠付きで確認すること。
+両サイトのSWELL移行と新規SWELL本文出力は完了。内部リンクはSWELLネイティブ関連記事カードへ修正済み。ポイント枠・注意枠のGutenberg無効ブロック問題は本番@280で修正済み。直近8公開記事も安全に修復済み。メタディスクリプションはWordPressプラグイン経由でSWELLメタへ同期する。たくみパパ・DRIVE BASEとも商品導線はRinker＋楽天/Amazonフォールバックを使用し、DRIVE BASEは案件導線も併用する。自動投稿はDRIVE BASE 4時、たくみパパ5時、各最大3記事、画像あり、公開まで、稼働ON。Codex監視は5時、6時、16時。最大の注意点はトレファイ・OpenAI待機処理の重複再実行。表示だけで正常扱いしない。次の重点は、数日間の実運転を観察し、投稿数・メタ・内部リンク・商品一致・API消費を根拠付きで確認すること。

@@ -12,6 +12,7 @@ vm.createContext(context);
 vm.runInContext(source, context);
 
 const homeConfig = { key: 'home', label: 'たくみパパ' };
+const driveConfig = { key: 'drive', label: 'DRIVE BASE' };
 const sampleItems = [
   { name: 'サンシェード ベランダ 日よけ 2m', url: 'https://item.rakuten.co.jp/shop/sunshade-1/', itemCode: 'shop:sunshade-1', price: 2980 }
 ];
@@ -34,6 +35,19 @@ context.Utilities = { sleep: (ms) => { sleptFor.push(ms); } };
   assert.strictEqual(callCount, 2, '1回目の失敗後、2回目のAPI呼び出しでリトライする');
   assert.ok(html.includes('[itemlink post_id="701"]'), 'リトライ成功時は通常どおりRinkerショートコードを返す');
   assert.strictEqual(sleptFor.length, 1, 'リトライの間に1回だけ待機する');
+}
+
+// DRIVE BASEも同じWordPress別設定を使ってRinker商品を登録する。
+{
+  let receivedConfig = null;
+  context.uaGetWpConfig_ = (config) => {
+    receivedConfig = config;
+    return {};
+  };
+  context.uaCallWordPressApi_ = () => ({ items: [{ post_id: 703 }] });
+  const html = context.uaBuildRinkerItemsHtml_(sampleItems, '車用サンシェード', driveConfig);
+  assert.strictEqual(receivedConfig, driveConfig, 'DRIVE BASEのWordPress設定をRinker REST APIへ渡す');
+  assert.ok(html.includes('[itemlink post_id="703"]'), 'DRIVE BASEでもRinkerショートコードを返す');
 }
 
 // 2) After every attempt fails, give up and record a specific failure reason

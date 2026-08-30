@@ -49,9 +49,12 @@ assert.strictEqual(
 );
 assert.strictEqual(
   context.uaDecideRakutenItemCount_('', { forceRakutenItemCount: 3 }, { key: 'drive' }, 'カーナビ'),
-  1,
-  'DRIVE BASEの楽天バナー件数にはRinker専用指定を適用しない'
+  3,
+  'DRIVE BASEの手動Rinkerボタンも3種類を要求する'
 );
+assert.ok(context.uaUsesRinkerProductLinks_({ key: 'drive' }), 'DRIVE BASEでもRinker商品リンクを使う');
+assert.ok(context.uaUsesRinkerProductLinks_({ key: 'home' }), 'たくみパパでもRinker商品リンクを使う');
+assert.ok(!context.uaUsesRinkerProductLinks_({ key: 'general' }), '汎用記事にはRinker連携を適用しない');
 
 const originalSingleFetch = context.uaFetchRakutenItems_;
 const originalMultiFetch = context.uaFetchRakutenItemsByQueries_;

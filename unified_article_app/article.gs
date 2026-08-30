@@ -4,6 +4,11 @@ let UA_LAST_RAKUTEN_QUERY = '';
 let UA_LAST_RAKUTEN_ITEMS = [];
 let UA_LAST_RINKER_FAILURE_REASON = '';
 const UA_RINKER_API_ATTEMPTS = 2;
+
+function uaUsesRinkerProductLinks_(appConfig) {
+  const key = String(appConfig && appConfig.key || '').trim().toLowerCase();
+  return key === 'drive' || key === 'home';
+}
 const UA_NAVIOKUN_INTRO_URL = 'https://ebimayo5.com/archives/naviokun-reputation/';
 
 function uaRemoveRedundantAffiliateDisclosure_(body) {
@@ -1973,7 +1978,7 @@ function uaAddRakutenBannerForData_(data) {
   const row = Number(data && data.row) || sheet.getActiveCell().getRow();
   const context = uaGetRakutenRowContext_(sheet, row);
   const requestedRinkerCount = Number(data && data.forceRinkerItemCount || 0);
-  if (context.appConfig && context.appConfig.key === 'home' && requestedRinkerCount > 0) {
+  if (uaUsesRinkerProductLinks_(context.appConfig) && requestedRinkerCount > 0) {
     context.rowData.forceRakutenItemCount = Math.max(1, Math.min(3, requestedRinkerCount));
   }
   return uaAddRakutenBannerForContext_(context);
@@ -2109,7 +2114,7 @@ function uaAddRakutenBannerForContext_(context) {
   uaAppendFactCheckPoint_(context.sheet, context.row, replacedExisting
     ? '・楽天バナー再選定｜既存の自動生成バナーを削除し、現在のキーワードで置換済み'
     : '・楽天バナー後入れ｜既存本文に小リライトとして追加済み');
-  if (context.appConfig && context.appConfig.key === 'home' && UA_LAST_RINKER_FAILURE_REASON) {
+  if (uaUsesRinkerProductLinks_(context.appConfig) && UA_LAST_RINKER_FAILURE_REASON) {
     // Rinker integration failed but the plain Rakuten/Amazon fallback still succeeded,
     // so uaAddRakutenBannerForContext_ would otherwise report a normal success message
     // with no trace that the site's primary monetization channel (Rinker) was skipped.
@@ -2118,17 +2123,17 @@ function uaAddRakutenBannerForContext_(context) {
   }
 
   const nextData = uaBuildRowData_(context.sheet, context.row);
-  const isForcedHomeRinker = context.appConfig && context.appConfig.key === 'home' &&
+  const isForcedRinker = uaUsesRinkerProductLinks_(context.appConfig) &&
     Number(context.rowData && context.rowData.forceRakutenItemCount || 0) > 0;
   const rinkerItemCount = (String(block || '').match(/\[itemlink\b/gi) || []).length;
   const rinkerFailedNote = UA_LAST_RINKER_FAILURE_REASON
     ? '\n注意: Rinker連携が失敗したため、従来の商品比較ボタンにフォールバックしています。'
     : '';
-  nextData.message = (isForcedHomeRinker
+  nextData.message = (isForcedRinker
     ? 'Rinker商品リンクを' + rinkerItemCount + '種類、本文へ追加しました。重複商品は除外済みです。検索条件: ' + String(UA_LAST_RAKUTEN_QUERY || '自動判定') + '。本文生成APIは使っていません。'
     : replacedExisting
-      ? '楽天バナーを現在のキーワードで再選定して置き換えました。本文生成APIは使っていません。'
-      : '楽天バナーを本文へ追加しました。本文生成APIは使っていません。') + rinkerFailedNote;
+      ? 'Rinker商品リンクを現在のキーワードで再選定して置き換えました。本文生成APIは使っていません。'
+      : 'Rinker商品リンクを本文へ追加しました。本文生成APIは使っていません。') + rinkerFailedNote;
   return nextData;
 }
 
@@ -2150,7 +2155,7 @@ function uaRefreshRakutenBannerForArticleRow_(appConfig, row) {
   }
   sheet.getRange(row, UA_COLUMNS.body).setValue(nextBody);
   uaAppendFactCheckPoint_(sheet, row, '・楽天バナー再選定｜既存の自動生成バナーを削除し、現在の主役商品で置換済み');
-  if (appConfig && appConfig.key === 'home' && UA_LAST_RINKER_FAILURE_REASON) {
+  if (uaUsesRinkerProductLinks_(appConfig) && UA_LAST_RINKER_FAILURE_REASON) {
     uaAppendFactCheckPoint_(sheet, row, '・Rinker連携失敗｜従来の商品比較ボタンへフォールバック済み: ' + UA_LAST_RINKER_FAILURE_REASON);
   }
   const refreshed = uaBuildRowData_(sheet, row);
@@ -2170,7 +2175,7 @@ function uaRefreshRakutenBannerForArticleRow_(appConfig, row) {
     ok: true,
     row: row,
     postId: postId,
-    message: '楽天バナーを現在の主役商品で再選定し、シートとWordPressへ反映しました。'
+    message: 'Rinker商品リンクを現在の主役商品で再選定し、シートとWordPressへ反映しました。'
   };
 }
 
@@ -3874,7 +3879,7 @@ function uaHomeRakutenProductCandidates_() {
 }
 
 function uaDecideRakutenItemCount_(body, rowData, appConfig, query) {
-  if (appConfig && appConfig.key === 'home' && Number(rowData && rowData.forceRakutenItemCount || 0) > 0) {
+  if (uaUsesRinkerProductLinks_(appConfig) && Number(rowData && rowData.forceRakutenItemCount || 0) > 0) {
     return Math.max(1, Math.min(3, Number(rowData.forceRakutenItemCount)));
   }
 
@@ -4652,9 +4657,9 @@ function uaBuildRakutenItemBannerHtml_(items, query, productPlan, appConfig) {
   const plan = uaNormalizeProductPlan_(productPlan);
   const productLabel = plan && plan.primaryProduct || query || '関連アイテム';
   const queryText = uaEscapeHtml_(productLabel);
-  const isHomeArticle = String(appConfig && appConfig.key || '').trim().toUpperCase() === 'HOME';
-  const homeRinkerHtml = isHomeArticle
-    ? uaBuildHomeRinkerItemsHtml_(items, productLabel, appConfig)
+  const usesRinker = uaUsesRinkerProductLinks_(appConfig);
+  const rinkerHtml = usesRinker
+    ? uaBuildRinkerItemsHtml_(items, productLabel, appConfig)
     : '';
   const itemHtml = items.map(function(item) {
     const rawName = String(item.name || '').trim();
@@ -4664,7 +4669,7 @@ function uaBuildRakutenItemBannerHtml_(items, query, productPlan, appConfig) {
     const imageHtml = imageUrl
       ? '<a href=\'' + url + '\' target=\'_blank\' rel=\'nofollow sponsored\' style=\'display:block;width:92px;flex:0 0 92px;background:#fff;border:1px solid #eef1f4;border-radius:6px;padding:5px;\'><img src=\'' + imageUrl + '\' alt=\'' + name + '\' style=\'display:block;max-width:100%;height:auto;border:0;background:#fff;\'></a>'
       : '';
-    const amazonSameProductButton = isHomeArticle
+    const amazonSameProductButton = usesRinker
       ? uaBuildAmazonSameProductButton_(rawName, productLabel, appConfig)
       : '';
 
@@ -4688,17 +4693,17 @@ function uaBuildRakutenItemBannerHtml_(items, query, productPlan, appConfig) {
     ? '条件に合う場合は、下の商品候補で価格と仕様を見比べられます。'
     : '条件に合う場合は、下の商品候補で価格と仕様を確認できます。';
   const leadText = '<p>' + ctaReason + benefit + compareAction + '条件に合わなければ、無理に購入する必要はありません。</p>';
-  const amazonButton = isHomeArticle ? '' : uaBuildAmazonSearchButton_(plan, query || productLabel, appConfig);
-  const comparisonHeading = isHomeArticle
+  const amazonButton = usesRinker ? '' : uaBuildAmazonSearchButton_(plan, query || productLabel, appConfig);
+  const comparisonHeading = usesRinker
     ? '「' + queryText + '」を楽天・Amazonで比較する'
     : '「' + queryText + '」を楽天で比較する';
 
-  if (homeRinkerHtml) {
+  if (rinkerHtml) {
     return [
       '<!-- UA_RINKER_PRODUCTS_START -->',
       leadText,
       '<p><strong>' + comparisonHeading + '</strong></p>',
-      homeRinkerHtml,
+      rinkerHtml,
       '<!-- UA_RINKER_PRODUCTS_END -->'
     ].join('\n');
   }
@@ -4717,7 +4722,7 @@ function uaBuildRakutenItemBannerHtml_(items, query, productPlan, appConfig) {
   ].filter(Boolean).join('\n');
 }
 
-function uaBuildHomeRinkerItemsHtml_(items, fallbackQuery, appConfig) {
+function uaBuildRinkerItemsHtml_(items, fallbackQuery, appConfig) {
   const sourceItems = uaDedupeRakutenItems_(items).slice(0, 3);
   if (sourceItems.length === 0) return '';
 
@@ -4783,6 +4788,11 @@ function uaBuildHomeRinkerItemsHtml_(items, fallbackQuery, appConfig) {
   }
 }
 
+// 既存テストや一回限りの診断関数との互換用。新規コードはサイト共通名を使う。
+function uaBuildHomeRinkerItemsHtml_(items, fallbackQuery, appConfig) {
+  return uaBuildRinkerItemsHtml_(items, fallbackQuery, appConfig);
+}
+
 function uaDedupeRinkerSavedItems_(items) {
   const seen = {};
   return (items || []).filter(function(item) {
@@ -4845,14 +4855,21 @@ function uaTestHomeRinkerShortcodeBlocks() {
   return { ok: true, shortcodes: 2, removableFollowupFormats: 2 };
 }
 
-function uaTestHomeRinkerConnectorStatus() {
-  const appConfig = UA_APP_TYPES.home;
+function uaTestRinkerConnectorStatusForApp_(appConfig) {
   const wpConfig = uaGetWpConfig_(appConfig);
   const response = uaCallWordPressApi_(wpConfig, '/wp-json/article-compass/v1/rinker-status', 'get');
   if (!response || !response.ok || !response.rinker_active) {
-    throw new Error('たくみパパ側のRinker連携が有効ではありません。');
+    throw new Error(String(appConfig && appConfig.label || appConfig && appConfig.key || '対象サイト') + '側のRinker連携が有効ではありません。');
   }
   return response;
+}
+
+function uaTestHomeRinkerConnectorStatus() {
+  return uaTestRinkerConnectorStatusForApp_(UA_APP_TYPES.home);
+}
+
+function uaTestDriveRinkerConnectorStatus() {
+  return uaTestRinkerConnectorStatusForApp_(UA_APP_TYPES.drive);
 }
 
 function uaTestHomeRinkerItemUpsert() {

@@ -3119,3 +3119,75 @@ function uaCheckTaftManagedAffiliateSetup20260830() {
   }
   console.log('タフト 買って よかった に一致する行が見つかりませんでした。');
 }
+
+// One-off, 2026-08-30: apply the used-car Rakuten-skip fix (@335) to the real
+// タフト 買って よかった row, then re-run the existing pre-publish revision
+// step through its normal short-circuit path (already has a completed
+// AI revision report, so this does NOT call OpenAI again -- no new API cost)
+// to confirm the accessory-H2 NG actually clears. If it clears, update the
+// existing WordPress draft (post 2288) with the fixed body so the article is
+// a ready, reviewable draft. Deliberately stops there -- does NOT call
+// uaPublishWpPostFromAutomation_ (making the post live requires a separate,
+// explicit user confirmation per the publishing-safety rule), and marks the
+// automatic-posting job complete as "draft" so it's cleared from its stuck
+// error state and the queue can move on.
+function uaResumeTaftAfterUsedCarFix20260830() {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(UA_APP_TYPES.drive.articleSheetName);
+  const lastRow = sheet.getLastRow();
+  const mainInputs = sheet.getRange(2, UA_COLUMNS.mainInput, lastRow - 1, 1).getValues();
+  let row = 0;
+  for (let i = 0; i < mainInputs.length; i++) {
+    const value = String(mainInputs[i][0] || '');
+    if (value.indexOf('タフト') !== -1 && value.indexOf('買って') !== -1) {
+      row = i + 2;
+      break;
+    }
+  }
+  if (!row) {
+    console.log('タフト 買って よかった に一致する行が見つかりませんでした（uaResumeTaftAfterUsedCarFix20260830）。');
+    return;
+  }
+
+  const appConfig = UA_APP_TYPES.drive;
+  const rowData = uaBuildRowData_(sheet, row);
+  console.log('開始: row=' + row + ' bodyLength(修正前)=' + String(rowData.body || '').length);
+
+  const fixedBody = uaApplyRakutenAffiliateBanner_(rowData.body, rowData, appConfig);
+  console.log('UA_LAST_RAKUTEN_STATUS=' + UA_LAST_RAKUTEN_STATUS);
+  console.log('bodyLength(修正後)=' + fixedBody.length);
+  sheet.getRange(row, UA_COLUMNS.body).setValue(fixedBody);
+  SpreadsheetApp.flush();
+
+  const dataRef = { row: row, appType: appConfig.label };
+  let revisionResult;
+  try {
+    revisionResult = uaApplyPrePublishFixesOnceFromPanel(dataRef);
+  } catch (e) {
+    console.log('公開前チェック再検証で依然としてNGが残っています。WordPress更新・ジョブ更新は行いません。');
+    console.log('エラー: ' + (e && e.message ? e.message : String(e)));
+    return;
+  }
+  console.log('公開前チェック再検証: 成功 message=' + (revisionResult && revisionResult.message));
+
+  uaEnsureAutomaticProductLinksForData_(dataRef);
+  const draftResult = uaCreateWpDraftFromPanel(dataRef);
+  console.log('WordPress下書き更新: message=' + (draftResult && draftResult.message)
+    + ' wpPostId=' + (draftResult && draftResult.wpPostId)
+    + ' wpEditUrl=' + (draftResult && draftResult.wpEditUrl));
+
+  // Deliberately NOT touching the automatic-posting job/queue state here
+  // (uaCompleteAutomaticPostingJob_ etc.) -- clearing this job's error status
+  // could let the trigger-driven automatic posting worker pick up the next
+  // queued keyword and start spending API money on its own, which needs a
+  // separate explicit go-ahead from the user, not an implicit side effect of
+  // fixing this one article's body. Just report the job's current state.
+  const job = uaGetAutomaticPostingJob_();
+  if (job && Number(job.row) === row && String(job.keyword || '').trim() === String(rowData.mainInput || '').trim()) {
+    console.log('自動投稿ジョブ(未変更): status=' + job.status + ' step=' + job.step + ' publishMode=' + job.publishMode
+      + '｜このジョブの状態はここでは変更していません。自動投稿の再開はユーザー確認の上で別途行ってください。');
+  } else {
+    console.log('この行に紐づく自動投稿ジョブは見つかりませんでした（すでに解消済み、または対象外）。');
+  }
+
+  console.log('完了。WordPress下書き(post ' + (draftResult && draftResult.wpPostId) + ')は更新済みです。実際に公開する／自動投稿を再開するかはユーザー確認の上で判断してください。');
+}

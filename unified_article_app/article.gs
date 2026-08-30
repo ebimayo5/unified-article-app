@@ -595,9 +595,11 @@ function uaPrepareArticleBackgroundResumeFromWeb(data) {
 }
 
 function uaApplyManagedAffiliateCta_(body, rowData, appConfig) {
-  const html = uaRemoveManagedOttocastAffiliateBlock_(
-    uaRemoveManagedSubAffiliateBlock_(
-      uaRelocateManagedAffiliateTokenByContext_(String(body || ''), rowData, appConfig)
+  const html = uaRemoveManagedNaviokunSubBlock_(
+    uaRemoveManagedOttocastAffiliateBlock_(
+      uaRemoveManagedSubAffiliateBlock_(
+        uaRelocateManagedAffiliateTokenByContext_(String(body || ''), rowData, appConfig)
+      )
     )
   );
   const spec = uaGetManagedAffiliateCtaSpec_(rowData);
@@ -628,8 +630,13 @@ function uaApplyManagedAffiliateCta_(body, rowData, appConfig) {
     }
   }
 
-  return uaApplyManagedOttocastTextLink_(
-    uaApplyManagedSubAffiliateTextLink_(resultHtml, rowData, appConfig, spec),
+  return uaApplyManagedNaviokunSubTextLink_(
+    uaApplyManagedOttocastTextLink_(
+      uaApplyManagedSubAffiliateTextLink_(resultHtml, rowData, appConfig, spec),
+      rowData,
+      appConfig,
+      spec
+    ),
     rowData,
     appConfig,
     spec
@@ -791,6 +798,117 @@ function uaBuildManagedOttocastAffiliateBlock_(project) {
       '一方、HDMI増設や後席モニター連携、配線施工まで必要な場合は、この後の専門店相談を選ぶと整理しやすいです。</p>',
     '<!-- /wp:paragraph -->',
     '<!-- UA_OTTOCAST_AFFILIATE_END -->'
+  ].join('\n');
+}
+
+// Mirrors uaApplyManagedOttocastTextLink_/uaGetManagedOttocastProject_, but in
+// the opposite direction: ナビ男くん→Ottocast already existed, while an
+// article whose MAIN affiliate is Ottocast itself never got a second
+// touchpoint at all (confirmed 2026-08-30 on the display-audio-regret-guide
+// article, which has exactly one CTA in a ~4000-character piece). Ottocast
+// only covers wired-USB CarPlay/Android Auto adapters; readers who need
+// HDMI addition, rear-seat monitor wiring, or a full navigation swap are
+// better served by ナビ男くん's installation service -- the same distinction
+// uaBuildManagedOttocastAffiliateBlock_'s own copy already draws.
+function uaApplyManagedNaviokunSubTextLink_(body, rowData, appConfig, mainSpec) {
+  const html = uaRemoveManagedNaviokunSubBlock_(body);
+  const project = uaGetManagedNaviokunSubProject_(rowData, appConfig, html);
+  if (!html || !project || !mainSpec) return html;
+
+  if (project.url && (html.indexOf(project.url) !== -1 || html.indexOf(String(project.url).replace(/&/g, '&amp;')) !== -1)) {
+    return html;
+  }
+
+  const bounds = uaFindManagedAffiliateCtaBounds_(html, mainSpec);
+  if (!bounds) return html;
+  const block = uaBuildManagedNaviokunSubBlock_(project);
+  if (!block) return html;
+
+  // Stacking the sub-offer right after the main CTA puts two links in one
+  // spot instead of spreading touchpoints across the article -- but a
+  // generic "near the end" slot would be just as disconnected from whatever
+  // actually made the reader consider it. Prefer the H2 section that
+  // discusses HDMI/後席モニター/施工 itself; only fall back to right after
+  // the main CTA when no such distinct section exists.
+  const contextualIndex = uaFindNaviokunSubInsertionIndex_(html, bounds.end);
+  const insertionIndex = contextualIndex > -1 ? contextualIndex : bounds.end;
+
+  return [
+    html.slice(0, insertionIndex).trimEnd(),
+    block,
+    html.slice(insertionIndex).trimStart()
+  ].filter(Boolean).join('\n\n');
+}
+
+function uaRemoveManagedNaviokunSubBlock_(body) {
+  return String(body || '')
+    .replace(/<!--\s*UA_NAVIOKUN_SUB_START\s*-->[\s\S]*?<!--\s*UA_NAVIOKUN_SUB_END\s*-->/gi, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+const UA_NAVIOKUN_SUB_RELEVANCE_PATTERN = /(HDMI\s*増設|後席モニター|後席ディスプレイ|配線施工|純正機能を残|ナビ交換|ナビ本体|取付キット|施工)/i;
+
+function uaGetManagedNaviokunSubProject_(rowData, appConfig, body) {
+  const isDrive = appConfig && appConfig.key
+    ? appConfig.key === 'drive'
+    : /DRIVE\s*BASE/i.test(String(rowData && rowData.appType || ''));
+  if (!isDrive) return null;
+
+  const mainName = uaNormalizeAffiliateName_(rowData && rowData.affiliateName);
+  if (mainName !== 'ottocast' && !/^ottocast$/i.test(mainName)) return null;
+
+  const context = [
+    rowData && rowData.mainInput,
+    rowData && rowData.readerMindMemo,
+    rowData && rowData.structureMemo,
+    String(body || '').replace(/<!--[^]*?-->/g, ' ').replace(/<[^>]+>/g, ' ')
+  ].join(' ');
+  if (!UA_NAVIOKUN_SUB_RELEVANCE_PATTERN.test(context)) return null;
+
+  const project = uaReadAffiliateProjectByName_('ナビ男くん', false);
+  if (!project || !project.linkInput || !project.url) return null;
+  return project;
+}
+
+// A reader only clicks a second CTA if it sits near whatever made them
+// consider it in the first place. Pushing it to a generic "before まとめ"
+// slot decouples it from that context. Instead, look for the H2 section that
+// actually discusses HDMI/後席モニター/施工 -- if that's a different section
+// than the one holding the main CTA, place the sub-offer right after it;
+// otherwise there's nothing to spread, so caller falls back to right after
+// the main CTA.
+function uaFindNaviokunSubInsertionIndex_(body, mainCtaEndIndex) {
+  const sections = uaExtractRakutenH2Sections_(body);
+  for (let i = 0; i < sections.length; i++) {
+    const section = sections[i];
+    if (section.startIndex < mainCtaEndIndex && mainCtaEndIndex < section.endIndex) continue;
+    if (/よくある質問|まとめ/i.test(section.headingText)) continue;
+    if (UA_NAVIOKUN_SUB_RELEVANCE_PATTERN.test(section.text)) return section.endIndex;
+  }
+  return -1;
+}
+
+function uaBuildManagedNaviokunSubBlock_(project) {
+  const anchorText = 'ナビ男くんで施工内容と対応車種を確認する';
+  const source = uaEnsureAffiliateRelSponsored_(uaNormalizeAnchorRelAttributes_(
+    uaNormalizeAffiliateCodeInput_(project && project.linkInput || '')
+  ));
+  const anchorMatch = /<a\b([^>]*)>([\s\S]*?)<\/a>/i.exec(source);
+  let linkHtml = '';
+  if (anchorMatch) {
+    linkHtml = uaIsAffiliateFreeTextPlaceholder_(anchorMatch[2])
+      ? source.replace(anchorMatch[0], '<a' + anchorMatch[1] + '>' + uaEscapeHtml_(anchorText) + '</a>')
+      : source;
+  }
+  if (!linkHtml) return '';
+
+  return [
+    '<!-- UA_NAVIOKUN_SUB_START -->',
+    '<!-- wp:paragraph -->',
+    '<p>HDMI増設や後席モニター連携、純正機能を残したままの配線施工まで必要な場合は、' + linkHtml + 'と、車種ごとの対応内容を相談できます。</p>',
+    '<!-- /wp:paragraph -->',
+    '<!-- UA_NAVIOKUN_SUB_END -->'
   ].join('\n');
 }
 

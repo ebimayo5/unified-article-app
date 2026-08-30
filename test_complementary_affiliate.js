@@ -3,6 +3,14 @@ const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
 
+const configSource = fs.readFileSync(
+  path.join(__dirname, 'unified_article_app', 'config.gs'),
+  'utf8'
+);
+const utilsSource = fs.readFileSync(
+  path.join(__dirname, 'unified_article_app', 'utils.gs'),
+  'utf8'
+);
 const source = fs.readFileSync(
   path.join(__dirname, 'unified_article_app', 'article.gs'),
   'utf8'
@@ -56,6 +64,8 @@ const context = {
   }
 };
 vm.createContext(context);
+vm.runInContext(configSource, context);
+vm.runInContext(utilsSource, context);
 vm.runInContext(source, context);
 
 const mainBlock = (url) => [
@@ -143,4 +153,61 @@ const ottocastMainResult = context.uaApplyManagedAffiliateCta_(ottocastMainBody,
 }, drive);
 assert.ok(/href="https:\/\/t\.example\/ottocast" rel="nofollow sponsored noopener"/.test(ottocastMainResult), 'Ottocast as the MAIN affiliate CTA must also gain rel="sponsored"');
 
-console.log('complementary affiliate tests: OK (18 checks)');
+// Reverse direction of the ナビ男くん→Ottocast sub-offer: when Ottocast is the
+// MAIN affiliate and the article's topic needs more than a wired adapter can
+// give (HDMI addition, rear-seat monitor wiring, a full nav swap), ナビ男くん
+// must appear as the second touchpoint. This closes the gap found on
+// display-audio-regret-guide, whose only CTA was the single Ottocast link.
+const ottocastToNaviBody = '<p>純正機能を残したままHDMI増設や後席モニター連携をしたい場合を比較します。</p>\n' + mainBlock(projects['ottocast'].url) + '\n<h2>まとめ</h2>';
+const ottocastToNaviResult = context.uaApplyManagedAffiliateCta_(ottocastToNaviBody, {
+  appType: 'DRIVE BASE',
+  mainInput: 'ディスプレイオーディオ 後席モニター',
+  affiliateName: 'ottocast'
+}, drive);
+assert.ok(ottocastToNaviResult.includes('UA_NAVIOKUN_SUB_START'), 'ナビ男くん sub marker must be inserted when Ottocast alone cannot cover the need');
+assert.ok(/href="https:\/\/px\.example\/naviokun" rel="nofollow sponsored noopener"/.test(ottocastToNaviResult), 'ナビ男くん sub link must carry rel="sponsored" too');
+assert.ok(ottocastToNaviResult.indexOf('UA_NAVIOKUN_SUB_START') > ottocastToNaviResult.indexOf('wp:cocoon-blocks/button-wrap-1'), 'ナビ男くん sub-offer must follow the main Ottocast button');
+
+const naviSubIdempotent = context.uaApplyManagedAffiliateCta_(ottocastToNaviResult, {
+  appType: 'DRIVE BASE',
+  mainInput: 'ディスプレイオーディオ 後席モニター',
+  affiliateName: 'ottocast'
+}, drive);
+assert.strictEqual((naviSubIdempotent.match(/UA_NAVIOKUN_SUB_START/g) || []).length, 1, 'ナビ男くん sub-offer must not duplicate');
+
+const ottocastOnlyBody = '<p>有線接続だけで完結させたい人向けの比較です。</p>\n' + mainBlock(projects['ottocast'].url) + '\n<h2>まとめ</h2>';
+const ottocastOnlyResult = context.uaApplyManagedAffiliateCta_(ottocastOnlyBody, {
+  appType: 'DRIVE BASE',
+  mainInput: 'CarPlay AI Box おすすめ',
+  affiliateName: 'ottocast'
+}, drive);
+assert.ok(!ottocastOnlyResult.includes('UA_NAVIOKUN_SUB_START'), 'articles with no installation need must not receive a ナビ男くん sub offer');
+
+// Placement must follow the reader's actual point of interest, not just
+// "somewhere after the main CTA" or "near the end". With two distinct H2
+// sections -- an early one about wired connection (where the main CTA sits)
+// and a later, unrelated-to-the-main-CTA section that actually discusses
+// HDMI増設/後席モニター -- the sub-offer must land at that second section,
+// not immediately after the main button.
+const spreadBody = [
+  '<h2>有線接続の比較</h2>',
+  '<p>USB接続だけで完結させたい場合を比較します。</p>',
+  mainBlock(projects['ottocast'].url),
+  '<h2>関係のない話題</h2>',
+  '<p>本題とは関係のない話です。</p>',
+  '<h2>後席モニターとHDMI増設の検討</h2>',
+  '<p>純正機能を残したままHDMI増設や後席モニター連携をしたい場合の配線施工を検討します。</p>',
+  '<h2>まとめ</h2>'
+].join('\n');
+const spreadResult = context.uaApplyManagedAffiliateCta_(spreadBody, {
+  appType: 'DRIVE BASE',
+  mainInput: 'ディスプレイオーディオ 後席モニター',
+  affiliateName: 'ottocast'
+}, drive);
+const subIndex = spreadResult.indexOf('UA_NAVIOKUN_SUB_START');
+const relevantSectionIndex = spreadResult.indexOf('後席モニターとHDMI増設の検討');
+const unrelatedSectionIndex = spreadResult.indexOf('関係のない話題');
+assert.ok(subIndex > relevantSectionIndex, 'ナビ男くん sub-offer must land inside/after the section that actually discusses HDMI/後席モニター');
+assert.ok(subIndex > unrelatedSectionIndex, 'sub-offer must be spread away from the main CTA, past the unrelated section in between');
+
+console.log('complementary affiliate tests: OK (25 checks)');

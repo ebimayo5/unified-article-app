@@ -1431,7 +1431,13 @@ function uaApplyNaviokunIntroSet_(body, rowData, appConfig) {
   if (!html || !appConfig || appConfig.key !== 'drive') return html;
   const isNaviokunAffiliate = /ナビ男くん/.test(String(rowData && rowData.affiliateName || ''));
   const hadIntroSet = html.indexOf(UA_NAVIOKUN_INTRO_URL) !== -1 && /\[affi\s+id\s*=\s*7\s*\]/i.test(html);
-  if (!isNaviokunAffiliate && html.indexOf('ナビ男くん') === -1 && !hadIntroSet) return html;
+  // uaApplyManagedNaviokunSubTextLink_'s own ナビ男くん sub-offer (Ottocast as
+  // main affiliate) mentions "ナビ男くん" by name, which would otherwise
+  // satisfy this check and add a second, redundant ナビ男くん promo box right
+  // next to it. Strip that block before testing so only a genuine mention
+  // elsewhere in the body counts.
+  const withoutOwnSubOffer = html.replace(/<!--\s*UA_NAVIOKUN_SUB_START\s*-->[\s\S]*?<!--\s*UA_NAVIOKUN_SUB_END\s*-->/gi, '');
+  if (!isNaviokunAffiliate && withoutOwnSubOffer.indexOf('ナビ男くん') === -1 && !hadIntroSet) return html;
 
   html = uaRemoveNaviokunIntroSet_(html);
   let ctaBounds = isNaviokunAffiliate ? uaFindNaviokunManagedCtaBounds_(html, rowData) : null;

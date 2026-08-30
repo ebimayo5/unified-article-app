@@ -237,4 +237,18 @@ context.uaReadAffiliateProjectByName_ = bareUrlOriginalReader;
 assert.ok(bareUrlResult.includes('UA_NAVIOKUN_SUB_START'), 'bare-URL linkInput (real production shape) must still produce a ナビ男くん sub-offer, not silently nothing');
 assert.ok(/href="https:\/\/px\.example\/naviokun-bare" target="_blank" rel="nofollow sponsored noopener">ナビ男くんで施工内容と対応車種を確認する<\/a>/.test(bareUrlResult), 'bare-URL fallback must build a proper anchor with the custom CTA text and rel="sponsored"');
 
-console.log('complementary affiliate tests: OK (27 checks)');
+// Real 2026-08-30 side effect found live: once the ナビ男くん sub-offer text
+// exists in the body, uaApplyNaviokunIntroSet_'s own "ナビ男くん" text search
+// matched it and inserted ANOTHER, separate ナビ男くん promo box right next
+// to it (confirmed on the live display-audio-regret-guide article). Fixed by
+// stripping the sub-offer block before that check. This exercises the real
+// pipeline order: uaApplyManagedAffiliateCta_ then uaApplyNaviokunIntroSet_,
+// same as uaUpdatePublishedWpFromPanelCore_.
+const introSetBody = context.uaApplyNaviokunIntroSet_(spreadResult, {
+  appType: 'DRIVE BASE',
+  mainInput: 'ディスプレイオーディオ 後席モニター',
+  affiliateName: 'ottocast'
+}, drive);
+assert.strictEqual(introSetBody, spreadResult, 'ナビ男くん sub-offer text alone must not trigger the separate ナビ男くんイントロセット box');
+
+console.log('complementary affiliate tests: OK (28 checks)');

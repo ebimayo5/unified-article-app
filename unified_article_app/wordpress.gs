@@ -3066,3 +3066,34 @@ function uaTraceTaftAccessoryBannerGap20260830() {
   }
   console.log('タフト 買って よかった に一致する行が見つかりませんでした。');
 }
+
+// One-off, 2026-08-30: read-only verification that the new secondary
+// product-category feature actually covers タフト row 106's accessories H2.
+// Does NOT write anything back to the sheet or WordPress -- just runs
+// uaApplyRakutenAffiliateBanner_ against the row's real stored body and
+// reports whether the new mention appears.
+function uaVerifyTaftSecondaryProductMention20260830() {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(UA_APP_TYPES.drive.articleSheetName);
+  const lastRow = sheet.getLastRow();
+  const mainInputs = sheet.getRange(2, UA_COLUMNS.mainInput, lastRow - 1, 1).getValues();
+  for (let i = 0; i < mainInputs.length; i++) {
+    const value = String(mainInputs[i][0] || '');
+    if (value.indexOf('タフト') === -1 || value.indexOf('買って') === -1) continue;
+    const row = i + 2;
+    const rowData = uaBuildRowData_(sheet, row);
+    const appConfig = UA_APP_TYPES.drive;
+
+    const updatedBody = uaApplyRakutenAffiliateBanner_(rowData.body, rowData, appConfig);
+    console.log('UA_LAST_RAKUTEN_STATUS=' + UA_LAST_RAKUTEN_STATUS);
+    console.log('本文長: 変更前=' + String(rowData.body || '').length + ' 変更後=' + updatedBody.length);
+    console.log('セカンダリ商品メンションを含むか=' + updatedBody.includes('UA_SECONDARY_PRODUCT_START'));
+
+    const markerIndex = updatedBody.indexOf('UA_SECONDARY_PRODUCT_START');
+    if (markerIndex > -1) {
+      console.log('挿入箇所の前後200文字: ' + updatedBody.slice(Math.max(0, markerIndex - 100), markerIndex + 300)
+        .replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim());
+    }
+    return;
+  }
+  console.log('タフト 買って よかった に一致する行が見つかりませんでした。');
+}

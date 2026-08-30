@@ -8,9 +8,9 @@
 - エージェント: なし
 - 開始時刻: -
 - やっていること: なし
-- 完了内容: たくみパパ自動投稿の停止原因を調査・修正。原因はOpenAIバックグラウンド生成APIへの単発`UrlFetchApp`呼び出しが55行目「ソファー 寿命 ニトリ」の記事で応答を返さずApps Scriptの6分実行上限までハングし続けていたこと（今日それまでのコード変更が原因ではない。楽天バナー修正のみだった@319稼働中に最初のハングが発生済み。20分無進捗の安全停止自体は動いていたが、人が再開するたびに同じ記事で同じ理由のハングが繰り返されていた）。`unified_article_app/automation.gs`に、同じジョブ・同じ工程で安全停止が2回連続発生した場合に自動でその記事を対象外にして次へ進む仕組み（`UA_AUTOMATION_STALE_JOB_AUTO_SKIP_THRESHOLD=2`、`uaSkipAutomaticPostingJob_`を手動スキップと共通化、`uaAdvanceAutomaticPostingJob_`で工程が実際に進んだ時だけカウンタをリセット）を追加。テスト`test_automation_stale_job_auto_skip.js`追加、全29本PASS。git push済み（`0d1ff83`）、clasp push/deploy済み。
-- 本番デプロイ: `@328`。
-- 自動投稿: 55行目「ソファー 寿命 ニトリ」自体はまだ対象外にしていない（ユーザーは自動スキップの仕組み追加のみを選択、この記事を今すぐ対象外にする操作は依頼していない）。次にこの記事で安全停止が発生すれば新しい仕組みで自動的に対象外へ進む想定。手動で今すぐ対象外にしたい場合はパネルの「対象外にする」を使用。
+- 完了内容: たくみパパ自動投稿の停止原因を調査・修正。**当初「OpenAI本文生成のハング」と診断したが誤りで、実際は55行目「ソファー 寿命 ニトリ」がSTRUCTURE工程（`outline.gs`の`uaGenerateArticleStructureForRow_`、競合ページ最大10件の同期UrlFetchAppまたは構成案LLM呼び出し）でApps Scriptの6分実行上限までハングし続けていたことが原因**（本番の`実行`ログでjob.step=structureを確認して訂正）。PC側Trefaiブリッジ（`article_bridge.py`）は`UA_TREFAI_BRIDGE_ENABLED=false`で無効化されたままであることをスクリプトプロパティで確認済みで、今回の件とは無関係。今日それまでのコード変更が原因でもない（楽天バナー修正のみだった@319稼働中に最初のハングが発生済み）。20分無進捗の安全停止自体は動いていたが、人が再開するたびに同じ記事で同じ理由のハングが繰り返されていた。`unified_article_app/automation.gs`に、同じジョブ・同じ工程で安全停止が2回連続発生した場合に自動でその記事を対象外にして次へ進む仕組み（`UA_AUTOMATION_STALE_JOB_AUTO_SKIP_THRESHOLD=2`、`uaSkipAutomaticPostingJob_`を手動スキップと共通化、`uaAdvanceAutomaticPostingJob_`で工程が実際に進んだ時だけカウンタをリセット）を追加。ただし**WAIT_TREFAI工程だけは自動スキップの対象外**にした（CURRENT_SPEC.mdの2026-08-25事故記録にある「トレファイ全体障害時は次々スキップしない」方針を将来ブリッジ再有効化時も守るため。現状ブリッジ無効なのでこの工程自体発生しない）。テスト`test_automation_stale_job_auto_skip.js`追加、全29本PASS。git push済み（`0d1ff83`, `8b7cbab`, `7a00187`）、clasp push/deploy済み。本番の一回限りの検証用関数`uaRunAutoSkipVerificationForStuckJob20260830`をApps Scriptエディタから実行し、新仕組みが実際に発火してjob.status=completeになることを確認した上で55行目を解消済み。
+- 本番デプロイ: `@329`。
+- 自動投稿: 55行目「ソファー 寿命 ニトリ」は自動スキップ済み（候補シートは保留へ戻した）。キューは次の候補へ進行中（自動投稿設定シートで確認可能）。
 - 完了内容: 「Claude Code向け」4項目すべて完了。①CTA文言のテンプレ均一化解消（`UA_CTA_PHRASE_TEMPLATES`、@325）、②商品導線の複数タッチポイント化（序盤に軽めのテキストリンクを追加、`uaFindRakutenSecondaryMentionIndex_`/`uaBuildRakutenLightMentionHtml_`、@326）、③CTA文言バリエーションは①と同一修正で解消済み、④商品選定への価格帯シグナル追加（`uaPickPriceTierAwarePrimaryItem_`、単一商品選定時のみ対象、@327）。全テスト（test_*.js 28本）PASS、都度git push・clasp push/deploy済み。詳細はメモリ`project_quality_monetization_roadmap.md`参照。
 - 本番デプロイ: `@327`。
 - 自動投稿: 操作していない（前回の状態から変更なし）。

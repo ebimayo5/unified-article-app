@@ -8,8 +8,8 @@
 - エージェント: なし
 - 開始時刻: -
 - やっていること: なし
-- 完了内容: ユーザー・Codex双方によるDRIVE BASE記事「[display-audio-regret-guide](https://ebimayo5.com/archives/display-audio-regret-guide/)」の品質レビューを起点に、DRIVE BASE全体に効くコード修正を実施。詳細は下記「2026-08-30 Claude Code担当分」節を参照。続くCodex担当で、外部出典シートへApple/Google公式を含む車載機器系一次情報6件を追加し、表示確認まで完了した。
-- 本番デプロイ: `@331`。
+- 完了内容: ユーザー・Codex双方によるDRIVE BASE記事「[display-audio-regret-guide](https://ebimayo5.com/archives/display-audio-regret-guide/)」の品質レビューを起点に、DRIVE BASE全体に効くコード修正を実施。詳細は下記「2026-08-30 Claude Code担当分」節を参照。続くCodex担当で、外部出典シートへApple/Google公式を含む車載機器系一次情報6件を追加し、表示確認まで完了した。追加で、rel="sponsored"強制付与時にナビ男くんの案件データが裸URL形式（linkInput===url）で`<a>`タグの正規表現にマッチせずサブ導線が無音失敗する不具合と、サブ導線自体の「ナビ男くん」文言が既存の`uaApplyNaviokunIntroSet_`を誤発火させ紹介ボックスが二重に入る不具合を発見・修正（`57a877d`, `99c6250`, `e184263`）。本番`@332`→`@333`。バージョン履歴が200件上限に達したためユーザー許可のもと最古24件を削除（本番`@331`には影響なし）。display-audio-regret-guide自体（WP投稿2268）にもCTA修正を再適用し、rel=sponsored・ナビ男くんサブ導線（重複なし1件）を実サイトで確認済み。
+- 本番デプロイ: `@333`。
 - 自動投稿: 操作していない。
 
 - 完了内容: たくみパパ自動投稿の停止原因を調査・修正。**当初「OpenAI本文生成のハング」と診断したが誤りで、実際は55行目「ソファー 寿命 ニトリ」がSTRUCTURE工程（`outline.gs`の`uaGenerateArticleStructureForRow_`、競合ページ最大10件の同期UrlFetchAppまたは構成案LLM呼び出し）でApps Scriptの6分実行上限までハングし続けていたことが原因**（本番の`実行`ログでjob.step=structureを確認して訂正）。PC側Trefaiブリッジ（`article_bridge.py`）は`UA_TREFAI_BRIDGE_ENABLED=false`で無効化されたままであることをスクリプトプロパティで確認済みで、今回の件とは無関係。今日それまでのコード変更が原因でもない（楽天バナー修正のみだった@319稼働中に最初のハングが発生済み）。20分無進捗の安全停止自体は動いていたが、人が再開するたびに同じ記事で同じ理由のハングが繰り返されていた。`unified_article_app/automation.gs`に、同じジョブ・同じ工程で安全停止が2回連続発生した場合に自動でその記事を対象外にして次へ進む仕組み（`UA_AUTOMATION_STALE_JOB_AUTO_SKIP_THRESHOLD=2`、`uaSkipAutomaticPostingJob_`を手動スキップと共通化、`uaAdvanceAutomaticPostingJob_`で工程が実際に進んだ時だけカウンタをリセット）を追加。ただし**WAIT_TREFAI工程だけは自動スキップの対象外**にした（CURRENT_SPEC.mdの2026-08-25事故記録にある「トレファイ全体障害時は次々スキップしない」方針を将来ブリッジ再有効化時も守るため。現状ブリッジ無効なのでこの工程自体発生しない）。テスト`test_automation_stale_job_auto_skip.js`追加、全29本PASS。git push済み（`0d1ff83`, `8b7cbab`, `7a00187`）、clasp push/deploy済み。本番の一回限りの検証用関数`uaRunAutoSkipVerificationForStuckJob20260830`をApps Scriptエディタから実行し、新仕組みが実際に発火してjob.status=completeになることを確認した上で55行目を解消済み。

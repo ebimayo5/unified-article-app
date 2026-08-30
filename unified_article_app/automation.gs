@@ -13,6 +13,7 @@ const UA_AUTOMATION_WORKER_HANDLER = 'uaRunAutomaticPostingWorker';
 const UA_AUTOMATION_NEXT_HANDLER = 'uaStartNextAutomaticPosting';
 const UA_AUTOMATION_TIMEZONE = 'Asia/Tokyo';
 const UA_AUTOMATION_STALE_JOB_MINUTES = 20;
+const UA_AUTOMATION_STALE_JOB_AUTO_SKIP_THRESHOLD = 2;
 
 const UA_AUTOMATION_STEP_READER_MIND = 'reader_mind';
 const UA_AUTOMATION_STEP_STRUCTURE = 'structure';
@@ -290,6 +291,13 @@ function uaSkipAutomaticPostingFromPanel(appType) {
     throw new Error('対象外にできるエラー停止中の記事はありません。');
   }
 
+  uaSkipAutomaticPostingJob_(job, appConfig, '対象外としてスキップ');
+  const result = uaGetAutomaticPostingSettingsForPanel(appConfig.label);
+  result.message = '「' + job.keyword + '」を候補シートの保留へ戻し、次の候補へ進みます。';
+  return result;
+}
+
+function uaSkipAutomaticPostingJob_(job, appConfig, completionMessage) {
   uaMarkSkippedAutomaticPostingCandidateHeld_(job, appConfig);
   uaTryMarkAutomaticPostingRowStopped_(job);
 
@@ -303,11 +311,8 @@ function uaSkipAutomaticPostingFromPanel(appType) {
     }
   }
 
-  uaCompleteAutomaticPostingJob_(job, '対象外としてスキップ');
+  uaCompleteAutomaticPostingJob_(job, completionMessage || '対象外としてスキップ');
   uaScheduleNextAutomaticPosting_(1000);
-  const result = uaGetAutomaticPostingSettingsForPanel(appConfig.label);
-  result.message = '「' + job.keyword + '」を候補シートの保留へ戻し、次の候補へ進みます。';
-  return result;
 }
 
 function uaMarkSkippedAutomaticPostingCandidateHeld_(job, appConfig) {
@@ -472,10 +477,34 @@ function uaMarkStaleAutomaticPostingJobError_(job) {
 
   const appConfig = uaGetAutomationAppConfig_(job.appType);
   uaCancelAutomaticPostingBackgroundWork_(job);
+  job.staleTimeoutCount = (Number(job.staleTimeoutCount) || 0) + 1;
+
+  // Same step, same row, hung past the stale threshold more than once in a
+  // row (e.g. an OpenAI background call that never responds even on a fresh
+  // retry): a human resuming it a third time just burns another full worker
+  // execution on the same likely-broken request. Skip automatically instead
+  // of leaving the queue blocked waiting for a manual "対象外にする" click.
+  if (job.staleTimeoutCount >= UA_AUTOMATION_STALE_JOB_AUTO_SKIP_THRESHOLD) {
+    const skipMessage = job.staleTimeoutCount + '回連続で' + UA_AUTOMATION_STALE_JOB_MINUTES
+      + '分以上進捗更新がなかったため、安全のため自動的にこの記事を対象外にして次へ進みました（工程: ' + job.step + '）。';
+    job.lastError = skipMessage;
+    job.updatedAt = new Date().toISOString();
+    uaTryMarkAutomaticPostingRowStopped_(job);
+    uaWriteAutomaticPostingStatus_(appConfig.key, '自動スキップ：' + job.keyword, skipMessage);
+    try {
+      uaSendAutomaticPostingErrorNotification_(job, appConfig, skipMessage);
+    } catch (notificationError) {
+      console.error(notificationError && notificationError.stack ? notificationError.stack : notificationError);
+    }
+    uaSkipAutomaticPostingJob_(job, appConfig, '連続タイムアウトのため自動で対象外にしてスキップ');
+    return job;
+  }
+
   job.status = 'error';
   job.lastError = UA_AUTOMATION_STALE_JOB_MINUTES
     + '分以上進捗更新がないため、安全のためエラー停止に切り替えました。'
-    + '保存済み工程から再開するか、この記事を対象外にして次へ進んでください。';
+    + '保存済み工程から再開するか、この記事を対象外にして次へ進んでください。'
+    + '（再開後にもう一度同じ工程で停止した場合は、自動的に対象外へ進みます）';
   job.updatedAt = new Date().toISOString();
   uaSaveAutomaticPostingJob_(job);
   uaTryMarkAutomaticPostingRowStopped_(job);
@@ -1190,6 +1219,12 @@ function uaAdvanceAutomaticPostingJob_(job, nextStep, delayMs) {
   const cleanNextStep = String(nextStep || '');
   if (previousStep !== cleanNextStep || !String(job.stepStartedAt || '').trim()) {
     job.stepStartedAt = new Date().toISOString();
+  }
+  if (previousStep !== cleanNextStep) {
+    // Real forward progress on this job -- a prior stale-timeout streak (if
+    // any) no longer reflects the current step, so don't let it count toward
+    // the auto-skip threshold above.
+    job.staleTimeoutCount = 0;
   }
   job.step = nextStep;
   job.updatedAt = new Date().toISOString();

@@ -4,13 +4,18 @@
 作業を始める前・区切りがつくたびに、必ずここを読み書きすること（CLAUDE.md / AGENTS.md の「並行作業ルール」参照）。
 複数エージェントが同時に動く前提のため、このセクションだけは「最終更新」より新しい情報になり得る。
 
-- 状態: 作業中
-- エージェント: Claude Code
-- 開始時刻: 2026-08-30 20:05頃
-- やっていること: ユーザーが「再生成」を承認。タフト 買って よかった 行の自動投稿停止（NG）を、中古車ジャンルの楽天スキップ修正（`@335`）が実際に解消するか調査・対応中。まず行/ジョブの現在状態を読み取り専用で確認してから、必要な範囲で本文の再適用・自動投稿の再開を行う予定。本番影響あり得る（自動投稿の再開・WordPress反映の可能性）。
-- 完了内容: ユーザー指示「中古車ジャンルはガリバー/カーネクスト導線を使うよう修正してほしい」に対応。根本原因は、楽天市場が中古車を取り扱っておらず、商品選定設計（AIが本文に埋め込む`UA_PRODUCT_PLAN`）が`primaryProduct:"中古車"`を狙う記事では楽天検索が常に0件で失敗すること（タフト 買って よかった で実証済み、検索クエリ「ダイハツ タフト 中古車」）。この行にはすでにガリバー中古車ご提案サービスが管理案件として設定済みで、本文にも`UA_MAIN_AFFILIATE_CTA_START`ブロックとガリバー/カーネクストの導線が存在することを確認した上で、`unified_article_app/article.gs`の`uaApplyRakutenAffiliateBanner_`に、商品選定設計が中古車ジャンル（新規`uaIsUsedCarProductPlan_`）かつ行に管理案件ガリバー/カーネクストが既に設定済み（新規`uaHasManagedUsedCarAffiliate_`）の場合は楽天検索自体を試みずスキップし、既存の管理アフィリエイト導線に任せる分岐を追加。ただしこのスキップ時も、別H2で言及されているアクセサリー（フロアマット等）向けのセカンダリ商品メンション機能（本日先に実装済み）は引き続き動作するようにした（早期returnせず`uaApplySecondaryProductMention_`へ流す）。管理案件が未設定の行では従来どおり楽天検索を試みる（対象を中古車ジャンル×管理案件済みの行に限定）。テスト`test_used_car_rakuten_skip.js`新規追加（3ケース）、全34本PASS。git push済み（`cd5bff4`）、clasp push/deploy済み。本番のタフト行の実データで`uaVerifyTaftSecondaryProductMention20260830`を実行し、`UA_LAST_RAKUTEN_STATUS=中古車ジャンルのため楽天検索は行わず、既存のガリバー/カーネクスト導線に任せます`となり、かつセカンダリ商品メンション（アクセサリー向け楽天リンク）が正しく挿入されることを確認済み（読み取り専用の検証関数のため、行の本文自体はまだ更新していない）。**次にやること候補**: タフト 買って よかった の実際の本文をこの修正で再生成/再適用し、自動投稿の停止（NG）を実際に解消するかはユーザー判断待ち（本文再生成はAPI費用が発生するため、ユーザー確認なしに実行していない）。
-- 本番デプロイ: `@335`。
-- 自動投稿: 操作していない（タフト行はエラー状態のまま。上記「次にやること候補」参照）。
+- 状態: 空き
+- エージェント: なし
+- 開始時刻: -
+- やっていること: なし
+- ⚠️**事故記録（2026-08-30 21:22、Claude Code）**: タフト 買って よかった（DRIVE BASE 106行目）の本文を、中古車ジャンルの楽天スキップ修正（`@335`）で再生成・再検証した直後、`uaCreateWpDraftFromPanel({row, appType})` をApps Scriptエディタから直接（パネルのreadForm()を経由せず）呼び出した結果、`uaSaveActiveRowData`が本文以外のほぼ全列（メイン案件名・タグ・メタディスクリプション・WordPress投稿ID・作成日時など）を空文字で上書きした。原因は、`uaSaveActiveRowData`の既存ガード（`data`が完全に空`{}`の場合のみ拒否）が、`{row, appType}`のような**部分的に空**のオブジェクトを検知できなかったこと。GoogleスプレッドシートのFile→変更履歴から事故直前（19:14版）のコピーを作成し、106行目（A106:W106、全23列）を値のみコピー＆貼り付けで復元。`uaInspectTaftBuyGoodStopReason20260830`で mainInput・status・wpPostId=2288・bodyLength・factCheckPointsが元通りであることを確認済み。
+  - **再発防止**: `unified_article_app/main.gs`の`uaSaveActiveRowData`に第2のガードを追加。パネルのreadForm()は対象フィールドを常にキーとして含む（値が空文字でも）ため、`data`に`body`/`mainInput`キー自体が無く、かつ対象行にすでに本文またはメインキーワードがある場合は保存を拒否するようにした（空欄行への初回保存は従来通り許可）。テスト`test_save_active_row_guard.js`に回帰テスト追加（新規2ケース）。全35本PASS。git push済み（`acbefc4`）、clasp push/deploy済み（本番`@336`）。
+  - **教訓**: `*FromPanel`/`*FromWeb`系の関数は、パネル以外から呼ぶ場合は必ずパネルと同様の完全なrowData（`uaBuildRowData_`の戻り値をそのまま渡すなど）を使うこと。「rowとappTypeさえあれば十分」という思い込みで直接呼び出さない。
+  - 事故直前の19:14版スプレッドシートのフルコピー（ファイル名「Article Compass System - 8月30日、19:14」のコピー）がGoogleドライブに残っている。復元確認が済んだので、ユーザーが不要と判断すれば削除して問題ない。
+- 完了内容: 上記事故からの復旧後、`unified_article_app/wordpress.gs`の一回限りの関数`uaResumeTaftAfterUsedCarFix20260830`（WordPress下書き更新は行わない安全な版に修正済み）を再実行。①`uaApplyRakutenAffiliateBanner_`で中古車スキップ修正を本文へ再適用（bodyLength 11898→12372）、②`uaApplyPrePublishFixesOnceFromPanel`の再検査（すでに1回分のAI修正レポートが保存済みのため、OpenAIへの再送信なしの経路）でNGが0件になったことを確認（`公開前チェック再検証: 成功`）。自動投稿ジョブの状態（status=error, step=revision, publishMode=公開まで）とWordPress下書き（post 2288）は意図的に変更していない。
+- 完了内容: ユーザー指示「中古車ジャンルはガリバー/カーネクスト導線を使うよう修正してほしい」に対応。根本原因は、楽天市場が中古車を取り扱っておらず、商品選定設計（AIが本文に埋め込む`UA_PRODUCT_PLAN`）が`primaryProduct:"中古車"`を狙う記事では楽天検索が常に0件で失敗すること（タフト 買って よかった で実証済み、検索クエリ「ダイハツ タフト 中古車」）。この行にはすでにガリバー中古車ご提案サービスが管理案件として設定済みで、本文にも`UA_MAIN_AFFILIATE_CTA_START`ブロックとガリバー/カーネクストの導線が存在することを確認した上で、`unified_article_app/article.gs`の`uaApplyRakutenAffiliateBanner_`に、商品選定設計が中古車ジャンル（新規`uaIsUsedCarProductPlan_`）かつ行に管理案件ガリバー/カーネクストが既に設定済み（新規`uaHasManagedUsedCarAffiliate_`）の場合は楽天検索自体を試みずスキップし、既存の管理アフィリエイト導線に任せる分岐を追加。ただしこのスキップ時も、別H2で言及されているアクセサリー（フロアマット等）向けのセカンダリ商品メンション機能は引き続き動作するようにした。さらに、そのセカンダリ商品メンション機能自体に「見出しに『用品』等を含む専用H2より先に、本文中で偶然用品語へ触れているだけの別H2を誤って選んでしまう」バグを発見・修正（`uaFindSecondaryProductSectionQuery_`が見出し名を優先するよう変更）。テスト`test_used_car_rakuten_skip.js`・`test_rakuten_secondary_product_category.js`に回帰テスト追加、全35本PASS。git push済み（`cd5bff4`, `c98bcb6`, `acbefc4`）、clasp push/deploy済み。
+- 本番デプロイ: `@336`。
+- 自動投稿: 操作していない。タフト行のジョブはエラー状態のまま（本文・NG判定は修正済み）。WordPress下書き（post 2288）の更新・自動投稿の再開は、ユーザー確認の上でパネルから手動で行う想定。
 - 完了内容: ユーザー・Codex双方によるDRIVE BASE記事「[display-audio-regret-guide](https://ebimayo5.com/archives/display-audio-regret-guide/)」の品質レビューを起点に、DRIVE BASE全体に効くコード修正を実施。詳細は下記「2026-08-30 Claude Code担当分」節を参照。続くCodex担当で、外部出典シートへApple/Google公式を含む車載機器系一次情報6件を追加し、表示確認まで完了した。追加で、rel="sponsored"強制付与時にナビ男くんの案件データが裸URL形式（linkInput===url）で`<a>`タグの正規表現にマッチせずサブ導線が無音失敗する不具合と、サブ導線自体の「ナビ男くん」文言が既存の`uaApplyNaviokunIntroSet_`を誤発火させ紹介ボックスが二重に入る不具合を発見・修正（`57a877d`, `99c6250`, `e184263`）。本番`@332`→`@333`。バージョン履歴が200件上限に達したためユーザー許可のもと最古24件を削除（本番`@331`には影響なし）。display-audio-regret-guide自体（WP投稿2268）にもCTA修正を再適用し、rel=sponsored・ナビ男くんサブ導線（重複なし1件）を実サイトで確認済み。
 - 本番デプロイ: `@333`。
 - 自動投稿: 操作していない。

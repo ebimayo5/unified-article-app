@@ -2657,33 +2657,112 @@ function uaApplyRakutenAffiliateBanner_(body, rowData, appConfig) {
     String(productPlan && productPlan.primaryProduct || selectedQuery || '関連商品') +
     '｜検索条件: ' + String(selectedQuery || '自動判定');
 
+  let resultBody = null;
   const contextualIndex = uaFindRakutenContextualInsertIndex_(sourceBody, rowData, appConfig);
   if (contextualIndex > -1) {
     const secondaryIndex = uaFindRakutenSecondaryMentionIndex_(sourceBody, rowData, appConfig, contextualIndex);
     if (secondaryIndex > -1) {
       const lightMention = uaBuildRakutenLightMentionHtml_(UA_LAST_RAKUTEN_ITEMS, rowData && rowData.mainInput);
       if (lightMention) {
-        return sourceBody.slice(0, secondaryIndex).trimEnd() + '\n\n' + lightMention + '\n\n' +
+        resultBody = sourceBody.slice(0, secondaryIndex).trimEnd() + '\n\n' + lightMention + '\n\n' +
           sourceBody.slice(secondaryIndex, contextualIndex).trim() + '\n\n' + banner + '\n\n' +
           sourceBody.slice(contextualIndex).trimStart();
       }
     }
-    return sourceBody.slice(0, contextualIndex).trimEnd() + '\n\n' + banner + '\n\n' + sourceBody.slice(contextualIndex).trimStart();
+    if (!resultBody) {
+      resultBody = sourceBody.slice(0, contextualIndex).trimEnd() + '\n\n' + banner + '\n\n' + sourceBody.slice(contextualIndex).trimStart();
+    }
+  } else {
+    const faqIndex = sourceBody.search(/<h2[^>]*>\s*よくある質問\s*<\/h2>/i);
+    if (faqIndex > -1) {
+      resultBody = sourceBody.slice(0, faqIndex) + banner + '\n\n' + sourceBody.slice(faqIndex);
+    } else {
+      const summaryIndex = sourceBody.search(/<h2[^>]*>[\s\S]*?まとめ[\s\S]*?<\/h2>/i);
+      resultBody = summaryIndex > -1
+        ? sourceBody.slice(0, summaryIndex) + banner + '\n\n' + sourceBody.slice(summaryIndex)
+        : sourceBody + '\n\n' + banner;
+    }
   }
 
-  const faqIndex = sourceBody.search(/<h2[^>]*>\s*よくある質問\s*<\/h2>/i);
+  return uaApplySecondaryProductMention_(resultBody, rowData, appConfig, selectedQuery);
+}
 
-  if (faqIndex > -1) {
-    return sourceBody.slice(0, faqIndex) + banner + '\n\n' + sourceBody.slice(faqIndex);
+// The article's own product plan only ever targets ONE sellable category
+// (uaExtractProductPlan_ picks a single primaryProduct/marketQuery, and can
+// explicitly exclude others -- e.g. a car-buying-experience article whose
+// plan targets "中古車" and excludes "アクセサリー"). A separate H2 can still
+// name specific, different sellable items (floor mats, dashcams, phone
+// holders) that never get their own product box. Confirmed live: the
+// pre-publish check correctly flagged exactly this gap on タフト 買って
+// よかった (excludedFeatures included "アクセサリー", but a later H2 still
+// named フロアマット/ラゲッジマット/スマホホルダー with no matching banner).
+// This finds at most one such distinct-category section and adds a
+// lightweight second product mention there -- never touching the primary
+// banner, and never firing when the section's product is the same one the
+// primary banner already covers.
+function uaApplySecondaryProductMention_(body, rowData, appConfig, primaryQuery) {
+  const html = uaRemoveSecondaryProductMention_(body);
+  const match = uaFindSecondaryProductSectionQuery_(html, appConfig, primaryQuery);
+  if (!match) return html;
+
+  const seed = String(rowData && rowData.mainInput || '') + '|secondary-product|' + match.query;
+  let items;
+  try {
+    items = uaFetchRakutenItems_(match.query, 1, seed, null);
+  } catch (e) {
+    return html;
   }
+  if (!items || items.length === 0) return html;
 
-  const summaryIndex = sourceBody.search(/<h2[^>]*>[\s\S]*?まとめ[\s\S]*?<\/h2>/i);
+  const mentionBody = uaBuildRakutenLightMentionHtml_(items, seed);
+  if (!mentionBody) return html;
 
-  if (summaryIndex > -1) {
-    return sourceBody.slice(0, summaryIndex) + banner + '\n\n' + sourceBody.slice(summaryIndex);
+  const mentionBlock = [
+    UA_SECONDARY_PRODUCT_START,
+    mentionBody,
+    UA_SECONDARY_PRODUCT_END
+  ].join('\n');
+
+  return html.slice(0, match.section.endIndex).trimEnd() + '\n\n' + mentionBlock + '\n\n' +
+    html.slice(match.section.endIndex).trimStart();
+}
+
+const UA_SECONDARY_PRODUCT_START = '<!-- UA_SECONDARY_PRODUCT_START -->';
+const UA_SECONDARY_PRODUCT_END = '<!-- UA_SECONDARY_PRODUCT_END -->';
+
+function uaRemoveSecondaryProductMention_(body) {
+  return String(body || '')
+    .replace(/<!--\s*UA_SECONDARY_PRODUCT_START\s*-->[\s\S]*?<!--\s*UA_SECONDARY_PRODUCT_END\s*-->/gi, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+const UA_SECONDARY_PRODUCT_PATTERN_BY_APP = {
+  home: /ポップアップテント|ワンタッチテント|テント|サンシェード|日よけ|チェスト|ラック|マット|カーテン|照明|ライト|エアコン|除湿機|サーキュレーター|物干し|防災|ゲート|スロープ/,
+  drive: /ブレーキパッド|カーナビ|ナビゲーション|ディスプレイオーディオ|ドライブレコーダー|ドラレコ|レーダー探知機|バックカメラ|スマホホルダー|サンシェード|フロアマット|シートマット|シートカバー|シートクッション|ラゲッジマット|荷室マット|トランクマット|ドリンクホルダー|ルーフキャリア|ポータブル電源|ジャンプスターター|タイヤチェーン/
+};
+
+function uaFindSecondaryProductSectionQuery_(body, appConfig, primaryQuery) {
+  const appKey = appConfig && appConfig.key;
+  const pattern = UA_SECONDARY_PRODUCT_PATTERN_BY_APP[appKey];
+  if (!pattern) return null;
+  if (String(body || '').length < UA_RAKUTEN_LIGHT_MENTION_MIN_BODY_LENGTH) return null;
+
+  const primaryNormalized = uaNormalizeForScore_(primaryQuery || '');
+  const sections = uaExtractRakutenH2Sections_(body);
+
+  for (let i = 0; i < sections.length; i++) {
+    const section = sections[i];
+    if (/よくある質問|まとめ/i.test(section.headingText)) continue;
+    const plainText = uaCleanText_(uaStripHtml_(section.text));
+    const match = pattern.exec(plainText);
+    if (!match) continue;
+    const canonicalQuery = uaSelectRakutenKeywordFallbackQuery_(match[0], appKey) || match[0];
+    if (!canonicalQuery) continue;
+    if (primaryNormalized && uaNormalizeForScore_(canonicalQuery) === primaryNormalized) continue;
+    return { query: canonicalQuery, section: section };
   }
-
-  return sourceBody + '\n\n' + banner;
+  return null;
 }
 
 function uaBuildRakutenAffiliateBanner_(body, rowData, appConfig) {
@@ -3102,7 +3181,7 @@ function uaSelectRakutenKeywordFallbackQuery_(keyword, appKey) {
 
   const productPattern = appKey === 'home'
     ? /(ポップアップテント|ワンタッチテント|テント|サンシェード|日よけ|収納|チェスト|棚|ラック|マット|カーテン|照明|ライト|カメラ|エアコン|除湿機|サーキュレーター|物干し|掃除|ブラシ|防災|ゲート|スロープ|家電|家具)/
-    : /(ブレーキパッド|カーナビ|ナビゲーション|アンドロイドナビ|ディスプレイオーディオ|ドラレコ|ドライブレコーダー|レーダー探知機|バックカメラ|モニター|HDMI|USB|スピーカー|スマホホルダー|サンシェード|フロアマット|シートマット|シートカバー|シートクッション|収納|ドリンクホルダー|ルーフキャリア|ポータブル電源|ジャンプスターター|バッテリー|タイヤ|ホイール|タイヤチェーン|洗車|クリーナー|コーティング|ワックス|カー用品|車中泊)/i;
+    : /(ブレーキパッド|カーナビ|ナビゲーション|アンドロイドナビ|ディスプレイオーディオ|ドラレコ|ドライブレコーダー|レーダー探知機|バックカメラ|モニター|HDMI|USB|スピーカー|スマホホルダー|サンシェード|フロアマット|シートマット|シートカバー|シートクッション|ラゲッジマット|荷室マット|トランクマット|収納|ドリンクホルダー|ルーフキャリア|ポータブル電源|ジャンプスターター|バッテリー|タイヤ|ホイール|タイヤチェーン|洗車|クリーナー|コーティング|ワックス|カー用品|車中泊)/i;
 
   if (!productPattern.test(value)) return '';
 
@@ -3128,6 +3207,7 @@ function uaSelectRakutenKeywordFallbackQuery_(keyword, appKey) {
       { pattern: /バックカメラ/, query: 'バックカメラ 車種適合' },
       { pattern: /スマホホルダー/, query: 'スマホホルダー 車' },
       { pattern: /フロアマット|シートマット/, query: 'フロアマット 車種適合' },
+      { pattern: /ラゲッジマット|荷室マット|トランクマット/, query: 'ラゲッジマット 車種適合' },
       { pattern: /ポータブル電源/, query: 'ポータブル電源 車中泊' },
       { pattern: /ジャンプスターター/, query: 'ジャンプスターター 車 バッテリー' },
       { pattern: /タイヤチェーン/, query: 'タイヤチェーン 車種適合' }

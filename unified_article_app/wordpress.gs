@@ -3185,6 +3185,62 @@ function uaResumeTaftAfterUsedCarFix20260830() {
   console.log('完了。本文とNG判定は修正済みです。WordPress下書きの更新・自動投稿の再開は、パネルから改めて手動で行ってください。');
 }
 
+// One-off, 2026-08-30: the タフト row was resumed and published by the user
+// via the panel before the word-boundary-truncation and category-label link
+// text fixes landed, so the LIVE published post still shows the old broken
+// mention ("...砂埃 汚…" and the raw seller listing title as the link text).
+// Re-applies uaApplyRakutenAffiliateBanner_ (idempotent -- strips and
+// rebuilds the secondary mention block with the now-fixed code) to the row's
+// stored body, saves it, then pushes the update through
+// uaUpdatePublishedWpFromPanelCore_ -- the safe, direct entry point used for
+// display-audio-regret-guide earlier today, which does NOT go through
+// uaSaveActiveRowData/uaUpdatePublishedWpFromPanel (the sparse-data path
+// that caused the 21:22 incident) and has its own strong safety checks
+// (post must be 'publish', no missing images, featured image unchanged).
+function uaReapplySecondaryMentionFixToPublishedTaft20260830() {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(UA_APP_TYPES.drive.articleSheetName);
+  const lastRow = sheet.getLastRow();
+  const mainInputs = sheet.getRange(2, UA_COLUMNS.mainInput, lastRow - 1, 1).getValues();
+  let row = 0;
+  for (let i = 0; i < mainInputs.length; i++) {
+    const value = String(mainInputs[i][0] || '');
+    if (value.indexOf('タフト') !== -1 && value.indexOf('買って') !== -1) {
+      row = i + 2;
+      break;
+    }
+  }
+  if (!row) {
+    console.log('タフト 買って よかった に一致する行が見つかりませんでした。');
+    return;
+  }
+
+  const appConfig = UA_APP_TYPES.drive;
+  const rowData = uaBuildRowData_(sheet, row);
+  console.log('開始: row=' + row + ' status=' + rowData.status + ' wpPostId=' + rowData.wpPostId
+    + ' bodyLength(修正前)=' + String(rowData.body || '').length);
+
+  const fixedBody = uaApplyRakutenAffiliateBanner_(rowData.body, rowData, appConfig);
+  console.log('UA_LAST_RAKUTEN_STATUS=' + UA_LAST_RAKUTEN_STATUS);
+  console.log('bodyLength(修正後)=' + fixedBody.length);
+  const markerIdx = fixedBody.indexOf('UA_SECONDARY_PRODUCT_START');
+  if (markerIdx > -1) {
+    console.log('挿入箇所の前後200文字: ' + fixedBody.slice(Math.max(0, markerIdx - 50), markerIdx + 250)
+      .replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim());
+  }
+  sheet.getRange(row, UA_COLUMNS.body).setValue(fixedBody);
+  SpreadsheetApp.flush();
+
+  let result;
+  try {
+    result = uaUpdatePublishedWpFromPanelCore_(sheet, row);
+  } catch (e) {
+    console.log('公開済み記事の更新に失敗しました。エラー: ' + (e && e.message ? e.message : String(e)));
+    return;
+  }
+  console.log('公開済み記事の更新: 成功 message=' + (result && result.message));
+  console.log('完了。');
+}
+
 // One-off, 2026-08-30: the secondary product mention was inserted (bodyLength
 // grew, hb.afl.rakuten link present per uaVerifyTaftSecondaryProductMention),
 // but uaBuildPrePublishRuleCheck_ still reports the accessory H2 NG. Dump

@@ -3006,8 +3006,21 @@ function uaInspectTaftBuyGoodStopReason20260830() {
       console.log('row=' + row + ' mainInput=' + rowData.mainInput + ' status=' + rowData.status
         + ' wpPostId=' + rowData.wpPostId + ' bodyLength=' + String(rowData.body || '').length);
       console.log('factCheckPoints=' + rowData.factCheckPoints);
-      return;
+      break;
     }
   }
-  console.log('タフト 買って よかった に一致する行が見つかりませんでした。');
+  const job = uaGetAutomaticPostingJob_();
+  if (!job) {
+    console.log('自動投稿ジョブ: なし（アクティブなジョブがありません）');
+    return;
+  }
+  console.log('自動投稿ジョブ: appType=' + job.appType + ' status=' + job.status + ' step=' + job.step
+    + ' keyword=' + job.keyword + ' row=' + job.row
+    + ' stepStartedAt=' + job.stepStartedAt + ' updatedAt=' + job.updatedAt);
+  console.log('lastError=' + job.lastError);
+  const settings = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('自動投稿設定');
+  if (settings) {
+    console.log('DRIVE BASE現在の状態=' + settings.getRange('B7').getValue());
+    console.log('DRIVE BASE最後のエラー=' + settings.getRange('B9').getValue());
+  }
 }

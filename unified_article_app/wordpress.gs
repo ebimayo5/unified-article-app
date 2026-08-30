@@ -2943,7 +2943,9 @@ function uaReapplyCtaFixesToDisplayAudioRegretGuide20260830() {
         return;
       }
       const alreadyExists = uaManagedAffiliateCtaAlreadyExists_(rowData.body, spec);
-      const strippedBody = uaRemoveManagedAffiliateButtonBlocks_(rowData.body, spec);
+      // Also strip the stray ナビ男くんイントロセット box a previous run
+      // mistakenly added (see the intro-set guard fix) so it doesn't linger.
+      const strippedBody = uaRemoveNaviokunIntroSet_(uaRemoveManagedAffiliateButtonBlocks_(rowData.body, spec));
       console.log('既存CTA検出=' + alreadyExists + ' 除去前後の本文長=' + rowData.body.length + '->' + strippedBody.length);
       sheet.getRange(row, UA_COLUMNS.body).setValue(strippedBody);
       const result = uaUpdatePublishedWpFromPanelCore_(sheet, row);

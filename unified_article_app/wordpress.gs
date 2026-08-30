@@ -3299,3 +3299,45 @@ function uaDebugTaftAccessoryNgStillPresent20260830() {
   const markerIdx = body.indexOf('UA_SECONDARY_PRODUCT_START');
   console.log('UA_SECONDARY_PRODUCT_STARTの位置=' + markerIdx + '（このH2のstart=' + target.start + '、次H2境界=' + end + '）');
 }
+
+// One-off, 2026-08-30: user set affiliateNotes to "楽天バナーなし" on the
+// たくみパパ row "縦すべり出し窓 カーテン いらない" and resumed automatic
+// posting, but it stopped again. That phrase only bypasses the step-4
+// product-link-guarantee hard stop in uaEnsureAutomaticProductLinksForData_
+// (article.gs) -- it does NOT affect pre_publish_check.gs's own, separate
+// dedicated-product-H2 NG (uaFindPrePublishStandaloneProductSectionsWithoutRakuten_),
+// which never looks at affiliateNotes at all. Dump the row's current
+// affiliateNotes/body/factCheckPoints and the home automatic-posting job's
+// step/lastError to find out which of the two gates is actually stopping it
+// now.
+function uaInspectTatesuberiCurtainStop20260830() {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(UA_APP_TYPES.home.articleSheetName);
+  const lastRow = sheet.getLastRow();
+  const mainInputs = sheet.getRange(2, UA_COLUMNS.mainInput, lastRow - 1, 1).getValues();
+  let row = 0;
+  for (let i = 0; i < mainInputs.length; i++) {
+    const value = String(mainInputs[i][0] || '');
+    if (value.indexOf('縦すべり出し窓') !== -1 && value.indexOf('カーテン') !== -1) {
+      row = i + 2;
+      break;
+    }
+  }
+  if (!row) {
+    console.log('縦すべり出し窓 カーテン いらない に一致する行が見つかりませんでした。');
+    return;
+  }
+  const rowData = uaBuildRowData_(sheet, row);
+  console.log('row=' + row + ' mainInput=' + rowData.mainInput + ' status=' + rowData.status);
+  console.log('affiliateNotes=[' + rowData.affiliateNotes + ']');
+  console.log('bodyLength=' + String(rowData.body || '').length);
+  console.log('factCheckPoints=' + rowData.factCheckPoints);
+
+  const job = uaGetAutomaticPostingJob_();
+  if (!job) {
+    console.log('自動投稿ジョブ: なし');
+    return;
+  }
+  console.log('自動投稿ジョブ: appType=' + job.appType + ' status=' + job.status + ' step=' + job.step
+    + ' keyword=' + job.keyword + ' row=' + job.row);
+  console.log('lastError=' + job.lastError);
+}

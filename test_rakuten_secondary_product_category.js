@@ -17,6 +17,7 @@ vm.runInContext(articleSource, context);
 
 const uaFindSecondaryProductSectionQuery_ = vm.runInContext('uaFindSecondaryProductSectionQuery_', context);
 const uaApplySecondaryProductMention_ = vm.runInContext('uaApplySecondaryProductMention_', context);
+const uaBuildVehicleSpecificSecondaryQuery_ = vm.runInContext('uaBuildVehicleSpecificSecondaryQuery_', context);
 
 const driveConfig = { key: 'drive', label: 'DRIVE BASE' };
 const homeConfig = { key: 'home', label: 'たくみパパ' };
@@ -186,7 +187,12 @@ function buildTaftLikeBody() {
   const body = buildTaftLikeBody();
   const result = uaApplySecondaryProductMention_(body, { mainInput: 'タフト 買って よかった' }, driveConfig, 'ダイハツ タフト 中古車');
 
-  assert.ok(requestedKeywords.indexOf('フロアマット 車種適合') !== -1, '楽天APIへ用品側のクエリで検索が飛ぶ: ' + JSON.stringify(requestedKeywords));
+  // Real 2026-08-30 feedback: "フロアマット 車種適合" alone matched a
+  // "3列目用" (third-row) mat for タフト, a 2-row compact SUV with no third
+  // row -- an actively wrong-fit product. The search must include the
+  // article's own vehicle name (the first token of mainInput) to be
+  // genuinely specific to this car, not just "some vehicle".
+  assert.ok(requestedKeywords.indexOf('タフト フロアマット 車種適合') !== -1, '楽天APIへ車種名入りのクエリで検索が飛ぶ: ' + JSON.stringify(requestedKeywords));
   assert.ok(result.includes('UA_SECONDARY_PRODUCT_START'), 'セカンダリ商品メンションのマーカーが挿入される');
   assert.ok(result.includes('item.rakuten.co.jp/shop/floor-mat'), '取得した商品への実リンクが含まれる');
   // Real 2026-08-30 feedback: the link text was the seller's raw, keyword-
@@ -203,6 +209,25 @@ function buildTaftLikeBody() {
   // Idempotency: reapplying must not duplicate the block.
   const reapplied = uaApplySecondaryProductMention_(result, { mainInput: 'タフト 買って よかった' }, driveConfig, 'ダイハツ タフト 中古車');
   assert.strictEqual((reapplied.match(/UA_SECONDARY_PRODUCT_START/g) || []).length, 1, '再適用しても重複しない');
+}
+
+// 7b) uaBuildVehicleSpecificSecondaryQuery_ unit checks.
+{
+  assert.strictEqual(
+    uaBuildVehicleSpecificSecondaryQuery_('フロアマット 車種適合', { mainInput: 'タフト 買って よかった' }, driveConfig),
+    'タフト フロアマット 車種適合',
+    'DRIVE BASEではmainInput先頭語（車種名）をクエリへ付加する'
+  );
+  assert.strictEqual(
+    uaBuildVehicleSpecificSecondaryQuery_('サンシェード ベランダ 日よけ', { mainInput: 'サンシェード 選び方' }, homeConfig),
+    'サンシェード ベランダ 日よけ',
+    'たくみパパ（home）には車種の概念がないためクエリを変更しない'
+  );
+  assert.strictEqual(
+    uaBuildVehicleSpecificSecondaryQuery_('フロアマット 車種適合', { mainInput: '' }, driveConfig),
+    'フロアマット 車種適合',
+    'mainInputが空の場合は元のクエリのまま'
+  );
 }
 
 // 8) No Rakuten results -- must return the body unchanged, not throw or

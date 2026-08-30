@@ -2731,15 +2731,32 @@ function uaApplyRakutenAffiliateBanner_(body, rowData, appConfig) {
 // lightweight second product mention there -- never touching the primary
 // banner, and never firing when the section's product is the same one the
 // primary banner already covers.
+// The canonical accessory query (e.g. "フロアマット 車種適合") is generic --
+// "車種適合" just means "vehicle-fit" as a qualifier word, it names no actual
+// vehicle. Confirmed live: this returned a "3列目用" (third-row) floor mat
+// for the タフト article, a 2-row compact SUV with no third row at all --
+// an actively wrong-fit product, not just an imprecise one. DRIVE BASE
+// keywords are almost always "<車種名> <トピック>" (e.g. "タフト 買って
+// よかった"), so prepend the first token as the vehicle name to make the
+// search specific to this car. たくみパパ (home) has no vehicle concept, so
+// this only applies to appConfig.key === 'drive'.
+function uaBuildVehicleSpecificSecondaryQuery_(canonicalQuery, rowData, appConfig) {
+  if (!appConfig || appConfig.key !== 'drive') return canonicalQuery;
+  const modelName = String(rowData && rowData.mainInput || '').trim().split(/[\s　]+/)[0];
+  if (!modelName) return canonicalQuery;
+  return modelName + ' ' + canonicalQuery;
+}
+
 function uaApplySecondaryProductMention_(body, rowData, appConfig, primaryQuery) {
   const html = uaRemoveSecondaryProductMention_(body);
   const match = uaFindSecondaryProductSectionQuery_(html, appConfig, primaryQuery);
   if (!match) return html;
 
-  const seed = String(rowData && rowData.mainInput || '') + '|secondary-product|' + match.query;
+  const searchQuery = uaBuildVehicleSpecificSecondaryQuery_(match.query, rowData, appConfig);
+  const seed = String(rowData && rowData.mainInput || '') + '|secondary-product|' + searchQuery;
   let items;
   try {
-    items = uaFetchRakutenItems_(match.query, 1, seed, null);
+    items = uaFetchRakutenItems_(searchQuery, 1, seed, null);
   } catch (e) {
     return html;
   }

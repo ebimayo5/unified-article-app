@@ -2825,3 +2825,33 @@ function uaInspectTakumiMissingFeaturedImageAlt20260830() {
     console.log('  media id=' + media.id + ' alt_text="' + (media.alt_text || '') + '" source_url=' + media.source_url);
   });
 }
+
+// One-off, 2026-08-30: fill in the missing alt text for those same 2 featured
+// images. Uses the post title as alt text, matching the convention every
+// other auto-generated eyecatch image already uses (see `alt: title` in
+// image.gs's plan builder) -- these 2 just never went through that path.
+function uaFixTakumiMissingFeaturedImageAlt20260830() {
+  const wpConfig = uaGetWpConfig_(UA_APP_TYPES.home);
+  [979, 726].forEach(function(postId) {
+    const post = uaCallWordPressApi_(
+      wpConfig,
+      '/wp-json/wp/v2/posts/' + postId + '?context=edit&_fields=id,title,featured_media',
+      'get'
+    );
+    const title = String(post && post.title && (post.title.rendered || post.title.raw) || '').trim();
+    const featuredMediaId = Number(post && post.featured_media || 0);
+
+    if (!title || !featuredMediaId) {
+      console.log('投稿' + postId + ': title または featured_media が取得できないためスキップします。');
+      return;
+    }
+
+    const updated = uaCallWordPressApi_(
+      wpConfig,
+      '/wp-json/wp/v2/media/' + featuredMediaId,
+      'post',
+      { alt_text: title.slice(0, 120) }
+    );
+    console.log('投稿' + postId + ' media id=' + featuredMediaId + ' alt_text更新後="' + (updated.alt_text || '') + '"');
+  });
+}

@@ -3371,3 +3371,75 @@ function uaSetTatesuberiCurtainNoRakutenBanner20260830() {
   console.log('affiliateNotes(変更後)=[' + after + ']');
   console.log('完了。パネルから「停止位置から再開」を押してください。');
 }
+
+// 2026-09-01: Search Consoleで「クロール済み-インデックス未登録」に残っていた
+// テーマ被り記事ペアへ相互内部リンクを追加する一回限りの関数群。
+// 既存の内部リンク（本文中の裸URL行→WordPressのoEmbedでカード化される）と
+// 同じ方式で、対になる記事の逆方向リンクが欠けている側にだけ追加する。
+function uaInsertBareUrlLinkBeforeHeading_(wpConfig, postId, headingNeedle, introText, targetUrl) {
+  const post = uaFetchWpPostForEdit_(wpConfig, postId);
+  const raw = uaGetWpPostRawContent_(post);
+
+  if (raw.indexOf(targetUrl) !== -1) {
+    console.log('post ' + postId + ': already links to ' + targetUrl + ' — skipped.');
+    return { skipped: true, postId: postId };
+  }
+
+  const headingIndex = raw.indexOf(headingNeedle);
+  if (headingIndex === -1) {
+    throw new Error('post ' + postId + ': heading anchor not found: ' + headingNeedle);
+  }
+
+  const insertion = '<p class="wp-block-paragraph">' + introText + '</p>\n\n\n\n<p>' + targetUrl + '</p>\n\n\n\n';
+  const nextRaw = raw.slice(0, headingIndex) + insertion + raw.slice(headingIndex);
+
+  uaCallWordPressApi_(wpConfig, '/wp-json/wp/v2/posts/' + encodeURIComponent(postId), 'post', {
+    content: nextRaw
+  });
+
+  console.log('post ' + postId + ': inserted link to ' + targetUrl + ' before "' + headingNeedle + '". length ' + raw.length + ' -> ' + nextRaw.length);
+  return { skipped: false, postId: postId, beforeLength: raw.length, afterLength: nextRaw.length };
+}
+
+function uaAddCrossLinkTaftPair20260901() {
+  const wpConfig = uaGetWpConfig_(UA_APP_TYPES.drive);
+
+  // taft-gakkari-reasons-checklist (post 1317) は taft-katte-yokatta-guide (post 2288) への
+  // 逆リンクが無かったので追加する。挿入位置は比較セクションの直後、用品紹介セクションの直前。
+  const result = uaInsertBareUrlLinkBeforeHeading_(
+    wpConfig,
+    1317,
+    '<h2 class="wp-block-heading">足りない部分を補うなら用意すると便利なもの</h2>',
+    'タフトの弱点だけでなく、どんな人なら「買ってよかった」と感じやすいかも知っておくと、購入判断がしやすくなります。関連する内容は次の記事も参考になります。',
+    'https://ebimayo5.com/archives/taft-katte-yokatta-guide/'
+  );
+
+  console.log(JSON.stringify(result));
+}
+
+function uaAddCrossLinkNaviokunPair20260901() {
+  const wpConfig = uaGetWpConfig_(UA_APP_TYPES.drive);
+
+  // naviokun-reputation (post未確認、slugで検索してIDを特定してから実行する) は
+  // naviokun-hyoban-checkpoints への逆リンクが無いか確認し、無ければ追加する。
+  const lookup = uaCallWordPressApi_(
+    wpConfig,
+    '/wp-json/wp/v2/posts?slug=naviokun-reputation&_fields=id,slug',
+    'get'
+  );
+  if (!lookup || !lookup.length) {
+    throw new Error('naviokun-reputation の投稿IDが見つかりませんでした。');
+  }
+  const postId = lookup[0].id;
+
+  const result = uaInsertBareUrlLinkBeforeHeading_(
+    wpConfig,
+    postId,
+    '<h2 class="wp-block-heading">申し込み前に確認したいポイント</h2>',
+    'ナビ男くんの評判をもとに実際の見積もりへ進める際は、口コミの読み方や見積もり内訳の確認ポイントをまとめた次の記事も参考になります。',
+    'https://ebimayo5.com/archives/naviokun-hyoban-checkpoints/'
+  );
+
+  console.log('naviokun-reputation postId=' + postId);
+  console.log(JSON.stringify(result));
+}

@@ -5,9 +5,10 @@
 複数エージェントが同時に動く前提のため、このセクションだけは「最終更新」より新しい情報になり得る。
 
 - 状態: 空き
-- エージェント: なし
-- 開始時刻: -
-- やっていること: なし
+- 状態: 作業中
+- エージェント: Claude Code
+- 開始時刻: 2026-09-01 22:05頃
+- やっていること: `uaAuditAndHoldOverlappingCandidates20260901`をユーザーが実行したところ、先頭トークンのみで主語判定していたバグにより「アウディ q5 後悔」と「アウディ a1 後悔」（車種違い）、「スバル フォレスター 中古 注意点」と「スバル xv 中古 注意点」（車種違い）を誤って同一主語と判定し保留にしてしまった（実際は別車種で被っていない）。テーマ語を除いた残りトークン全体を比較する方式に修正し、誤保留2件を「書く」へ戻す`uaRevertCandidateFalsePositiveHolds20260901`を追加してclasp push中。ユーザーに両関数の再実行を依頼予定。
 - 完了内容（2026-09-01 Claude Code）: DRIVE BASE_キーワード候補シートの棚卸し用に一回限り関数`uaAuditAndHoldOverlappingCandidates20260901`を`wordpress.gs`に追加、git push・clasp push済み。まだ実行はしていない（`clasp run`が使えないためユーザーがApps Scriptエディタから手動実行する必要あり）。既存記事の`mainInput`と、候補シートで「書く」ステータスの行を、主語トークン一致＋感情軸クラスタ一致（後悔系/満足系/評判系）でヒューリスティック照合し、一致したものだけ「保留」に変更する。非破壊（ステータスを戻すだけ）。実行後の判定結果ログを確認してから、次のキーワード生成に活かす想定。
 - 完了内容（2026-09-01 Claude Code）: タフト（taft-gakkari-reasons-checklist post1317⇔taft-katte-yokatta-guide post2288）・ナビ男くん（naviokun-reputation post1004⇔naviokun-hyoban-checkpoints）の相互内部リンク追加を、ユーザーがApps Scriptエディタから`uaAddCrossLinkTaftPair20260901`・`uaAddCrossLinkNaviokunPair20260901`を実行して反映。WordPress REST APIで両記事の本文に対象URLが含まれることを確認済み（`content.rendered.includes(...)`で直接検証）。
 - 完了内容（2026-09-01 Claude Code）: Search Console分析で「クロール済み-インデックス未登録」に実記事URLが約6件混在していることを発見（タグ/フィード系のノイズと明確に区別済み）。うち被り記事ペア3組を内容比較し、タフト（taft-gakkari-reasons-checklist⇔taft-katte-yokatta-guide）とナビ男くん（naviokun-reputation⇔naviokun-hyoban-checkpoints）の2組は相互内部リンクが片方向しかなかったため、逆方向リンクを追加する一回限りの関数`uaAddCrossLinkTaftPair20260901`・`uaAddCrossLinkNaviokunPair20260901`を`wordpress.gs`に追加（WordPress REST APIで本文へ裸URL行を1つ挿入するだけ、他の変更なし）。ハリアーペア（harrier-navi-fullscreen-dealer⇔harrier-rear-seat-monitor-retrofit）は内容を比較した結果、扱っている機能が別物（全画面化 vs 後席モニター後付け）で誤検知と判断し対応不要とした。全33テストPASS、git push済み（`e0e1b16`）、clasp push済み。**ただしこの環境では`clasp run`が使えない（projectId未リンク、既知の制限）ため、2つの関数はまだ実行していない。ユーザーがApps Scriptエディタから手動実行する必要がある。**

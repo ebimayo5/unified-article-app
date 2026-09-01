@@ -3467,9 +3467,34 @@ function uaFindCandidateThemeCluster20260901_(text) {
   return -1;
 }
 
-function uaExtractCandidateSubjectToken20260901_(text) {
+function uaCandidateThemeWordSet20260901_() {
+  const set = {};
+  UA_CANDIDATE_OVERLAP_THEME_CLUSTERS_20260901.forEach(function(cluster) {
+    cluster.forEach(function(word) { set[word] = true; });
+  });
+  return set;
+}
+
+// 元の実装は「先頭トークン」だけを主語として比較していたため、
+// 「アウディ q5 後悔」と「アウディ a1 後悔」のように、同じブランドだが
+// 車種（2番目のトークン）が違うものまで誤って同一主語と判定していた
+// （2026-09-01実行で行85・121が誤検知）。テーマ語（後悔/評判/満足系）を
+// 除いた残りトークン全体を主語として比較するよう修正。
+function uaExtractCandidateSubjectTokens20260901_(text) {
+  const themeWords = uaCandidateThemeWordSet20260901_();
   const tokens = String(text || '').trim().split(/[\s　]+/).filter(Boolean);
-  return tokens.length ? tokens[0] : '';
+  return tokens.filter(function(t) { return !themeWords[t]; });
+}
+
+function uaTokenSetsOverlapEnough20260901_(a, b) {
+  if (!a.length || !b.length) return false;
+  const setA = {};
+  a.forEach(function(t) { setA[t] = true; });
+  const setB = {};
+  b.forEach(function(t) { setB[t] = true; });
+  const aInB = a.every(function(t) { return setB[t]; });
+  const bInA = b.every(function(t) { return setA[t]; });
+  return aInB || bInA;
 }
 
 function uaAuditAndHoldOverlappingCandidates20260901() {
@@ -3490,7 +3515,7 @@ function uaAuditAndHoldOverlappingCandidates20260901() {
       if (!text) return;
       existing.push({
         text: text,
-        subject: uaExtractCandidateSubjectToken20260901_(text),
+        subjectTokens: uaExtractCandidateSubjectTokens20260901_(text),
         cluster: uaFindCandidateThemeCluster20260901_(text)
       });
     });
@@ -3507,12 +3532,12 @@ function uaAuditAndHoldOverlappingCandidates20260901() {
       if (status !== UA_CANDIDATE_STATUS_WRITE || !keyword) return;
       scanned++;
 
-      const subject = uaExtractCandidateSubjectToken20260901_(keyword);
+      const subjectTokens = uaExtractCandidateSubjectTokens20260901_(keyword);
       const cluster = uaFindCandidateThemeCluster20260901_(keyword);
-      if (!subject || cluster === -1) return;
+      if (!subjectTokens.length || cluster === -1) return;
 
       const match = existing.find(function(e) {
-        return e.subject === subject && e.cluster === cluster;
+        return e.cluster === cluster && uaTokenSetsOverlapEnough20260901_(e.subjectTokens, subjectTokens);
       });
       if (!match) return;
 
@@ -3527,4 +3552,32 @@ function uaAuditAndHoldOverlappingCandidates20260901() {
     console.log('行' + c.row + ': 「' + c.keyword + '」 ← 既存記事「' + c.matchedExisting + '」と被りそうなため保留');
   });
   return { scanned: scanned, held: changes.length, changes: changes };
+}
+
+// 2026-09-01: 上記の先頭トークンのみ比較していた旧ロジックが、行85「アウディ q5 後悔」
+// ・行121「スバル フォレスター 中古 注意点」を誤って保留にした分を「書く」へ戻す。
+// キーワード文字列で照合するため、行番号がずれていても安全に動作する。
+function uaRevertCandidateFalsePositiveHolds20260901() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const appConfig = UA_APP_TYPES.drive;
+  const candidateSheet = ss.getSheetByName(appConfig.candidateSheetName);
+  if (!candidateSheet) throw new Error('シートが見つかりません: ' + appConfig.candidateSheetName);
+
+  const targets = ['アウディ q5 後悔', 'スバル フォレスター 中古 注意点'];
+  const lastRow = candidateSheet.getLastRow();
+  if (lastRow < 2) return;
+
+  const values = candidateSheet.getRange(2, 1, lastRow - 1, UA_CANDIDATE_COLUMNS.volume).getValues();
+  let reverted = 0;
+  values.forEach(function(row, idx) {
+    const status = String(row[UA_CANDIDATE_COLUMNS.status - 1] || '').trim();
+    const keyword = String(row[UA_CANDIDATE_COLUMNS.keyword - 1] || '').trim();
+    if (status !== UA_CANDIDATE_STATUS_HOLD || targets.indexOf(keyword) === -1) return;
+    const sheetRow = idx + 2;
+    candidateSheet.getRange(sheetRow, UA_CANDIDATE_COLUMNS.status).setValue(UA_CANDIDATE_STATUS_WRITE);
+    console.log('行' + sheetRow + ': 「' + keyword + '」を「書く」へ復元');
+    reverted++;
+  });
+  console.log('復元件数: ' + reverted);
+  return { reverted: reverted };
 }

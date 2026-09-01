@@ -4,10 +4,11 @@
 作業を始める前・区切りがつくたびに、必ずここを読み書きすること（CLAUDE.md / AGENTS.md の「並行作業ルール」参照）。
 複数エージェントが同時に動く前提のため、このセクションだけは「最終更新」より新しい情報になり得る。
 
-- 状態: 空き
-- エージェント: なし
-- 開始時刻: -
-- やっていること: なし
+- 状態: 作業中
+- エージェント: Claude Code
+- 開始時刻: 2026-09-01 22:05頃
+- やっていること: タフト/ナビ男くんペアの相互内部リンクは実行済み・反映確認済み。続けて、DRIVE BASE_キーワード候補シートの棚卸し（既存記事と被りそうな「書く」ステータスの候補を「保留」に変更）用の一回限り関数`uaAuditAndHoldOverlappingCandidates20260901`を`wordpress.gs`に追加してclasp push中。まだ実行はしていない（ユーザーがApps Scriptエディタから手動実行予定）。
+- 完了内容（2026-09-01 Claude Code）: タフト（taft-gakkari-reasons-checklist post1317⇔taft-katte-yokatta-guide post2288）・ナビ男くん（naviokun-reputation post1004⇔naviokun-hyoban-checkpoints）の相互内部リンク追加を、ユーザーがApps Scriptエディタから`uaAddCrossLinkTaftPair20260901`・`uaAddCrossLinkNaviokunPair20260901`を実行して反映。WordPress REST APIで両記事の本文に対象URLが含まれることを確認済み（`content.rendered.includes(...)`で直接検証）。
 - 完了内容（2026-09-01 Claude Code）: Search Console分析で「クロール済み-インデックス未登録」に実記事URLが約6件混在していることを発見（タグ/フィード系のノイズと明確に区別済み）。うち被り記事ペア3組を内容比較し、タフト（taft-gakkari-reasons-checklist⇔taft-katte-yokatta-guide）とナビ男くん（naviokun-reputation⇔naviokun-hyoban-checkpoints）の2組は相互内部リンクが片方向しかなかったため、逆方向リンクを追加する一回限りの関数`uaAddCrossLinkTaftPair20260901`・`uaAddCrossLinkNaviokunPair20260901`を`wordpress.gs`に追加（WordPress REST APIで本文へ裸URL行を1つ挿入するだけ、他の変更なし）。ハリアーペア（harrier-navi-fullscreen-dealer⇔harrier-rear-seat-monitor-retrofit）は内容を比較した結果、扱っている機能が別物（全画面化 vs 後席モニター後付け）で誤検知と判断し対応不要とした。全33テストPASS、git push済み（`e0e1b16`）、clasp push済み。**ただしこの環境では`clasp run`が使えない（projectId未リンク、既知の制限）ため、2つの関数はまだ実行していない。ユーザーがApps Scriptエディタから手動実行する必要がある。**
 - **次にやること**: ユーザーがApps Scriptエディタ（Extensions > Apps Script）で`uaAddCrossLinkTaftPair20260901`と`uaAddCrossLinkNaviokunPair20260901`を実行し、実行ログを確認する。その後、続けてキーワード候補シートの棚卸し（既存記事と被りそうなキーワードを保留にする作業）に着手予定。
 - 完了内容（2026-08-31 Codex）: ユーザー確認により、DRIVE BASEの正常処理がたくみパパ定時開始と重なっても停止せず、DRIVE BASE完了後にたくみパパを開始する方針を確定。現行`automation.gs`を再確認すると、完了時に`uaGetEligibleAutomationAppKeys_()`で開始時刻経過済み・当日枠未消化のサイトを抽出し、`uaStartNextAutomaticPosting`を1本だけ予約する実装がすでに存在した。実運用でもDRIVE BASEが09:38に3件目「ディフェンダー 後悔」を公開後、たくみパパの「冷蔵庫 台 必要か」が自動開始されたことをパネルで確認済み。既存動作を将来壊さないため`test_cross_site_automation_handoff.js`を追加し、DRIVE BASE当日枠完了→たくみパパだけがeligible→次記事確認を60秒後に1本予約→homeを1回だけ開始、を回帰テスト化。全33テストPASS、`git diff --check` PASS。アプリコード変更がないためclasp push/deployは不要。現在「冷蔵庫 台 必要か」は商品導線保証で、楽天APIに条件適合商品がなくWordPress下書き前に品質停止中。無関係商品を入れず本文・停止位置を保持しており、再開・対象外操作は行っていない。

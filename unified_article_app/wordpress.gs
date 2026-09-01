@@ -3443,3 +3443,88 @@ function uaAddCrossLinkNaviokunPair20260901() {
   console.log('naviokun-reputation postId=' + postId);
   console.log(JSON.stringify(result));
 }
+
+// 2026-09-01: 既存記事とテーマが被りそうな「書く」ステータスのキーワード候補を、
+// DRIVE BASE_キーワード候補シート上で「保留」に変更する監査関数。
+// あくまでヒューリスティック（主語トークン一致 ＋ 同じ感情軸クラスタ）なので、
+// 「タフト がっかり」×「タフト 後悔」のような同一車種・同一論調の重複は拾うが、
+// 「タフト がっかり」×「タフト 買ってよかった」のような意図的な賛否ペアは拾わない。
+// 破壊的な操作ではない（状態を「保留」に戻すだけで、いつでも「書く」に戻せる）。
+const UA_CANDIDATE_OVERLAP_THEME_CLUSTERS_20260901 = [
+  ['後悔', 'がっかり', 'デメリット', 'やめとけ', '悪い', '危険', '失敗', '微妙', '期待外れ', '注意点'],
+  ['買ってよかった', 'メリット', '良い点', 'おすすめ', '満足', '正解'],
+  ['評判', '口コミ', 'レビュー']
+];
+
+function uaFindCandidateThemeCluster20260901_(text) {
+  const value = String(text || '');
+  for (let i = 0; i < UA_CANDIDATE_OVERLAP_THEME_CLUSTERS_20260901.length; i++) {
+    const cluster = UA_CANDIDATE_OVERLAP_THEME_CLUSTERS_20260901[i];
+    for (let j = 0; j < cluster.length; j++) {
+      if (value.indexOf(cluster[j]) !== -1) return i;
+    }
+  }
+  return -1;
+}
+
+function uaExtractCandidateSubjectToken20260901_(text) {
+  const tokens = String(text || '').trim().split(/[\s　]+/).filter(Boolean);
+  return tokens.length ? tokens[0] : '';
+}
+
+function uaAuditAndHoldOverlappingCandidates20260901() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const appConfig = UA_APP_TYPES.drive;
+  const articleSheet = ss.getSheetByName(appConfig.articleSheetName);
+  const candidateSheet = ss.getSheetByName(appConfig.candidateSheetName);
+  if (!articleSheet || !candidateSheet) {
+    throw new Error('シートが見つかりません: ' + appConfig.articleSheetName + ' / ' + appConfig.candidateSheetName);
+  }
+
+  const existing = [];
+  const articleLastRow = articleSheet.getLastRow();
+  if (articleLastRow >= 2) {
+    const mainInputs = articleSheet.getRange(2, UA_COLUMNS.mainInput, articleLastRow - 1, 1).getValues();
+    mainInputs.forEach(function(row) {
+      const text = String(row[0] || '').trim();
+      if (!text) return;
+      existing.push({
+        text: text,
+        subject: uaExtractCandidateSubjectToken20260901_(text),
+        cluster: uaFindCandidateThemeCluster20260901_(text)
+      });
+    });
+  }
+
+  const changes = [];
+  let scanned = 0;
+  const candLastRow = candidateSheet.getLastRow();
+  if (candLastRow >= 2) {
+    const candValues = candidateSheet.getRange(2, 1, candLastRow - 1, UA_CANDIDATE_COLUMNS.volume).getValues();
+    candValues.forEach(function(row, idx) {
+      const status = String(row[UA_CANDIDATE_COLUMNS.status - 1] || '').trim();
+      const keyword = String(row[UA_CANDIDATE_COLUMNS.keyword - 1] || '').trim();
+      if (status !== UA_CANDIDATE_STATUS_WRITE || !keyword) return;
+      scanned++;
+
+      const subject = uaExtractCandidateSubjectToken20260901_(keyword);
+      const cluster = uaFindCandidateThemeCluster20260901_(keyword);
+      if (!subject || cluster === -1) return;
+
+      const match = existing.find(function(e) {
+        return e.subject === subject && e.cluster === cluster;
+      });
+      if (!match) return;
+
+      const sheetRow = idx + 2;
+      candidateSheet.getRange(sheetRow, UA_CANDIDATE_COLUMNS.status).setValue(UA_CANDIDATE_STATUS_HOLD);
+      changes.push({ row: sheetRow, keyword: keyword, matchedExisting: match.text });
+    });
+  }
+
+  console.log('「書く」ステータスの候補: ' + scanned + '件を確認。既存記事と被りそうなため保留にした件数: ' + changes.length);
+  changes.forEach(function(c) {
+    console.log('行' + c.row + ': 「' + c.keyword + '」 ← 既存記事「' + c.matchedExisting + '」と被りそうなため保留');
+  });
+  return { scanned: scanned, held: changes.length, changes: changes };
+}

@@ -4,10 +4,11 @@
 作業を始める前・区切りがつくたびに、必ずここを読み書きすること（CLAUDE.md / AGENTS.md の「並行作業ルール」参照）。
 複数エージェントが同時に動く前提のため、このセクションだけは「最終更新」より新しい情報になり得る。
 
-- 状態: 作業中
-- エージェント: Claude Code
-- 開始時刻: 2026-09-01 22:30頃
-- やっていること: ユーザー指摘「ナビ男くんセットがまだcocoonのボックス」に対応。`article.gs`の`uaBuildNaviokunIntroSetHtml_`がSWELL移行後もCocoonの`wp:cocoon-blocks/info-box`・`blogcard`を生成し続けていたバグを修正（appConfigを受け取ってSWELL/Cocoonを分岐、SWELL版は既存の注意書きボックス・`wp:loos/post-link`パターンを踏襲）。続けて公開済み記事に埋め込まれた旧Cocoon版を新SWELL版へ置き換える一回限り関数を`wordpress.gs`に追加してclasp push中。まだ実行していない（ユーザーが手動実行予定）。
+- 状態: 空き
+- エージェント: なし
+- 開始時刻: -
+- やっていること: なし
+- 完了内容（2026-09-01 Claude Code）: ユーザー指摘「ナビ男くんセットがまだcocoonのボックス」に対応。`article.gs`の`uaBuildNaviokunIntroSetHtml_`がSWELL移行後もCocoonの`wp:cocoon-blocks/info-box`・`blogcard`を生成し続けていたバグを修正（appConfigを受け取ってSWELL/Cocoonを分岐、SWELL版は既存の注意書きボックス`is-style-big_icon_caution article-compass-notice-box article-compass-notice-danger`・`wp:loos/post-link`パターンを踏襲、`uaRemoveNaviokunIntroSet_`は両バージョンを除去できるよう修正）。公開済み記事に埋め込まれた旧Cocoon版を新SWELL版へ置き換える一回限り関数`uaFindDrivePublishedPostsWithCocoonNaviokunSet20260901`（検出のみ）・`uaMigrateNaviokunIntroSetToSwell20260901`（置換実行）を`wordpress.gs`に追加。全33テストPASS、git push（`94d7654`）・clasp push済み。ユーザーにApps Scriptエディタから手動実行を依頼中（`clasp run`不可のため）。
 - 完了内容（2026-09-01 Claude Code）: キーワード候補シート棚卸し完了。`uaRevertCandidateFalsePositiveHolds20260901`→修正版`uaAuditAndHoldOverlappingCandidates20260901`をユーザーが実行し、誤保留2件（アウディQ5×A1、スバル フォレスター×XV）が「書く」へ復元された上で、修正版ロジックは本物の重複1件のみを正しく検出（行121「スバル フォレスター 中古 注意点」←既存記事「フォレスター やめとけ」と被り、保留化）。これでSearch Console起点の一連の対応（タフト/ナビ男くん相互内部リンク、ハリアーペアは誤検知と確認、候補シート棚卸し）が完了。
 - 完了内容（2026-09-01 Claude Code）: DRIVE BASE_キーワード候補シートの棚卸し用に一回限り関数`uaAuditAndHoldOverlappingCandidates20260901`を`wordpress.gs`に追加、git push・clasp push済み。まだ実行はしていない（`clasp run`が使えないためユーザーがApps Scriptエディタから手動実行する必要あり）。既存記事の`mainInput`と、候補シートで「書く」ステータスの行を、主語トークン一致＋感情軸クラスタ一致（後悔系/満足系/評判系）でヒューリスティック照合し、一致したものだけ「保留」に変更する。非破壊（ステータスを戻すだけ）。実行後の判定結果ログを確認してから、次のキーワード生成に活かす想定。
 - 完了内容（2026-09-01 Claude Code）: タフト（taft-gakkari-reasons-checklist post1317⇔taft-katte-yokatta-guide post2288）・ナビ男くん（naviokun-reputation post1004⇔naviokun-hyoban-checkpoints）の相互内部リンク追加を、ユーザーがApps Scriptエディタから`uaAddCrossLinkTaftPair20260901`・`uaAddCrossLinkNaviokunPair20260901`を実行して反映。WordPress REST APIで両記事の本文に対象URLが含まれることを確認済み（`content.rendered.includes(...)`で直接検証）。

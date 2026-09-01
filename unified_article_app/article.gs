@@ -1452,14 +1452,14 @@ function uaApplyNaviokunIntroSet_(body, rowData, appConfig) {
     if (ctaBounds) {
       return [
         html.slice(0, ctaBounds.start).trimEnd(),
-        uaBuildNaviokunIntroSetHtml_(),
+        uaBuildNaviokunIntroSetHtml_(appConfig),
         html.slice(ctaBounds.start).trimStart()
       ].filter(Boolean).join('\n\n');
     }
   }
 
   const insertionIndex = uaFindNaviokunIntroInsertionIndex_(html);
-  const introSet = uaBuildNaviokunIntroSetHtml_();
+  const introSet = uaBuildNaviokunIntroSetHtml_(appConfig);
   return [
     html.slice(0, insertionIndex).trimEnd(),
     introSet,
@@ -1469,8 +1469,12 @@ function uaApplyNaviokunIntroSet_(body, rowData, appConfig) {
 
 function uaRemoveNaviokunIntroSet_(body) {
   let html = String(body || '');
-  const exactSet = uaBuildNaviokunIntroSetHtml_();
-  html = html.split(exactSet).join('');
+  // Strip both the legacy Cocoon build and the current SWELL build exactly,
+  // so this stays idempotent regardless of which one a given article carries
+  // (older published articles still have the Cocoon version baked in).
+  [uaBuildNaviokunIntroSetHtmlCocoon_(), uaBuildNaviokunIntroSetHtmlSwell_()].forEach(function(exactSet) {
+    html = html.split(exactSet).join('');
+  });
 
   let urlIndex = html.indexOf(UA_NAVIOKUN_INTRO_URL);
   while (urlIndex !== -1) {
@@ -1484,6 +1488,21 @@ function uaRemoveNaviokunIntroSet_(body) {
     html = html.slice(0, start) + html.slice(end);
     urlIndex = html.indexOf(UA_NAVIOKUN_INTRO_URL);
   }
+
+  urlIndex = html.indexOf(UA_NAVIOKUN_INTRO_URL);
+  while (urlIndex !== -1) {
+    const start = html.lastIndexOf('<!-- wp:group {"className":"is-style-big_icon_caution article-compass-notice-box article-compass-notice-danger"', urlIndex);
+    const affiIndex = html.indexOf('[affi id=7]', urlIndex);
+    const endMarker = '<!-- /wp:paragraph -->';
+    const endStart = affiIndex >= 0 ? html.indexOf(endMarker, affiIndex) : -1;
+    if (start < 0 || endStart < 0) break;
+    const end = endStart + endMarker.length;
+    const block = html.slice(start, end);
+    if (!/\[affi\s+id\s*=\s*7\s*\]/i.test(block)) break;
+    html = html.slice(0, start) + html.slice(end);
+    urlIndex = html.indexOf(UA_NAVIOKUN_INTRO_URL);
+  }
+
   return html.replace(/\n{3,}/g, '\n\n').trim();
 }
 
@@ -1566,11 +1585,15 @@ function uaFindNaviokunIntroInsertionIndex_(body) {
   return fallbackHeading ? fallbackHeading.index : html.length;
 }
 
-function uaBuildNaviokunIntroSetHtml_() {
+function uaGetNaviokunIntroSetText_() {
+  return 'ナビ男くんとは車内エンタメのアップグレードを得意とする専門店です。';
+}
+
+function uaBuildNaviokunIntroSetHtmlCocoon_() {
   return [
     '<!-- wp:cocoon-blocks/info-box {"style":"danger-box"} -->',
     '<div class="wp-block-cocoon-blocks-info-box block-box danger-box"><!-- wp:paragraph -->',
-    '<p><strong><span class="marker">ナビ男くんとは車内エンタメのアップグレードを得意とする専門店です。</span></strong></p>',
+    '<p><strong><span class="marker">' + uaGetNaviokunIntroSetText_() + '</span></strong></p>',
     '<!-- /wp:paragraph -->',
     '',
     '<!-- wp:cocoon-blocks/blogcard {"style":"blogcard-type bct-detail"} -->',
@@ -1584,6 +1607,38 @@ function uaBuildNaviokunIntroSetHtml_() {
     '<!-- /wp:paragraph --></div>',
     '<!-- /wp:cocoon-blocks/info-box -->'
   ].join('\n');
+}
+
+// SWELLテーマ用。Cocoon版の内訳（強調ボックス＝danger-box、外部リンクカード＝blogcard）を
+// SWELLの対応ブロックへ置き換えたもの。強調ボックスは既存の注意書きボックス
+// （is-style-big_icon_caution article-compass-notice-box article-compass-notice-danger）と
+// 同じクラス構成、外部リンクカードはwordpress.gsのCocoon→SWELL移行処理が使っている
+// wp:loos/post-linkをそのまま踏襲している。
+function uaBuildNaviokunIntroSetHtmlSwell_() {
+  return [
+    '<!-- wp:group {"className":"is-style-big_icon_caution article-compass-notice-box article-compass-notice-danger","layout":{"type":"constrained"}} -->',
+    '<div class="wp-block-group is-style-big_icon_caution article-compass-notice-box article-compass-notice-danger">',
+    '<!-- wp:paragraph -->',
+    '<p><strong><span style="background:linear-gradient(transparent 60%, #fff3a3 60%);"><span class="swl-marker mark_yellow">' + uaGetNaviokunIntroSetText_() + '</span></span></strong></p>',
+    '<!-- /wp:paragraph -->',
+    '</div>',
+    '<!-- /wp:group -->',
+    '',
+    '<!-- wp:loos/post-link ' + JSON.stringify({
+      isNewTab: true,
+      rel: 'noopener noreferrer',
+      linkData: { url: UA_NAVIOKUN_INTRO_URL },
+      icon: 'externalLink'
+    }) + ' /-->',
+    '',
+    '<!-- wp:paragraph -->',
+    '<p>[affi id=7]</p>',
+    '<!-- /wp:paragraph -->'
+  ].join('\n');
+}
+
+function uaBuildNaviokunIntroSetHtml_(appConfig) {
+  return uaUsesSwellBlocks_(appConfig) ? uaBuildNaviokunIntroSetHtmlSwell_() : uaBuildNaviokunIntroSetHtmlCocoon_();
 }
 
 function uaFindFaqSectionBounds_(body) {

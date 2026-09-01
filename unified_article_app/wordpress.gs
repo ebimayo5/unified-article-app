@@ -3581,3 +3581,55 @@ function uaRevertCandidateFalsePositiveHolds20260901() {
   console.log('復元件数: ' + reverted);
   return { reverted: reverted };
 }
+
+// 2026-09-01: ナビ男くんセット（uaBuildNaviokunIntroSetHtml_）がSWELL移行後もCocoonの
+// info-box/blogcardブロックのまま生成され続けていたバグを修正した後、
+// 既に公開済みの記事に埋め込まれている旧Cocoon版セットをSWELL版へ置き換える。
+// 位置は変えず、ブロックの中身（強調ボックス＋外部リンクカード＋[affi id=7]）を
+// そのまま新しいマークアップへ差し替えるだけの完全一致置換なので安全。
+function uaFindDrivePublishedPostsWithCocoonNaviokunSet20260901() {
+  const posts = uaListDrivePublishedPostsForSwellMigration_();
+  const cocoonSet = uaBuildNaviokunIntroSetHtmlCocoon_();
+  const hits = posts.filter(function(post) {
+    return uaGetWpPostRawContent_(post).indexOf(cocoonSet) !== -1;
+  }).map(function(post) {
+    return {
+      id: Number(post.id || 0),
+      slug: String(post.slug || ''),
+      title: String(post && post.title && (post.title.raw || post.title.rendered) || '')
+    };
+  });
+  console.log('旧Cocoon版ナビ男くんセットが残っている記事: ' + hits.length + '件');
+  hits.forEach(function(h) {
+    console.log('post ' + h.id + ' (' + h.slug + '): ' + h.title);
+  });
+  return hits;
+}
+
+function uaMigrateNaviokunIntroSetToSwell20260901() {
+  const wpConfig = uaGetWpConfig_(UA_APP_TYPES.drive);
+  const posts = uaListDrivePublishedPostsForSwellMigration_();
+  const cocoonSet = uaBuildNaviokunIntroSetHtmlCocoon_();
+  const swellSet = uaBuildNaviokunIntroSetHtmlSwell_();
+
+  const changed = [];
+  posts.forEach(function(post) {
+    const before = uaGetWpPostRawContent_(post);
+    if (before.indexOf(cocoonSet) === -1) return;
+    const after = before.split(cocoonSet).join(swellSet);
+
+    uaCallWordPressApi_(wpConfig, '/wp-json/wp/v2/posts/' + encodeURIComponent(post.id), 'post', {
+      content: after
+    });
+
+    changed.push({
+      id: Number(post.id || 0),
+      slug: String(post.slug || ''),
+      title: String(post && post.title && (post.title.raw || post.title.rendered) || '')
+    });
+    console.log('post ' + post.id + ' (' + post.slug + '): Cocoon版ナビ男くんセットをSWELL版へ置き換え');
+  });
+
+  console.log('置き換え件数: ' + changed.length);
+  return { changed: changed.length, posts: changed };
+}

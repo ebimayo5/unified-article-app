@@ -15,6 +15,18 @@ const UA_AUTOMATION_TIMEZONE = 'Asia/Tokyo';
 const UA_AUTOMATION_STALE_JOB_MINUTES = 20;
 const UA_AUTOMATION_STALE_JOB_AUTO_SKIP_THRESHOLD = 2;
 
+// 2026-09-02: エラー停止中のジョブは、人がパネルを開いて「再開」か「対象外」を
+// 押すまで何時間でも放置される（日次開始トリガーも、ブロッキングするジョブが
+// あるうちは新しい記事を始めない）。実際にたくみパパの「枝豆 防虫ネット」が
+// OpenAI本文生成の20分タイムアウトで安全停止した後、13時間半誰にも気づかれず
+// 放置された。定期ウォッチドッグで一定の猶予後に自動再開を試み、それでも
+// ダメなら（既存のstaleTimeoutCount＞＝2の仕組みで）自動的に対象外へ進む。
+// 再試行回数には上限を設け、上限に達したら通知だけして無限リトライはしない。
+const UA_AUTOMATION_WATCHDOG_HANDLER = 'uaRunAutomaticPostingWatchdog';
+const UA_AUTOMATION_WATCHDOG_INTERVAL_MINUTES = 30;
+const UA_AUTOMATION_WATCHDOG_GRACE_MINUTES = 30;
+const UA_AUTOMATION_WATCHDOG_MAX_AUTO_RESUME = 3;
+
 const UA_AUTOMATION_STEP_READER_MIND = 'reader_mind';
 const UA_AUTOMATION_STEP_STRUCTURE = 'structure';
 const UA_AUTOMATION_STEP_WAIT_TREFAI = 'wait_trefai';
@@ -1175,6 +1187,71 @@ function uaScheduleAutomaticPostingWorker_(delayMs) {
   ScriptApp.newTrigger(UA_AUTOMATION_WORKER_HANDLER).timeBased().after(Math.max(1000, Number(delayMs) || 60000)).create();
 }
 
+// パネルを誰も開かない・自己再スケジュールの一時トリガーが途切れた、といった
+// 状況でもエラー停止したジョブを見つけて自動再開できるよう、常時稼働の定期
+// トリガーを1本だけ用意する。既にあれば重複作成しない（冪等）。
+function uaInstallAutomaticPostingWatchdogTrigger_() {
+  const alreadyInstalled = ScriptApp.getProjectTriggers().some(function(trigger) {
+    return trigger.getHandlerFunction() === UA_AUTOMATION_WATCHDOG_HANDLER;
+  });
+  if (alreadyInstalled) return { installed: false, reason: 'already installed' };
+  ScriptApp.newTrigger(UA_AUTOMATION_WATCHDOG_HANDLER)
+    .timeBased()
+    .everyMinutes(UA_AUTOMATION_WATCHDOG_INTERVAL_MINUTES)
+    .create();
+  return { installed: true };
+}
+
+function uaRemoveAutomaticPostingWatchdogTrigger_() {
+  uaDeleteAutomaticPostingTriggers_(UA_AUTOMATION_WATCHDOG_HANDLER);
+}
+
+// 定期実行される監視役。エラー停止中のジョブが猶予時間を超えて放置されていたら、
+// 人が「再開」ボタンを押すのと同じ経路で自動再開を試みる。同じ工程で再びハング
+// した場合は既存のstaleTimeoutCount仕組みが2回目で自動的に対象外へ進めるため、
+// ここでは際限のないリトライを防ぐための独自の上限だけ管理する。
+function uaRunAutomaticPostingWatchdog() {
+  const job = uaGetAutomaticPostingJob_();
+  if (!job || String(job.status || '') !== 'error') return;
+
+  const appConfig = uaGetAutomationAppConfig_(job.appType);
+  const settings = uaReadAutomaticPostingSettings_(appConfig.key);
+  if (!settings.enabled && job.manualBatch !== true) return;
+
+  const updatedAtMs = Date.parse(String(job.updatedAt || ''));
+  if (!isFinite(updatedAtMs)) return;
+  const minutesInError = (Date.now() - updatedAtMs) / 60000;
+  if (minutesInError < UA_AUTOMATION_WATCHDOG_GRACE_MINUTES) return;
+
+  const autoResumeCount = Number(job.watchdogAutoResumeCount) || 0;
+  if (autoResumeCount >= UA_AUTOMATION_WATCHDOG_MAX_AUTO_RESUME) {
+    if (!job.watchdogGaveUpNotified) {
+      job.watchdogGaveUpNotified = true;
+      uaSaveAutomaticPostingJob_(job);
+      try {
+        uaSendAutomaticPostingErrorNotification_(
+          job,
+          appConfig,
+          'ウォッチドッグが' + UA_AUTOMATION_WATCHDOG_MAX_AUTO_RESUME + '回自動再開を試みましたが解消しませんでした。' +
+            '手動でのご確認をお願いします。工程: ' + uaGetAutomaticPostingStepLabel_(job.step) + ' / エラー: ' + job.lastError
+        );
+      } catch (notificationError) {
+        console.error(notificationError && notificationError.stack ? notificationError.stack : notificationError);
+      }
+    }
+    return;
+  }
+
+  job.watchdogAutoResumeCount = autoResumeCount + 1;
+  uaSaveAutomaticPostingJob_(job);
+
+  try {
+    uaResumeAutomaticPostingFromPanel(appConfig.label);
+  } catch (resumeError) {
+    console.error(resumeError && resumeError.stack ? resumeError.stack : resumeError);
+  }
+}
+
 function uaDeleteAutomaticPostingTriggers_(handlerName) {
   ScriptApp.getProjectTriggers().forEach(function(trigger) {
     if (trigger.getHandlerFunction() === handlerName) ScriptApp.deleteTrigger(trigger);
@@ -1233,8 +1310,12 @@ function uaAdvanceAutomaticPostingJob_(job, nextStep, delayMs) {
   if (previousStep !== cleanNextStep) {
     // Real forward progress on this job -- a prior stale-timeout streak (if
     // any) no longer reflects the current step, so don't let it count toward
-    // the auto-skip threshold above.
+    // the auto-skip threshold above. Same reasoning for the watchdog's
+    // auto-resume counter (below): a stall at a later step is a separate
+    // problem from whatever it stalled on before.
     job.staleTimeoutCount = 0;
+    job.watchdogAutoResumeCount = 0;
+    delete job.watchdogGaveUpNotified;
   }
   job.step = nextStep;
   job.updatedAt = new Date().toISOString();

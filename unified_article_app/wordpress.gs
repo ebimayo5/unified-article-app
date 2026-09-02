@@ -3689,3 +3689,76 @@ function uaInspectTakumiPapaAutomationStop20260901() {
   console.log(JSON.stringify(result, null, 2));
   return result;
 }
+
+// 2026-09-02: 「枝豆 防虫ネット」がなぜ20分以内にOpenAIの本文生成が終わらなかったのか
+// を調べる読み取り専用の一回限り関数。保存済みのバックグラウンド状態（responseId等）
+// と、そのIDでOpenAI側に問い合わせた実際の状態、そしてプロンプトの元になった
+// データの分量（競合URL・構成メモの文字数）を確認する。書き込みは一切行わない。
+function uaInvestigateTakumiArticleTimeout20260901() {
+  const job = uaGetAutomaticPostingJob_();
+  if (!job) {
+    console.log('現在アクティブなジョブがありません。');
+    return null;
+  }
+
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(job.sheetName);
+  if (!sheet) {
+    console.log('シートが見つかりません: ' + job.sheetName);
+    return null;
+  }
+
+  const stateKey = uaGetArticleBackgroundStateKey_(sheet, Number(job.row));
+  const state = uaLoadArticleBackgroundState_(stateKey);
+
+  let openAiSide = null;
+  let openAiError = null;
+  if (state && state.responseId) {
+    try {
+      openAiSide = uaRetrieveOpenAiBackgroundJson_(state.responseId);
+    } catch (e) {
+      openAiError = String(e && e.message || e);
+    }
+  }
+
+  const data = uaGetAutomaticPostingRowData_(job);
+  const promptShape = {
+    mainInputLength: String(data.mainInput || '').length,
+    structureMemoLength: String(data.structureMemo || '').length,
+    competitorUrl1Length: String(data.competitorUrl1 || '').length,
+    competitorUrl2Length: String(data.competitorUrl2 || '').length,
+    competitorUrl3Length: String(data.competitorUrl3 || '').length,
+    readerMindMemoLength: String(data.readerMindMemo || '').length,
+    factCheckPointsLength: String(data.factCheckPoints || '').length
+  };
+
+  const result = {
+    job: {
+      row: job.row,
+      keyword: job.keyword,
+      step: job.step,
+      status: job.status,
+      lastError: job.lastError,
+      stepStartedAt: job.stepStartedAt,
+      staleTimeoutCount: job.staleTimeoutCount
+    },
+    savedBackgroundState: state,
+    openAiSide: openAiSide ? {
+      id: openAiSide.id,
+      status: openAiSide.status,
+      model: openAiSide.model,
+      created_at: openAiSide.created_at,
+      completed_at: openAiSide.completed_at || null,
+      cancelled_at: openAiSide.cancelled_at || null,
+      failed_at: openAiSide.failed_at || null,
+      incomplete_details: openAiSide.incomplete_details || null,
+      error: openAiSide.error || null,
+      usage: openAiSide.usage || null
+    } : null,
+    openAiRetrieveError: openAiError,
+    promptShape: promptShape,
+    model: uaGetOpenAiModel_()
+  };
+
+  console.log(JSON.stringify(result, null, 2));
+  return result;
+}

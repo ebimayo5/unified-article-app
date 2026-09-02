@@ -4,10 +4,10 @@
 作業を始める前・区切りがつくたびに、必ずここを読み書きすること（CLAUDE.md / AGENTS.md の「並行作業ルール」参照）。
 複数エージェントが同時に動く前提のため、このセクションだけは「最終更新」より新しい情報になり得る。
 
-- 状態: 空き
-- エージェント: なし
-- 開始時刻: -
-- やっていること: なし
+- 状態: 作業中
+- エージェント: Claude Code
+- 開始時刻: 2026-09-01 22:25頃
+- やっていること: ユーザー報告「たくみパパが現在停止している」の原因調査。読み取り専用の一回限り関数`uaInspectTakumiPapaAutomationStop20260901`を`wordpress.gs`に追加してclasp push中。副作用なし（uaMarkStaleAutomaticPostingJobError_は呼ばず生の状態のみ確認）。自動投稿の開始・停止・再開は行っていない。
 - **Codexへの依頼（2026-09-01、ユーザー承認済み）**: `clasp run`が使えない問題（projectId未紐付け）の解消を試してほしい。手順は[CODEX_TASK_clasp_run_setup.md](CODEX_TASK_clasp_run_setup.md)を参照。GCPプロジェクトの紐付け自体はブラウザでのユーザー操作が必要な可能性が高いため、CLIで進められるところまで進めて、進捗と壁に当たった箇所をこの欄か完了記録に書き残してほしい。
 - 完了内容（2026-09-01 Claude Code）: ユーザー指摘「ナビ男くんセットがまだcocoonのボックス」に対応。`article.gs`の`uaBuildNaviokunIntroSetHtml_`がSWELL移行後もCocoonの`wp:cocoon-blocks/info-box`・`blogcard`を生成し続けていたバグを修正（appConfigを受け取ってSWELL/Cocoonを分岐、SWELL版は既存の注意書きボックス`is-style-big_icon_caution article-compass-notice-box article-compass-notice-danger`・`wp:loos/post-link`パターンを踏襲、`uaRemoveNaviokunIntroSet_`は両バージョンを除去できるよう修正）。公開済み記事に埋め込まれた旧Cocoon版を新SWELL版へ置き換える一回限り関数`uaFindDrivePublishedPostsWithCocoonNaviokunSet20260901`（検出のみ）・`uaMigrateNaviokunIntroSetToSwell20260901`（置換実行）を`wordpress.gs`に追加。全33テストPASS、git push（`94d7654`）・clasp push済み。ユーザーにApps Scriptエディタから手動実行を依頼中（`clasp run`不可のため）。
 - 完了内容（2026-09-01 Claude Code）: キーワード候補シート棚卸し完了。`uaRevertCandidateFalsePositiveHolds20260901`→修正版`uaAuditAndHoldOverlappingCandidates20260901`をユーザーが実行し、誤保留2件（アウディQ5×A1、スバル フォレスター×XV）が「書く」へ復元された上で、修正版ロジックは本物の重複1件のみを正しく検出（行121「スバル フォレスター 中古 注意点」←既存記事「フォレスター やめとけ」と被り、保留化）。これでSearch Console起点の一連の対応（タフト/ナビ男くん相互内部リンク、ハリアーペアは誤検知と確認、候補シート棚卸し）が完了。

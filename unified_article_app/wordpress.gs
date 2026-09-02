@@ -3633,3 +3633,59 @@ function uaMigrateNaviokunIntroSetToSwell20260901() {
   console.log('置き換え件数: ' + changed.length);
   return { changed: changed.length, posts: changed };
 }
+
+// 2026-09-01: ユーザー報告「たくみパパが現在停止している」の原因調査用。
+// 読み取り専用（uaMarkStaleAutomaticPostingJobError_は呼ばない＝自動スキップや
+// エラー化などの副作用を起こさず、いま実際に保存されている生の状態だけを見る）。
+function uaInspectTakumiPapaAutomationStop20260901() {
+  const appConfig = UA_APP_TYPES.home;
+  const sheet = uaEnsureAutomaticPostingSheet_();
+  const column = uaGetAutomationColumn_(appConfig.key);
+  const statusValues = sheet.getRange(7, column, 3, 1).getDisplayValues().map(function(row) {
+    return String(row[0] || '').trim();
+  });
+
+  const settings = uaReadAutomaticPostingSettings_(appConfig.key);
+  const rawJob = uaGetAutomaticPostingJob_();
+  const isThisSiteJob = !!(rawJob && String(rawJob.appType || '') === appConfig.label);
+
+  const nowMs = Date.now();
+  const stepStartedAtMs = rawJob
+    ? Date.parse(String(rawJob.stepStartedAt || rawJob.updatedAt || rawJob.startedAt || ''))
+    : NaN;
+  const minutesSinceProgress = isFinite(stepStartedAtMs) ? Math.round((nowMs - stepStartedAtMs) / 60000) : null;
+
+  const today = Utilities.formatDate(new Date(), UA_AUTOMATION_TIMEZONE, 'yyyy-MM-dd');
+  const todayCount = uaGetAutomaticPostingDailyProgress_(today, appConfig.key).count;
+
+  const result = {
+    enabled: settings.enabled,
+    hour: settings.hour,
+    dailyLimit: settings.dailyLimit,
+    todayCount: todayCount,
+    statusCell: statusValues[0] || '',
+    lastUpdatedCell: statusValues[1] || '',
+    lastErrorCell: statusValues[2] || '',
+    isThisSiteJob: isThisSiteJob,
+    job: isThisSiteJob ? {
+      row: rawJob.row,
+      keyword: rawJob.keyword,
+      status: rawJob.status,
+      step: rawJob.step,
+      lastError: rawJob.lastError,
+      startedAt: rawJob.startedAt,
+      updatedAt: rawJob.updatedAt,
+      stepStartedAt: rawJob.stepStartedAt,
+      staleTimeoutCount: rawJob.staleTimeoutCount,
+      minutesSinceProgress: minutesSinceProgress
+    } : null,
+    otherSiteJob: (rawJob && !isThisSiteJob) ? {
+      appType: rawJob.appType,
+      keyword: rawJob.keyword,
+      status: rawJob.status
+    } : null
+  };
+
+  console.log(JSON.stringify(result, null, 2));
+  return result;
+}

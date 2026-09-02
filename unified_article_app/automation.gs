@@ -1190,6 +1190,12 @@ function uaScheduleAutomaticPostingWorker_(delayMs) {
 // パネルを誰も開かない・自己再スケジュールの一時トリガーが途切れた、といった
 // 状況でもエラー停止したジョブを見つけて自動再開できるよう、常時稼働の定期
 // トリガーを1本だけ用意する。既にあれば重複作成しない（冪等）。
+function uaSetupAutomaticPostingWatchdog() {
+  const result = uaInstallAutomaticPostingWatchdogTrigger_();
+  console.log(JSON.stringify(result));
+  return result;
+}
+
 function uaInstallAutomaticPostingWatchdogTrigger_() {
   const alreadyInstalled = ScriptApp.getProjectTriggers().some(function(trigger) {
     return trigger.getHandlerFunction() === UA_AUTOMATION_WATCHDOG_HANDLER;

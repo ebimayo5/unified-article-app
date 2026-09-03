@@ -14,6 +14,14 @@ vm.runInContext(configSource, context);
 vm.runInContext(utilsSource, context);
 vm.runInContext(linksSource, context);
 vm.runInContext(articleSource, context);
+// uaSelectRakutenProductQuery_ (called internally by
+// uaFindRakutenSecondaryMentionIndex_) now gates its result through a
+// lightweight Gemini relevance check; this file doesn't load api.gs, so
+// stub it to preserve the pre-existing "assume relevant" behavior these
+// tests were written against.
+context.uaCallGeminiJson_ = function () {
+  return { data: { relevant: true } };
+};
 
 const uaFindRakutenSecondaryMentionIndex_ = vm.runInContext('uaFindRakutenSecondaryMentionIndex_', context);
 const uaBuildRakutenLightMentionHtml_ = vm.runInContext('uaBuildRakutenLightMentionHtml_', context);

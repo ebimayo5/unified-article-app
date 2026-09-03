@@ -10,6 +10,13 @@ const source = fs.readFileSync(
 const context = { console };
 vm.createContext(context);
 vm.runInContext(source, context);
+// uaSelectRakutenProductQuery_ now gates its result through a lightweight
+// Gemini relevance check (uaIsRakutenProductQueryRelevant_ in article.gs);
+// this file doesn't load api.gs, so stub it to preserve the pre-existing
+// "assume relevant" behavior these tests were written against.
+context.uaCallGeminiJson_ = function () {
+  return { data: { relevant: true } };
+};
 
 const duplicateProductVariants = [
   {

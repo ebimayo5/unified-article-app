@@ -3882,3 +3882,60 @@ function uaInvestigateYabugarashiIrrelevantProduct20260902_Positions() {
   console.log(JSON.stringify(result, null, 2));
   return result;
 }
+
+// 2026-09-02: ユーザー報告「サーキュレーターの2記事でテキストリンクが楽天の
+// 生タイトルのまま出ていた（WordPress側は手動で直し済み）」の原因調査用。
+// スプレッドシート側のbody列はWordPress側の手動編集の影響を受けていないため、
+// 直す前の生の文言が残っている可能性がある（読み取り専用）。
+function uaInvestigateCirculatorRawTitleLinks20260902() {
+  const appConfig = UA_APP_TYPES.home;
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(appConfig.articleSheetName);
+  if (!sheet) throw new Error('シートが見つかりません: ' + appConfig.articleSheetName);
+
+  const lastRow = sheet.getLastRow();
+  const wpPostIds = sheet.getRange(2, UA_COLUMNS.wpPostId, lastRow - 1, 1).getValues();
+  const targetIds = { '1190': null, '1158': null };
+  for (let i = 0; i < wpPostIds.length; i++) {
+    const id = String(wpPostIds[i][0] || '').trim();
+    if (Object.prototype.hasOwnProperty.call(targetIds, id)) {
+      targetIds[id] = i + 2;
+    }
+  }
+
+  const result = {};
+  Object.keys(targetIds).forEach(function(wpPostId) {
+    const row = targetIds[wpPostId];
+    if (!row) {
+      result[wpPostId] = { found: false };
+      return;
+    }
+    const mainInput = String(sheet.getRange(row, UA_COLUMNS.mainInput).getValue() || '');
+    const body = String(sheet.getRange(row, UA_COLUMNS.body).getValue() || '');
+
+    const secStart = body.indexOf('UA_SECONDARY_PRODUCT_START');
+    const secEnd = body.indexOf('UA_SECONDARY_PRODUCT_END');
+    const secondaryBlock = (secStart !== -1 && secEnd !== -1)
+      ? body.slice(secStart, secEnd + 'UA_SECONDARY_PRODUCT_END'.length)
+      : null;
+
+    const anchorTexts = [];
+    const anchorRegex = /<a\b[^>]*>([^<]{3,})<\/a>/g;
+    let m;
+    while ((m = anchorRegex.exec(body)) !== null) {
+      anchorTexts.push(m[1].trim());
+    }
+
+    result[wpPostId] = {
+      found: true,
+      row: row,
+      mainInput: mainInput,
+      bodyLength: body.length,
+      secondaryBlock: secondaryBlock,
+      anchorTexts: anchorTexts
+    };
+  });
+
+  console.log(JSON.stringify(result, null, 2));
+  return result;
+}

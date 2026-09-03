@@ -3018,7 +3018,70 @@ function uaGetManualRakutenQueryOverride_(rowData) {
   return override && override[1] ? override[1].trim() : '';
 }
 
+// 2026-09-02: 商品候補の選定は、本文のどこかに単語が出現しさえすれば
+// マッチしてしまうキーワード一致ベース（uaHomeRakutenProductCandidates_等）や、
+// 記事生成時にAIが自己申告するUA_PRODUCT_PLANに頼っている。どちらも「本当に
+// その話題について書かれた記事か」までは見ておらず、設備の一例として単語が
+// 挙がっただけ、といった文脈を無視して無関係な商品を勧めてしまうことがある
+// （kurashi-ie.com/yabugarashi-kujo/ で「片付け」「エアコン配管」という一言
+// から無関係な収納用品・エアコン部材が提案された実例で確認）。
+// 手動で明示的に指定されたクエリ（人間の判断）はそのまま信頼するが、それ以外の
+// 自動選定結果は、挿入前に軽量なLLM判定で「本当にこの記事のテーマとして妥当か」
+// を確認し、妥当でなければ何も挿入しない（無関係な商品を出すより、何も出さない
+// 方が安全）。
 function uaSelectRakutenProductQuery_(body, rowData, appConfig) {
+  const manualOverride = uaGetManualRakutenQueryOverride_(rowData);
+  if (manualOverride) return manualOverride;
+
+  const rawQuery = uaSelectRakutenProductQueryRaw_(body, rowData, appConfig);
+  if (!rawQuery) return rawQuery;
+
+  return uaIsRakutenProductQueryRelevant_(rawQuery, rowData, appConfig) ? rawQuery : '';
+}
+
+// 判定結果を1リクエスト内で使い回すためのキャッシュ。同じ記事処理の中で
+// 同じクエリを何度も判定してAPIを叩かないようにする（メイン導線＋セカンダリ
+// 導線などで同じクエリが再利用されることがあるため）。
+const UA_RAKUTEN_QUERY_RELEVANCE_CACHE_ = {};
+
+function uaIsRakutenProductQueryRelevant_(query, rowData, appConfig) {
+  const cleanQuery = String(query || '').trim();
+  if (!cleanQuery) return false;
+
+  const mainInput = String(rowData && rowData.mainInput || '').trim();
+  const cacheKey = mainInput + '␟' + cleanQuery;
+  if (Object.prototype.hasOwnProperty.call(UA_RAKUTEN_QUERY_RELEVANCE_CACHE_, cacheKey)) {
+    return UA_RAKUTEN_QUERY_RELEVANCE_CACHE_[cacheKey];
+  }
+
+  const prompt = [
+    '記事のメインテーマ: 「' + mainInput + '」',
+    'この記事の中で、次の商品検索キーワードをおすすめとして紹介しようとしています: 「' + cleanQuery + '」',
+    '',
+    'このキーワードは、本文中に設備の一例や注意書きとしてたまたま単語が出てきただけで、',
+    '記事のテーマそのものとは無関係な可能性があります。',
+    '読者が本当にこの商品を探している可能性が高く、この記事のテーマに照らして自然で役立つ提案だと言えますか？',
+    '',
+    '判断に迷う場合や情報が不十分な場合は、無関係な商品を出すリスクを避けるため relevant を false にしてください。',
+    '',
+    'JSON形式のみで回答してください: {"relevant": true または false, "reason": "20文字程度の短い理由"}'
+  ].join('\n');
+
+  let relevant = false;
+  try {
+    const result = uaCallGeminiJson_(prompt, 200, 0);
+    relevant = !!(result && result.data && result.data.relevant === true);
+  } catch (e) {
+    // 判定できない場合は安全側（挿入しない）に倒す。
+    console.error('uaIsRakutenProductQueryRelevant_: ' + (e && e.message || e));
+    relevant = false;
+  }
+
+  UA_RAKUTEN_QUERY_RELEVANCE_CACHE_[cacheKey] = relevant;
+  return relevant;
+}
+
+function uaSelectRakutenProductQueryRaw_(body, rowData, appConfig) {
   const manualOverride = uaGetManualRakutenQueryOverride_(rowData);
   if (manualOverride) {
     return manualOverride;

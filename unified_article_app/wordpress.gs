@@ -3811,3 +3811,74 @@ function uaInvestigateYabugarashiIrrelevantProduct20260902() {
   console.log(JSON.stringify(result, null, 2));
   return result;
 }
+
+// 上記の続き：hitsInBodyが全部拾えてしまうのは、すでに挿入済みの商品比較ブロック
+// 自体に「収納」「収納ボックス」「片付け」「エアコン」という文字が含まれているせいで、
+// 自己参照（挿入結果を根拠として検出している）になっている疑いがある。
+// 各語がすでに挿入済みの商品ブロック（見出し「」を楽天・Amazonで比較する、
+// または created by Rinker）の中だけに出現しているか、それとも記事本文の
+// 地の文にも出現しているかを、出現位置ベースで確認する（読み取り専用）。
+function uaInvestigateYabugarashiIrrelevantProduct20260902_Positions() {
+  const appConfig = UA_APP_TYPES.home;
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(appConfig.articleSheetName);
+  if (!sheet) throw new Error('シートが見つかりません: ' + appConfig.articleSheetName);
+
+  const lastRow = sheet.getLastRow();
+  const wpPostIds = sheet.getRange(2, UA_COLUMNS.wpPostId, lastRow - 1, 1).getValues();
+  let targetRow = -1;
+  for (let i = 0; i < wpPostIds.length; i++) {
+    if (String(wpPostIds[i][0] || '').trim() === '1145') {
+      targetRow = i + 2;
+      break;
+    }
+  }
+  if (targetRow === -1) {
+    console.log('wpPostId=1145 の行が見つかりませんでした。');
+    return null;
+  }
+
+  const body = String(sheet.getRange(targetRow, UA_COLUMNS.body).getValue() || '');
+
+  // 挿入済みブロックの範囲を大まかに特定する：商品比較の見出し（「〜」を楽天・Amazonで比較する）
+  // から、次のH2見出し（<h2）またはよくある質問の直前までを1ブロックとみなす。
+  const blockRanges = [];
+  const headingRegex = /「[^」]*」を楽天・Amazon(?:で比較する|等で比較する)/g;
+  let m;
+  while ((m = headingRegex.exec(body)) !== null) {
+    const start = body.lastIndexOf('\n', m.index) + 1 || m.index;
+    let end = body.indexOf('<h2', m.index + m[0].length);
+    if (end === -1) end = body.length;
+    blockRanges.push({ start: start, end: end, heading: m[0] });
+  }
+
+  function isInsideBlock(pos) {
+    return blockRanges.some(function(r) { return pos >= r.start && pos < r.end; });
+  }
+
+  const words = ['収納', '収納ボックス', '片付け', 'エアコン', '室外機'];
+  const details = {};
+  words.forEach(function(word) {
+    const positions = [];
+    let idx = body.indexOf(word);
+    while (idx !== -1) {
+      positions.push({ index: idx, insideInsertedBlock: isInsideBlock(idx) });
+      idx = body.indexOf(word, idx + 1);
+    }
+    details[word] = {
+      totalOccurrences: positions.length,
+      occurrencesOutsideInsertedBlocks: positions.filter(function(p) { return !p.insideInsertedBlock; }).length,
+      samplePositions: positions.slice(0, 5)
+    };
+  });
+
+  const result = {
+    row: targetRow,
+    bodyLength: body.length,
+    insertedBlockRanges: blockRanges.map(function(r) { return { start: r.start, end: r.end, heading: r.heading }; }),
+    wordDetails: details
+  };
+
+  console.log(JSON.stringify(result, null, 2));
+  return result;
+}

@@ -4135,3 +4135,49 @@ function uaClearCirculatorRow1190BackgroundState20260902() {
   console.log('次に「本文を再生成」を押すと、新しいstructureMemoに基づいて新規リクエストが送信されます。');
   return { cleared: true, cancelResult: cancelResult };
 }
+
+// 2026-09-03: 「WP更新を停止しました。公開中の記事にある画像がパネル本文から3件欠落しています」
+// エラーが出た。これはuaUpdatePublishedWpFromPanelCore_の画像保護ガード（正常動作）。
+// パネル側（シートのbody列）に今どんな本文が入っているかを、WPへは一切触れず確認するための
+// 読み取り専用関数。
+function uaInspectCirculatorRow1190CurrentBody20260903() {
+  const appConfig = UA_APP_TYPES.home;
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(appConfig.articleSheetName);
+  if (!sheet) throw new Error('シートが見つかりません: ' + appConfig.articleSheetName);
+
+  const row = 69;
+  const wpPostId = String(sheet.getRange(row, UA_COLUMNS.wpPostId).getValue() || '').trim();
+  if (wpPostId !== '1190') {
+    throw new Error('行69のwpPostIdが1190ではありません（実際: ' + wpPostId + '）。安全のため中止します。');
+  }
+
+  const body = String(sheet.getRange(row, UA_COLUMNS.body).getValue() || '');
+  const structureMemo = String(sheet.getRange(row, UA_COLUMNS.structureMemo).getValue() || '');
+  const status = String(sheet.getRange(row, UA_COLUMNS.status).getValue() || '');
+  const titleIdeas = String(sheet.getRange(row, UA_COLUMNS.titleIdeas).getValue() || '');
+
+  const sheetImageRefs = uaExtractWpImageReferences_(body).map(function(item) { return item.label; });
+
+  const wpConfig = uaGetWpConfig_(appConfig);
+  const currentPost = uaFetchWpPostForEdit_(wpConfig, 1190);
+  const currentWpBody = uaGetWpPostRawContent_(currentPost);
+  const missingImages = uaFindMissingPublishedWpImages_(currentWpBody, body);
+
+  const result = {
+    status: status,
+    titleIdeas: titleIdeas,
+    bodyLength: body.length,
+    structureMemoLength: structureMemo.length,
+    hasFourCausesFraming: /4つの原因|四つの原因|カバーが外れない4つ/.test(body),
+    hasBrandComparison: /ブランド|山善|ニトリ|DCM|TEKNOS/.test(body),
+    hasIrisLink: body.indexOf('irisohyama-circulator-cleaning') !== -1,
+    sheetBodyImageRefs: sheetImageRefs,
+    publishedWpImageRefs: uaExtractWpImageReferences_(currentWpBody).map(function(item) { return item.label; }),
+    missingImagesIfPushedNow: missingImages,
+    bodySnippetStart: body.slice(0, 300),
+    bodySnippetEnd: body.slice(-300)
+  };
+  console.log(JSON.stringify(result, null, 2));
+  return result;
+}

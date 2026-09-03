@@ -4136,6 +4136,24 @@ function uaClearCirculatorRow1190BackgroundState20260902() {
   return { cleared: true, cancelResult: cancelResult };
 }
 
+// 2026-09-04: post1190（サーキュレーターのカバーが外れない記事）のstructureMemoで
+// 指示していた、アイリスオーヤマ専用記事（post1158）への内部リンクが本文再生成後も
+// 入っていなかったため手動で追加する。挿入位置は「外せる場合と外せない場合の掃除方法」
+// （汎用的な分解手順）の直後、「修理相談か買い替えかの判断基準」の直前。
+function uaAddIrisohyamaCrossLinkToCirculatorCoverPost20260904() {
+  const wpConfig = uaGetWpConfig_(UA_APP_TYPES.home);
+
+  const result = uaInsertBareUrlLinkBeforeHeading_(
+    wpConfig,
+    1190,
+    '<h2>修理相談か買い替えかの判断基準</h2>',
+    'お使いの機種がアイリスオーヤマ製で、分解や掃除の手順をもっと詳しく知りたい場合は、次の記事も参考になります。',
+    'https://kurashi-ie.com/irisohyama-circulator-cleaning/'
+  );
+
+  console.log(JSON.stringify(result));
+}
+
 // 2026-09-03: 「WP更新を停止しました。公開中の記事にある画像がパネル本文から3件欠落しています」
 // エラーが出た。これはuaUpdatePublishedWpFromPanelCore_の画像保護ガード（正常動作）。
 // パネル側（シートのbody列）に今どんな本文が入っているかを、WPへは一切触れず確認するための

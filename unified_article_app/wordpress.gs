@@ -3975,3 +3975,70 @@ function uaInspectCirculatorRow1190BeforeRewrite20260902() {
   console.log(JSON.stringify(result, null, 2));
   return result;
 }
+
+// 2026-09-02: サーキュレーター2記事のカニバリゼーション対応。post1190
+// （行69、「サーキュレーター 掃除 外れない」＝ブランド横断の一般記事）が、
+// 同サイトのpost1158（アイリスオーヤマ限定の手順記事）とほぼ同じ「ネジ/回転
+// ロック/ツメ/分解非推奨」の4分類・分解手順を重複してカバーしていた。
+// mainInputは変えず（正当なブランド横断キーワードのため）、structureMemoだけ
+// 書き換えて、詳細な分解手順はアイリスオーヤマ記事へ譲り、この記事は
+// ①主要ブランドの固定方式傾向比較、②ブランド・型番不明時の判断、
+// ③修理か買い替えかの費用判断、に重点を移す。titleIdeasも合わせて更新する。
+// bodyやstatusは触らない（実際の本文再生成はユーザーがパネルから安全に行う）。
+function uaRewriteCirculatorRow1190StructureMemo20260902() {
+  const appConfig = UA_APP_TYPES.home;
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(appConfig.articleSheetName);
+  if (!sheet) throw new Error('シートが見つかりません: ' + appConfig.articleSheetName);
+
+  const row = 69;
+  const wpPostId = String(sheet.getRange(row, UA_COLUMNS.wpPostId).getValue() || '').trim();
+  if (wpPostId !== '1190') {
+    throw new Error('行69のwpPostIdが1190ではありません（実際: ' + wpPostId + '）。安全のため中止します。');
+  }
+
+  const newStructureMemo = [
+    '【読者心理から拾った材料】',
+    'ブランドを問わず、サーキュレーターのカバーが外れず困っている人向け。ブランドによって固定方式（ネジ・回転ロック・ツメ・分解非推奨）が違うため、まず自分の機種のブランド傾向を知りたいというニーズがある。無理に分解して壊すより、買い替えた方が結果的に安いのか、費用面の判断にも悩んでいる。',
+    '',
+    '【この記事の役割（サイト内の別記事との重複回避）】',
+    '本サイトには「アイリスオーヤマのサーキュレーター掃除｜後ろが外れない時は？」という、アイリスオーヤマに特化した分解・掃除手順の記事が別にある。この記事では、アイリスオーヤマ固有の詳細手順を繰り返さない。かわりに、①主要ブランド（山善、アイリスオーヤマ、ニトリ、DCM、TEKNOS、無印良品など、公式情報で確認できる範囲）の固定方式の傾向比較、②ブランドや型番が分からない場合（ラベル剥がれ・中古・譲り受け品）の判断手順、③分解して掃除を続けるか買い替えるかの費用・時間の判断軸、の3点に重点を置く。アイリスオーヤマの詳しい手順を知りたい読者は、該当記事へ内部リンクで誘導する。',
+    '',
+    '【本文で優先して扱う材料】',
+    '・主要ブランドの固定方式傾向比較表（公式情報で確認できる範囲。断定できないブランド・機種は「型番によって異なる」と明記する）',
+    '・ブランド・型番が分からない場合の確認手順（本体ラベル、購入履歴、サポート窓口への問い合わせ）',
+    '・修理相談 vs 買い替えの判断（費用目安の考え方、保証、サポート窓口の有無）',
+    '・「壊さない」ための共通の停止基準（こじ開けない、水濡れさせない、異音・異常時は使用中止）',
+    '',
+    '【FAQに回す材料】',
+    '・型番シールが読めない、剥がれている場合',
+    '・保証期間内に自己分解した場合の扱い',
+    '・メーカーサポートが終了した古い機種の場合',
+    '',
+    '【今回は主役にしない材料】',
+    '・アイリスオーヤマ固有の詳細な分解手順（→「アイリスオーヤマのサーキュレーター掃除｜後ろが外れない時は？」への内部リンクで誘導する）',
+    '・特定機種の回転方向・ネジ位置の断定',
+    '',
+    '【内部リンク】',
+    '「アイリスオーヤマのサーキュレーター掃除｜後ろが外れない時は？」へのリンクを、ブランド別比較の文脈の中で自然に1回置く。'
+  ].join('\n');
+
+  const newTitleIdeas = [
+    '案1：サーキュレーターのカバーが外れない、ブランド別の傾向と買い替え判断',
+    '案2：型番不明のサーキュレーターは無理に分解しない判断基準',
+    '案3：外れないサーキュレーター、修理か買い替えかをブランド別に整理'
+  ].join('\n');
+
+  const before = {
+    structureMemo: String(sheet.getRange(row, UA_COLUMNS.structureMemo).getValue() || ''),
+    titleIdeas: String(sheet.getRange(row, UA_COLUMNS.titleIdeas).getValue() || '')
+  };
+
+  sheet.getRange(row, UA_COLUMNS.structureMemo).setValue(newStructureMemo);
+  sheet.getRange(row, UA_COLUMNS.titleIdeas).setValue(newTitleIdeas);
+  SpreadsheetApp.flush();
+
+  console.log('structureMemo・titleIdeasを更新しました（行' + row + '）。bodyとstatusには触れていません。');
+  console.log('変更前 structureMemo 文字数: ' + before.structureMemo.length + ' → 変更後: ' + newStructureMemo.length);
+  return { row: row, updated: true };
+}

@@ -4042,3 +4042,96 @@ function uaRewriteCirculatorRow1190StructureMemo20260902() {
   console.log('変更前 structureMemo 文字数: ' + before.structureMemo.length + ' → 変更後: ' + newStructureMemo.length);
   return { row: row, updated: true };
 }
+
+// 2026-09-02: post1190（行69）の本文再生成がブロックされた
+// （"OpenAIで本文生成を継続中です..."）原因調査。structureMemo書き換え後の
+// 再生成依頼は、以前の（"4つの判断"版の）本文生成で保存されたOpenAI
+// バックグラウンド処理IDが残っていると、二重課金防止のため新規送信されず
+// 同じ処理IDの結果を待ち続ける仕様（article.gs
+// uaCallOpenAiArticleBackgroundJson_）。まずOpenAI側の実際の状態を確認する
+// （読み取り専用）。
+function uaInspectCirculatorRow1190BackgroundState20260902() {
+  const appConfig = UA_APP_TYPES.home;
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(appConfig.articleSheetName);
+  if (!sheet) throw new Error('シートが見つかりません: ' + appConfig.articleSheetName);
+
+  const row = 69;
+  const wpPostId = String(sheet.getRange(row, UA_COLUMNS.wpPostId).getValue() || '').trim();
+  if (wpPostId !== '1190') {
+    throw new Error('行69のwpPostIdが1190ではありません（実際: ' + wpPostId + '）。安全のため中止します。');
+  }
+
+  const stateKey = uaGetArticleBackgroundStateKey_(sheet, row);
+  const state = uaLoadArticleBackgroundState_(stateKey);
+  if (!state) {
+    console.log('保存済みのバックグラウンド状態はありません（stateKey=' + stateKey + '）。');
+    return { hasState: false, stateKey: stateKey };
+  }
+
+  let openAiSide = null;
+  let openAiError = null;
+  if (state.responseId) {
+    try {
+      openAiSide = uaRetrieveOpenAiBackgroundJson_(state.responseId);
+    } catch (e) {
+      openAiError = String(e && e.message || e);
+    }
+  }
+
+  const result = {
+    hasState: true,
+    stateKey: stateKey,
+    state: state,
+    openAiSide: openAiSide ? {
+      id: openAiSide.id,
+      status: openAiSide.status,
+      created_at: openAiSide.created_at,
+      completed_at: openAiSide.completed_at || null
+    } : null,
+    openAiError: openAiError
+  };
+
+  console.log(JSON.stringify(result, null, 2));
+  return result;
+}
+
+// 2026-09-02: 上記診断で古い処理IDが完了しておらず（queued/in_progressのまま
+// 止まっている、または既に取得期限切れ）、それが新規生成をブロックしている
+// ことを確認できた場合に実行する。OpenAI側へキャンセルを試みたうえで
+// （成功しなくても、queued状態のジョブは元々ほぼ課金が発生しない）、
+// 保存済みの状態だけを削除する。本文・structureMemo・statusには触れない。
+// これにより、次に「本文を再生成」を押すと新しいリクエストが送信される。
+function uaClearCirculatorRow1190BackgroundState20260902() {
+  const appConfig = UA_APP_TYPES.home;
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(appConfig.articleSheetName);
+  if (!sheet) throw new Error('シートが見つかりません: ' + appConfig.articleSheetName);
+
+  const row = 69;
+  const wpPostId = String(sheet.getRange(row, UA_COLUMNS.wpPostId).getValue() || '').trim();
+  if (wpPostId !== '1190') {
+    throw new Error('行69のwpPostIdが1190ではありません（実際: ' + wpPostId + '）。安全のため中止します。');
+  }
+
+  const stateKey = uaGetArticleBackgroundStateKey_(sheet, row);
+  const state = uaLoadArticleBackgroundState_(stateKey);
+  if (!state) {
+    console.log('保存済みのバックグラウンド状態はありません。何もしていません。');
+    return { cleared: false, reason: 'no state' };
+  }
+
+  let cancelResult = null;
+  if (state.responseId) {
+    try {
+      cancelResult = uaCancelOpenAiBackgroundResponse_(state.responseId);
+    } catch (e) {
+      cancelResult = { cancelled: false, status: 'cancel_failed', message: String(e && e.message || e) };
+    }
+  }
+
+  uaClearArticleBackgroundState_(stateKey);
+  console.log('バックグラウンド状態を削除しました（stateKey=' + stateKey + '）。キャンセル結果: ' + JSON.stringify(cancelResult));
+  console.log('次に「本文を再生成」を押すと、新しいstructureMemoに基づいて新規リクエストが送信されます。');
+  return { cleared: true, cancelResult: cancelResult };
+}

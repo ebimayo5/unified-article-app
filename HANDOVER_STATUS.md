@@ -6,11 +6,8 @@
 
 - 状態: 作業中
 - エージェント: Claude Code
-- 開始時刻: 2026-09-02 頃
-- 状態: 空き
-- エージェント: なし
-- 開始時刻: -
-- やっていること: なし
+- 開始時刻: 2026-09-02 頃（継続中）
+- やっていること: post1190の本文再生成がユーザーの手元で「OpenAIで本文生成を継続中です」エラーでブロックされた。原因は、structureMemo書き換え前（"4つの判断"版）の本文生成時に保存されたOpenAIバックグラウンド処理IDが残っており、二重課金防止ガードが新規リクエストをブロックしているため。診断用`uaInspectCirculatorRow1190BackgroundState20260902`（読み取り専用）とクリア用`uaClearCirculatorRow1190BackgroundState20260902`（OpenAI側へキャンセルを試みてから保存状態だけ削除、本文・structureMemo・statusには触れない）を追加してclasp push中。まだ実行していない。
 - 完了内容（2026-09-02 Claude Code）: サーキュレーター記事カニバリゼーション対応。post1190（行69）のstructureMemo/titleIdeasを、アイリスオーヤマ記事（post1158）との重複を避ける方向（ブランド横断比較・型番不明時の判断・修理vs買い替え）へ書き換え済み（`uaRewriteCirculatorRow1190StructureMemo20260902`実行済み、1913字→930字）。bodyとstatusは触れていない。**次のステップ: ユーザーがパネルの詳細編集タブで行69を開き、本文を再生成する必要がある**（安全のため、この作業はApps Scriptエディタから直接実行していない）。再生成後は、内部リンク（アイリスオーヤマ記事への言及）が入っているか、実際に差別化できているかを確認すること。
 - 完了内容（2026-09-02 Claude Code）: ヤブガラシ記事の無関係商品調査から発展し、ユーザー指示で構造的な再発防止策を実装。`uaSelectRakutenProductQuery_`に軽量LLM関所（`uaIsRakutenProductQueryRelevant_`、Gemini flash、判定不能時は安全側＝非表示に倒す、手動オーバーライドはバイパス）を追加し、キーワード一致やUA_PRODUCT_PLANが選んだクエリでも「本当にこの記事のテーマとして妥当か」を挿入前に確認するようにした（①の`片付け`キーワード削除も別途実施済み）。既存テスト2本（api.gs非ロードでuaCallGeminiJson_未定義によりfail closedして失敗）にモックを追加して復旧、新規テスト`test_rakuten_query_relevance_gate.js`・`test_rakuten_storage_keyword_specificity.js`追加。全35テストPASS、構文チェックOK。push・デプロイはこれから。まだ実記事(post 1145の収納ボックス/エアコン挿入)からは除去していない。並行して、サーキュレーター記事2本（circulator-cover-wont-come-off-cleaning wpPostId=1190 / irisohyama-circulator-cleaning wpPostId=1158）のカニバリゼーションをユーザーと合意（②一方を大幅に作り直して差別化）、まだ未着手。
 - 完了内容（2026-09-02 Claude Code）: たくみパパ停止対応完了。ウォッチドッグトリガーを実際に登録した（`uaSetupAutomaticPostingWatchdog`をApps Scriptエディタから実行、`{"installed":true}`確認済み。30分おきに`uaRunAutomaticPostingWatchdog`が発火する）。モデルは`gpt-5.6-terra`のまま維持（ユーザー判断）。row67「枝豆 防虫ネット」自体（OpenAI応答が"queued"のまま止まっている件）は、まだ再開も対象外にもしていない——次回ウォッチドッグが猶予30分を超えたタイミングで自動再開を試みる想定。

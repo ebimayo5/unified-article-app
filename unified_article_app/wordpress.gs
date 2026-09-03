@@ -3762,3 +3762,52 @@ function uaInvestigateTakumiArticleTimeout20260901() {
   console.log(JSON.stringify(result, null, 2));
   return result;
 }
+
+// 2026-09-02: ユーザー報告「ヤブガラシ駆除の記事に無関係な商品(収納ボックス)・
+// 無関係な文言(エアコン)が出ている」の原因調査用（読み取り専用）。
+// wpPostId=1145 (yabugarashi-kujo) の行を探し、mainInput・readerMindMemo・
+// bodyの中に「収納」「片付け」「エアコン」がどこに含まれているかを確認する。
+function uaInvestigateYabugarashiIrrelevantProduct20260902() {
+  const appConfig = UA_APP_TYPES.home;
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(appConfig.articleSheetName);
+  if (!sheet) throw new Error('シートが見つかりません: ' + appConfig.articleSheetName);
+
+  const lastRow = sheet.getLastRow();
+  const wpPostIds = sheet.getRange(2, UA_COLUMNS.wpPostId, lastRow - 1, 1).getValues();
+  let targetRow = -1;
+  for (let i = 0; i < wpPostIds.length; i++) {
+    if (String(wpPostIds[i][0] || '').trim() === '1145') {
+      targetRow = i + 2;
+      break;
+    }
+  }
+  if (targetRow === -1) {
+    console.log('wpPostId=1145 の行が見つかりませんでした。');
+    return null;
+  }
+
+  const mainInput = String(sheet.getRange(targetRow, UA_COLUMNS.mainInput).getValue() || '');
+  const readerMindMemo = String(sheet.getRange(targetRow, UA_COLUMNS.readerMindMemo).getValue() || '');
+  const body = String(sheet.getRange(targetRow, UA_COLUMNS.body).getValue() || '');
+  const affiliateName = String(sheet.getRange(targetRow, UA_COLUMNS.affiliateName).getValue() || '');
+
+  function findHits(text, words) {
+    return words.filter(function(w) { return text.indexOf(w) !== -1; });
+  }
+
+  const words = ['収納', '収納ボックス', '片付け', 'エアコン', '室外機'];
+  const result = {
+    row: targetRow,
+    mainInput: mainInput,
+    affiliateName: affiliateName,
+    hitsInMainInput: findHits(mainInput, words),
+    hitsInReaderMindMemo: findHits(readerMindMemo, words),
+    hitsInBody: findHits(body, words),
+    readerMindMemoLength: readerMindMemo.length,
+    readerMindMemoPreview: readerMindMemo.slice(0, 1500)
+  };
+
+  console.log(JSON.stringify(result, null, 2));
+  return result;
+}

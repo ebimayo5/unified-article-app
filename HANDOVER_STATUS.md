@@ -7,7 +7,7 @@
 - 状態: 作業中
 - エージェント: Claude Code
 - 開始時刻: 2026-09-02 頃
-- やっていること: ユーザー報告「ヤブガラシ駆除記事(kurashi-ie.com/yabugarashi-kujo/, wpPostId=1145)に無関係な商品(収納ボックス)・無関係な文言(エアコン)が出ている」の原因調査。仮説：`uaSelectRakutenProductQuery_`のキーワード照合テキストが`mainInput + readerMindMemo（読者に見えない内部メモ）+ body`を連結しており、非表示のreaderMindMemo内の語がヒットして無関係な提案を生んでいる可能性。読み取り専用診断`uaInvestigateYabugarashiIrrelevantProduct20260902`を`wordpress.gs`に追加してclasp push中。まだ実行していない。コード修正はまだ行っていない。
+- やっていること: ヤブガラシ記事(kurashi-ie.com/yabugarashi-kujo/, wpPostId=1145)の無関係商品調査が完了、原因は2つに分離。①「収納ボックス」＝`uaHomeRakutenProductCandidates_`の`収納ボックス 住宅`候補が汎用語`片付け`だけでヒットしていた（本文に「収納」「収納ボックス」は一度も出現せず。位置ベース診断で確認済み）→ `article.gs`のキーワードから`片付け`を削除、回帰テスト`test_rakuten_storage_keyword_specificity.js`追加、修正済み・push準備中。②「エアコン」＝候補リストのキーワード一致ではなく、記事生成時にAIが埋め込む`UA_PRODUCT_PLAN`（本文中の「エアコン配管」という一例の言及をAIが誤って商品化）が原因の可能性が高い（実際にRakutenリンク先はエアコン工事部材で無関係と確認済み）。②はまだ未修正・未着手（プロンプト側の指示追加や商品プランの妥当性チェックが必要、設計要）。①のコードpush・実記事(post 1145)への反映はこれから。
 - 完了内容（2026-09-02 Claude Code）: たくみパパ停止対応完了。ウォッチドッグトリガーを実際に登録した（`uaSetupAutomaticPostingWatchdog`をApps Scriptエディタから実行、`{"installed":true}`確認済み。30分おきに`uaRunAutomaticPostingWatchdog`が発火する）。モデルは`gpt-5.6-terra`のまま維持（ユーザー判断）。row67「枝豆 防虫ネット」自体（OpenAI応答が"queued"のまま止まっている件）は、まだ再開も対象外にもしていない——次回ウォッチドッグが猶予30分を超えたタイミングで自動再開を試みる想定。
   - 補足: `uaInstallAutomaticPostingWatchdogTrigger_`は末尾`_`のためApps Scriptエディタの実行メニューに出ない。公開ラッパー`uaSetupAutomaticPostingWatchdog()`を追加して対応。
   - 事故メモその2: このラッパーを実行する前、関数ドロップダウンを開いて検索文字列をタイプしようとしたところ、ドロップダウンにフォーカスが無くタイプした文字列がコードエディタ本体（automation.gs 1行目）に挿入されてしまった。すぐにCtrl+Zで復元し実害なし。教訓：Apps Scriptエディタの関数選択ドロップダウンは検索ボックスではなく、タイプ操作はせず「ドロップダウンを開く→スクロール→クリック」だけで選ぶこと。選択後は必ずツールバーの関数名表示をスクリーンショットで確認してから実行ボタンを押すこと。

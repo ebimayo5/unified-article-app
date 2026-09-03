@@ -3939,3 +3939,39 @@ function uaInvestigateCirculatorRawTitleLinks20260902() {
   console.log(JSON.stringify(result, null, 2));
   return result;
 }
+
+// 2026-09-02: サーキュレーター2記事のカニバリゼーション対応（post1190を差別化
+// する方向でリライトする）にあたり、現在のmainInput/structureMemo/
+// readerMindMemo/statusを確認する（読み取り専用）。
+function uaInspectCirculatorRow1190BeforeRewrite20260902() {
+  const appConfig = UA_APP_TYPES.home;
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(appConfig.articleSheetName);
+  if (!sheet) throw new Error('シートが見つかりません: ' + appConfig.articleSheetName);
+
+  const lastRow = sheet.getLastRow();
+  const wpPostIds = sheet.getRange(2, UA_COLUMNS.wpPostId, lastRow - 1, 1).getValues();
+  let targetRow = -1;
+  for (let i = 0; i < wpPostIds.length; i++) {
+    if (String(wpPostIds[i][0] || '').trim() === '1190') {
+      targetRow = i + 2;
+      break;
+    }
+  }
+  if (targetRow === -1) {
+    console.log('wpPostId=1190 の行が見つかりませんでした。');
+    return null;
+  }
+
+  const result = {
+    row: targetRow,
+    status: String(sheet.getRange(targetRow, UA_COLUMNS.status).getValue() || ''),
+    mainInput: String(sheet.getRange(targetRow, UA_COLUMNS.mainInput).getValue() || ''),
+    structureMemo: String(sheet.getRange(targetRow, UA_COLUMNS.structureMemo).getValue() || ''),
+    readerMindMemo: String(sheet.getRange(targetRow, UA_COLUMNS.readerMindMemo).getValue() || ''),
+    titleIdeas: String(sheet.getRange(targetRow, UA_COLUMNS.titleIdeas).getValue() || '')
+  };
+
+  console.log(JSON.stringify(result, null, 2));
+  return result;
+}

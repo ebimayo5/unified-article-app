@@ -14,6 +14,13 @@ vm.runInContext(configSource, context);
 vm.runInContext(utilsSource, context);
 vm.runInContext(linksSource, context);
 vm.runInContext(articleSource, context);
+// uaApplySecondaryProductMention_ (reached via uaApplyRakutenAffiliateBanner_)
+// now gates the fetched item's name through a lightweight Gemini relevance
+// check; this file doesn't load api.gs, so stub it to preserve the
+// pre-existing "assume relevant" behavior these tests were written against.
+context.uaCallGeminiJson_ = function () {
+  return { data: { relevant: true } };
+};
 
 const uaIsUsedCarProductPlan_ = vm.runInContext('uaIsUsedCarProductPlan_', context);
 const uaHasManagedUsedCarAffiliate_ = vm.runInContext('uaHasManagedUsedCarAffiliate_', context);

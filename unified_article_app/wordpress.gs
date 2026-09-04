@@ -4199,3 +4199,57 @@ function uaInspectCirculatorRow1190CurrentBody20260903() {
   console.log(JSON.stringify(result, null, 2));
   return result;
 }
+
+// 2026-09-04: kurashi-ie.com/shutter-closed-all-the-time-demerits/ (post
+// 1245, たくみパパ) had a secondary "軽い商品メンション"（uaApplySecondaryProductMention_
+// が挿入したもの）で、「照明」というジャンル語のクエリに対して楽天APIが
+// 返した最上位商品が、デュエル・マスターズのトレーディングカード「照明魚」
+// だった（商品名に「照明」という文字列を含むだけで実際は無関係）。
+// article.gsにuaIsRakutenItemNameRelevant_という関所を追加済みなので、
+// 既存のstructureMemo/本文には触れず、uaApplyRakutenAffiliateBanner_を
+// 再実行してセカンダリメンションだけを再評価させる（新しい関所がこの
+// トレーディングカードを弾き、メンションが挿入されない状態になるはず）。
+// メイン商品（除湿機バナー）や本文の他の部分は一切変更しない。
+function uaFixShutterPostBadSecondaryMention20260904() {
+  const appConfig = UA_APP_TYPES.home;
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(appConfig.articleSheetName);
+  if (!sheet) throw new Error('シートが見つかりません: ' + appConfig.articleSheetName);
+
+  const lastRow = sheet.getLastRow();
+  const wpPostIds = sheet.getRange(2, UA_COLUMNS.wpPostId, lastRow - 1, 1).getValues();
+  let row = 0;
+  for (let i = 0; i < wpPostIds.length; i++) {
+    if (String(wpPostIds[i][0] || '').trim() === '1245') {
+      row = i + 2;
+      break;
+    }
+  }
+  if (!row) throw new Error('wpPostId=1245の行が見つかりませんでした。');
+
+  const rowData = uaBuildRowData_(sheet, row);
+  console.log('開始: row=' + row + ' status=' + rowData.status + ' wpPostId=' + rowData.wpPostId
+    + ' bodyLength(修正前)=' + String(rowData.body || '').length);
+
+  const beforeHadBadItem = String(rowData.body || '').indexOf('照明魚') !== -1;
+  console.log('修正前に「照明魚」を含むか: ' + beforeHadBadItem);
+
+  const fixedBody = uaApplyRakutenAffiliateBanner_(rowData.body, rowData, appConfig);
+  console.log('UA_LAST_RAKUTEN_STATUS=' + UA_LAST_RAKUTEN_STATUS);
+  console.log('bodyLength(修正後)=' + fixedBody.length);
+  console.log('修正後に「照明魚」を含むか: ' + (fixedBody.indexOf('照明魚') !== -1));
+  console.log('修正後にUA_SECONDARY_PRODUCT_STARTを含むか: ' + (fixedBody.indexOf('UA_SECONDARY_PRODUCT_START') !== -1));
+
+  sheet.getRange(row, UA_COLUMNS.body).setValue(fixedBody);
+  SpreadsheetApp.flush();
+
+  let result;
+  try {
+    result = uaUpdatePublishedWpFromPanelCore_(sheet, row);
+  } catch (e) {
+    console.log('公開済み記事の更新に失敗しました。エラー: ' + (e && e.message ? e.message : String(e)));
+    return { updated: false, error: String(e && e.message || e) };
+  }
+  console.log('公開済み記事の更新: 成功 message=' + (result && result.message));
+  return { updated: true, message: result && result.message };
+}

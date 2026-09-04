@@ -2821,6 +2821,7 @@ function uaApplySecondaryProductMention_(body, rowData, appConfig, primaryQuery)
     return html;
   }
   if (!items || items.length === 0) return html;
+  if (!uaIsRakutenItemNameRelevant_(items[0].name, match.categoryLabel, rowData)) return html;
 
   const mentionBody = uaBuildRakutenLightMentionHtml_(items, seed, match.categoryLabel);
   if (!mentionBody) return html;
@@ -3078,6 +3079,58 @@ function uaIsRakutenProductQueryRelevant_(query, rowData, appConfig) {
   }
 
   UA_RAKUTEN_QUERY_RELEVANCE_CACHE_[cacheKey] = relevant;
+  return relevant;
+}
+
+// 2026-09-04: uaApplySecondaryProductMention_のクエリは、本文中に出てきた
+// ジャンル語1語（例:「照明」）をUA_SECONDARY_PRODUCT_PATTERN_BY_APPで拾った
+// だけのもので、productPlanを持たずuaFetchRakutenItems_を呼ぶ（mustHave/
+// exclude等での絞り込みが一切効かない）。実際に確認したケース:
+// kurashi-ie.com/shutter-closed-all-the-time-demerits/ で、クエリ「照明」に
+// 対して楽天APIが返した最上位商品が、商品名に「照明」という文字列を含む
+// だけの無関係な物（デュエル・マスターズのトレーディングカード「照明魚」）
+// だった。uaIsRakutenProductQueryRelevant_はクエリという「概念」が記事に
+// 合うかしか見ないため（「照明」という概念自体は「部屋が暗い」系の記事に
+// 対して妥当と判定されうる）、この種の取り違えは検出できない。こちらは
+// 実際に取得した商品名そのものを見て判定する。
+const UA_RAKUTEN_ITEM_NAME_RELEVANCE_CACHE_ = {};
+
+function uaIsRakutenItemNameRelevant_(itemName, categoryLabel, rowData) {
+  const cleanName = String(itemName || '').trim();
+  if (!cleanName) return false;
+
+  const mainInput = String(rowData && rowData.mainInput || '').trim();
+  const cacheKey = mainInput + '␟' + String(categoryLabel || '') + '␟' + cleanName;
+  if (Object.prototype.hasOwnProperty.call(UA_RAKUTEN_ITEM_NAME_RELEVANCE_CACHE_, cacheKey)) {
+    return UA_RAKUTEN_ITEM_NAME_RELEVANCE_CACHE_[cacheKey];
+  }
+
+  const prompt = [
+    '記事のメインテーマ: 「' + mainInput + '」',
+    'この記事の中で、「' + categoryLabel + '」というジャンルの商品として、',
+    '楽天市場の次の商品名を紹介しようとしています: 「' + cleanName + '」',
+    '',
+    'この商品名は、検索キーワードとたまたま文字列が一致しただけで、',
+    '実際には「' + categoryLabel + '」とは無関係な商品（トレーディングカードやゲーム関連商品、',
+    '書籍、食品、部品や消耗品のみなど、別ジャンルの商品）である可能性があります。',
+    'この商品名は、本当に「' + categoryLabel + '」という実物のジャンルに合う商品だと言えますか？',
+    '',
+    '判断に迷う場合や情報が不十分な場合は、無関係な商品を出すリスクを避けるため relevant を false にしてください。',
+    '',
+    'JSON形式のみで回答してください: {"relevant": true または false, "reason": "20文字程度の短い理由"}'
+  ].join('\n');
+
+  let relevant = false;
+  try {
+    const result = uaCallGeminiJson_(prompt, 200, 0);
+    relevant = !!(result && result.data && result.data.relevant === true);
+  } catch (e) {
+    // 判定できない場合は安全側（挿入しない）に倒す。
+    console.error('uaIsRakutenItemNameRelevant_: ' + (e && e.message || e));
+    relevant = false;
+  }
+
+  UA_RAKUTEN_ITEM_NAME_RELEVANCE_CACHE_[cacheKey] = relevant;
   return relevant;
 }
 

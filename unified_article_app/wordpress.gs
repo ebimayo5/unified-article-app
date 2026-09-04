@@ -4253,3 +4253,151 @@ function uaFixShutterPostBadSecondaryMention20260904() {
   console.log('公開済み記事の更新: 成功 message=' + (result && result.message));
   return { updated: true, message: result && result.message };
 }
+
+// 2026-09-04: ユーザー質問「なんでそもそも除湿器なの？」に答えるための
+// 読み取り専用の確認。主役商品の選定が本文の湿気に関する記述を拾ったのか、
+// それとも行のメインキーワード（mainInput）そのものに「除湿機」等の語が
+// 入っていたのかを切り分ける。
+function uaInspectShutterPostMainInputForProductSelection20260904() {
+  const appConfig = UA_APP_TYPES.home;
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(appConfig.articleSheetName);
+  const row = 74;
+  const mainInput = String(sheet.getRange(row, UA_COLUMNS.mainInput).getValue() || '');
+  const affiliateName = String(sheet.getRange(row, UA_COLUMNS.affiliateName).getValue() || '');
+  console.log('mainInput=' + mainInput);
+  console.log('affiliateName=' + affiliateName);
+  return { mainInput: mainInput, affiliateName: affiliateName };
+}
+
+// 2026-09-04: 上のuaFixShutterPostBadSecondaryMention20260904が
+// uaApplyRakutenAffiliateBanner_を再実行した際、「すでにバナーが挿入済みか」
+// をチェックする仕組みが無いため、元々あった除湿機バナーの上にもう1つ同じ
+// バナーを重ねて挿入してしまった（本文に同じ「条件に合う場合は、下の商品
+// 候補で…」から始まる段落＋Rinkerブロック3件が2回連続で出てくる状態）。
+// ユーザー指摘で発覚。1件分だけを安全に取り除く。
+function uaDedupeShutterPostRakutenBanner20260904() {
+  const appConfig = UA_APP_TYPES.home;
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(appConfig.articleSheetName);
+  if (!sheet) throw new Error('シートが見つかりません: ' + appConfig.articleSheetName);
+
+  const lastRow = sheet.getLastRow();
+  const wpPostIds = sheet.getRange(2, UA_COLUMNS.wpPostId, lastRow - 1, 1).getValues();
+  let row = 0;
+  for (let i = 0; i < wpPostIds.length; i++) {
+    if (String(wpPostIds[i][0] || '').trim() === '1245') {
+      row = i + 2;
+      break;
+    }
+  }
+  if (!row) throw new Error('wpPostId=1245の行が見つかりませんでした。');
+
+  const anchor = '条件に合う場合は、下の商品候補で価格と仕様を見比べられます';
+  const body = String(sheet.getRange(row, UA_COLUMNS.body).getValue() || '');
+  const firstIdx = body.indexOf(anchor);
+  const secondIdx = body.indexOf(anchor, firstIdx + 1);
+  const thirdIdx = secondIdx > -1 ? body.indexOf(anchor, secondIdx + 1) : -1;
+
+  console.log('occurrences: first=' + firstIdx + ' second=' + secondIdx + ' third=' + thirdIdx);
+  if (firstIdx === -1 || secondIdx === -1) {
+    throw new Error('想定した重複（2回出現）が見つかりませんでした。安全のため中止します。firstIdx=' + firstIdx + ' secondIdx=' + secondIdx);
+  }
+  if (thirdIdx !== -1) {
+    throw new Error('3回以上出現しています。想定外のため中止します。手動で確認してください。');
+  }
+
+  // body[firstIdx, secondIdx) is exactly one full duplicate copy (the
+  // paragraph + banner block back-to-back with no other content between
+  // the two copies) -- remove it, keeping the second (intact) copy.
+  const dedupedBody = body.slice(0, firstIdx) + body.slice(secondIdx);
+  const remainingCount = (dedupedBody.match(new RegExp(anchor.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g')) || []).length;
+  console.log('重複除去後の出現回数: ' + remainingCount + '（1のはず）');
+  if (remainingCount !== 1) {
+    throw new Error('重複除去後も出現回数が1になりませんでした（実際: ' + remainingCount + '）。安全のため保存を中止します。');
+  }
+
+  console.log('bodyLength: ' + body.length + ' -> ' + dedupedBody.length);
+  sheet.getRange(row, UA_COLUMNS.body).setValue(dedupedBody);
+  SpreadsheetApp.flush();
+
+  let result;
+  try {
+    result = uaUpdatePublishedWpFromPanelCore_(sheet, row);
+  } catch (e) {
+    console.log('公開済み記事の更新に失敗しました。エラー: ' + (e && e.message ? e.message : String(e)));
+    return { updated: false, error: String(e && e.message || e) };
+  }
+  console.log('公開済み記事の更新: 成功 message=' + (result && result.message));
+  return { updated: true, message: result && result.message };
+}
+
+// 2026-09-04: ユーザーから「シャッター閉めっぱなし」のような広い『デメリット』
+// 系記事がなぜ選ばれ続けるのか、商品優先の候補選定ロジック
+// （uaSelectNextCandidateIndex_、2026-08-30導入）は今も機能しているのか、
+// という疑問が出た。読み取り専用で「書く」ステータスの候補を全件確認し、
+// uaGetMainKeywordProductProfile_で商品ひも付きと判定されるものと
+// されないものの内訳を見る。
+function uaInspectHomeCandidateProductLinkageCoverage20260904() {
+  const appConfig = UA_APP_TYPES.home;
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(appConfig.candidateSheetName);
+  if (!sheet) throw new Error('候補シートが見つかりません: ' + appConfig.candidateSheetName);
+
+  const lastRow = sheet.getLastRow();
+  const values = sheet.getRange(2, 1, lastRow - 1, 4).getValues();
+
+  let writableCount = 0;
+  const productLinked = [];
+  const notProductLinked = [];
+
+  values.forEach(function(candidate) {
+    const status = String(candidate[UA_CANDIDATE_COLUMNS.status - 1] || '').trim();
+    const keyword = String(candidate[UA_CANDIDATE_COLUMNS.keyword - 1] || '').trim();
+    if (status !== UA_CANDIDATE_STATUS_WRITE || !keyword) return;
+    writableCount++;
+    const profile = uaGetMainKeywordProductProfile_({ mainInput: keyword }, appConfig);
+    if (profile) {
+      productLinked.push(keyword + ' -> ' + profile.label);
+    } else {
+      notProductLinked.push(keyword);
+    }
+  });
+
+  const result = {
+    writableCount: writableCount,
+    productLinkedCount: productLinked.length,
+    notProductLinkedCount: notProductLinked.length,
+    productLinkedSample: productLinked.slice(0, 10),
+    notProductLinkedSample: notProductLinked.slice(0, 15)
+  };
+  console.log(JSON.stringify(result, null, 2));
+  return result;
+}
+
+// 2026-09-04: サイト内トラフィック1位のランドリーチェスト記事（wpPostId=433）
+// に、テーマである「チェスト」の商品リンクが1つも無く、代わりに除湿機の
+// 軽いテキストリンクだけが入っていた。商品ひも付き判定
+// （uaGetMainKeywordProductProfile_）がなぜこの記事を商品ひも付きと
+// 認識しなかったのかを確認する読み取り専用診断。
+function uaInspectLaundryChestPostProductLinkage20260904() {
+  const appConfig = UA_APP_TYPES.home;
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(appConfig.articleSheetName);
+  const lastRow = sheet.getLastRow();
+  const wpPostIds = sheet.getRange(2, UA_COLUMNS.wpPostId, lastRow - 1, 1).getValues();
+  let row = 0;
+  for (let i = 0; i < wpPostIds.length; i++) {
+    if (String(wpPostIds[i][0] || '').trim() === '433') {
+      row = i + 2;
+      break;
+    }
+  }
+  if (!row) throw new Error('wpPostId=433の行が見つかりませんでした。');
+
+  const mainInput = String(sheet.getRange(row, UA_COLUMNS.mainInput).getValue() || '');
+  const profile = uaGetMainKeywordProductProfile_({ mainInput: mainInput }, appConfig);
+  const result = { row: row, mainInput: mainInput, profile: profile };
+  console.log(JSON.stringify(result, null, 2));
+  return result;
+}

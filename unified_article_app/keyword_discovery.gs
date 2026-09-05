@@ -294,6 +294,68 @@ function uaBuildCannibalizationCheckPrompt_(candidateKeywords, existingArticleKe
   ].join('\n');
 }
 
+// 2026-09-05: DRIVE BASEはRinker（楽天商品検索）よりも「案件」（案件管理シートに登録した
+// A8等のアフィリエイトプログラム）中心の収益構造。homeの商品ひも付き判定
+// （uaGetMainKeywordProductProfile_、車種名や車用品名の正規表現ベース）はそのままでは
+// 車種名メインの実際のDRIVE BASEキーワード傾向に合わないため、代わりに「候補キーワードで
+// 記事を書いたときに、登録済みの案件を自然に紹介できそうか」をGeminiに判定させる
+// （カニバリ検査と同じやり方）。案件管理シートはhome/drive兼用（サイト区分の列が無い）ため、
+// リストごとGeminiに渡し、appConfig.labelを文脈として文脈判断させる。
+function uaCollectAffiliateOffers_() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = uaEnsureAffiliateManagementSheet_(ss);
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) return [];
+  const values = sheet.getRange(2, 1, lastRow - 1, UA_AFFILIATE_COLUMNS.notes).getValues();
+  return values
+    .map(function(row) {
+      return {
+        name: String(row[UA_AFFILIATE_COLUMNS.name - 1] || '').trim(),
+        notes: String(row[UA_AFFILIATE_COLUMNS.notes - 1] || '').trim()
+      };
+    })
+    .filter(function(offer) { return offer.name && !uaIsNoAffiliateName_(offer.name); });
+}
+
+function uaBuildOfferLinkageCheckPrompt_(appConfig, candidateKeywords, offers) {
+  const offerLines = offers.map(function(offer) {
+    return '- ' + offer.name + (offer.notes ? '（' + offer.notes + '）' : '');
+  }).join('\n');
+  return [
+    '「' + appConfig.label + '」というブログで、以下の「候補キーワード」それぞれについて、',
+    '「登録済みの案件（アフィリエイトプログラム）一覧」の中に、その記事で自然に紹介できそうな',
+    '案件があるかどうか判定してください。',
+    '・こじつけではなく、読者がそのキーワードで検索したときに、記事の流れの中で違和感なく',
+    '　紹介できる案件だけを「ひも付く」としてください。',
+    '・当てはまる案件が無ければ「ひも付かない」としてください。',
+    '',
+    '候補キーワード:',
+    candidateKeywords.map(function(k) { return '- ' + k; }).join('\n'),
+    '',
+    '登録済みの案件一覧:',
+    offerLines || '（まだ無し）',
+    '',
+    'JSON形式のみで回答してください: {"results": [{"keyword": "候補キーワードそのまま", "linked": true または false, "matchedOffer": "該当する案件名（無ければ空文字）"}]}'
+  ].join('\n');
+}
+
+function uaCheckTreasureKeywordOfferLinkage_(appConfig, candidateKeywords, offers) {
+  if (candidateKeywords.length === 0 || offers.length === 0) return {};
+  const prompt = uaBuildOfferLinkageCheckPrompt_(appConfig, candidateKeywords, offers);
+  const result = uaCallGeminiJson_(prompt, 800, 0);
+  const items = (result && result.data && result.data.results) || [];
+  const map = {};
+  items.forEach(function(item) {
+    const keyword = String(item && item.keyword || '').trim();
+    if (!keyword) return;
+    map[keyword] = {
+      linked: !!(item && item.linked),
+      matchedOffer: String(item && item.matchedOffer || '').trim()
+    };
+  });
+  return map;
+}
+
 function uaCheckTreasureKeywordCannibalization_(candidateKeywords, existingArticleKeywords) {
   if (candidateKeywords.length === 0 || existingArticleKeywords.length === 0) return {};
   const prompt = uaBuildCannibalizationCheckPrompt_(candidateKeywords, existingArticleKeywords);
@@ -374,15 +436,63 @@ function uaAppendAiSuggestedCandidates_(candidateSheet, keywords) {
 // 「書く」への昇格は絶対に行わない（人が確認して昇格させる）。この関数自体はシートへの
 // 書き込みは行わず、判定結果（kept/reason付き）の配列を返すだけ。
 function uaEvaluateTreasureKeywordCandidates_(appConfig, rawCandidates, existingSet, existingArticleKeywords) {
-  const results = [];
+  const resultByKeyword = {};
+  const toScore = [];
+
   rawCandidates.forEach(function(keyword) {
     if (existingSet[keyword]) {
-      results.push({ keyword: keyword, kept: false, reason: '既存の候補・記事と重複' });
+      resultByKeyword[keyword] = { keyword: keyword, kept: false, reason: '既存の候補・記事と重複' };
       return;
     }
-    const profile = uaGetMainKeywordProductProfile_({ mainInput: keyword }, appConfig);
+    toScore.push(keyword);
+  });
+
+  // home: まず商品（Rinker/楽天検索語）ひも付き判定を1件ずつ同期チェック（APIコール無し）。
+  // それで拾えなかったキーワードだけ、home・drive問わず案件（アフィリエイトプログラム）
+  // ひも付き判定をバッチでGeminiに1回問い合わせる（コスト抑制のため対象0件なら呼ばない）。
+  // 2026-09-06: たくみパパにも商品ひも付きの他にRinkerを介さない案件があるとのことで、
+  // home限定だった案件ひも付き判定をhome/drive共通にした。
+  const isHome = appConfig.key === 'home';
+  const homeProfileByKeyword = {};
+  const needsOfferCheck = [];
+  toScore.forEach(function(keyword) {
+    if (isHome) {
+      const profile = uaGetMainKeywordProductProfile_({ mainInput: keyword }, appConfig);
+      if (profile) {
+        homeProfileByKeyword[keyword] = profile;
+        return;
+      }
+    }
+    needsOfferCheck.push(keyword);
+  });
+
+  let offerLinkageMap = {};
+  if (needsOfferCheck.length > 0) {
+    let offers = [];
+    try {
+      offers = uaCollectAffiliateOffers_();
+    } catch (e) {
+      console.log('案件一覧の取得でエラーが発生しました: ' + (e && e.message || e));
+    }
+    try {
+      offerLinkageMap = uaCheckTreasureKeywordOfferLinkage_(appConfig, needsOfferCheck, offers);
+    } catch (e) {
+      console.log('案件ひも付き検査でエラーが発生したため、この回は該当キーワードを全件対象外にします: ' + (e && e.message || e));
+    }
+  }
+
+  toScore.forEach(function(keyword) {
+    let profile = homeProfileByKeyword[keyword];
     if (!profile) {
-      results.push({ keyword: keyword, kept: false, reason: '商品ひも付きと判定されず' });
+      const verdict = offerLinkageMap[keyword];
+      profile = (verdict && verdict.linked) ? { label: verdict.matchedOffer || '案件', matchedOffer: verdict.matchedOffer } : null;
+    }
+    if (!profile) {
+      resultByKeyword[keyword] = {
+        keyword: keyword,
+        kept: false,
+        reason: '商品・案件のいずれにもひも付かず'
+      };
       return;
     }
 
@@ -390,23 +500,26 @@ function uaEvaluateTreasureKeywordCandidates_(appConfig, rawCandidates, existing
     try {
       serpResult = uaScoreTreasureKeywordSerp_(keyword, appConfig);
     } catch (e) {
-      results.push({ keyword: keyword, kept: false, reason: 'Serper取得エラー: ' + (e && e.message || e) });
+      resultByKeyword[keyword] = { keyword: keyword, kept: false, reason: 'Serper取得エラー: ' + (e && e.message || e) };
       return;
     }
 
     const kept = serpResult.score >= UA_TREASURE_KEYWORD_SCORE_THRESHOLD;
-    results.push({
+    resultByKeyword[keyword] = {
       keyword: keyword,
       kept: kept,
       productLabel: profile.label,
+      matchedOffer: profile.matchedOffer || undefined,
       serpScore: serpResult.score,
       serpLevel: serpResult.level,
       weakUrls: serpResult.weakUrls,
       reason: kept
         ? ('お宝候補として採用（' + serpResult.level + '、スコア' + serpResult.score + '）')
         : ('SERPスコア不足（' + serpResult.level + '、スコア' + serpResult.score + ' < ' + UA_TREASURE_KEYWORD_SCORE_THRESHOLD + '）')
-    });
+    };
   });
+
+  const results = rawCandidates.map(function(keyword) { return resultByKeyword[keyword]; });
 
   // シートに書き込む前の最終ゲート: SERPスコアを通過した候補だけを対象に、既存記事との
   // カニバリ（表現は違っても同じ読者の悩みを扱っていて内容が丸かぶりする）を検査する。

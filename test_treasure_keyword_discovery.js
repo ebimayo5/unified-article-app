@@ -383,4 +383,87 @@ const driveConfig = { key: 'drive', label: 'DRIVE BASE' };
   assert.strictEqual(geminiCallCount, 2, 'ideation呼び出しとカニバリ検査呼び出しの2回Geminiが呼ばれる');
 }
 
+// 7) uaEvaluateTreasureKeywordCandidates_: offer (案件) linkage gate.
+// 2026-09-06: DRIVE BASEはRinker商品検索より案件（アフィリエイトプログラム）中心の
+// 収益構造なので、Rinker系の商品ひも付き判定が使えないdrive、および商品ひも付き判定で
+// 拾えなかったhomeのキーワードは、案件管理シートとの照合（Gemini判定）で拾えるようにした。
+{
+  const context = freshContext();
+
+  context.PropertiesService = {
+    getScriptProperties: () => ({ getProperty: () => 'test-serper-key' })
+  };
+  context.UrlFetchApp = {
+    fetch: () => ({
+      getResponseCode: () => 200,
+      getContentText: () => JSON.stringify({
+        organic: [
+          { link: 'https://detail.chiebukuro.yahoo.co.jp/qa/question_detail/q1', title: 'Q' },
+          { link: 'https://ameblo.jp/someuser/entry-1.html', title: 'B1' },
+          { link: 'https://hatenablog.com/entry/2', title: 'B2' }
+        ]
+      })
+    })
+  };
+
+  const offerRows = [
+    ['引っ越し一括見積もりサービス', 'https://example.com', '[SC]', '引っ越し検討者向け']
+  ];
+  const offerSheet = {
+    getLastRow: () => offerRows.length + 1,
+    getRange: (r, c, numRows, numCols) => ({
+      getValues: () => {
+        const out = [];
+        for (let i = 0; i < numRows; i++) {
+          const row = offerRows[r - 2 + i] || [];
+          const line = [];
+          for (let j = 0; j < numCols; j++) line.push(row[c - 1 + j] === undefined ? '' : row[c - 1 + j]);
+          out.push(line);
+        }
+        return out;
+      }
+    })
+  };
+  context.SpreadsheetApp = {
+    getActiveSpreadsheet: () => ({
+      getSheetByName: (name) => (name === '案件管理' ? offerSheet : null)
+    })
+  };
+  // main.gs isn't loaded in this test context; stub the one helper this path needs.
+  context.uaEnsureAffiliateManagementSheet_ = function(ss) { return ss.getSheetByName('案件管理'); };
+
+  context.uaCallGeminiJson_ = function () {
+    return {
+      data: {
+        results: [
+          { keyword: '引っ越し 一括見積もり 損しない', linked: true, matchedOffer: '引っ越し一括見積もりサービス' },
+          { keyword: '車 一括査定 相場', linked: true, matchedOffer: '引っ越し一括見積もりサービス' },
+          { keyword: '猫 爪とぎ 材質', linked: false, matchedOffer: '' }
+        ]
+      }
+    };
+  };
+
+  const uaEvaluateTreasureKeywordCandidates_ = vm.runInContext('uaEvaluateTreasureKeywordCandidates_', context);
+  const homeAppConfig3 = vm.runInContext('UA_APP_TYPES', context).home;
+  const driveAppConfig3 = vm.runInContext('UA_APP_TYPES', context).drive;
+
+  // home: fails the Rinker/product-catalog check (no home product noun), so it must fall
+  // back to the offer-linkage check to be kept.
+  const homeResults = uaEvaluateTreasureKeywordCandidates_(homeAppConfig3, ['引っ越し 一括見積もり 損しない'], {}, []);
+  const homeItem = homeResults.find(function(r) { return r.keyword === '引っ越し 一括見積もり 損しない'; });
+  assert.ok(homeItem, 'home: 結果に候補が含まれる');
+  assert.strictEqual(homeItem.kept, true, 'home: Rinkerで拾えなくても案件ひも付きで採用される');
+  assert.strictEqual(homeItem.productLabel, '引っ越し一括見積もりサービス', 'home: 一致した案件名がラベルになる');
+
+  // drive: no Rinker-style check at all -- goes straight to offer linkage.
+  const driveResults = uaEvaluateTreasureKeywordCandidates_(driveAppConfig3, ['車 一括査定 相場', '猫 爪とぎ 材質'], {}, []);
+  const driveKept = driveResults.find(function(r) { return r.keyword === '車 一括査定 相場'; });
+  const driveRejected = driveResults.find(function(r) { return r.keyword === '猫 爪とぎ 材質'; });
+  assert.ok(driveKept, 'drive: 結果に候補が含まれる');
+  assert.strictEqual(driveKept.kept, true, 'drive: 案件ひも付きと判定されたキーワードは採用される');
+  assert.strictEqual(driveRejected.kept, false, 'drive: 案件ひも付きと判定されなかったキーワードは却下される');
+  assert.strictEqual(driveRejected.reason, '商品・案件のいずれにもひも付かず', '却下理由が明記される');
+}
+
 console.log('Treasure keyword discovery: OK');

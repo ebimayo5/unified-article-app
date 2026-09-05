@@ -4401,3 +4401,171 @@ function uaInspectLaundryChestPostProductLinkage20260904() {
   console.log(JSON.stringify(result, null, 2));
   return result;
 }
+
+// 2026-09-04: post433（ランドリーチェスト記事）に無関係な除湿機リンクだけが
+// 入っている件を直す前に、その除湿機言及がどんなHTML構造で埋め込まれて
+// いるかを確認する読み取り専用診断（UA_SECONDARY_PRODUCT_START/ENDマーカーは
+// 無いことが分かっている＝旧フォーマット。安全に除去するため構造を先に見る）。
+function uaInspectLaundryChestPostDehumidifierSection20260904() {
+  const appConfig = UA_APP_TYPES.home;
+  const wpConfig = uaGetWpConfig_(appConfig);
+  const postId = 433;
+  const currentPost = uaFetchWpPostForEdit_(wpConfig, postId);
+  const body = uaGetWpPostRawContent_(currentPost);
+
+  const idx = body.indexOf('除湿機を楽天で確認');
+  if (idx === -1) {
+    console.log('「除湿機を楽天で確認」が見つかりませんでした。');
+    return { found: false };
+  }
+
+  const before = body.slice(Math.max(0, idx - 400), idx);
+  const after = body.slice(idx, idx + 900);
+  console.log('=== BEFORE ===');
+  console.log(before);
+  console.log('=== AFTER ===');
+  console.log(after);
+  return { idx: idx, bodyLength: body.length };
+}
+
+// 2026-09-04続き: post433の除湿機セクションの正確な開始・終了位置を確認する
+// 読み取り専用診断（見出し「湿気が強い家は除湿機も候補に入れる」から
+// 次の見出し「見積もりやショールームで聞きたい確認テンプレ」の直前までを
+// まるごと除去する想定）。
+function uaInspectLaundryChestPostDehumidifierBoundaries20260904() {
+  const appConfig = UA_APP_TYPES.home;
+  const wpConfig = uaGetWpConfig_(appConfig);
+  const postId = 433;
+  const currentPost = uaFetchWpPostForEdit_(wpConfig, postId);
+  const body = uaGetWpPostRawContent_(currentPost);
+
+  const startNeedle = '湿気が強い家は除湿機も候補に入れる';
+  const endNeedle = '見積もりやショールームで聞きたい確認テンプレ';
+  const startIdx = body.indexOf(startNeedle);
+  const endIdx = body.indexOf(endNeedle);
+
+  console.log('startIdx=' + startIdx + ' endIdx=' + endIdx + ' bodyLength=' + body.length);
+  if (startIdx === -1 || endIdx === -1 || endIdx <= startIdx) {
+    console.log('見出しの位置関係が想定と違います。安全のためここで停止します。');
+    return { startIdx: startIdx, endIdx: endIdx };
+  }
+
+  // 見出しタグの開始位置（<h2 か <h3）まで少し前に戻って、タグ全体を含める。
+  const tagBack = body.lastIndexOf('<h', startIdx);
+  console.log('見出し直前のタグ位置(tagBack)=' + tagBack);
+  console.log('=== 開始タグ周辺(前後80文字) ===');
+  console.log(body.slice(Math.max(0, tagBack - 20), tagBack + 80));
+  console.log('=== 終了見出し直前のタグ周辺(前後80文字) ===');
+  const endTagBack = body.lastIndexOf('<h', endIdx);
+  console.log(body.slice(Math.max(0, endTagBack - 20), endTagBack + 80));
+
+  return { startIdx: startIdx, endIdx: endIdx, tagBack: tagBack, endTagBack: endTagBack };
+}
+
+// 2026-09-04続き: post433（ランドリーチェスト記事）の無関係な除湿機セクション
+// （見出し「湿気が強い家は除湿機も候補に入れる」から次の見出し直前まで）を
+// まるごと除去し、本日修正した購入検討ワード判定を使って、テーマである
+// チェストの商品を正しく挿入し直す。
+function uaFixLaundryChestPostMissingProduct20260904() {
+  const appConfig = UA_APP_TYPES.home;
+  const wpConfig = uaGetWpConfig_(appConfig);
+  const postId = 433;
+  const currentPost = uaFetchWpPostForEdit_(wpConfig, postId);
+  const currentStatus = String(currentPost && currentPost.status || '').trim();
+  if (currentStatus !== 'publish') {
+    throw new Error('投稿ID ' + postId + ' は公開中ではありません（現在: ' + currentStatus + '）。安全のため中止します。');
+  }
+  const body = uaGetWpPostRawContent_(currentPost);
+
+  const startNeedle = '湿気が強い家は除湿機も候補に入れる';
+  const endNeedle = '見積もりやショールームで聞きたい確認テンプレ';
+  const startIdx = body.indexOf(startNeedle);
+  const endIdx = body.indexOf(endNeedle);
+  if (startIdx === -1 || endIdx === -1 || endIdx <= startIdx) {
+    throw new Error('想定した見出しが見つかりませんでした。安全のため中止します。startIdx=' + startIdx + ' endIdx=' + endIdx);
+  }
+  const marker = '<!-- wp:heading -->';
+  const removalStart = body.lastIndexOf(marker, startIdx);
+  const removalEnd = body.lastIndexOf(marker, endIdx);
+  if (removalStart === -1 || removalEnd === -1 || removalEnd <= removalStart) {
+    throw new Error('見出しブロックの境界が見つかりませんでした。安全のため中止します。removalStart=' + removalStart + ' removalEnd=' + removalEnd);
+  }
+
+  const bodyWithoutDehumidifier = body.slice(0, removalStart) + body.slice(removalEnd);
+  console.log('除湿機セクション除去: ' + body.length + ' -> ' + bodyWithoutDehumidifier.length);
+
+  const rowData = { mainInput: 'ランドリーチェスト カビ' };
+  const profile = uaGetMainKeywordProductProfile_(rowData, appConfig);
+  console.log('商品ひも付き判定: ' + JSON.stringify(profile));
+  if (!profile) {
+    throw new Error('本日の修正後も商品ひも付きと判定されませんでした。安全のため中止します。');
+  }
+
+  const fixedBody = uaApplyRakutenAffiliateBanner_(bodyWithoutDehumidifier, rowData, appConfig);
+  console.log('UA_LAST_RAKUTEN_STATUS=' + UA_LAST_RAKUTEN_STATUS);
+  console.log('バナー挿入: ' + bodyWithoutDehumidifier.length + ' -> ' + fixedBody.length);
+
+  const bannerOccurrences = (fixedBody.match(/「関連アイテム」を楽天・Amazonで比較する/g) || []).length;
+  console.log('バナー出現回数: ' + bannerOccurrences + '（1のはず）');
+  if (bannerOccurrences > 1) {
+    throw new Error('バナーが複数回挿入されました。安全のため保存を中止します。');
+  }
+  if (fixedBody.indexOf('除湿機') !== -1) {
+    console.log('警告: 除去後も本文に「除湿機」という文字列が残っています（別の文脈の可能性）。');
+  }
+
+  // 画像ID 452は除去した除湿機セクション直後の挿絵（uaInspectLaundryChestPostImage452Position20260904で
+  // 除去範囲の内側にあることを確認済み）。thumbnail.image.rakuten.co.jpの
+  // 画像は、除去した除湿機商品自体の商品写真（楽天CDN）。どちらもこの
+  // セクション専用で、セクションごと消える想定内の欠落として許容する。
+  // それ以外の画像が欠落する場合は想定外のため停止する。
+  const missingImages = uaFindMissingPublishedWpImages_(body, fixedBody);
+  console.log('欠落する既存画像: ' + JSON.stringify(missingImages));
+  const unexpectedMissingImages = missingImages.filter(function(label) {
+    return label.indexOf('452') === -1 && label.indexOf('rakuten.co.jp') === -1;
+  });
+  if (unexpectedMissingImages.length > 0) {
+    throw new Error('想定外の既存画像が欠落します。安全のため中止します: ' + unexpectedMissingImages.join(', '));
+  }
+
+  const updatedPost = uaCallWordPressApi_(
+    wpConfig,
+    '/wp-json/wp/v2/posts/' + encodeURIComponent(postId),
+    'post',
+    { content: fixedBody }
+  );
+  console.log('更新完了: postId=' + (updatedPost && updatedPost.id));
+  return {
+    updated: true,
+    bodyLengthBefore: body.length,
+    bodyLengthAfter: fixedBody.length,
+    profile: profile
+  };
+}
+
+// 2026-09-04続き: uaFixLaundryChestPostMissingProduct20260904が画像ID 452の
+// 欠落で安全停止した。この画像が本当に除去対象の除湿機セクション内にあるのか、
+// それとも隣接する別セクションの正当な挿絵なのかを確認する読み取り専用診断。
+function uaInspectLaundryChestPostImage452Position20260904() {
+  const appConfig = UA_APP_TYPES.home;
+  const wpConfig = uaGetWpConfig_(appConfig);
+  const postId = 433;
+  const currentPost = uaFetchWpPostForEdit_(wpConfig, postId);
+  const body = uaGetWpPostRawContent_(currentPost);
+
+  const imgIdx = body.search(/wp-image-452\b/);
+  const startNeedle = '湿気が強い家は除湿機も候補に入れる';
+  const endNeedle = '見積もりやショールームで聞きたい確認テンプレ';
+  const startIdx = body.indexOf(startNeedle);
+  const endIdx = body.indexOf(endNeedle);
+  const marker = '<!-- wp:heading -->';
+  const removalStart = body.lastIndexOf(marker, startIdx);
+  const removalEnd = body.lastIndexOf(marker, endIdx);
+
+  console.log('imgIdx=' + imgIdx + ' removalStart=' + removalStart + ' removalEnd=' + removalEnd);
+  console.log('画像は除去範囲の内側か: ' + (imgIdx > removalStart && imgIdx < removalEnd));
+  console.log('=== 画像タグ周辺(前後200文字) ===');
+  console.log(body.slice(Math.max(0, imgIdx - 300), imgIdx + 100));
+
+  return { imgIdx: imgIdx, removalStart: removalStart, removalEnd: removalEnd };
+}

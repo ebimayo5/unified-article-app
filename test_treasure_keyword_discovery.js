@@ -263,4 +263,124 @@ const driveConfig = { key: 'drive', label: 'DRIVE BASE' };
   assert.deepStrictEqual(candidateSheet._rows[1], ['書く', '案件無し', '既存の候補キーワード', ''], '既存の行はそのまま残る（下に押し出されるだけ）');
 }
 
+// 6) uaDiscoverTreasureKeywords_: cannibalization gate. A candidate that clears
+// product-linkage and SERP scoring must still be rejected when it targets the
+// same reader intent as an existing PUBLISHED ARTICLE, even without an exact
+// string match (the cheap existingSet dedup alone would miss this).
+{
+  const context = freshContext();
+
+  let geminiCallCount = 0;
+  context.uaCallGeminiJson_ = function () {
+    geminiCallCount++;
+    if (geminiCallCount === 1) {
+      // 1st call: keyword ideation.
+      return { data: { keywords: ['ランドリーチェスト カビ'] } };
+    }
+    // 2nd call: cannibalization check.
+    return {
+      data: {
+        results: [
+          { keyword: 'ランドリーチェスト カビ', cannibalizes: true, matchedExisting: 'ランドリーチェスト 収納 おすすめ' }
+        ]
+      }
+    };
+  };
+
+  context.PropertiesService = {
+    getScriptProperties: () => ({ getProperty: () => 'test-serper-key' })
+  };
+  context.UrlFetchApp = {
+    fetch: () => ({
+      getResponseCode: () => 200,
+      getContentText: () => JSON.stringify({
+        organic: [
+          { link: 'https://detail.chiebukuro.yahoo.co.jp/qa/question_detail/q1', title: 'Q' },
+          { link: 'https://ameblo.jp/someuser/entry-1.html', title: 'B1' },
+          { link: 'https://hatenablog.com/entry/2', title: 'B2' }
+        ]
+      })
+    })
+  };
+
+  const UA_COLUMNS_ref = vm.runInContext('UA_COLUMNS', context);
+
+  function makeArticleSheetMock(mainInputs) {
+    return {
+      getLastRow: () => mainInputs.length + 1,
+      getRange: (r, c, numRows) => ({
+        getValues: () => {
+          const out = [];
+          for (let i = 0; i < numRows; i++) {
+            const idx = r - 2 + i;
+            out.push([c === UA_COLUMNS_ref.mainInput && idx < mainInputs.length ? mainInputs[idx] : '']);
+          }
+          return out;
+        }
+      })
+    };
+  }
+
+  function makeEmptyCandidateSheetMock() {
+    const rows = [];
+    return {
+      getLastRow: () => rows.length + 1,
+      insertRowsBefore: (beforeRow, howMany) => {
+        const insertAt = beforeRow - 2;
+        const blanks = [];
+        for (let i = 0; i < howMany; i++) blanks.push(['', '', '', '']);
+        rows.splice(insertAt, 0, ...blanks);
+      },
+      getRange: (r, c, numRows, numCols) => ({
+        setValues: (values) => {
+          for (let i = 0; i < values.length; i++) {
+            const targetRow = r - 2 + i;
+            rows[targetRow] = rows[targetRow] || [];
+            for (let j = 0; j < values[i].length; j++) rows[targetRow][c - 1 + j] = values[i][j];
+          }
+        },
+        getValues: () => {
+          const out = [];
+          for (let i = 0; i < numRows; i++) {
+            const row = rows[r - 2 + i] || [];
+            const line = [];
+            for (let j = 0; j < numCols; j++) line.push(row[c - 1 + j] === undefined ? '' : row[c - 1 + j]);
+            out.push(line);
+          }
+          return out;
+        }
+      }),
+      _rows: rows
+    };
+  }
+
+  const candidateSheet = makeEmptyCandidateSheetMock();
+  const articleSheet = makeArticleSheetMock(['ランドリーチェスト 収納 おすすめ']);
+
+  context.SpreadsheetApp = {
+    getActiveSpreadsheet: () => ({
+      getSheetByName: (name) => {
+        if (name === 'たくみパパ_キーワード候補') return candidateSheet;
+        if (name === 'たくみパパ') return articleSheet;
+        return null;
+      }
+    }),
+    flush: () => {}
+  };
+
+  const homeAppConfig2 = vm.runInContext('UA_APP_TYPES', context).home;
+  const uaDiscoverTreasureKeywords_2 = vm.runInContext('uaDiscoverTreasureKeywords_', context);
+  const summary2 = uaDiscoverTreasureKeywords_2(homeAppConfig2);
+
+  assert.strictEqual(summary2.addedCount, 0, 'カニバリと判定された候補は追加されない');
+  assert.strictEqual(candidateSheet._rows.length, 0, 'シートには何も追加されない');
+
+  const item = summary2.results.find(function(r) { return r.keyword === 'ランドリーチェスト カビ'; });
+  assert.ok(item, '結果に候補が含まれる');
+  assert.strictEqual(item.kept, false, 'SERPは通過してもカニバリ判定でkeptがfalseに上書きされる');
+  assert.ok(item.reason.indexOf('カニバリ') !== -1, '却下理由にカニバリと明記される');
+  assert.strictEqual(item.cannibalizedWith, 'ランドリーチェスト 収納 おすすめ', '一致した既存記事キーワードが記録される');
+  assert.strictEqual(geminiCallCount, 2, 'ideation呼び出しとカニバリ検査呼び出しの2回Geminiが呼ばれる');
+}
+
 console.log('Treasure keyword discovery: OK');

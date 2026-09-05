@@ -271,6 +271,46 @@ function uaCollectExistingArticleKeywords_(articleSheet) {
   return values.map(function(row) { return String(row[0] || '').trim(); }).filter(Boolean);
 }
 
+// 2026-09-05: シートに貼り付ける前に、既存記事とのカニバリ（同じ読者の悩みを扱っていて
+// 記事内容が丸かぶりする）検査を入れてほしいという要望への対応。単なる完全一致の重複
+// チェック（既存の候補・記事と重複）だけでは、表現が違うだけで同じ悩みを扱っている
+// キーワード（例:「チェスト たわむ 補強」と既存の「チェスト 収納 おすすめ」）を防げない。
+function uaBuildCannibalizationCheckPrompt_(candidateKeywords, existingArticleKeywords) {
+  return [
+    '以下の「新しいキーワード候補」それぞれについて、「既存記事のキーワード一覧」の中に、',
+    '同じ商品・同じ読者の悩みを扱っていて、記事にすると内容が丸かぶりする（カニバリゼーション）',
+    'ものがあるかどうか判定してください。',
+    '・単に同じ商品カテゴリというだけでなく、読者が同じ疑問を持って検索したときに既存記事1本で',
+    '　十分に答えられてしまう場合は「カニバる」と判定してください。',
+    '・同じ商品でも切り口（悩みの種類）が明確に違う場合は「カニバらない」としてください。',
+    '',
+    '新しいキーワード候補:',
+    candidateKeywords.map(function(k) { return '- ' + k; }).join('\n'),
+    '',
+    '既存記事のキーワード一覧:',
+    existingArticleKeywords.join('、') || '（まだ無し）',
+    '',
+    'JSON形式のみで回答してください: {"results": [{"keyword": "候補キーワードそのまま", "cannibalizes": true または false, "matchedExisting": "該当する既存キーワード（無ければ空文字）"}]}'
+  ].join('\n');
+}
+
+function uaCheckTreasureKeywordCannibalization_(candidateKeywords, existingArticleKeywords) {
+  if (candidateKeywords.length === 0 || existingArticleKeywords.length === 0) return {};
+  const prompt = uaBuildCannibalizationCheckPrompt_(candidateKeywords, existingArticleKeywords);
+  const result = uaCallGeminiJson_(prompt, 800, 0);
+  const items = (result && result.data && result.data.results) || [];
+  const map = {};
+  items.forEach(function(item) {
+    const keyword = String(item && item.keyword || '').trim();
+    if (!keyword) return;
+    map[keyword] = {
+      cannibalizes: !!(item && item.cannibalizes),
+      matchedExisting: String(item && item.matchedExisting || '').trim()
+    };
+  });
+  return map;
+}
+
 function uaBuildTreasureKeywordIdeationPrompt_(appConfig, existingKeywords, count) {
   const genreHint = appConfig.key === 'home'
     ? 'ソファ、チェスト、ラック、収納ケース、洗濯機、冷蔵庫、掃除機、除湿機、加湿器、サーキュレーター、空気清浄機、物干し、ベビーゲート、見守りカメラ、防災用品、サンシェード、日よけ、トイレブラシ、汚れ防止シート、結露防止シート、電気毛布、こたつ、室内ジャングルジム、シーリングライトなど、暮らし用品・家具・家電'
@@ -379,6 +419,27 @@ function uaDiscoverTreasureKeywords_(appConfig) {
     });
   });
 
+  // シートに書き込む前の最終ゲート: SERPスコアを通過した候補だけを対象に、既存記事との
+  // カニバリ（表現は違っても同じ読者の悩みを扱っていて内容が丸かぶりする）を検査する。
+  const serpPassedKeywords = results.filter(function(item) { return item.kept; }).map(function(item) { return item.keyword; });
+  if (serpPassedKeywords.length > 0 && existingArticleKeywords.length > 0) {
+    let cannibalMap = {};
+    try {
+      cannibalMap = uaCheckTreasureKeywordCannibalization_(serpPassedKeywords, existingArticleKeywords);
+    } catch (e) {
+      console.log('カニバリ検査でエラーが発生したため、この回はスキップします: ' + (e && e.message || e));
+    }
+    results.forEach(function(item) {
+      if (!item.kept) return;
+      const verdict = cannibalMap[item.keyword];
+      if (verdict && verdict.cannibalizes) {
+        item.kept = false;
+        item.cannibalizedWith = verdict.matchedExisting || null;
+        item.reason = '既存記事とカニバリ（類似: ' + (verdict.matchedExisting || '不明') + '）';
+      }
+    });
+  }
+
   const keptKeywords = results.filter(function(item) { return item.kept; }).map(function(item) { return item.keyword; });
   uaAppendAiSuggestedCandidates_(candidateSheet, keptKeywords);
 
@@ -465,6 +526,25 @@ function uaInspectCandidateSheetTailStatuses20260905() {
       keyword: row[2],
       volume: row[3],
       statusValidationCriteriaValues: rule ? rule.getCriteriaValues() : null
+    };
+  });
+  console.log(JSON.stringify(rows, null, 2));
+  return rows;
+}
+
+// 読み取り専用: 候補シート先頭（一番上、AI提案の挿入位置）の実データを確認する診断用。
+function uaInspectCandidateSheetHeadKeywords20260905(count) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(UA_APP_TYPES.home.candidateSheetName);
+  const scanRows = Math.min(Number(count) || 30, sheet.getLastRow() - 1);
+  const values = sheet.getRange(2, 1, scanRows, 4).getValues();
+  const rows = values.map(function(row, i) {
+    return {
+      row: 2 + i,
+      status: row[0],
+      affiliateName: row[1],
+      keyword: row[2],
+      keywordLength: String(row[2] || '').length
     };
   });
   console.log(JSON.stringify(rows, null, 2));

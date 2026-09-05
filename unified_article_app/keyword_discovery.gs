@@ -656,6 +656,52 @@ function uaCollectCandidateSheetKeywordsByStatus_(candidateSheet, statuses) {
     .filter(Boolean);
 }
 
+// 読み取り専用: 案件管理シートの登録内容（案件名・注意点）をそのまま確認する診断用。
+function uaInspectAffiliateOffers20260906() {
+  const offers = uaCollectAffiliateOffers_();
+  console.log(JSON.stringify(offers, null, 2));
+  return offers;
+}
+
+// 2026-09-06: 「ナビ男くん」の案件ひも付き判定が、キーワードの言い回し次第で
+// 通ったり通らなかったりした（例:「アルファード HDMI 後付け」は通ったが
+// 「ハスラー HDMI どこ」「ルーミー HDMI どこ」は落ちた）。原因は登録済みメモが
+// 「ナビや車内エンタメのアップグレードを促す。」という一文だけで、HDMI・
+// テレビキャンセラー・後席モニターといった具体的な訴求語を含んでおらず、
+// Geminiが言い回しの違いだけで判定をブレさせていたため。実際の商品ページ
+// （https://naviokun.ocnk.net/）を確認し、具体的な機能・対応車種を盛り込んで
+// メモを充実させる。
+function uaUpdateNaviokunNotes20260906() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = uaEnsureAffiliateManagementSheet_(ss);
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) throw new Error('案件管理シートにデータがありません。');
+  const names = sheet.getRange(2, UA_AFFILIATE_COLUMNS.name, lastRow - 1, 1).getValues();
+  let targetRow = -1;
+  for (let i = 0; i < names.length; i++) {
+    if (String(names[i][0] || '').trim() === 'ナビ男くん') {
+      targetRow = i + 2;
+      break;
+    }
+  }
+  if (targetRow === -1) throw new Error('「ナビ男くん」の行が案件管理シートに見つかりませんでした。');
+
+  const newNotes = '純正ナビの機能拡張＋車載AV機器の販売・取付（出張取付対応）。' +
+    '走行中もテレビが映るようにするTVキャンセラー／ナビの操作制限解除、' +
+    'HDMI接続・Android AVアダプター（YouTube・Amazonプライム等ネット動画視聴対応）、' +
+    '後席モニター（リアモニター）取付、Blu-ray/DVDプレーヤー、' +
+    'デジタルミラー型ドライブレコーダー、レーダー探知機。' +
+    '「HDMI どこ」「HDMI 後付け」「テレビキャンセラー」「走行中 テレビ 見れる」' +
+    '「後席モニター 後付け」「ナビ 操作制限」等の車種別お困りごとキーワードに紐づけやすい。' +
+    '対応車種例: アルファード、ランドクルーザー、RAV4、ノア、クラウン、' +
+    'レクサスRX/NX、ステップワゴン、フリード、CX-5、CX-80、BMW、ベンツ等。';
+
+  const before = sheet.getRange(targetRow, UA_AFFILIATE_COLUMNS.notes).getValue();
+  sheet.getRange(targetRow, UA_AFFILIATE_COLUMNS.notes).setValue(newNotes);
+  SpreadsheetApp.flush();
+  return { updated: true, row: targetRow, notesBefore: before, notesAfter: newNotes };
+}
+
 function uaEvaluateCandidateSheetKeywords_(appConfig, statuses) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const candidateSheet = ss.getSheetByName(appConfig.candidateSheetName);

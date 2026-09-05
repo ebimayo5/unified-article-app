@@ -285,9 +285,17 @@ function uaBuildTreasureKeywordIdeationPrompt_(appConfig, existingKeywords, coun
     '3. 既存の候補・既存記事と内容が重複しないようにしてください。既存一覧:',
     existingKeywords.slice(0, 150).join('、') || '（まだ無し）',
     '4. 競合が強すぎる一般的なビッグキーワードではなく、具体的な悩みに絞った言葉にしてください。',
+    // 2026-09-05: 実際にラッコキーワードで検索数を確認したところ、4語以上の
+    // 細かすぎるキーワードはほぼ全て月間検索数0だった。3語以下に絞ることで
+    // 検索される見込みの高いキーワードに寄せる。
+    '5. キーワードは単語（スペース区切り）3つ以内にしてください。4つ以上の細かすぎる言葉は検索されていない可能性が高いので避けてください。',
     '',
     'JSON形式のみで回答してください: {"keywords": ["キーワード1", "キーワード2", ...]}'
   ].join('\n');
+}
+
+function uaCountKeywordWords_(keyword) {
+  return String(keyword || '').trim().split(/\s+/).filter(Boolean).length;
 }
 
 function uaGenerateTreasureKeywordCandidates_(appConfig, existingKeywords, count) {
@@ -296,7 +304,10 @@ function uaGenerateTreasureKeywordCandidates_(appConfig, existingKeywords, count
   const keywords = (result && result.data && result.data.keywords) || [];
   return keywords
     .map(function(value) { return String(value || '').trim(); })
-    .filter(function(value) { return value.length >= 2; });
+    .filter(function(value) { return value.length >= 2; })
+    // 2026-09-05: プロンプトで3語以内を指示しても稀に無視されるため、コード側でも
+    // 4語以上を弾く（検索数の実測で4語以上はほぼ0件だったため）。
+    .filter(function(value) { return uaCountKeywordWords_(value) <= 3; });
 }
 
 // 候補シートへ新しい「AI提案」行を追加する。既存の行には一切触れない。

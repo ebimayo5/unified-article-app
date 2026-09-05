@@ -466,4 +466,54 @@ const driveConfig = { key: 'drive', label: 'DRIVE BASE' };
   assert.strictEqual(driveRejected.reason, '商品・案件のいずれにもひも付かず', '却下理由が明記される');
 }
 
+// 8) uaCheckTreasureKeywordOfferLinkage_: chunking.
+// 2026-09-06: reading 保留 keywords straight from a candidate sheet
+// (uaEvaluateCandidateSheetKeywords_) can hand this many more than the 8-keyword
+// AI-ideation batch -- a real DRIVE BASE run with 100+ 保留 keywords produced a
+// single oversized Gemini call whose JSON response got cut off mid-string and
+// failed to parse, silently zeroing out every candidate. Verify large lists get
+// split into multiple Gemini calls and that one chunk's failure doesn't lose the
+// other chunks' results.
+{
+  const context = freshContext();
+  const uaCheckTreasureKeywordOfferLinkage_ = vm.runInContext('uaCheckTreasureKeywordOfferLinkage_', context);
+  const uaCheckTreasureKeywordCannibalization_ = vm.runInContext('uaCheckTreasureKeywordCannibalization_', context);
+  const homeAppConfig4 = vm.runInContext('UA_APP_TYPES', context).home;
+
+  const keywords = [];
+  for (let i = 0; i < 25; i++) keywords.push('キーワード' + i);
+  const offers = [{ name: 'テスト案件', notes: '' }];
+
+  let callCount = 0;
+  const chunkSizes = [];
+  context.uaCallGeminiJson_ = function (promptText) {
+    callCount++;
+    // 2回目の呼び出し（2チャンク目）だけ、応答JSONが途中で切れてパースに失敗した
+    // ケースを再現する（uaCallGeminiJson_はレスポンスをパースできないとエラーを投げる）。
+    if (callCount === 2) {
+      throw new Error('Unexpected end of JSON input');
+    }
+    const match = promptText.match(/候補キーワード:\n([\s\S]*?)\n\n登録済み/);
+    const chunkKeywords = match ? match[1].split('\n').map(function(l) { return l.replace(/^- /, ''); }) : [];
+    chunkSizes.push(chunkKeywords.length);
+    return {
+      data: {
+        results: chunkKeywords.map(function(k) { return { keyword: k, linked: true, matchedOffer: 'テスト案件' }; })
+      }
+    };
+  };
+
+  const map = uaCheckTreasureKeywordOfferLinkage_(homeAppConfig4, keywords, offers);
+
+  assert.strictEqual(callCount, 3, '25件は12件ずつ3チャンク（12/12/1）に分割されGeminiが3回呼ばれる');
+  assert.strictEqual(map['キーワード0'].linked, true, '1チャンク目は正常に判定される');
+  assert.strictEqual(map['キーワード12'], undefined, '壊れたJSONを返したチャンクの結果は含まれない（他チャンクを巻き込まない）');
+  assert.strictEqual(map['キーワード24'].linked, true, '3チャンク目（壊れたチャンクの後）も正常に判定される');
+
+  // カニバリ検査も同じチャンク分割ロジックを共有していることを確認する。
+  callCount = 0;
+  const cannibalMap = uaCheckTreasureKeywordCannibalization_(keywords, ['既存記事キーワード']);
+  assert.strictEqual(callCount, 3, 'カニバリ検査も同様に3チャンクに分割される');
+}
+
 console.log('Treasure keyword discovery: OK');

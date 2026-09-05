@@ -339,36 +339,69 @@ function uaBuildOfferLinkageCheckPrompt_(appConfig, candidateKeywords, offers) {
   ].join('\n');
 }
 
+// 2026-09-06: DRIVE BASEの「保留」を候補シートから直接読み込む運用（
+// uaEvaluateCandidateSheetKeywords_）だと、AI発掘の1バッチ8件と違って一度に
+// 100件を超えることがある。1回のGemini呼び出しに全件詰め込むと、出力JSONが
+// maxOutputTokensの途中で切れてパースエラーになり、その回の判定が全滅する
+// （実例: DRIVE BASEの保留全件評価でJSON途中切れが発生し addedCount:0 になった）。
+// 一定件数ごとにチャンク分割して複数回Geminiを呼ぶことで、1回の応答サイズを
+// 安全な範囲に収める。
+const UA_TREASURE_KEYWORD_GEMINI_BATCH_CHECK_SIZE = 12;
+
+function uaChunkArray_(array, size) {
+  const chunks = [];
+  for (let i = 0; i < array.length; i += size) {
+    chunks.push(array.slice(i, i + size));
+  }
+  return chunks;
+}
+
 function uaCheckTreasureKeywordOfferLinkage_(appConfig, candidateKeywords, offers) {
   if (candidateKeywords.length === 0 || offers.length === 0) return {};
-  const prompt = uaBuildOfferLinkageCheckPrompt_(appConfig, candidateKeywords, offers);
-  const result = uaCallGeminiJson_(prompt, 800, 0);
-  const items = (result && result.data && result.data.results) || [];
   const map = {};
-  items.forEach(function(item) {
-    const keyword = String(item && item.keyword || '').trim();
-    if (!keyword) return;
-    map[keyword] = {
-      linked: !!(item && item.linked),
-      matchedOffer: String(item && item.matchedOffer || '').trim()
-    };
+  uaChunkArray_(candidateKeywords, UA_TREASURE_KEYWORD_GEMINI_BATCH_CHECK_SIZE).forEach(function(chunk) {
+    const prompt = uaBuildOfferLinkageCheckPrompt_(appConfig, chunk, offers);
+    let result;
+    try {
+      result = uaCallGeminiJson_(prompt, 1500, 0);
+    } catch (e) {
+      console.log('案件ひも付き検査（' + chunk.length + '件分）でエラーが発生したため、このチャンクはスキップします: ' + (e && e.message || e));
+      return;
+    }
+    const items = (result && result.data && result.data.results) || [];
+    items.forEach(function(item) {
+      const keyword = String(item && item.keyword || '').trim();
+      if (!keyword) return;
+      map[keyword] = {
+        linked: !!(item && item.linked),
+        matchedOffer: String(item && item.matchedOffer || '').trim()
+      };
+    });
   });
   return map;
 }
 
 function uaCheckTreasureKeywordCannibalization_(candidateKeywords, existingArticleKeywords) {
   if (candidateKeywords.length === 0 || existingArticleKeywords.length === 0) return {};
-  const prompt = uaBuildCannibalizationCheckPrompt_(candidateKeywords, existingArticleKeywords);
-  const result = uaCallGeminiJson_(prompt, 800, 0);
-  const items = (result && result.data && result.data.results) || [];
   const map = {};
-  items.forEach(function(item) {
-    const keyword = String(item && item.keyword || '').trim();
-    if (!keyword) return;
-    map[keyword] = {
-      cannibalizes: !!(item && item.cannibalizes),
-      matchedExisting: String(item && item.matchedExisting || '').trim()
-    };
+  uaChunkArray_(candidateKeywords, UA_TREASURE_KEYWORD_GEMINI_BATCH_CHECK_SIZE).forEach(function(chunk) {
+    const prompt = uaBuildCannibalizationCheckPrompt_(chunk, existingArticleKeywords);
+    let result;
+    try {
+      result = uaCallGeminiJson_(prompt, 1500, 0);
+    } catch (e) {
+      console.log('カニバリ検査（' + chunk.length + '件分）でエラーが発生したため、このチャンクはスキップします: ' + (e && e.message || e));
+      return;
+    }
+    const items = (result && result.data && result.data.results) || [];
+    items.forEach(function(item) {
+      const keyword = String(item && item.keyword || '').trim();
+      if (!keyword) return;
+      map[keyword] = {
+        cannibalizes: !!(item && item.cannibalizes),
+        matchedExisting: String(item && item.matchedExisting || '').trim()
+      };
+    });
   });
   return map;
 }

@@ -663,6 +663,47 @@ function uaInspectAffiliateOffers20260906() {
   return offers;
 }
 
+// A8.netのリンクHTML/トラッキングURLから、実際の遷移先URL（a8ejpredirectパラメータ、
+// もしくはURLエンコードされたクエリの中のhttps://を含む部分）を抜き出す。
+function uaExtractRealUrlFromAffiliateHtml_(html) {
+  const raw = String(html || '');
+  const match = raw.match(/a8ejpredirect=([^&"'\s]+)/) || raw.match(/[?&]url=([^&"'\s]+)/);
+  if (match) {
+    try {
+      return decodeURIComponent(match[1]);
+    } catch (e) {
+      return match[1];
+    }
+  }
+  const hrefMatch = raw.match(/href=\\?"([^"\\]+)\\?"/i) || raw.match(/href="([^"]+)"/i);
+  return hrefMatch ? hrefMatch[1] : '';
+}
+
+// 読み取り専用: 案件管理シートのURL列も含めて確認する診断用（各案件のページを見て
+// メモを充実させるための材料集め）。A8トラッキングリンクは実際の遷移先URLに変換して出す。
+function uaInspectAffiliateOffersWithUrl20260906() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = uaEnsureAffiliateManagementSheet_(ss);
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) return [];
+  const values = sheet.getRange(2, 1, lastRow - 1, UA_AFFILIATE_COLUMNS.notes).getValues();
+  const offers = values
+    .map(function(row, i) {
+      const rawUrl = String(row[UA_AFFILIATE_COLUMNS.url - 1] || '').trim();
+      const notes = String(row[UA_AFFILIATE_COLUMNS.notes - 1] || '').trim();
+      return {
+        row: i + 2,
+        name: String(row[UA_AFFILIATE_COLUMNS.name - 1] || '').trim(),
+        realUrl: uaExtractRealUrlFromAffiliateHtml_(rawUrl),
+        notesLength: notes.length,
+        notesPreview: notes.slice(0, 20)
+      };
+    })
+    .filter(function(offer) { return offer.name && !uaIsNoAffiliateName_(offer.name); });
+  console.log(JSON.stringify(offers, null, 2));
+  return offers;
+}
+
 // 2026-09-06: 「ナビ男くん」の案件ひも付き判定が、キーワードの言い回し次第で
 // 通ったり通らなかったりした（例:「アルファード HDMI 後付け」は通ったが
 // 「ハスラー HDMI どこ」「ルーミー HDMI どこ」は落ちた）。原因は登録済みメモが
@@ -700,6 +741,109 @@ function uaUpdateNaviokunNotes20260906() {
   sheet.getRange(targetRow, UA_AFFILIATE_COLUMNS.notes).setValue(newNotes);
   SpreadsheetApp.flush();
   return { updated: true, row: targetRow, notesBefore: before, notesAfter: newNotes };
+}
+
+// 2026-09-06: ナビ男くんと同じ理由（メモが空欄または一言だけで、Geminiの案件ひも付き
+// 判定がキーワードの言い回し次第でブレる）で、他の登録案件のメモも各公式ページを見て
+// 充実させる。名前で行を探して一括更新する。
+function uaUpdateAffiliateOfferNotes_(updates) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = uaEnsureAffiliateManagementSheet_(ss);
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) throw new Error('案件管理シートにデータがありません。');
+  const names = sheet.getRange(2, UA_AFFILIATE_COLUMNS.name, lastRow - 1, 1).getValues();
+  const results = [];
+  updates.forEach(function(update) {
+    let targetRow = -1;
+    for (let i = 0; i < names.length; i++) {
+      if (String(names[i][0] || '').trim() === update.name) {
+        targetRow = i + 2;
+        break;
+      }
+    }
+    if (targetRow === -1) {
+      results.push({ name: update.name, updated: false, reason: '案件管理シートに見つかりませんでした' });
+      return;
+    }
+    const before = sheet.getRange(targetRow, UA_AFFILIATE_COLUMNS.notes).getValue();
+    sheet.getRange(targetRow, UA_AFFILIATE_COLUMNS.notes).setValue(update.notes);
+    results.push({ name: update.name, updated: true, row: targetRow, notesBefore: before });
+  });
+  SpreadsheetApp.flush();
+  console.log(JSON.stringify(results, null, 2));
+  return results;
+}
+
+function uaUpdateRemainingAffiliateOfferNotes20260906() {
+  return uaUpdateAffiliateOfferNotes_([
+    {
+      name: 'ottocast',
+      notes: '純正ナビ・車の画面をワイヤレスCarPlay/Android Auto化する車載AVアクセサリーブランド。' +
+        'AIBOX（USB接続でYouTube等のアプリを画面に表示）、ADAPTER（有線→ワイヤレス変換）、' +
+        'SCREEN（純正ナビの無い車への後付けディスプレイ）、HDMI入力対応。工事不要・取り付け簡単。' +
+        '既にCarPlay/Android Auto対応の車が対象（購入前に対応車種データベースで確認が必要）。' +
+        '「CarPlay ワイヤレス化」「Android Auto 有線 うざい」「ナビ 画面 YouTube 見る方法」' +
+        '「HDMI 入力 純正ナビ」等のキーワードに紐づけやすい。'
+    },
+    {
+      name: 'シンシェード',
+      notes: '車のフロントガラス用ロール式サンシェード（日除け）。フロントガラス上部に常時設置でき、' +
+        'ボタン一つで2〜3秒で自動巻き取り。アルミ製で剛性・耐久性が高く、未使用時も視界を妨げない。' +
+        '特許取得済み。価格は1万円台。ボルボ・ジープ・アウディ・レクサス・ベンツ・BMW等の高級車・' +
+        '輸入車には非対応。「サンシェード 面倒」「フロントガラス 日除け 収納」「車 日除け 自動」' +
+        '等のキーワードに紐づけやすい（高級車・輸入車のキーワードには不向き）。'
+    },
+    {
+      name: 'MOTAカーリース',
+      notes: '新車のカーリースサービス。頭金0円・初期費用なしで新車に乗れる、残価設定なし（契約満了時に' +
+        '車がもらえる）、走行距離制限なし（マイカー感覚）、オイル交換・車検費用込みの無料クーポン付き。' +
+        '軽自動車・コンパクトカー・ミニバン・SUV・セダン等、国内主要8メーカーに対応。' +
+        '契約期間は7年・9年・11年。「新車 リース デメリット」「カーリース 走行距離」' +
+        '「新車 頭金なし」等のキーワードに紐づけやすい。'
+    },
+    {
+      name: 'CARCLUB',
+      notes: '車用品・カーパーツの通販専門店（日本最大級）。シートカバー・ハンドルカバー・クッション等の' +
+        '内装パーツ、ボディカバー、外装パーツ、洗車・工具・メンテナンス用品を扱う。メーカー・車種・' +
+        '年式で検索でき、車種専用設計・オーダーメイド商品も豊富。「シートカバー 車種専用」' +
+        '「ハンドルカバー 汗ばむ」「車 内装 パーツ おすすめ」等のキーワードに紐づけやすい。'
+    },
+    {
+      name: 'ガリバー買取査定',
+      notes: '中古車買取・査定サービス（IDOM/ガリバー）。愛車を売りたいユーザー向けに無料出張査定・' +
+        '一括査定を行う。「車 売る タイミング」「下取りより高く売る」「車買取 査定額」' +
+        '「事故車 廃車 買取」等、車を手放す・乗り換える検討段階のキーワードに紐づけやすい。'
+    },
+    {
+      name: '関電SOS',
+      notes: '関西電力グループ（オプテージ運営）のホームセキュリティサービス。防犯センサーで空き巣・' +
+        '非常事態を検知し、警備スタッフが駆けつける。関西エリア特化（セコム・ALSOKと違い全国対応では' +
+        'ない）。「ホームセキュリティ 関西」「一人暮らし 防犯 電気会社」「留守中 空き巣対策」' +
+        '等のキーワードに紐づけやすい。'
+    },
+    {
+      name: 'セコム株式会社',
+      notes: '国内最大手の警備会社（全国対応）のホームセキュリティサービス。防犯サービス・火災監視・' +
+        '非常通報の基本3サービスに加え、住居タイプや家族構成に合わせたプランを提案。マンション月額' +
+        '3,200円〜、戸建て月額4,700円〜（税別）。スタッフが自宅を見て無料見積り。' +
+        '「一人暮らし 防犯対策」「ホームセキュリティ 費用」「留守番 高齢者 見守り」' +
+        '等のキーワードに紐づけやすい。'
+    },
+    {
+      name: 'ミラブルシリーズ',
+      notes: 'サイエンス社のウルトラファインバブルシャワーヘッド（ミラブルZ/ミラブルplus等）。毛穴の' +
+        '奥の汚れ・皮脂を落とす洗浄力、保湿効果、節水効果、塩素除去機能。乾燥肌・ニキビ跡・加齢臭など' +
+        '肌や頭皮の悩み向け。工事不要で既存の蛇口に取り付けるだけ。「シャワーヘッド 塩素除去」' +
+        '「毛穴 汚れ 落ちない」「節水 シャワーヘッド おすすめ」等のキーワードに紐づけやすい。'
+    },
+    {
+      name: 'ロボット掃除機ルンバ',
+      notes: 'iRobot社のロボット掃除機ブランド。自動走行での掃除、スマホアプリ連携での外出先操作、' +
+        '上位モデルは自動ゴミ捨て・自動充電に対応。ペットの毛・花粉・ハウスダスト対策、共働き・子育て' +
+        '世帯の時短家事に訴求。「ロボット掃除機 ペットの毛」「掃除 時間ない 共働き」' +
+        '「ルンバ おすすめ 型番」等のキーワードに紐づけやすい。'
+    }
+  ]);
 }
 
 function uaEvaluateCandidateSheetKeywords_(appConfig, statuses) {

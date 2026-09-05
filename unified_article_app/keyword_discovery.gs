@@ -306,6 +306,10 @@ function uaAppendAiSuggestedCandidates_(candidateSheet, keywords) {
     return [UA_CANDIDATE_STATUS_AI_SUGGESTED, UA_NO_AFFILIATE_NAME, keyword, ''];
   });
   const startRow = candidateSheet.getLastRow() + 1;
+  // 2026-09-05: 追記先の行は「状態」列の入力規則が未更新（過去の書く/転送済み/保留のみの
+  // 古いルール）のままなことがあり、setValuesが先だと「AI提案」を書いた瞬間に入力規則
+  // 違反で例外になる。先にuaApplyCandidateSheetRules_で入力規則を最新化してから書き込む。
+  uaApplyCandidateSheetRules_(candidateSheet);
   candidateSheet.getRange(startRow, 1, rows.length, 4).setValues(rows);
   uaApplyCandidateSheetRules_(candidateSheet);
   SpreadsheetApp.flush();

@@ -673,6 +673,17 @@ function uaEvaluateHoldCandidatesHome20260905() {
   return uaEvaluateCandidateSheetKeywords_(UA_APP_TYPES.home, [UA_CANDIDATE_STATUS_HOLD]);
 }
 
+// 2026-09-06: 「保留」ではなく「書く」（自動投稿がこれから実際に記事化する予定）の
+// キーワードを、書く前の品質チェックとして評価する版。この関数自体は「書く」行の
+// ステータスを一切変更しない（読み取り専用の評価＋AI提案への追加のみ）。
+function uaEvaluateWriteCandidatesDrive20260905() {
+  return uaEvaluateCandidateSheetKeywords_(UA_APP_TYPES.drive, [UA_CANDIDATE_STATUS_WRITE]);
+}
+
+function uaEvaluateWriteCandidatesHome20260905() {
+  return uaEvaluateCandidateSheetKeywords_(UA_APP_TYPES.home, [UA_CANDIDATE_STATUS_WRITE]);
+}
+
 function uaDiscoverTreasureKeywordsHome() {
   return uaDiscoverTreasureKeywords_(UA_APP_TYPES.home);
 }

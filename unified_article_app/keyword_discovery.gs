@@ -369,22 +369,11 @@ function uaAppendAiSuggestedCandidates_(candidateSheet, keywords) {
   SpreadsheetApp.flush();
 }
 
-// メインの発掘処理。「書く」への昇格は絶対に行わない（人が確認して昇格させる）。
-function uaDiscoverTreasureKeywords_(appConfig) {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const candidateSheet = ss.getSheetByName(appConfig.candidateSheetName);
-  if (!candidateSheet) throw new Error('候補シートが見つかりません: ' + appConfig.candidateSheetName);
-  const articleSheet = ss.getSheetByName(appConfig.articleSheetName);
-
-  const existingCandidateKeywords = uaCollectExistingCandidateKeywords_(candidateSheet);
-  const existingArticleKeywords = articleSheet ? uaCollectExistingArticleKeywords_(articleSheet) : [];
-  const existingKeywords = existingCandidateKeywords.concat(existingArticleKeywords);
-  const existingSet = {};
-  existingKeywords.forEach(function(keyword) { existingSet[keyword] = true; });
-
-  const rawCandidates = uaGenerateTreasureKeywordCandidates_(appConfig, existingKeywords, UA_TREASURE_KEYWORD_BATCH_SIZE);
-  console.log('AI提案キーワード(生成直後): ' + JSON.stringify(rawCandidates));
-
+// 候補キーワード（AIが考えたものでも、人が用意したものでも）を、商品ひも付き判定→
+// SERPスコア→既存記事とのカニバリ検査、の順で評価する共通ロジック。
+// 「書く」への昇格は絶対に行わない（人が確認して昇格させる）。この関数自体はシートへの
+// 書き込みは行わず、判定結果（kept/reason付き）の配列を返すだけ。
+function uaEvaluateTreasureKeywordCandidates_(appConfig, rawCandidates, existingSet, existingArticleKeywords) {
   const results = [];
   rawCandidates.forEach(function(keyword) {
     if (existingSet[keyword]) {
@@ -439,6 +428,61 @@ function uaDiscoverTreasureKeywords_(appConfig) {
       }
     });
   }
+
+  return results;
+}
+
+// メインの発掘処理（AIが自分でキーワード案を考える版）。
+function uaDiscoverTreasureKeywords_(appConfig) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const candidateSheet = ss.getSheetByName(appConfig.candidateSheetName);
+  if (!candidateSheet) throw new Error('候補シートが見つかりません: ' + appConfig.candidateSheetName);
+  const articleSheet = ss.getSheetByName(appConfig.articleSheetName);
+
+  const existingCandidateKeywords = uaCollectExistingCandidateKeywords_(candidateSheet);
+  const existingArticleKeywords = articleSheet ? uaCollectExistingArticleKeywords_(articleSheet) : [];
+  const existingKeywords = existingCandidateKeywords.concat(existingArticleKeywords);
+  const existingSet = {};
+  existingKeywords.forEach(function(keyword) { existingSet[keyword] = true; });
+
+  const rawCandidates = uaGenerateTreasureKeywordCandidates_(appConfig, existingKeywords, UA_TREASURE_KEYWORD_BATCH_SIZE);
+  console.log('AI提案キーワード(生成直後): ' + JSON.stringify(rawCandidates));
+
+  const results = uaEvaluateTreasureKeywordCandidates_(appConfig, rawCandidates, existingSet, existingArticleKeywords);
+
+  const keptKeywords = results.filter(function(item) { return item.kept; }).map(function(item) { return item.keyword; });
+  uaAppendAiSuggestedCandidates_(candidateSheet, keptKeywords);
+
+  const summary = { appKey: appConfig.key, addedCount: keptKeywords.length, results: results };
+  console.log(JSON.stringify(summary, null, 2));
+  return summary;
+}
+
+// 人が用意したキーワード案を、AI発掘と同じ評価（商品ひも付き→SERPスコア→カニバリ検査）に
+// かけてから候補シートへ追加する版。キーワード案出し（Gemini）だけをスキップする。
+// 2026-09-05: この入力キーワードは「すでに候補シートに保留などで入っている行」を
+// 再評価するのが主な使い方なので、候補シート自身との重複チェックはしない
+// （それをすると入力した瞬間に全件「既存の候補と重複」で弾かれてしまう）。
+// 既存の公開記事と丸かぶりしていないかだけを見る。
+function uaEvaluateManualTreasureKeywords_(appConfig, keywords) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const candidateSheet = ss.getSheetByName(appConfig.candidateSheetName);
+  if (!candidateSheet) throw new Error('候補シートが見つかりません: ' + appConfig.candidateSheetName);
+  const articleSheet = ss.getSheetByName(appConfig.articleSheetName);
+
+  const existingArticleKeywords = articleSheet ? uaCollectExistingArticleKeywords_(articleSheet) : [];
+  const existingSet = {};
+  existingArticleKeywords.forEach(function(keyword) { existingSet[keyword] = true; });
+
+  const uniqueInputKeywords = [];
+  const seenInput = {};
+  keywords.map(function(k) { return String(k || '').trim(); }).filter(Boolean).forEach(function(k) {
+    if (seenInput[k]) return;
+    seenInput[k] = true;
+    uniqueInputKeywords.push(k);
+  });
+
+  const results = uaEvaluateTreasureKeywordCandidates_(appConfig, uniqueInputKeywords, existingSet, existingArticleKeywords);
 
   const keptKeywords = results.filter(function(item) { return item.kept; }).map(function(item) { return item.keyword; });
   uaAppendAiSuggestedCandidates_(candidateSheet, keptKeywords);
@@ -530,6 +574,39 @@ function uaInspectCandidateSheetTailStatuses20260905() {
   });
   console.log(JSON.stringify(rows, null, 2));
   return rows;
+}
+
+// 2026-09-05: ユーザーが手動で用意した25件のキーワード案を、AI発掘と同じ評価
+// （商品ひも付き→SERPスコア→カニバリ検査）にかける。
+function uaEvaluateManualTreasureKeywordsHome20260905() {
+  const keywords = [
+    'お風呂 着替え どこに置く',
+    '引き戸 レール マスキングテープ',
+    'こたつの代わりになるもの',
+    '電気毛布 こたつ代わり',
+    'ゴミ当番',
+    '結露防止シート 100均',
+    'マンション 玄関ドア 防寒',
+    'カレンダー 壁に穴開けない',
+    '狭いベランダ 物干し 工夫',
+    'キッチン 腰壁 後悔',
+    '玄関 リビング 仕切りなし 寒い',
+    '電子レンジ コンセント 位置',
+    'ニトリ ソファ 合皮 ボロボロ',
+    'プランター 防虫ネット 100均',
+    '猫 キッチン 対策',
+    '霧ヶ峰 ai自動 電気代 高い',
+    '玄関 リビング 仕切りなし 後悔',
+    'ウォークインクローゼット 鏡',
+    'キッチン ワゴン 邪魔',
+    '猫 キッチン 侵入防止',
+    'トイレ リビング 壁一枚',
+    'カーテン開けて寝る',
+    'ベランダ 自転車',
+    'ダンボール小さくする方法',
+    '玄関ドア 取っ手 熱い 対策'
+  ];
+  return uaEvaluateManualTreasureKeywords_(UA_APP_TYPES.home, keywords);
 }
 
 // 読み取り専用: 候補シート先頭（一番上、AI提案の挿入位置）の実データを確認する診断用。

@@ -37,6 +37,11 @@ const UA_STATUS_POSTED = '投稿済み';
 const UA_CANDIDATE_STATUS_WRITE = '書く';
 const UA_CANDIDATE_STATUS_SENT = '転送済み';
 const UA_CANDIDATE_STATUS_HOLD = '保留';
+// 2026-09-05: AIが自動発掘した「お宝キーワード」候補専用のステータス。
+// 「保留」（人が判断して一旦見送った候補）と意味も色も分けて、
+// 手動の保留候補と混ざらないようにする。ユーザーが検索ボリュームを
+// 手動確認してから「書く」に上げる前提の、レビュー待ち状態。
+const UA_CANDIDATE_STATUS_AI_SUGGESTED = 'AI提案';
 const UA_CANDIDATE_LEGACY_STATUS_SENT = '記事化済み';
 const UA_NO_AFFILIATE_NAME = '案件無し';
 

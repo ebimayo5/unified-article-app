@@ -754,6 +754,18 @@ function uaApplyCandidateSheetRules_(sheet) {
       .setFontColor('#724700')
       .setBold(true)
       .setRanges([statusRange])
+      .build(),
+    SpreadsheetApp.newConditionalFormatRule()
+      .whenFormulaSatisfied('=$A2="' + UA_CANDIDATE_STATUS_AI_SUGGESTED + '"')
+      .setBackground('#d9d2f0')
+      .setRanges([rangeAll])
+      .build(),
+    SpreadsheetApp.newConditionalFormatRule()
+      .whenTextEqualTo(UA_CANDIDATE_STATUS_AI_SUGGESTED)
+      .setBackground('#d9d2f0')
+      .setFontColor('#38245e')
+      .setBold(true)
+      .setRanges([statusRange])
       .build()
   ];
 
@@ -765,7 +777,8 @@ function uaBuildCandidateStatusValidation_() {
     .requireValueInList([
       UA_CANDIDATE_STATUS_WRITE,
       UA_CANDIDATE_STATUS_SENT,
-      UA_CANDIDATE_STATUS_HOLD
+      UA_CANDIDATE_STATUS_HOLD,
+      UA_CANDIDATE_STATUS_AI_SUGGESTED
     ], true)
     .setAllowInvalid(false)
     .build();

@@ -4368,8 +4368,8 @@ function uaInspectHomeCandidateProductLinkageCoverage20260904() {
     writableCount: writableCount,
     productLinkedCount: productLinked.length,
     notProductLinkedCount: notProductLinked.length,
-    productLinkedSample: productLinked.slice(0, 10),
-    notProductLinkedSample: notProductLinked.slice(0, 15)
+    productLinkedSample: productLinked.slice(0, 25),
+    notProductLinkedSample: notProductLinked.slice(0, 25)
   };
   console.log(JSON.stringify(result, null, 2));
   return result;

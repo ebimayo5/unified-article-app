@@ -492,6 +492,41 @@ function uaEvaluateManualTreasureKeywords_(appConfig, keywords) {
   return summary;
 }
 
+// 2026-09-05: 候補シートに既に入っているキーワード（デフォルトは「保留」）を、
+// チャットに貼り直させることなく直接読み込んで評価する版。
+function uaCollectCandidateSheetKeywordsByStatus_(candidateSheet, statuses) {
+  const lastRow = candidateSheet.getLastRow();
+  if (lastRow < 2) return [];
+  const values = candidateSheet.getRange(2, 1, lastRow - 1, UA_CANDIDATE_COLUMNS.keyword).getValues();
+  const statusSet = {};
+  (statuses || []).forEach(function(s) { statusSet[s] = true; });
+  return values
+    .filter(function(row) {
+      if (!statuses || statuses.length === 0) return true;
+      const status = String(row[UA_CANDIDATE_COLUMNS.status - 1] || '').trim();
+      return !!statusSet[status];
+    })
+    .map(function(row) { return String(row[UA_CANDIDATE_COLUMNS.keyword - 1] || '').trim(); })
+    .filter(Boolean);
+}
+
+function uaEvaluateCandidateSheetKeywords_(appConfig, statuses) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const candidateSheet = ss.getSheetByName(appConfig.candidateSheetName);
+  if (!candidateSheet) throw new Error('候補シートが見つかりません: ' + appConfig.candidateSheetName);
+  const keywords = uaCollectCandidateSheetKeywordsByStatus_(candidateSheet, statuses);
+  console.log('候補シートから読み込んだキーワード(' + (statuses || []).join('/') + '): ' + JSON.stringify(keywords));
+  return uaEvaluateManualTreasureKeywords_(appConfig, keywords);
+}
+
+function uaEvaluateHoldCandidatesDrive20260905() {
+  return uaEvaluateCandidateSheetKeywords_(UA_APP_TYPES.drive, [UA_CANDIDATE_STATUS_HOLD]);
+}
+
+function uaEvaluateHoldCandidatesHome20260905() {
+  return uaEvaluateCandidateSheetKeywords_(UA_APP_TYPES.home, [UA_CANDIDATE_STATUS_HOLD]);
+}
+
 function uaDiscoverTreasureKeywordsHome() {
   return uaDiscoverTreasureKeywords_(UA_APP_TYPES.home);
 }

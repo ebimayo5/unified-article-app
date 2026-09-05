@@ -299,18 +299,21 @@ function uaGenerateTreasureKeywordCandidates_(appConfig, existingKeywords, count
     .filter(function(value) { return value.length >= 2; });
 }
 
-// 候補シートへ新しい「AI提案」行を追記する。既存の行には一切触れない。
+// 候補シートへ新しい「AI提案」行を追加する。既存の行には一切触れない。
+// 2026-09-05: ユーザー指定により、一番下への追記ではなく見出し直下（一番上）へ
+// 挿入する。毎回の実行結果がすぐ目に入るようにするため。
 function uaAppendAiSuggestedCandidates_(candidateSheet, keywords) {
   if (keywords.length === 0) return;
   const rows = keywords.map(function(keyword) {
     return [UA_CANDIDATE_STATUS_AI_SUGGESTED, UA_NO_AFFILIATE_NAME, keyword, ''];
   });
-  const startRow = candidateSheet.getLastRow() + 1;
-  // 2026-09-05: 追記先の行は「状態」列の入力規則が未更新（過去の書く/転送済み/保留のみの
+  const insertRow = 2;
+  candidateSheet.insertRowsBefore(insertRow, rows.length);
+  // 2026-09-05: 挿入直後の行は「状態」列の入力規則が未更新（過去の書く/転送済み/保留のみの
   // 古いルール）のままなことがあり、setValuesが先だと「AI提案」を書いた瞬間に入力規則
   // 違反で例外になる。先にuaApplyCandidateSheetRules_で入力規則を最新化してから書き込む。
   uaApplyCandidateSheetRules_(candidateSheet);
-  candidateSheet.getRange(startRow, 1, rows.length, 4).setValues(rows);
+  candidateSheet.getRange(insertRow, 1, rows.length, 4).setValues(rows);
   uaApplyCandidateSheetRules_(candidateSheet);
   SpreadsheetApp.flush();
 }
@@ -379,4 +382,80 @@ function uaDiscoverTreasureKeywordsHome() {
 
 function uaDiscoverTreasureKeywordsDrive() {
   return uaDiscoverTreasureKeywords_(UA_APP_TYPES.drive);
+}
+
+// 2026-09-05: 手動で「実行」を何十回もクリックするのは非現実的なので、1回の実行内で
+// 複数バッチを回すループ版。Apps Scriptの実行時間上限（6分）に当たる前に自分で
+// 安全に打ち切る（5.5分）。目標回数に届かなければ、この関数をもう一度実行すれば続きから
+// 再開できる（候補シート・既存記事のキーワードを毎回スキャンして重複除外するため）。
+function uaDiscoverTreasureKeywordsLoop_(appConfig, times) {
+  const maxIterations = Math.max(1, Number(times) || 1);
+  const maxMillis = 5.5 * 60 * 1000;
+  const startedAt = Date.now();
+  let iterationsRun = 0;
+  let totalAdded = 0;
+  const addedKeywords = [];
+
+  for (let i = 0; i < maxIterations; i++) {
+    if (Date.now() - startedAt > maxMillis) {
+      console.log('実行時間の上限に近づいたため中断（' + iterationsRun + '/' + maxIterations + '回実行済み）。続きはもう一度実行してください。');
+      break;
+    }
+
+    let summary;
+    try {
+      summary = uaDiscoverTreasureKeywords_(appConfig);
+    } catch (e) {
+      console.log((i + 1) + '回目でエラー: ' + (e && e.message || e));
+      continue;
+    }
+
+    iterationsRun++;
+    totalAdded += summary.addedCount;
+    summary.results.forEach(function(r) {
+      if (r.kept) addedKeywords.push(r.keyword);
+    });
+    console.log(
+      (i + 1) + '/' + maxIterations + '回目 完了。今回追加:' + summary.addedCount +
+      '件、累計追加:' + totalAdded + '件（経過' + Math.round((Date.now() - startedAt) / 1000) + '秒）'
+    );
+  }
+
+  const finalSummary = {
+    iterationsRun: iterationsRun,
+    targetIterations: maxIterations,
+    totalAdded: totalAdded,
+    addedKeywords: addedKeywords,
+    elapsedSeconds: Math.round((Date.now() - startedAt) / 1000)
+  };
+  console.log('=== ループ終了 ===\n' + JSON.stringify(finalSummary, null, 2));
+  return finalSummary;
+}
+
+function uaDiscoverTreasureKeywordsHomeLoop50() {
+  return uaDiscoverTreasureKeywordsLoop_(UA_APP_TYPES.home, 50);
+}
+
+// 読み取り専用: 候補シート末尾の実データをそのまま確認する診断用。
+function uaInspectCandidateSheetTailStatuses20260905() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(UA_APP_TYPES.home.candidateSheetName);
+  const lastRow = sheet.getLastRow();
+  const scanRows = Math.min(10, lastRow - 1);
+  const range = sheet.getRange(lastRow - scanRows + 1, 1, scanRows, 4);
+  const values = range.getValues();
+  const validations = range.getDataValidations();
+  const rows = values.map(function(row, i) {
+    const rule = validations[i][0];
+    return {
+      row: lastRow - scanRows + 1 + i,
+      status: row[0],
+      affiliateName: row[1],
+      keyword: row[2],
+      volume: row[3],
+      statusValidationCriteriaValues: rule ? rule.getCriteriaValues() : null
+    };
+  });
+  console.log(JSON.stringify(rows, null, 2));
+  return rows;
 }

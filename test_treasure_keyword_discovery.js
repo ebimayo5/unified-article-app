@@ -195,6 +195,12 @@ const driveConfig = { key: 'drive', label: 'DRIVE BASE' };
     const rows = initialKeywordRows.map(function(keyword) { return ['書く', '案件無し', keyword, '']; });
     return {
       getLastRow: () => rows.length + 1, // +1 for header row
+      insertRowsBefore: (beforeRow, howMany) => {
+        const insertAt = beforeRow - 2; // row 2 is the first data row
+        const blanks = [];
+        for (let i = 0; i < howMany; i++) blanks.push(['', '', '', '']);
+        rows.splice(insertAt, 0, ...blanks);
+      },
       getRange: (r, c, numRows, numCols) => ({
         setValues: (values) => {
           for (let i = 0; i < values.length; i++) {
@@ -248,13 +254,13 @@ const driveConfig = { key: 'drive', label: 'DRIVE BASE' };
   assert.strictEqual(byKeyword['サンシェード カビ'].kept, false, 'SERPが強いドメインだけのものは除外される');
   assert.strictEqual(byKeyword['ランドリーチェスト カビ'].kept, true, '弱いSERP構成の商品ひも付きキーワードは採用される');
 
-  const newRows = candidateSheet._rows.slice(1); // skip the pre-existing row
-  assert.strictEqual(newRows.length, 1, '候補シートには1行だけ追加される');
-  assert.strictEqual(newRows[0][0], 'AI提案', '追加された行のステータスは「AI提案」（「書く」には絶対に昇格させない）');
-  assert.strictEqual(newRows[0][2], 'ランドリーチェスト カビ', '追加された行のキーワードが正しい');
+  // 2026-09-05: 新しい行は一番上（見出し直下）に挿入される。
+  assert.strictEqual(candidateSheet._rows.length, 2, '候補シートは既存1行+新規1行の計2行になる');
+  assert.strictEqual(candidateSheet._rows[0][0], 'AI提案', '追加された行のステータスは「AI提案」（「書く」には絶対に昇格させない）');
+  assert.strictEqual(candidateSheet._rows[0][2], 'ランドリーチェスト カビ', '追加された行のキーワードが正しい、かつ一番上にある');
 
-  // Pre-existing row must remain untouched.
-  assert.deepStrictEqual(candidateSheet._rows[0], ['書く', '案件無し', '既存の候補キーワード', ''], '既存の行はそのまま残る');
+  // Pre-existing row must remain untouched, just pushed down.
+  assert.deepStrictEqual(candidateSheet._rows[1], ['書く', '案件無し', '既存の候補キーワード', ''], '既存の行はそのまま残る（下に押し出されるだけ）');
 }
 
 console.log('Treasure keyword discovery: OK');

@@ -4,11 +4,11 @@
 作業を始める前・区切りがつくたびに、必ずここを読み書きすること（CLAUDE.md / AGENTS.md の「並行作業ルール」参照）。
 複数エージェントが同時に動く前提のため、このセクションだけは「最終更新」より新しい情報になり得る。
 
-- 状態: 作業中
-- エージェント: Claude Code
+- 状態: 作業中（Codexへの引き継ぎ待ち）
+- エージェント: Claude Code → Codex（依頼中）
 - 開始時刻: 2026-09-06 （このセッション開始時）
-- やっていること: パネルに「お宝キーワード」タブ（3つ目のメインタブ）を新設中。対象ファイル: unified_article_app/keyword_discovery.gs（新規web-callableラッパー追加）, unified_article_app/web_app.gs（uaListCandidatesForWebに引数追加）, unified_article_app/ua_web_app.html（タブ・ビュー追加、showMainView書き換え）, test_treasure_keyword_discovery.js。既存の一回限り関数・本番データ書き換えロジックは変更しない設計。
-- 本番影響: あり（予定）。コード変更後、ローカルテスト→clasp push→ブラウザでの動作確認→ユーザー確認の上でclasp deployまで行う想定。自動投稿の停止・再開は行わない。
+- やっていること: パネルに「お宝キーワード」タブ（3つ目のメインタブ）を新設。コード実装・全39テストPASS・git push（`38a4cd5`まで）・clasp push（HEAD反映）・テストデプロイURLでの動作確認まで完了。**残るは本番Webアプリの同一URLへの`clasp deploy`のみ**（Claude Code環境ではauto modeのクラシファイアにdeploy操作をブロックされるため実行不可）。ユーザー指示によりCodexへ依頼済み。詳細手順は[CODEX_TASK_deploy_treasure_keyword_tab.md](CODEX_TASK_deploy_treasure_keyword_tab.md)を参照。
+- 本番影響: あり（予定）。deploy後は`clasp deployments`で反映確認し、本番URLでタブ3つ表示されるかブラウザ確認まで行う想定（書き込み系ボタンはクリックしない）。自動投稿の停止・再開は行わない。
 - 完了内容（2026-09-06 Codex）: DRIVE BASE公開記事を全件検査し、旧Cocoon版ナビ男くん紹介セットが残っていた8件（post 2414/2424/2446/2456/2464/2474/2484/2512）を完全一致置換でSWELL版へ更新。再検出0件、8記事すべて公開画面で`article-compass-notice-box`表示を確認。本文再生成、自動投稿の停止・再開は行っていない。全38テストPASS。Claude Codeの完成済み変更がcommit/push済み（`048237e`、引き継ぎ`48f0c5a`）、HEADとorigin/main一致を確認後、同じWebアプリURLを本番バージョン342へ更新。`doGet`と`uaGetWebAppBootData`が342で完了していることを実行履歴で確認。
 - 完了内容（2026-09-06 Claude Code、セッション全体の詳細引き継ぎ）:
 

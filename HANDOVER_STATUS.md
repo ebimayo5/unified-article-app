@@ -4,9 +4,49 @@
 作業を始める前・区切りがつくたびに、必ずここを読み書きすること（CLAUDE.md / AGENTS.md の「並行作業ルール」参照）。
 複数エージェントが同時に動く前提のため、このセクションだけは「最終更新」より新しい情報になり得る。
 
-- 状態: 空き
-- エージェント: （最終更新: Claude Code, 2026-09-04）
-- やっていること: なし。サイト内トラフィック1位のランドリーチェスト記事(post433)も含め、コード修正・ライブ反映まで完了。
+- 状態: 作業中
+- エージェント: Codex
+- 開始時刻: 2026-09-06 13:05頃
+- やっていること: DRIVE BASEの旧Cocoon版ナビ男くん紹介セット8記事をSWELL版へ置換済み。全件表示確認後、完成済み未コミット差分をテスト・コミットし、Apps Scriptの同一WebアプリURLを最新版へデプロイする。
+- 本番影響: あり（DRIVE BASE公開記事8件は紹介セットのみ更新済み。Apps Script Webアプリを最新版へ更新予定。自動投稿の停止・再開・再生成は行わない）。
+- 完了内容（2026-09-06 Claude Code、セッション全体の詳細引き継ぎ）:
+
+  ## このセッションでやったこと（時系列）
+
+  **お宝キーワード発掘機能の改善（keyword_discovery.gs）**
+  1. AI提案キーワード追加時のデータ検証クラッシュ修正（`uaAppendAiSuggestedCandidates_`— 挿入後ではなく挿入前に`uaApplyCandidateSheetRules_`を呼ぶよう順序変更）。追加位置もシート末尾→2行目（先頭）へ変更。
+  2. AI発掘プロンプトに「3単語以内」の条件を追加＋コード側でもフィルタ（`uaCountKeywordWords_`）。Rakko実測で4語以上はほぼ検索ボリューム0だったため。
+  3. 手動評価（`uaEvaluateManualTreasureKeywords_`）の重複除外ロジックを、既存記事のみでチェックするよう修正（候補シート自体との重複チェックを削除）。理由: シートに既にある保留/書くキーワードを再評価する用途なので、候補シート照合だと100%弾かれてしまうため。
+  4. DRIVE BASEの商品ひも付き判定が常にnullを返す不具合を発見（`uaGetMainKeywordProductProfile_`がhome限定にハードゲートされていた＝DRIVE BASEのお宝キーワード発掘は最初から機能していなかった）。DRIVE BASEの実態がRinker/楽天ではなく「案件」（案件管理シートに登録されたASPプログラム）中心という点を踏まえ、Geminiベースの新しい案件ひも付き判定`uaCheckTreasureKeywordOfferLinkage_`を新設。home側にも「Rinkerで拾えなかった分は案件ひも付きもフォールバックで見る」形で適用。
+  5. 大量キーワードを1回のGemini呼び出しに渡すとJSONレスポンスが途中で切れて全滅する不具合を発見・修正。`uaChunkArray_`で12件ずつのチャンクに分割し、1チャンクの失敗が他チャンクを巻き込まないようにした（案件ひも付き判定・カニバリ判定の両方に適用）。
+  6. 案件管理シートの「案件注意点」欄が空欄/一言だけの案件（ナビ男くん等）で、似た言い回しのキーワードでもGeminiのひも付き判定が不安定になる問題をユーザーが発見（「HDMIはナビ男くんの得意案件になるんだけどね」）。ナビ男くん含む案件10件について、実際の商品ページをWeb調査し、キーワード実例入りの詳細メモへ書き換え（`uaUpdateNaviokunNotes20260906`、`uaUpdateRemainingAffiliateOfferNotes20260906`）。
+  7. **今回セッション後半で発見・修正した重大バグ**: 案件欄で絞り込むと対象が数百件規模になり、Gemini案件ひも付き判定のバッチ処理自体がGASの6分実行上限を使い切り、後続のSERP採点フェーズが始まる前に打ち切られる（DRIVE BASEの「ナビ男くん」全件評価で実際に発生: 150件中20件しか評価されず130件が「時間切れ」に）。`uaCheckTreasureKeywordOfferLinkage_`にも同じ時間予算（`UA_TREASURE_KEYWORD_EVAL_TIME_LIMIT_MS`=4.5分）を適用し、`processedKeywords`を返すことで「時間切れで未着手」と「問い合わせたが不一致」を区別できるようにした（誤って却下扱いにしない）。案件が0件の場合の早期returnでも同じ誤判定が起きるバグも合わせて修正。
+  8. ユーザー指示で、案件欄＋ステータスで絞り込んで評価し、結果を新規行追加ではなく**元の行のステータスを直接書き換える**（合格→「AI提案」、不合格→「保留」）版を新設（`uaEvaluateAndUpdateCandidateRowsByAffiliateNameAndStatus_`）。DRIVE BASE「ナビ男くん」×「書く」38件で実行→合格5件・不合格33件。合格5件はユーザー指示で「書く」へ再昇格済み（`uaPromoteNaviokunAiSuggestedToWrite20260906`）。
+  9. 上を一般化し、特定ステータス（転送済み）だけ除外して候補シート全体を洗い直す版も新設（`uaEvaluateAndUpdateAllCandidateRowsExcludingStatuses_`）。たくみパパで798行（うち転送済み50件を除外）を実行し完走: 合格17件・不合格742件・時間切れ0件。
+  10. **書き込み時のもう一つの重大バグ**: たくみパパの候補シートだけステータス列のデータ検証に「AI提案」が登録されておらず、直接書き込みで例外→残り全行が書き込まれず失われる事故が発生。書き込み前に必ず`uaApplyCandidateSheetRules_`を呼ぶよう修正し、1行ずつtry/catchで1行の失敗が他行を巻き込まないようにした。
+
+  **自動投稿の停止事故2件を調査・修正（本番影響あり、WordPress公開まで実施）**
+  11. たくみパパ「空気清浄機 フィルター交換不要 デメリット」が記事構成工程でGASの6分実行上限にタイムアウトし、2回連続で自動スキップされた事故を調査。原因は`uaFetchCompetitorPageInfos_`（links.gs）が、`UrlFetchApp.fetchAll`が例外を投げた場合に競合ページ全件を1件ずつの逐次フォールバックへ落としており、応答の遅い/固まったサイトが1件でも混じると全体が長時間ブロックされる作り。GASの`UrlFetchApp`には個別リクエストを外部から打ち切る機能が無い（AbortController相当の機能なし）という制約を踏まえ、(a) 3分の時間予算で以降のURLを「時間切れのため未取得」として打ち切る、(b) 例外時は全件を逐次処理せずリストを二分して再帰的に`fetchAll`を試す（分割統治）よう修正。正常な大多数は並列フェッチの恩恵を受け、問題のあるURLだけが個別フェッチに絞り込まれる。
+  12. たくみパパ「掃除機 バッテリー 寿命」が自動修正（revision）工程で「NGが1件残っている」を繰り返し、ウォッチドッグが2回自動再開しても解消しない無限ループに陥っていた事故を調査・修正・**WordPress公開まで完了**。
+      - 原因: YMYLカテゴリ判定`uaDetectYmylCategory_`（article.gs）の「バッテリー交換」等の車両判定語が家電記事にも一致してしまい、掃除機記事がvehicle_safety扱いに誤判定。さらにAIの1回限りの自動修正が「本文に既存の異常発熱・液漏れ注意ブロックがあるため重複回避で追加しない」と判断（別種の安全警告と、YMYLの内容開示免責文言を混同）。結果、決定的ルールチェックが要求するYMYL開示文言（「一般的な情報」「専門家へ確認」等）が本文に無いまま、AI修正は完了済み扱いのため二度と送信されず、NGだけが永久に残る設計上の詰みになっていた。
+      - 対応: (1) `uaDetectYmylCategory_`のvehicle_safety/vehicle_law判定をdrive限定に修正（home記事が誤って車両カテゴリにならないようにする恒久修正）。(2) 対象記事（たくみパパ post1290, row79）へ、既存のYMYL注意書き生成ロジック（`uaBuildYmylNoticeHtml_`+`uaFindYmylNoticeInsertionIndex_`、記事新規生成時と同じ関数）を再利用して不足分だけを直接追記（OpenAIへの再課金なし・本文の他部分は無改変）。(3) `uaResumeAutomaticPostingFromPanel('たくみパパ')`で自動投稿を再開し、revision→final_wp→publishまで自動進行。WordPress側で直接確認済み: **公開済み**（https://kurashi-ie.com/vacuum-cleaner-battery-lifespan/、post ID 1290）。本文に注意書きが実際に反映されていることも確認済み。
+
+  ## Gitの状態
+  未コミット。変更ファイル: `HANDOVER_STATUS.md`, `test_treasure_keyword_discovery.js`, `unified_article_app/article.gs`, `unified_article_app/keyword_discovery.gs`, `unified_article_app/links.gs`, `unified_article_app/pre_publish_check.gs`（6ファイル、+416/-21行）。**コミットはCodex側が担当する取り決め**（ユーザー確認済み、2026-09-06）。次のエージェントは、Codexのコミットが実際に上記6ファイルの変更を含んでいるか`git log`/`git diff`で確認してから作業を始めてください。全ファイルは既にclasp pushで本番Apps Scriptへ反映済み（コード上は本番稼働中）。
+
+  ## 衝突リスク（並行作業ルール関連）
+  この完了内容を書いている時点で、HANDOVER_STATUS.mdの「現在作業中」欄にCodexが「DRIVE BASEのナビ男くん紹介セットをSWELL版へ置換し、同一Apps Script WebアプリURLへclasp push/デプロイ予定」と記載していた。Codexのローカル環境が私（Claude Code）のこの6ファイルの変更を取り込まないままclasp pushすると、本番Apps Scriptから今回の修正（特にYMYLバグ修正・競合ページ取得タイムアウト対策）が上書きされて消える可能性がある。次のエージェントは、作業開始時に必ず本番のkeyword_discovery.gs/links.gs/article.gs/pre_publish_check.gsの内容を確認し、今回の修正（下記の関数群）が実際に残っているか確認すること。
+
+  ## 一時診断・ワンオフ関数（cleanup候補、実害なし）
+  `keyword_discovery.gs`: `uaInspectAffiliateOffers20260906`, `uaInspectAffiliateOffersWithUrl20260906`, `uaUpdateNaviokunNotes20260906`, `uaUpdateRemainingAffiliateOfferNotes20260906`, `uaEvaluateNaviokunCandidatesDrive20260906`, `uaPromoteNaviokunAiSuggestedToWrite20260906`, `uaEvaluateAllHomeCandidatesExceptSent20260906`, `uaCountHomeCandidatesExceptSent20260906`
+  `pre_publish_check.gs`: `uaInspectStaleVacuumBatteryRow20260906`, `uaFixStaleVacuumBatteryYmylNotice20260906`, `uaInspectCurrentAutomaticPostingJob20260906`, `uaResumeStaleVacuumBatteryJob20260906`
+  いずれも読み取り専用または対象を厳密に限定したワンオフ処理で、残っていても実害はない。不要なら次回整理してよい。
+
+  ## 未完了・次回検討事項
+  - DRIVE BASEの「ナビ男くん」案件で、書く以外のステータス（保留等、全体で100件超）はまだ再評価していない（今回はユーザー指示で「書く」ステータスのみに絞った）。必要ならユーザーに確認の上、同じ関数パターンで拡張可能。
+  - たくみパパの798件洗い直しで合格した17件は「AI提案」ステータスのまま。ナビ男くんの5件のようにユーザーが個別に「書く」へ昇格させるかは未確認・未対応。
+  - ユーザーから好意的に受け止められた提案（未実装）: お宝キーワード評価をアドホックなApps Script関数ではなく、パネルの3つ目のタブとして正式なUIにする案（「パネルのタブ3つめにできるね」）。
+  - 自動投稿は現在通常稼働中（意図的に停止していない）。今回発見した2件の停止事故はどちらも個別記事の内容起因（YMYL判定・競合ページ遅延）で、自動投稿システム自体の恒久停止が必要な種類の問題ではない。
 - 完了内容（2026-09-04 Claude Code、続き3）: 前項の購入検討ワード修正を受けて、ユーザー指示「直して」でpost433（ランドリーチェスト記事）のライブ本文も修正。旧「湿気が強い家は除湿機も候補に入れる」セクション（見出し・本文2段落・商品リンク・画像2枚）をまるごと除去し（`uaFixLaundryChestPostMissingProduct20260904`、境界はwp:heading単位で正確に特定）、`uaApplyRakutenAffiliateBanner_`を再実行してテーマ通りの「ランドリー収納 カビ防止 チェスト」商品を新規挿入。除去に伴い画像2枚（AI生成の挿絵ID452、旧除湿機商品の楽天CDN画像）が欠落する点は診断関数`uaInspectLaundryChestPostImage452Position20260904`でどちらも除去対象セクション専用と確認した上で、想定内の欠落として安全チェックを調整（画像ID・rakuten.co.jpドメインでフィルタ）。ライブ確認済み（除湿機の話は本文から完全に消え、見出し構成は自然につながり、新しいバナーは本物のランドリー収納商品にリンク）。git push済み（`8df7521`）、clasp push済み。
 - 完了内容（2026-09-04 Claude Code、続き2）: ユーザーとの「そもそも売れる未来が見えない」という戦略的な話から発展し、実データで根本原因を特定。①たくみパパの「書く」ステータス候補25件のうち商品ひも付き判定されたのは**0件**（`uaInspectHomeCandidateProductLinkageCoverage20260904`で確認）。②サイト内トラフィック1位の記事（ランドリーチェストのカビ対策、post433）にテーマ商品（チェスト）の商品リンクが1つも無く、無関係な除湿機のテキストリンクだけが入っていた（`uaInspectLaundryChestPostProductLinkage20260904`で確認）。③GA4で外部リンククリックが28日でサイト全体9回・3ユーザーのみ（511ユーザー中）と判明。根本原因は`uaGetMainKeywordProductProfile_`の購入検討シグナル判定（article.gs）が「比較」「おすすめ」等の明示語しか見ておらず、「カビない」のような品質評価語（実質は同じくらい強い購入シグナル）を認識できていなかったこと。`hasPurchaseIntent`正規表現へカビ・におい・汚れ・傷・劣化・へたる・壊れやすい・耐久・コスパ等の評価語を追加して修正。回帰テスト`test_product_purchase_intent_quality_words.js`新規追加（既存の「エアコン うるさい 原因」等の誤判定防止テストは維持されることも確認済み）。全テストPASS、git push済み（`0104613`）、clasp push済み。**まだライブのランドリーチェスト記事(post433)自体は直していない**（コード修正のみ。この記事へ実際にチェスト商品を挿入し直すかはユーザー確認待ち）。
 - 完了内容（2026-09-04 Claude Code、続き）: ユーザー報告「kurashi-ie.com/shutter-closed-all-the-time-demerits/ 商品選択,,,」に対応。原因は`uaApplySecondaryProductMention_`（本文中の単語1語だけを拾うセカンダリ商品メンション機能）が、productPlanなしで`uaFetchRakutenItems_`を呼ぶため`uaScoreRakutenItem_`のmustHave/exclude等の絞り込みが一切効かず、クエリ「照明」に対して楽天APIが返した最上位商品が商品名に「照明」を含むだけの無関係な物（デュエル・マスターズのトレーディングカード「照明魚」）だったこと。既存の`uaIsRakutenProductQueryRelevant_`（クエリの概念だけを判定）ではこの種の取り違えを検出できないため、実際に取得した商品名そのものを判定する新しい関所`uaIsRakutenItemNameRelevant_`（article.gs）を追加し、`uaApplySecondaryProductMention_`内で商品名確定直後に適用。回帰テスト`test_rakuten_secondary_item_name_relevance.js`を新規追加、既存2本（`test_rakuten_secondary_product_category.js`・`test_used_car_rakuten_skip.js`）にGeminiスタブを追加して復旧。全テストPASS。ライブ記事（post1245）は一回限り関数`uaFixShutterPostBadSecondaryMention20260904`（wordpress.gs）で修正済み（`uaApplyRakutenAffiliateBanner_`を再実行してセカンダリメンションだけ再評価→新しい関所がトレーディングカードを弾く→`uaUpdatePublishedWpFromPanelCore_`経由でWPへ反映、公開状態・既存画像・除湿機バナー3件は維持）。ライブ確認済み（`照明魚`は本文から消え、見出し構成・除湿機商品ブロックは無傷）。git push済み（`f8f503c`）。clasp push済み。

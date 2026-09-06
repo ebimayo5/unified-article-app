@@ -356,17 +356,34 @@ function uaChunkArray_(array, size) {
   return chunks;
 }
 
-function uaCheckTreasureKeywordOfferLinkage_(appConfig, candidateKeywords, offers) {
-  if (candidateKeywords.length === 0 || offers.length === 0) return {};
+// 2026-09-06: 対象キーワードが数百件規模になると、このバッチ処理自体（Geminiへの
+// チャンクごとの問い合わせ）だけでGASの実行時間を使い切ってしまい、後続のSERP採点
+// フェーズの時間切れ処理（uaEvaluateTreasureKeywordCandidates_側）が始まる前に
+// 気づかぬうちに予算を使い果たす恐れがある。呼び出し元と同じevalStartTime／
+// 時間上限を共有し、残り時間が無くなったら以降のチャンクを処理せず打ち切る。
+// 戻り値にprocessedKeywords（実際に問い合わせを試みたキーワード）も含めることで、
+// 呼び出し元は「時間切れで未着手」と「問い合わせたが不一致／エラー」を区別できる。
+function uaCheckTreasureKeywordOfferLinkage_(appConfig, candidateKeywords, offers, evalStartTime) {
   const map = {};
-  uaChunkArray_(candidateKeywords, UA_TREASURE_KEYWORD_GEMINI_BATCH_CHECK_SIZE).forEach(function(chunk) {
+  // 案件が1件も登録されていない場合は「時間切れで未着手」ではなく「案件無し」として
+  // 全キーワードを処理済み扱いにする（呼び出し元は正しく却下判定できる）。
+  if (candidateKeywords.length === 0 || offers.length === 0) {
+    return { map: map, processedKeywords: candidateKeywords.slice() };
+  }
+  const processedKeywords = [];
+  const startTime = evalStartTime || Date.now();
+  uaChunkArray_(candidateKeywords, UA_TREASURE_KEYWORD_GEMINI_BATCH_CHECK_SIZE).some(function(chunk) {
+    if (Date.now() - startTime > UA_TREASURE_KEYWORD_EVAL_TIME_LIMIT_MS) {
+      return true; // 以降のチャンクは未着手のまま打ち切る
+    }
+    processedKeywords.push.apply(processedKeywords, chunk);
     const prompt = uaBuildOfferLinkageCheckPrompt_(appConfig, chunk, offers);
     let result;
     try {
       result = uaCallGeminiJson_(prompt, 1500, 0);
     } catch (e) {
       console.log('案件ひも付き検査（' + chunk.length + '件分）でエラーが発生したため、このチャンクはスキップします: ' + (e && e.message || e));
-      return;
+      return false;
     }
     const items = (result && result.data && result.data.results) || [];
     items.forEach(function(item) {
@@ -377,8 +394,9 @@ function uaCheckTreasureKeywordOfferLinkage_(appConfig, candidateKeywords, offer
         matchedOffer: String(item && item.matchedOffer || '').trim()
       };
     });
+    return false;
   });
-  return map;
+  return { map: map, processedKeywords: processedKeywords };
 }
 
 function uaCheckTreasureKeywordCannibalization_(candidateKeywords, existingArticleKeywords) {
@@ -468,7 +486,17 @@ function uaAppendAiSuggestedCandidates_(candidateSheet, keywords) {
 // SERPスコア→既存記事とのカニバリ検査、の順で評価する共通ロジック。
 // 「書く」への昇格は絶対に行わない（人が確認して昇格させる）。この関数自体はシートへの
 // 書き込みは行わず、判定結果（kept/reason付き）の配列を返すだけ。
+// 2026-09-05: 案件欄で絞り込むと対象キーワードが数十〜百件規模になることがあり、
+// SERPスコアリングは1件ずつSerperへ同期フェッチするため、GASの実行上限（6分）に
+// タイムアウトすると全件評価が完了する前に強制終了され、それまでのSerper/Gemini
+// 呼び出し分のAPIコストが結果として1件もシートに保存されず無駄になる。
+// これを防ぐため、実行開始から一定時間が経過したら残りのキーワードはSERP採点せず
+// 「時間切れのため未評価」として打ち切り、そこまでの結果は必ず呼び出し元に返す
+// （呼び出し元はここまでの採用分をシートへ書き込める）。
+const UA_TREASURE_KEYWORD_EVAL_TIME_LIMIT_MS = 4.5 * 60 * 1000;
+
 function uaEvaluateTreasureKeywordCandidates_(appConfig, rawCandidates, existingSet, existingArticleKeywords) {
+  const evalStartTime = Date.now();
   const resultByKeyword = {};
   const toScore = [];
 
@@ -500,6 +528,7 @@ function uaEvaluateTreasureKeywordCandidates_(appConfig, rawCandidates, existing
   });
 
   let offerLinkageMap = {};
+  let offerCheckProcessedSet = null; // nullのままなら「時間切れ判定は行わない（案件一覧取得エラー等）」
   if (needsOfferCheck.length > 0) {
     let offers = [];
     try {
@@ -508,15 +537,26 @@ function uaEvaluateTreasureKeywordCandidates_(appConfig, rawCandidates, existing
       console.log('案件一覧の取得でエラーが発生しました: ' + (e && e.message || e));
     }
     try {
-      offerLinkageMap = uaCheckTreasureKeywordOfferLinkage_(appConfig, needsOfferCheck, offers);
+      const offerCheckResult = uaCheckTreasureKeywordOfferLinkage_(appConfig, needsOfferCheck, offers, evalStartTime);
+      offerLinkageMap = offerCheckResult.map;
+      offerCheckProcessedSet = {};
+      offerCheckResult.processedKeywords.forEach(function(k) { offerCheckProcessedSet[k] = true; });
     } catch (e) {
       console.log('案件ひも付き検査でエラーが発生したため、この回は該当キーワードを全件対象外にします: ' + (e && e.message || e));
     }
   }
 
+  const timedOutReason = '時間切れのため未評価（もう一度実行すると続きを評価できます）';
+
   toScore.forEach(function(keyword) {
     let profile = homeProfileByKeyword[keyword];
     if (!profile) {
+      // 案件ひも付き検査の対象だったが、時間切れで問い合わせ自体に着手できなかった
+      // キーワードは「不一致」ではなく「未評価」として扱う（誤って却下扱いにしない）。
+      if (offerCheckProcessedSet && !offerCheckProcessedSet[keyword]) {
+        resultByKeyword[keyword] = { keyword: keyword, kept: false, reason: timedOutReason };
+        return;
+      }
       const verdict = offerLinkageMap[keyword];
       profile = (verdict && verdict.linked) ? { label: verdict.matchedOffer || '案件', matchedOffer: verdict.matchedOffer } : null;
     }
@@ -525,6 +565,15 @@ function uaEvaluateTreasureKeywordCandidates_(appConfig, rawCandidates, existing
         keyword: keyword,
         kept: false,
         reason: '商品・案件のいずれにもひも付かず'
+      };
+      return;
+    }
+
+    if (Date.now() - evalStartTime > UA_TREASURE_KEYWORD_EVAL_TIME_LIMIT_MS) {
+      resultByKeyword[keyword] = {
+        keyword: keyword,
+        kept: false,
+        reason: timedOutReason
       };
       return;
     }
@@ -633,7 +682,10 @@ function uaEvaluateManualTreasureKeywords_(appConfig, keywords) {
   const keptKeywords = results.filter(function(item) { return item.kept; }).map(function(item) { return item.keyword; });
   uaAppendAiSuggestedCandidates_(candidateSheet, keptKeywords);
 
-  const summary = { appKey: appConfig.key, addedCount: keptKeywords.length, results: results };
+  const timedOutKeywords = results.filter(function(item) { return item.reason === '時間切れのため未評価（もう一度実行すると続きを評価できます）'; })
+    .map(function(item) { return item.keyword; });
+
+  const summary = { appKey: appConfig.key, addedCount: keptKeywords.length, timedOutCount: timedOutKeywords.length, timedOutKeywords: timedOutKeywords, results: results };
   console.log(JSON.stringify(summary, null, 2));
   return summary;
 }
@@ -872,6 +924,199 @@ function uaEvaluateWriteCandidatesDrive20260905() {
 
 function uaEvaluateWriteCandidatesHome20260905() {
   return uaEvaluateCandidateSheetKeywords_(UA_APP_TYPES.home, [UA_CANDIDATE_STATUS_WRITE]);
+}
+
+// 2026-09-06: 「案件」欄で絞り込み、さらにステータスでも絞り込む版（例: ナビ男くんが
+// 登録されていて、かつまだ「書く」のままの行だけ）。行番号も一緒に返すことで、
+// 評価結果に応じて元の行のステータスを直接書き換えられるようにする。
+// 「AI提案」「保留」に既に書き換え済みの行は対象から除外する＝再実行しても
+// 未処理分（時間切れで未評価だった分を含む）だけが対象になり、無駄なAPI呼び出しを防ぐ。
+function uaCollectCandidateRowsByAffiliateNameAndStatus_(candidateSheet, affiliateName, status) {
+  const lastRow = candidateSheet.getLastRow();
+  if (lastRow < 2) return [];
+  const values = candidateSheet.getRange(2, 1, lastRow - 1, UA_CANDIDATE_COLUMNS.keyword).getValues();
+  const targetAffiliate = String(affiliateName || '').trim();
+  const targetStatus = String(status || '').trim();
+  const rows = [];
+  values.forEach(function(row, index) {
+    const rowAffiliate = String(row[UA_CANDIDATE_COLUMNS.affiliateName - 1] || '').trim();
+    const rowStatus = String(row[UA_CANDIDATE_COLUMNS.status - 1] || '').trim();
+    const keyword = String(row[UA_CANDIDATE_COLUMNS.keyword - 1] || '').trim();
+    if (rowAffiliate === targetAffiliate && rowStatus === targetStatus && keyword) {
+      rows.push({ row: index + 2, keyword: keyword });
+    }
+  });
+  return rows;
+}
+
+// 評価結果に応じて元の行のステータスを直接書き換える版（新しい行を追加するのではなく）。
+// 合格（kept）→「AI提案」、不合格→「保留」。時間切れで未評価の分だけは元のステータス
+// （＝このステータスフィルタの対象）のまま残すので、もう一度実行すれば続きから拾える。
+function uaEvaluateAndUpdateCandidateRowsByAffiliateNameAndStatus_(appConfig, affiliateName, status) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const candidateSheet = ss.getSheetByName(appConfig.candidateSheetName);
+  if (!candidateSheet) throw new Error('候補シートが見つかりません: ' + appConfig.candidateSheetName);
+  const articleSheet = ss.getSheetByName(appConfig.articleSheetName);
+  const existingArticleKeywords = articleSheet ? uaCollectExistingArticleKeywords_(articleSheet) : [];
+  const existingSet = {};
+  existingArticleKeywords.forEach(function(keyword) { existingSet[keyword] = true; });
+
+  const rows = uaCollectCandidateRowsByAffiliateNameAndStatus_(candidateSheet, affiliateName, status);
+  console.log('案件「' + affiliateName + '」×ステータス「' + status + '」の対象行数: ' + rows.length);
+
+  const rowsByKeyword = {};
+  rows.forEach(function(r) {
+    if (!rowsByKeyword[r.keyword]) rowsByKeyword[r.keyword] = [];
+    rowsByKeyword[r.keyword].push(r.row);
+  });
+  const uniqueKeywords = Object.keys(rowsByKeyword);
+
+  const results = uaEvaluateTreasureKeywordCandidates_(appConfig, uniqueKeywords, existingSet, existingArticleKeywords);
+
+  // 2026-09-06: シートの入力規則が古いまま（「AI提案」が選択肢に無い等）だと
+  // setValueが規則違反例外を投げ、以降の行が一切書き込まれず結果ごと失われる
+  // （たくみパパ側の候補シートで実際に発生）。書き込み前に必ず規則を最新化し、
+  // 念のため1行ずつtry/catchで、1行の失敗が他の行を巻き込まないようにする。
+  uaApplyCandidateSheetRules_(candidateSheet);
+
+  let keptCount = 0, rejectedCount = 0, timedOutCount = 0, writeErrorCount = 0;
+  const timedOutReason = '時間切れのため未評価（もう一度実行すると続きを評価できます）';
+  results.forEach(function(item) {
+    if (item.reason === timedOutReason) {
+      timedOutCount++;
+      return;
+    }
+    const newStatus = item.kept ? UA_CANDIDATE_STATUS_AI_SUGGESTED : UA_CANDIDATE_STATUS_HOLD;
+    (rowsByKeyword[item.keyword] || []).forEach(function(rowNum) {
+      try {
+        candidateSheet.getRange(rowNum, UA_CANDIDATE_COLUMNS.status).setValue(newStatus);
+      } catch (e) {
+        writeErrorCount++;
+        console.log('行' + rowNum + '（' + item.keyword + '）へのステータス書き込みに失敗しました: ' + (e && e.message || e));
+      }
+    });
+    if (item.kept) keptCount++; else rejectedCount++;
+  });
+
+  const summary = { appKey: appConfig.key, targetRowCount: rows.length, keptCount: keptCount, rejectedCount: rejectedCount, timedOutCount: timedOutCount, writeErrorCount: writeErrorCount, results: results };
+  console.log(JSON.stringify(summary, null, 2));
+  return summary;
+}
+
+function uaEvaluateNaviokunCandidatesDrive20260906() {
+  return uaEvaluateAndUpdateCandidateRowsByAffiliateNameAndStatus_(UA_APP_TYPES.drive, 'ナビ男くん', UA_CANDIDATE_STATUS_WRITE);
+}
+
+// 2026-09-06: 上のuaEvaluateNaviokunCandidatesDrive20260906で合格し「AI提案」に
+// なった「ナビ男くん」案件の行を、ユーザーの明示指示により「書く」へ昇格させる。
+// SERP評価を通過済みの行だけが対象（案件欄=ナビ男くん かつ ステータス=AI提案）。
+// 他の（案件欄が空の）AI提案候補には一切触れない。
+function uaPromoteNaviokunAiSuggestedToWrite20260906() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const candidateSheet = ss.getSheetByName(UA_APP_TYPES.drive.candidateSheetName);
+  if (!candidateSheet) throw new Error('候補シートが見つかりません: ' + UA_APP_TYPES.drive.candidateSheetName);
+
+  const rows = uaCollectCandidateRowsByAffiliateNameAndStatus_(candidateSheet, 'ナビ男くん', UA_CANDIDATE_STATUS_AI_SUGGESTED);
+  rows.forEach(function(r) {
+    candidateSheet.getRange(r.row, UA_CANDIDATE_COLUMNS.status).setValue(UA_CANDIDATE_STATUS_WRITE);
+  });
+
+  const summary = { promotedCount: rows.length, keywords: rows.map(function(r) { return r.keyword; }) };
+  console.log(JSON.stringify(summary, null, 2));
+  return summary;
+}
+
+// 2026-09-06: 「案件」欄では絞り込まず、特定ステータス（通常は「転送済み」＝自動投稿
+// 済みで触ってはいけないもの）だけを除外して、候補シートの残り全行を洗い直す版。
+// 行番号を保持し、評価結果に応じて元の行のステータスを直接書き換える
+// （合格→「AI提案」、不合格→「保留」）。時間切れで未評価の行だけは元のステータスの
+// まま残るので、再実行すれば続きから拾える。
+function uaCollectCandidateRowsExcludingStatuses_(candidateSheet, excludedStatuses) {
+  const lastRow = candidateSheet.getLastRow();
+  if (lastRow < 2) return [];
+  const values = candidateSheet.getRange(2, 1, lastRow - 1, UA_CANDIDATE_COLUMNS.keyword).getValues();
+  const excludedSet = {};
+  (excludedStatuses || []).forEach(function(s) { excludedSet[String(s || '').trim()] = true; });
+  const rows = [];
+  values.forEach(function(row, index) {
+    const status = String(row[UA_CANDIDATE_COLUMNS.status - 1] || '').trim();
+    const keyword = String(row[UA_CANDIDATE_COLUMNS.keyword - 1] || '').trim();
+    if (!excludedSet[status] && keyword) {
+      rows.push({ row: index + 2, keyword: keyword });
+    }
+  });
+  return rows;
+}
+
+function uaEvaluateAndUpdateAllCandidateRowsExcludingStatuses_(appConfig, excludedStatuses) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const candidateSheet = ss.getSheetByName(appConfig.candidateSheetName);
+  if (!candidateSheet) throw new Error('候補シートが見つかりません: ' + appConfig.candidateSheetName);
+  const articleSheet = ss.getSheetByName(appConfig.articleSheetName);
+  const existingArticleKeywords = articleSheet ? uaCollectExistingArticleKeywords_(articleSheet) : [];
+  const existingSet = {};
+  existingArticleKeywords.forEach(function(keyword) { existingSet[keyword] = true; });
+
+  const rows = uaCollectCandidateRowsExcludingStatuses_(candidateSheet, excludedStatuses);
+  console.log('「' + (excludedStatuses || []).join('/') + '」以外の対象行数（' + appConfig.key + '）: ' + rows.length);
+
+  const rowsByKeyword = {};
+  rows.forEach(function(r) {
+    if (!rowsByKeyword[r.keyword]) rowsByKeyword[r.keyword] = [];
+    rowsByKeyword[r.keyword].push(r.row);
+  });
+  const uniqueKeywords = Object.keys(rowsByKeyword);
+
+  const results = uaEvaluateTreasureKeywordCandidates_(appConfig, uniqueKeywords, existingSet, existingArticleKeywords);
+
+  // 書き込み前に必ず入力規則を最新化し（「AI提案」が選択肢から漏れていると
+  // setValueが例外を投げて以降の行が書き込まれなくなる）、1行ずつtry/catchする。
+  uaApplyCandidateSheetRules_(candidateSheet);
+
+  let keptCount = 0, rejectedCount = 0, timedOutCount = 0, writeErrorCount = 0;
+  const timedOutReason = '時間切れのため未評価（もう一度実行すると続きを評価できます）';
+  results.forEach(function(item) {
+    if (item.reason === timedOutReason) {
+      timedOutCount++;
+      return;
+    }
+    const newStatus = item.kept ? UA_CANDIDATE_STATUS_AI_SUGGESTED : UA_CANDIDATE_STATUS_HOLD;
+    (rowsByKeyword[item.keyword] || []).forEach(function(rowNum) {
+      try {
+        candidateSheet.getRange(rowNum, UA_CANDIDATE_COLUMNS.status).setValue(newStatus);
+      } catch (e) {
+        writeErrorCount++;
+        console.log('行' + rowNum + '（' + item.keyword + '）へのステータス書き込みに失敗しました: ' + (e && e.message || e));
+      }
+    });
+    if (item.kept) keptCount++; else rejectedCount++;
+  });
+
+  const summary = { appKey: appConfig.key, targetRowCount: rows.length, keptCount: keptCount, rejectedCount: rejectedCount, timedOutCount: timedOutCount, writeErrorCount: writeErrorCount, results: results };
+  console.log(JSON.stringify(summary, null, 2));
+  return summary;
+}
+
+function uaEvaluateAllHomeCandidatesExceptSent20260906() {
+  return uaEvaluateAndUpdateAllCandidateRowsExcludingStatuses_(UA_APP_TYPES.home, [UA_CANDIDATE_STATUS_SENT]);
+}
+
+// 読み取り専用: API呼び出し（SERP/Gemini）を一切せず、対象行数だけを事前確認する。
+function uaCountHomeCandidatesExceptSent20260906() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const candidateSheet = ss.getSheetByName(UA_APP_TYPES.home.candidateSheetName);
+  if (!candidateSheet) throw new Error('候補シートが見つかりません: ' + UA_APP_TYPES.home.candidateSheetName);
+  const rows = uaCollectCandidateRowsExcludingStatuses_(candidateSheet, [UA_CANDIDATE_STATUS_SENT]);
+  const byStatus = {};
+  const lastRow = candidateSheet.getLastRow();
+  const values = lastRow >= 2 ? candidateSheet.getRange(2, 1, lastRow - 1, UA_CANDIDATE_COLUMNS.keyword).getValues() : [];
+  values.forEach(function(row) {
+    const status = String(row[UA_CANDIDATE_COLUMNS.status - 1] || '').trim() || '(空欄)';
+    byStatus[status] = (byStatus[status] || 0) + 1;
+  });
+  const summary = { targetRowCount: rows.length, statusBreakdown: byStatus };
+  console.log(JSON.stringify(summary, null, 2));
+  return summary;
 }
 
 function uaDiscoverTreasureKeywordsHome() {

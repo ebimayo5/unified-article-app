@@ -503,12 +503,14 @@ const driveConfig = { key: 'drive', label: 'DRIVE BASE' };
     };
   };
 
-  const map = uaCheckTreasureKeywordOfferLinkage_(homeAppConfig4, keywords, offers);
+  const offerCheckResult = uaCheckTreasureKeywordOfferLinkage_(homeAppConfig4, keywords, offers);
+  const map = offerCheckResult.map;
 
   assert.strictEqual(callCount, 3, '25件は12件ずつ3チャンク（12/12/1）に分割されGeminiが3回呼ばれる');
   assert.strictEqual(map['キーワード0'].linked, true, '1チャンク目は正常に判定される');
   assert.strictEqual(map['キーワード12'], undefined, '壊れたJSONを返したチャンクの結果は含まれない（他チャンクを巻き込まない）');
   assert.strictEqual(map['キーワード24'].linked, true, '3チャンク目（壊れたチャンクの後）も正常に判定される');
+  assert.strictEqual(offerCheckResult.processedKeywords.length, 25, '時間切れが起きなければ全件が着手済みとして扱われる');
 
   // カニバリ検査も同じチャンク分割ロジックを共有していることを確認する。
   callCount = 0;

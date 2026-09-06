@@ -735,12 +735,28 @@ function uaBuildCompetitorPageInfoFromResponse_(url, res) {
   };
 }
 
-function uaFetchCompetitorPageInfos_(urls) {
-  const list = (Array.isArray(urls) ? urls : []).map(function(url) {
-    return String(url || '').trim();
-  }).filter(Boolean);
+// 2026-09-06: fetchAllが例外を投げたときの1件ずつフォールバックで、応答が
+// 極端に遅い/固まっているサイトが混じっていると、そのまま待ち続けるうちに
+// GASの実行上限（6分）に達し、記事構成工程がタイムアウトして自動投稿が
+// 「20分以上進捗なし」と判定される事故が実際に発生した
+// （2026-09-06 たくみパパ「空気清浄機 フィルター交換不要 デメリット」）。
+// 残り時間が少なくなったら、以降のURLは取得失敗として扱い先へ進む。
+const UA_COMPETITOR_FETCH_TIME_BUDGET_MS = 3 * 60 * 1000;
 
+// fetchAll()は並列送信なので、全件が正常なら「一番遅い1件」で済む。だが
+// muteHttpExceptionsはHTTPステータスエラーしか抑制せず、URL形式不正やDNS
+// 解決失敗など通信レベルの問題が1件でも混じるとバッチ全体が例外を投げる。
+// そこで例外時は全件を1件ずつの逐次フォールバックへ落とすのではなく、
+// リストを二分して再帰的にfetchAllを試す（分割統治）。正常な大多数は
+// 引き続き並列fetchAllの恩恵を受け、問題のあるURLだけが最終的に1件単位の
+// 個別フェッチに絞り込まれる。締め切り（deadline）は再帰全体で共有し、
+// 各呼び出しの直前でチェックする（実行中の1件を強制的に打ち切ることは
+// UrlFetchAppの仕様上できないため、次のフェッチを開始しないことで対応する）。
+function uaFetchCompetitorPageInfosBatch_(list, deadline) {
   if (list.length === 0) return [];
+  if (Date.now() > deadline) {
+    return list.map(function(url) { return uaBuildCompetitorPageFetchFailure_(url, '時間切れのため未取得'); });
+  }
 
   try {
     const requests = list.map(function(url) {
@@ -753,10 +769,24 @@ function uaFetchCompetitorPageInfos_(urls) {
       return uaBuildCompetitorPageInfoFromResponse_(url, responses[index]);
     });
   } catch (e) {
-    return list.map(function(url) {
-      return uaFetchCompetitorPageInfo_(url);
-    });
+    if (list.length === 1) {
+      return [uaFetchCompetitorPageInfo_(list[0])];
+    }
+    const mid = Math.ceil(list.length / 2);
+    return uaFetchCompetitorPageInfosBatch_(list.slice(0, mid), deadline)
+      .concat(uaFetchCompetitorPageInfosBatch_(list.slice(mid), deadline));
   }
+}
+
+function uaFetchCompetitorPageInfos_(urls) {
+  const list = (Array.isArray(urls) ? urls : []).map(function(url) {
+    return String(url || '').trim();
+  }).filter(Boolean);
+
+  if (list.length === 0) return [];
+
+  const deadline = Date.now() + UA_COMPETITOR_FETCH_TIME_BUDGET_MS;
+  return uaFetchCompetitorPageInfosBatch_(list, deadline);
 }
 
 function uaFetchCompetitorPageInfo_(url) {

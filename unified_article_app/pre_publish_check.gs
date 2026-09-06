@@ -2,6 +2,111 @@ function uaRunPrePublishCheckFromWeb(data) {
   return uaRunPrePublishCheckFromPanel(data || {});
 }
 
+// 読み取り専用の一時診断用: たくみパパ「掃除機 バッテリー 寿命」で自動投稿が
+// 「NGが1件残っている」で止まった原因を調べる。ルールチェックのcritical内容と
+// 保存済みfactCheckPointsをそのままログに出す。
+function uaInspectStaleVacuumBatteryRow20260906() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(UA_APP_TYPES.home.articleSheetName);
+  if (!sheet) throw new Error('シートが見つかりません: ' + UA_APP_TYPES.home.articleSheetName);
+  const lastRow = sheet.getLastRow();
+  const values = sheet.getRange(2, 1, lastRow - 1, UA_COLUMNS.factCheckPoints).getValues();
+  let targetRow = -1;
+  for (let i = 0; i < values.length; i++) {
+    if (String(values[i][UA_COLUMNS.mainInput - 1] || '').trim() === '掃除機 バッテリー 寿命') {
+      targetRow = i + 2;
+      break;
+    }
+  }
+  if (targetRow === -1) throw new Error('対象行が見つかりませんでした。');
+
+  const rowData = uaBuildRowData_(sheet, targetRow);
+  const ruleCheck = uaBuildPrePublishRuleCheck_(rowData);
+  const summary = {
+    row: targetRow,
+    status: rowData.status,
+    bodyLength: String(rowData.body || '').length,
+    factCheckPoints: String(rowData.factCheckPoints || ''),
+    ruleCheckCritical: ruleCheck.critical,
+    ruleCheckWarnings: ruleCheck.warnings
+  };
+  console.log(JSON.stringify(summary, null, 2));
+  return summary;
+}
+
+// 上の診断で判明した原因（AI修正は「本文に既存の異常発熱・液漏れ用の
+// 注意ブロックがあるので重複回避のため追加しない」と判断したが、そのブロックは
+// YMYL開示文言（一般的な情報／専門家へ確認）を含まず、決定的ルールチェックの
+// 必須要件を満たさないままだった）への対処。もう一度OpenAIへの有料修正依頼を
+// 送らず、既存のYMYL注意書き生成ロジック（記事の新規生成時と同じ関数）を使って
+// 不足しているYMYL注意書きだけを安全に追記する。本文の他の部分には触れない。
+function uaFixStaleVacuumBatteryYmylNotice20260906() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(UA_APP_TYPES.home.articleSheetName);
+  if (!sheet) throw new Error('シートが見つかりません: ' + UA_APP_TYPES.home.articleSheetName);
+  const lastRow = sheet.getLastRow();
+  const values = sheet.getRange(2, 1, lastRow - 1, UA_COLUMNS.factCheckPoints).getValues();
+  let targetRow = -1;
+  for (let i = 0; i < values.length; i++) {
+    if (String(values[i][UA_COLUMNS.mainInput - 1] || '').trim() === '掃除機 バッテリー 寿命') {
+      targetRow = i + 2;
+      break;
+    }
+  }
+  if (targetRow === -1) throw new Error('対象行が見つかりませんでした。');
+
+  const rowData = uaBuildRowData_(sheet, targetRow);
+  const appConfig = uaGetAppConfigByLabel_(rowData.appType);
+  if (!appConfig) throw new Error('記事タイプを判定できません。');
+  const body = String(rowData.body || '');
+  if (uaHasYmylNotice_(body)) {
+    return { alreadyHasNotice: true, row: targetRow };
+  }
+
+  const detectionText = uaBuildYmylDetectionText_(rowData, body);
+  const category = uaDetectYmylCategory_(detectionText, appConfig) || uaDefaultYmylCategory_(appConfig);
+  const source = uaPickYmylNoticeSource_(rowData, appConfig, category, detectionText, body);
+  const spec = {
+    category: category,
+    topic: String(rowData.mainInput || 'この記事のテーマ').trim(),
+    sourceUrl: (source && source.url) || '',
+    sourceLabel: (source && source.label) || ''
+  };
+  const noticeHtml = uaBuildYmylNoticeHtml_(spec, appConfig);
+  const insertIndex = uaFindYmylNoticeInsertionIndex_(body, category);
+  const newBody = body.slice(0, insertIndex) + noticeHtml + '\n\n' + body.slice(insertIndex);
+
+  sheet.getRange(targetRow, UA_COLUMNS.body).setValue(newBody);
+  SpreadsheetApp.flush();
+
+  const updatedRowData = uaBuildRowData_(sheet, targetRow);
+  const ruleCheck = uaBuildPrePublishRuleCheck_(updatedRowData);
+  const summary = {
+    row: targetRow,
+    category: category,
+    insertedNoticeHtml: noticeHtml,
+    ruleCheckCritical: ruleCheck.critical
+  };
+  console.log(JSON.stringify(summary, null, 2));
+  return summary;
+}
+
+// YMYL注意書きの追記で直前のNGを解消した後、ユーザーの指示により
+// 自動投稿を「停止位置から再開」する（パネルの再開ボタンと同じ処理）。
+// publishModeは既に「公開まで」なので、revision→final_wp→publishと自動で進む。
+function uaResumeStaleVacuumBatteryJob20260906() {
+  const result = uaResumeAutomaticPostingFromPanel('たくみパパ');
+  console.log(JSON.stringify(result, null, 2));
+  return result;
+}
+
+// 読み取り専用: 現在の自動投稿ジョブの中身（step/status/publishMode等）を確認する。
+function uaInspectCurrentAutomaticPostingJob20260906() {
+  const job = uaGetAutomaticPostingJob_();
+  console.log(JSON.stringify(job, null, 2));
+  return job;
+}
+
 function uaApplyPrePublishFixesOnceFromWeb(data) {
   return uaApplyPrePublishFixesOnceFromPanel(data || {});
 }

@@ -29,6 +29,18 @@ function freshContext() {
   // uaGetSerperApiKey_ lives in outline.gs, which this file doesn't load
   // (unrelated dependencies) -- stub it directly.
   context.uaGetSerperApiKey_ = function () { return 'test-serper-key'; };
+  // uaGetAppConfigByLabel_ lives in main.gs, which this file doesn't load
+  // (unrelated dependencies) -- stub it directly using the real UA_APP_TYPES.
+  context.uaGetAppConfigByLabel_ = function (label) {
+    const cleanLabel = String(label || '').trim();
+    const appTypes = vm.runInContext('UA_APP_TYPES', context);
+    const keys = Object.keys(appTypes);
+    for (let i = 0; i < keys.length; i++) {
+      const config = appTypes[keys[i]];
+      if (config.label === cleanLabel || config.key === cleanLabel) return config;
+    }
+    return null;
+  };
   return context;
 }
 
@@ -516,6 +528,144 @@ const driveConfig = { key: 'drive', label: 'DRIVE BASE' };
   callCount = 0;
   const cannibalMap = uaCheckTreasureKeywordCannibalization_(keywords, ['既存記事キーワード']);
   assert.strictEqual(callCount, 3, 'カニバリ検査も同様に3チャンクに分割される');
+}
+
+// 9) uaCollectCandidateRowsByFilter_: generic filter used by the panel's
+// "既存候補の再評価" section. Covers affiliateName+includeStatuses,
+// includeStatuses only, and excludeStatuses.
+{
+  const context = freshContext();
+  const uaCollectCandidateRowsByFilter_ = vm.runInContext('uaCollectCandidateRowsByFilter_', context);
+
+  const rows = [
+    ['書く', 'ナビ男くん', 'HDMI 後付け', ''],
+    ['保留', 'ナビ男くん', 'カーナビ 映らない', ''],
+    ['書く', '案件無し', '無関係キーワード', ''],
+    ['転送済み', 'ナビ男くん', '既に投稿済み', ''],
+    ['', '', '', ''] // blank keyword row must be ignored
+  ];
+  const sheetMock = {
+    getLastRow: () => rows.length + 1,
+    getRange: (r, c, numRows, numCols) => ({
+      getValues: () => {
+        const out = [];
+        for (let i = 0; i < numRows; i++) {
+          const row = rows[r - 2 + i] || [];
+          const line = [];
+          for (let j = 0; j < numCols; j++) line.push(row[c - 1 + j] === undefined ? '' : row[c - 1 + j]);
+          out.push(line);
+        }
+        return out;
+      }
+    })
+  };
+
+  // Note: these helpers execute inside a vm context, so the returned arrays
+  // are foreign-realm Array instances -- Array.from() re-materializes them
+  // as host-realm arrays before comparing (assert.deepStrictEqual treats
+  // cross-realm arrays with identical contents as not reference-equal).
+  const byAffiliateAndStatus = uaCollectCandidateRowsByFilter_(sheetMock, { affiliateName: 'ナビ男くん', includeStatuses: ['書く'] });
+  assert.deepStrictEqual(Array.from(byAffiliateAndStatus, r => r.keyword), ['HDMI 後付け'], '案件名+ステータスの両方で絞り込める');
+
+  const byIncludeOnly = uaCollectCandidateRowsByFilter_(sheetMock, { includeStatuses: ['書く'] });
+  assert.deepStrictEqual(Array.from(byIncludeOnly, r => r.keyword), ['HDMI 後付け', '無関係キーワード'], 'ステータスのみでの絞り込み（案件名は問わない）');
+
+  const byExclude = uaCollectCandidateRowsByFilter_(sheetMock, { excludeStatuses: ['転送済み'] });
+  assert.deepStrictEqual(
+    Array.from(byExclude, r => r.keyword),
+    ['HDMI 後付け', 'カーナビ 映らない', '無関係キーワード'],
+    '転送済みだけ除外して残り全件を対象にできる'
+  );
+
+  const noFilter = uaCollectCandidateRowsByFilter_(sheetMock, {});
+  assert.strictEqual(noFilter.length, 4, 'フィルタなしなら空欄行を除く全行が対象になる');
+}
+
+// 10) uaSetCandidateStatusForWeb: whitelist enforcement for the panel's
+// per-row action buttons (approve to 書く / hold / back to AI提案). Must
+// reject statuses outside the whitelist (e.g. 転送済み, which is reserved
+// for the automatic-posting pipeline) so the panel can't corrupt that state.
+{
+  const context = freshContext();
+  let writtenValue = null;
+  const candidateSheet = {
+    getRange: (r, c) => ({
+      setValue: (v) => { writtenValue = { row: r, col: c, value: v }; }
+    })
+  };
+  context.SpreadsheetApp = {
+    getActiveSpreadsheet: () => ({
+      getSheetByName: (name) => (name === 'たくみパパ_キーワード候補' ? candidateSheet : null)
+    })
+  };
+
+  const uaSetCandidateStatusForWeb = vm.runInContext('uaSetCandidateStatusForWeb', context);
+  const candidateColumnsRef = vm.runInContext('UA_CANDIDATE_COLUMNS', context);
+
+  // result is returned from inside the vm context (foreign-realm object),
+  // so compare fields individually rather than via deepStrictEqual.
+  const result = uaSetCandidateStatusForWeb('たくみパパ', 5, '書く');
+  assert.strictEqual(result.row, 5, '許可されたステータスへの変更は成功する（行番号）');
+  assert.strictEqual(result.status, '書く', '許可されたステータスへの変更は成功する（ステータス）');
+  assert.deepStrictEqual(writtenValue, { row: 5, col: candidateColumnsRef.status, value: '書く' }, 'ステータス列の該当行に書き込まれる');
+
+  assert.throws(function () {
+    uaSetCandidateStatusForWeb('たくみパパ', 5, '転送済み');
+  }, /許可されていないステータス/, 'ホワイトリスト外（転送済み等）は拒否される');
+
+  assert.throws(function () {
+    uaSetCandidateStatusForWeb('たくみパパ', 1, '書く');
+  }, /不正な行番号/, 'ヘッダー行（1行目）は拒否される');
+}
+
+// 11) uaListCandidatesForWeb (web_app.gs) with the new optional statuses
+// filter -- verify both the filtered and backward-compatible (no filter)
+// call shapes.
+{
+  const configSource = fs.readFileSync(path.join(__dirname, 'unified_article_app', 'config.gs'), 'utf8');
+  const mainSource = fs.readFileSync(path.join(__dirname, 'unified_article_app', 'main.gs'), 'utf8');
+  const webAppSource = fs.readFileSync(path.join(__dirname, 'unified_article_app', 'web_app.gs'), 'utf8');
+  const context2 = { console };
+  vm.createContext(context2);
+  vm.runInContext(configSource, context2);
+  vm.runInContext(mainSource, context2);
+  vm.runInContext(webAppSource, context2);
+
+  const rows = [
+    ['書く', 'ナビ男くん', 'HDMI 後付け', ''],
+    ['保留', 'ナビ男くん', 'カーナビ 映らない', '']
+  ];
+  const candidateSheet = {
+    getLastRow: () => rows.length + 1,
+    getLastColumn: () => 4,
+    getRange: (r, c, numRows, numCols) => ({
+      getDisplayValues: () => {
+        const out = [];
+        for (let i = 0; i < numRows; i++) {
+          const row = rows[r - 2 + i] || [];
+          out.push(row.slice(c - 1, c - 1 + numCols));
+        }
+        return out;
+      }
+    })
+  };
+  context2.SpreadsheetApp = {
+    getActiveSpreadsheet: () => ({
+      getSheetByName: (name) => (name === 'たくみパパ_キーワード候補' ? candidateSheet : null)
+    })
+  };
+  // uaEnsureCandidateSheetLayout_ lives in main.gs and touches sheet formatting
+  // APIs this mock doesn't implement -- stub it, matching the other tests' pattern.
+  context2.uaEnsureCandidateSheetLayout_ = function () {};
+
+  const uaListCandidatesForWeb = vm.runInContext('uaListCandidatesForWeb', context2);
+
+  const unfiltered = uaListCandidatesForWeb('たくみパパ', '');
+  assert.strictEqual(unfiltered.length, 2, '第3引数を省略すれば従来通り全件返る（後方互換）');
+
+  const filtered = uaListCandidatesForWeb('たくみパパ', '', ['書く']);
+  assert.strictEqual(filtered.length, 1, 'statusesを渡すとサーバー側で絞り込まれる');
+  assert.strictEqual(filtered[0].keyword, 'HDMI 後付け', '絞り込み結果のキーワードが正しい');
 }
 
 console.log('Treasure keyword discovery: OK');

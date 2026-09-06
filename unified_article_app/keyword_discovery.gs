@@ -1254,3 +1254,169 @@ function uaInspectCandidateSheetHeadKeywords20260905(count) {
   console.log(JSON.stringify(rows, null, 2));
   return rows;
 }
+
+// ============================================================
+// 2026-09-06: パネル「お宝キーワード」タブ用のweb-callableラッパー。
+// 上記の既存ロジック（一回限り関数含む）は変更せず、そのまま呼び出すだけに
+// 留める。この機能は「書く」へは絶対に直接昇格させない設計を維持する
+// （下記のどの関数も、評価結果を「AI提案」または「保留」にするだけ。
+// 「書く」への変更は uaSetCandidateStatusForWeb 経由でユーザーが個別に選ぶ
+// 操作としてのみ許可する）。
+// ============================================================
+
+// AIキーワード発掘（既存ロジックそのまま）。
+function uaDiscoverTreasureKeywordsForWeb(appTypeLabel) {
+  const appConfig = uaGetAppConfigByLabel_(appTypeLabel);
+  if (!appConfig) throw new Error('不明な記事タイプです: ' + appTypeLabel);
+  return uaDiscoverTreasureKeywords_(appConfig);
+}
+
+// 手動で貼り付けたキーワード（改行/カンマ/読点区切り）を評価。
+function uaEvaluateManualTreasureKeywordsForWeb(appTypeLabel, keywordsText) {
+  const appConfig = uaGetAppConfigByLabel_(appTypeLabel);
+  if (!appConfig) throw new Error('不明な記事タイプです: ' + appTypeLabel);
+
+  const seen = {};
+  const keywords = String(keywordsText || '')
+    .split(/[\n,、]/)
+    .map(function(k) { return k.trim(); })
+    .filter(function(k) {
+      if (!k || seen[k]) return false;
+      seen[k] = true;
+      return true;
+    });
+
+  if (keywords.length === 0) throw new Error('評価するキーワードがありません。');
+
+  return uaEvaluateManualTreasureKeywords_(appConfig, keywords);
+}
+
+// 案件名ドロップダウン用（案件管理シートはサイト共通）。
+function uaListAffiliateNamesForWeb() {
+  return uaCollectAffiliateOffers_();
+}
+
+// 候補シートの行を「案件名」「含めるステータス」「除外するステータス」で汎用的に
+// 絞り込む。既存の uaCollectCandidateRowsByAffiliateNameAndStatus_ /
+// uaCollectCandidateRowsExcludingStatuses_ は既存の一回限り関数から参照されて
+// いるため変更しない。ここでは同等の絞り込みをパラメータ化した別関数として新設する。
+function uaCollectCandidateRowsByFilter_(candidateSheet, filter) {
+  const lastRow = candidateSheet.getLastRow();
+  if (lastRow < 2) return [];
+  const values = candidateSheet.getRange(2, 1, lastRow - 1, UA_CANDIDATE_COLUMNS.keyword).getValues();
+
+  const targetAffiliate = String((filter && filter.affiliateName) || '').trim();
+  const includeSet = {};
+  ((filter && filter.includeStatuses) || []).forEach(function(s) { includeSet[String(s || '').trim()] = true; });
+  const excludeSet = {};
+  ((filter && filter.excludeStatuses) || []).forEach(function(s) { excludeSet[String(s || '').trim()] = true; });
+  const hasIncludeFilter = Object.keys(includeSet).length > 0;
+
+  const rows = [];
+  values.forEach(function(row, index) {
+    const rowAffiliate = String(row[UA_CANDIDATE_COLUMNS.affiliateName - 1] || '').trim();
+    const rowStatus = String(row[UA_CANDIDATE_COLUMNS.status - 1] || '').trim();
+    const keyword = String(row[UA_CANDIDATE_COLUMNS.keyword - 1] || '').trim();
+    if (!keyword) return;
+    if (targetAffiliate && rowAffiliate !== targetAffiliate) return;
+    if (hasIncludeFilter && !includeSet[rowStatus]) return;
+    if (excludeSet[rowStatus]) return;
+    rows.push({ row: index + 2, keyword: keyword });
+  });
+  return rows;
+}
+
+// 上記フィルタで集めた行を評価し、結果に応じて元の行のステータスを直接
+// 書き換える（合格→「AI提案」、不合格→「保留」）。時間切れで未評価の行は
+// 元のステータスのまま残るので、同じフィルタでもう一度実行すれば続きから
+// 拾える（既存の uaEvaluateAndUpdateCandidateRowsByAffiliateNameAndStatus_ と
+// 同じ設計）。
+function uaEvaluateCandidateRowsForWeb(appTypeLabel, filter) {
+  const appConfig = uaGetAppConfigByLabel_(appTypeLabel);
+  if (!appConfig) throw new Error('不明な記事タイプです: ' + appTypeLabel);
+
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const candidateSheet = ss.getSheetByName(appConfig.candidateSheetName);
+  if (!candidateSheet) throw new Error('候補シートが見つかりません: ' + appConfig.candidateSheetName);
+  const articleSheet = ss.getSheetByName(appConfig.articleSheetName);
+  const existingArticleKeywords = articleSheet ? uaCollectExistingArticleKeywords_(articleSheet) : [];
+  const existingSet = {};
+  existingArticleKeywords.forEach(function(keyword) { existingSet[keyword] = true; });
+
+  const rows = uaCollectCandidateRowsByFilter_(candidateSheet, filter);
+  console.log('パネルからの再評価対象行数（' + appConfig.key + '）: ' + rows.length);
+
+  const rowsByKeyword = {};
+  rows.forEach(function(r) {
+    if (!rowsByKeyword[r.keyword]) rowsByKeyword[r.keyword] = [];
+    rowsByKeyword[r.keyword].push(r.row);
+  });
+  const uniqueKeywords = Object.keys(rowsByKeyword);
+
+  const results = uaEvaluateTreasureKeywordCandidates_(appConfig, uniqueKeywords, existingSet, existingArticleKeywords);
+
+  // 書き込み前に必ず入力規則を最新化する（既存の同種関数と同じ事故防止パターン）。
+  uaApplyCandidateSheetRules_(candidateSheet);
+
+  let keptCount = 0, rejectedCount = 0, timedOutCount = 0, writeErrorCount = 0;
+  const timedOutReason = '時間切れのため未評価（もう一度実行すると続きを評価できます）';
+  results.forEach(function(item) {
+    if (item.reason === timedOutReason) {
+      timedOutCount++;
+      return;
+    }
+    const newStatus = item.kept ? UA_CANDIDATE_STATUS_AI_SUGGESTED : UA_CANDIDATE_STATUS_HOLD;
+    (rowsByKeyword[item.keyword] || []).forEach(function(rowNum) {
+      try {
+        candidateSheet.getRange(rowNum, UA_CANDIDATE_COLUMNS.status).setValue(newStatus);
+      } catch (e) {
+        writeErrorCount++;
+        console.log('行' + rowNum + '（' + item.keyword + '）へのステータス書き込みに失敗しました: ' + (e && e.message || e));
+      }
+    });
+    if (item.kept) keptCount++; else rejectedCount++;
+  });
+
+  const summary = {
+    appKey: appConfig.key,
+    targetRowCount: rows.length,
+    keptCount: keptCount,
+    rejectedCount: rejectedCount,
+    timedOutCount: timedOutCount,
+    writeErrorCount: writeErrorCount,
+    results: results
+  };
+  console.log(JSON.stringify(summary, null, 2));
+  return summary;
+}
+
+// 一覧の操作ボタン（書くへ昇格 / 保留にする / AI提案に戻す）用。この3つ以外への
+// 変更は許可しない（「転送済み」等の自動投稿管理用ステータスをパネルから
+// 誤って書き換えられないようにするホワイトリスト）。
+const UA_CANDIDATE_STATUS_WEB_WHITELIST_ = [
+  UA_CANDIDATE_STATUS_WRITE,
+  UA_CANDIDATE_STATUS_HOLD,
+  UA_CANDIDATE_STATUS_AI_SUGGESTED
+];
+
+function uaSetCandidateStatusForWeb(appTypeLabel, row, newStatus) {
+  const appConfig = uaGetAppConfigByLabel_(appTypeLabel);
+  if (!appConfig) throw new Error('不明な記事タイプです: ' + appTypeLabel);
+
+  const cleanStatus = String(newStatus || '').trim();
+  if (UA_CANDIDATE_STATUS_WEB_WHITELIST_.indexOf(cleanStatus) === -1) {
+    throw new Error('許可されていないステータスです: ' + cleanStatus);
+  }
+
+  const rowNum = Number(row);
+  if (!rowNum || rowNum < 2) throw new Error('不正な行番号です: ' + row);
+
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const candidateSheet = ss.getSheetByName(appConfig.candidateSheetName);
+  if (!candidateSheet) throw new Error('候補シートが見つかりません: ' + appConfig.candidateSheetName);
+
+  uaApplyCandidateSheetRules_(candidateSheet);
+  candidateSheet.getRange(rowNum, UA_CANDIDATE_COLUMNS.status).setValue(cleanStatus);
+
+  return { row: rowNum, status: cleanStatus };
+}

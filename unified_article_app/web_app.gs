@@ -182,7 +182,7 @@ function uaBuildLocalImportStructureMemo_(payload) {
   return parts.join('\n\n').trim();
 }
 
-function uaListCandidatesForWeb(appTypeLabel, query) {
+function uaListCandidatesForWeb(appTypeLabel, query, statuses) {
   const appConfig = uaGetAppConfigByLabel_(appTypeLabel);
 
   if (!appConfig || !appConfig.candidateSheetName) {
@@ -201,6 +201,9 @@ function uaListCandidatesForWeb(appTypeLabel, query) {
   const lastColumn = sheet.getLastColumn();
   const values = sheet.getRange(2, 1, lastRow - 1, lastColumn).getDisplayValues();
   const cleanQuery = String(query || '').toLowerCase().trim();
+  const statusFilter = {};
+  (statuses || []).forEach(function(s) { statusFilter[String(s || '').trim()] = true; });
+  const hasStatusFilter = Object.keys(statusFilter).length > 0;
   const results = [];
 
   values.forEach(function(row, index) {
@@ -208,6 +211,8 @@ function uaListCandidatesForWeb(appTypeLabel, query) {
     if (!keyword) return;
 
     const status = String(row[UA_CANDIDATE_COLUMNS.status - 1] || '').trim();
+    if (hasStatusFilter && !statusFilter[status]) return;
+
     const haystack = row.join(' ').toLowerCase();
 
     if (cleanQuery && haystack.indexOf(cleanQuery) === -1) {

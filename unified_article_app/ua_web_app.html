@@ -63,6 +63,26 @@
       .dashboard-article-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; max-height: 220px; overflow-y: auto; }
       .dashboard-article-list li { padding: 8px 10px; border-radius: 8px; background: var(--soft); font-size: 13px; color: var(--ink); }
       .dashboard-article-list li.muted { background: transparent; padding: 4px 10px; }
+      .kw-status-select { display: flex; flex-wrap: wrap; gap: 10px; margin: 6px 0 4px; }
+      .kw-status-select label { display: inline-flex; align-items: center; gap: 5px; font-size: 13px; font-weight: 700; color: var(--ink); background: var(--soft); border-radius: 999px; padding: 5px 11px; }
+      .kw-status-select input { width: auto; min-height: 0; }
+      .kw-result-summary { margin-top: 10px; font-size: 13px; }
+      .kw-result-list { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 4px; max-height: 260px; overflow-y: auto; }
+      .kw-result-list li { padding: 6px 10px; border-radius: 7px; background: var(--soft); font-size: 13px; }
+      .kw-result-list li.kept { background: #e1f5ea; }
+      .kw-result-list li.rejected { color: var(--muted); }
+      .kw-table-wrap { overflow-x: auto; margin-top: 10px; }
+      .kw-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+      .kw-table th, .kw-table td { padding: 8px 10px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+      .kw-table th { color: var(--muted); font-size: 12px; font-weight: 800; }
+      .kw-pill { display: inline-block; padding: 3px 9px; border-radius: 999px; font-size: 12px; font-weight: 800; white-space: nowrap; }
+      .kw-pill-write { color: #fff; background: var(--brand); }
+      .kw-pill-hold { color: var(--muted); background: var(--soft); }
+      .kw-pill-ai { color: #fff; background: #6a5acd; }
+      .kw-pill-sent { color: #fff; background: #888; }
+      .kw-pill-other { color: var(--ink); background: var(--soft); }
+      .kw-row-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+      .kw-row-actions button { padding: 5px 9px; font-size: 12px; }
       h1 { margin: 0 0 4px; color: var(--ink); font-size: 22px; line-height: 1.2; letter-spacing: 0; }
       .sidebar h1 { color: #ffffff; }
       .topbar h1 { color: #ffffff; }
@@ -356,6 +376,7 @@
         <div class="main-view-tabs">
           <button id="mainViewDashboardTab" class="main-view-tab active" type="button" onclick="showMainView('dashboard')">ダッシュボード</button>
           <button id="mainViewEditorTab" class="main-view-tab" type="button" onclick="showMainView('editor')">詳細編集</button>
+          <button id="mainViewKeywordsTab" class="main-view-tab" type="button" onclick="showMainView('keywords')">お宝キーワード</button>
         </div>
 
         <div id="dashboardView">
@@ -522,6 +543,79 @@
             <textarea id="structureMemo" class="body-preview structure-preview"></textarea>
           </div>
         </div>
+        </div>
+
+        <div id="keywordsView" class="hidden">
+          <div class="card">
+            <h2 style="margin:0 0 6px;">新規発掘</h2>
+            <div class="muted">AIに新しいキーワード案を考えさせ、商品・案件ひも付き＋SERP構成＋既存記事とのカニバリを自動チェックして、通過分だけ「AI提案」として候補シートへ追加します。「書く」へは追加されません。</div>
+            <div style="margin-top:10px;"><button id="kwDiscoverButton" class="primary" type="button" onclick="runTreasureKeywordDiscovery(this)">AIに新しいキーワードを考えてもらう</button></div>
+            <div id="kwDiscoverResult"></div>
+          </div>
+
+          <div class="card">
+            <h2 style="margin:0 0 6px;">手動評価</h2>
+            <div class="muted">キーワード案を改行区切りで貼り付けると、新規発掘と同じ基準で評価し、通過分だけ「AI提案」として候補シートへ追加します。</div>
+            <textarea id="kwManualKeywords" rows="5" placeholder="1行に1キーワード" style="margin-top:8px;"></textarea>
+            <div style="margin-top:10px;"><button id="kwManualEvaluateButton" class="primary" type="button" onclick="runManualTreasureKeywordEvaluation(this)">評価して候補へ追加</button></div>
+            <div id="kwManualResult"></div>
+          </div>
+
+          <div class="card">
+            <h2 style="margin:0 0 6px;">既存候補の再評価</h2>
+            <div class="muted">候補シートに既にある行を対象に、同じ基準で再評価します。合格は「AI提案」、不合格は「保留」へ、対象行のステータスを直接書き換えます（新しい行は追加しません）。</div>
+            <div class="row" style="margin-top:8px;">
+              <div>
+                <label for="kwFilterAffiliate">案件名で絞り込み</label>
+                <select id="kwFilterAffiliate"><option value="">（絞り込まない）</option></select>
+              </div>
+              <div>
+                <label for="kwFilterMode">対象ステータス</label>
+                <select id="kwFilterMode" onchange="onKwFilterModeChange()">
+                  <option value="include">含める（下でチェックしたものだけ）</option>
+                  <option value="exclude">除外する（転送済みだけ除外して残り全部）</option>
+                </select>
+              </div>
+            </div>
+            <div id="kwIncludeStatusRow" class="kw-status-select">
+              <label><input type="checkbox" value="書く"> 書く</label>
+              <label><input type="checkbox" value="保留" checked> 保留</label>
+              <label><input type="checkbox" value="AI提案"> AI提案</label>
+              <label><input type="checkbox" value="転送済み"> 転送済み</label>
+            </div>
+            <div id="kwExcludeStatusRow" class="kw-status-select hidden">
+              <label><input type="checkbox" value="転送済み" checked> 転送済み</label>
+            </div>
+            <div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap;">
+              <button id="kwReevaluateButton" class="primary" type="button" onclick="runCandidateRowsEvaluation(this)">再評価を実行</button>
+              <button id="kwReevaluateContinueButton" class="secondary hidden" type="button" onclick="runCandidateRowsEvaluation(this, true)">続きを評価</button>
+            </div>
+            <div id="kwReevaluateResult"></div>
+          </div>
+
+          <div class="card">
+            <h2 style="margin:0 0 6px;">候補一覧</h2>
+            <div class="row">
+              <div><label for="kwListQuery">検索</label><input id="kwListQuery" placeholder="キーワード・案件名など"></div>
+              <div>
+                <label for="kwListStatus">状態で絞り込み</label>
+                <select id="kwListStatus" onchange="loadTreasureKeywordCandidateList()">
+                  <option value="">すべて</option>
+                  <option value="書く">書く</option>
+                  <option value="保留">保留</option>
+                  <option value="AI提案">AI提案</option>
+                  <option value="転送済み">転送済み</option>
+                </select>
+              </div>
+            </div>
+            <div style="margin-top:8px;"><button class="secondary" type="button" onclick="loadTreasureKeywordCandidateList()">再読込</button></div>
+            <div class="kw-table-wrap">
+              <table class="kw-table">
+                <thead><tr><th>状態</th><th>案件名</th><th>キーワード</th><th>検索ボリューム</th><th>操作</th></tr></thead>
+                <tbody id="kwCandidateTableBody"><tr><td colspan="5" class="muted">「再読込」を押すと候補が表示されます。</td></tr></tbody>
+              </table>
+            </div>
+          </div>
         </div>
       </main>
     </div>
@@ -1240,6 +1334,271 @@
           clearLoadedArticleForm();
           setNotice('サイトを切り替えました。候補シートから行を反映してください。', false);
         }
+        window.uaTreasureKeywordListAppType = null;
+        if (document.getElementById('mainViewKeywordsTab') && document.getElementById('mainViewKeywordsTab').classList.contains('active')) {
+          loadTreasureKeywordCandidateList();
+        }
+      }
+
+      // ============================================================
+      // 「お宝キーワード」タブ
+      // ============================================================
+
+      function refreshTreasureKeywordTabIfNeeded() {
+        if (!window.uaTreasureKeywordAffiliatesLoaded) {
+          loadTreasureKeywordAffiliateNames();
+        }
+        const appType = document.getElementById('appType').value;
+        if (window.uaTreasureKeywordListAppType !== appType) {
+          loadTreasureKeywordCandidateList();
+        }
+      }
+
+      function loadTreasureKeywordAffiliateNames() {
+        window.uaTreasureKeywordAffiliatesLoaded = true;
+        google.script.run
+          .withSuccessHandler(function(offers) {
+            const select = document.getElementById('kwFilterAffiliate');
+            if (!select) return;
+            const current = select.value;
+            select.innerHTML = '';
+            const blank = document.createElement('option');
+            blank.value = '';
+            blank.textContent = '（絞り込まない）';
+            select.appendChild(blank);
+            (offers || []).forEach(function(offer) {
+              const option = document.createElement('option');
+              option.value = offer.name;
+              option.textContent = offer.name;
+              select.appendChild(option);
+            });
+            select.value = current;
+          })
+          .withFailureHandler(function(error) {
+            window.uaTreasureKeywordAffiliatesLoaded = false;
+            console.error('案件名一覧の取得に失敗しました', error);
+          })
+          .uaListAffiliateNamesForWeb();
+      }
+
+      function onKwFilterModeChange() {
+        const mode = document.getElementById('kwFilterMode').value;
+        document.getElementById('kwIncludeStatusRow').classList.toggle('hidden', mode !== 'include');
+        document.getElementById('kwExcludeStatusRow').classList.toggle('hidden', mode !== 'exclude');
+      }
+
+      function kwCheckedValues(containerId) {
+        return Array.prototype.slice.call(document.querySelectorAll('#' + containerId + ' input:checked'))
+          .map(function(el) { return el.value; });
+      }
+
+      function kwPillClass(status) {
+        if (status === '書く') return 'kw-pill kw-pill-write';
+        if (status === '保留') return 'kw-pill kw-pill-hold';
+        if (status === 'AI提案') return 'kw-pill kw-pill-ai';
+        if (status === '転送済み') return 'kw-pill kw-pill-sent';
+        return 'kw-pill kw-pill-other';
+      }
+
+      function renderTreasureKeywordResultList(containerId, summary) {
+        const container = document.getElementById(containerId);
+        if (!container) return;
+        container.innerHTML = '';
+        if (!summary) return;
+        const head = document.createElement('div');
+        head.className = 'kw-result-summary';
+        let headText = '追加: ' + (summary.addedCount || 0) + '件';
+        if (summary.timedOutCount) headText += '　時間切れ未評価: ' + summary.timedOutCount + '件（もう一度実行すると続きを評価できます）';
+        head.textContent = headText;
+        container.appendChild(head);
+
+        const list = document.createElement('ul');
+        list.className = 'kw-result-list';
+        (summary.results || []).forEach(function(item) {
+          const li = document.createElement('li');
+          li.className = item.kept ? 'kept' : 'rejected';
+          li.textContent = (item.kept ? '✅ ' : '✕ ') + item.keyword + (item.kept ? '' : '（' + (item.reason || '') + '）');
+          list.appendChild(li);
+        });
+        container.appendChild(list);
+      }
+
+      function runTreasureKeywordDiscovery(button) {
+        const appType = document.getElementById('appType').value;
+        setBusy('AIがキーワードを考えています...', button);
+        google.script.run
+          .withSuccessHandler(function(summary) {
+            clearBusy();
+            renderTreasureKeywordResultList('kwDiscoverResult', summary);
+            setNotice('新規発掘が完了しました（追加' + (summary && summary.addedCount || 0) + '件）。', false);
+            window.uaTreasureKeywordListAppType = null;
+          })
+          .withFailureHandler(fail)
+          .uaDiscoverTreasureKeywordsForWeb(appType);
+      }
+
+      function runManualTreasureKeywordEvaluation(button) {
+        const appType = document.getElementById('appType').value;
+        const text = document.getElementById('kwManualKeywords').value;
+        if (!text.trim()) { window.alert('評価するキーワードを入力してください。'); return; }
+        setBusy('評価しています...', button);
+        google.script.run
+          .withSuccessHandler(function(summary) {
+            clearBusy();
+            renderTreasureKeywordResultList('kwManualResult', summary);
+            setNotice('手動評価が完了しました（追加' + (summary && summary.addedCount || 0) + '件）。', false);
+            window.uaTreasureKeywordListAppType = null;
+          })
+          .withFailureHandler(fail)
+          .uaEvaluateManualTreasureKeywordsForWeb(appType, text);
+      }
+
+      function runCandidateRowsEvaluation(button, isContinue) {
+        const appType = document.getElementById('appType').value;
+        let filter;
+        if (isContinue && window.uaTreasureKeywordLastFilter) {
+          filter = window.uaTreasureKeywordLastFilter;
+        } else {
+          const mode = document.getElementById('kwFilterMode').value;
+          filter = { affiliateName: document.getElementById('kwFilterAffiliate').value };
+          if (mode === 'exclude') {
+            filter.excludeStatuses = kwCheckedValues('kwExcludeStatusRow');
+          } else {
+            filter.includeStatuses = kwCheckedValues('kwIncludeStatusRow');
+            if (filter.includeStatuses.length === 0) { window.alert('対象ステータスを1つ以上選んでください。'); return; }
+          }
+        }
+        window.uaTreasureKeywordLastFilter = filter;
+        setBusy('候補を再評価しています...', button);
+        google.script.run
+          .withSuccessHandler(function(summary) {
+            clearBusy();
+            const container = document.getElementById('kwReevaluateResult');
+            if (container) {
+              container.innerHTML = '';
+              const head = document.createElement('div');
+              head.className = 'kw-result-summary';
+              let text = '対象' + (summary.targetRowCount || 0) + '件中　AI提案へ: ' + (summary.keptCount || 0) + '件　保留へ: ' + (summary.rejectedCount || 0) + '件';
+              if (summary.timedOutCount) text += '　時間切れ未評価: ' + summary.timedOutCount + '件';
+              if (summary.writeErrorCount) text += '　書き込み失敗: ' + summary.writeErrorCount + '件';
+              head.textContent = text;
+              container.appendChild(head);
+            }
+            const continueButton = document.getElementById('kwReevaluateContinueButton');
+            if (continueButton) continueButton.classList.toggle('hidden', !(summary && summary.timedOutCount > 0));
+            setNotice('再評価が完了しました。', false);
+            window.uaTreasureKeywordListAppType = null;
+          })
+          .withFailureHandler(fail)
+          .uaEvaluateCandidateRowsForWeb(appType, filter);
+      }
+
+      function loadTreasureKeywordCandidateList() {
+        const appType = document.getElementById('appType').value;
+        const query = document.getElementById('kwListQuery').value;
+        const status = document.getElementById('kwListStatus').value;
+        const statuses = status ? [status] : [];
+        window.uaTreasureKeywordListAppType = appType;
+        const tbody = document.getElementById('kwCandidateTableBody');
+        if (tbody) {
+          tbody.innerHTML = '';
+          const tr = document.createElement('tr');
+          const td = document.createElement('td');
+          td.colSpan = 5;
+          td.className = 'muted';
+          td.textContent = '読み込み中...';
+          tr.appendChild(td);
+          tbody.appendChild(tr);
+        }
+        google.script.run
+          .withSuccessHandler(function(rows) {
+            renderTreasureKeywordCandidateTable(rows || []);
+          })
+          .withFailureHandler(function(error) {
+            if (tbody) {
+              tbody.innerHTML = '';
+              const tr = document.createElement('tr');
+              const td = document.createElement('td');
+              td.colSpan = 5;
+              td.textContent = '読み込みに失敗しました: ' + (error && error.message ? error.message : error);
+              tr.appendChild(td);
+              tbody.appendChild(tr);
+            }
+          })
+          .uaListCandidatesForWeb(appType, query, statuses);
+      }
+
+      function renderTreasureKeywordCandidateTable(rows) {
+        const tbody = document.getElementById('kwCandidateTableBody');
+        if (!tbody) return;
+        tbody.innerHTML = '';
+        if (!rows.length) {
+          const tr = document.createElement('tr');
+          const td = document.createElement('td');
+          td.colSpan = 5;
+          td.className = 'muted';
+          td.textContent = '該当する候補がありません。';
+          tr.appendChild(td);
+          tbody.appendChild(tr);
+          return;
+        }
+        rows.forEach(function(row) {
+          const tr = document.createElement('tr');
+
+          const statusTd = document.createElement('td');
+          const pill = document.createElement('span');
+          pill.className = kwPillClass(row.status);
+          pill.textContent = row.status || '(空欄)';
+          statusTd.appendChild(pill);
+          tr.appendChild(statusTd);
+
+          const affiliateTd = document.createElement('td');
+          affiliateTd.textContent = row.affiliateName || '';
+          tr.appendChild(affiliateTd);
+
+          const keywordTd = document.createElement('td');
+          keywordTd.textContent = row.keyword || '';
+          tr.appendChild(keywordTd);
+
+          const volumeTd = document.createElement('td');
+          volumeTd.textContent = row.volume || '';
+          tr.appendChild(volumeTd);
+
+          const actionsTd = document.createElement('td');
+          const actionsWrap = document.createElement('div');
+          actionsWrap.className = 'kw-row-actions';
+          [
+            { label: '書くへ昇格', status: '書く', cls: 'primary' },
+            { label: '保留にする', status: '保留', cls: 'secondary' },
+            { label: 'AI提案に戻す', status: 'AI提案', cls: 'secondary' }
+          ].filter(function(action) { return action.status !== row.status; })
+           .forEach(function(action) {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = action.cls;
+            btn.textContent = action.label;
+            btn.onclick = function() { setTreasureKeywordCandidateStatus(row.row, action.status, statusTd, pill); };
+            actionsWrap.appendChild(btn);
+          });
+          actionsTd.appendChild(actionsWrap);
+          tr.appendChild(actionsTd);
+
+          tbody.appendChild(tr);
+        });
+      }
+
+      function setTreasureKeywordCandidateStatus(row, newStatus, statusTd, pill) {
+        const appType = document.getElementById('appType').value;
+        google.script.run
+          .withSuccessHandler(function(result) {
+            pill.className = kwPillClass(result.status);
+            pill.textContent = result.status;
+            setNotice('行' + row + 'のステータスを「' + result.status + '」に変更しました。', false);
+          })
+          .withFailureHandler(function(error) {
+            setNotice('ステータス変更に失敗しました: ' + (error && error.message ? error.message : error), true);
+          })
+          .uaSetCandidateStatusForWeb(appType, row, newStatus);
       }
 
       function applyDefaultImageStyle() {
@@ -1677,16 +2036,21 @@
         if (data && data.row) showMainView('editor');
       }
 
+      const UA_MAIN_VIEWS = [
+        { name: 'dashboard', viewId: 'dashboardView', tabId: 'mainViewDashboardTab' },
+        { name: 'editor', viewId: 'editorView', tabId: 'mainViewEditorTab' },
+        { name: 'keywords', viewId: 'keywordsView', tabId: 'mainViewKeywordsTab' }
+      ];
+
       function showMainView(name) {
-        const isEditor = name === 'editor';
-        const dashboardView = document.getElementById('dashboardView');
-        const editorView = document.getElementById('editorView');
-        const dashboardTab = document.getElementById('mainViewDashboardTab');
-        const editorTab = document.getElementById('mainViewEditorTab');
-        if (dashboardView) dashboardView.classList.toggle('hidden', isEditor);
-        if (editorView) editorView.classList.toggle('hidden', !isEditor);
-        if (dashboardTab) dashboardTab.classList.toggle('active', !isEditor);
-        if (editorTab) editorTab.classList.toggle('active', isEditor);
+        UA_MAIN_VIEWS.forEach(function(entry) {
+          const isActive = entry.name === name;
+          const view = document.getElementById(entry.viewId);
+          const tab = document.getElementById(entry.tabId);
+          if (view) view.classList.toggle('hidden', !isActive);
+          if (tab) tab.classList.toggle('active', isActive);
+        });
+        if (name === 'keywords') refreshTreasureKeywordTabIfNeeded();
       }
 
       function setStoppedArticleUi(stopped) {

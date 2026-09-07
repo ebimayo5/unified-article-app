@@ -2386,6 +2386,28 @@ function uaRegisterHubTvCancellerArticle20260907() {
   };
 }
 
+// 2026-09-07: uaRegisterHubTvCancellerArticle20260907で登録した行(129行目)を、
+// WordPress側で実際に公開した後にステータス反映するための一回限り関数。
+function uaMarkHubTvCancellerPublished20260907() {
+  const appConfig = UA_APP_TYPES.drive;
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(appConfig.articleSheetName);
+  if (!sheet) {
+    throw new Error('記事管理シートが見つかりません: ' + appConfig.articleSheetName);
+  }
+
+  const row = 129;
+  const postId = 2544;
+  const currentPostId = sheet.getRange(row, UA_COLUMNS.wpPostId).getValue();
+  if (Number(currentPostId) !== postId) {
+    throw new Error('行' + row + 'のWP投稿IDが想定と異なります: ' + currentPostId);
+  }
+
+  sheet.getRange(row, UA_COLUMNS.status).setValue(UA_STATUS_POSTED);
+  sheet.getRange(row, UA_COLUMNS.permalink).setValue('https://ebimayo5.com/archives/tv-canceller-complete-guide/');
+
+  return { ok: true, row: row, message: '行' + row + 'を公開済みに更新しました。' };
+}
+
 function uaGetRakutenActiveRowContext_() {
   const sheet = SpreadsheetApp.getActiveSheet();
   const row = sheet.getActiveCell().getRow();

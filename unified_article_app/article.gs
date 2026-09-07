@@ -2321,6 +2321,71 @@ function uaRegisterExistingRefrigeratorStoveArticle() {
   };
 }
 
+// 2026-09-07: ユーザーとのSEO分析セッションで、DRIVE BASEの「テレビキャンセラー
+// デメリット」(車種名なしの一般語、12.9位)が、車種別記事(9本以上)はあるのに
+// 車種を問わない解説記事が無いために取りこぼされていると判明。ハブ記事
+// 「テレビキャンセラーとは？デメリット・メリットと車種別の選び方まとめ」を
+// WordPressに直接下書き作成済み(WP投稿ID 2544、本文・メタディスクリプション・
+// 外部出典・車種別記事へのリンクまで反映済み)。シート未登録のため、画像生成・
+// 公開前チェック等のパネル機能を使えるようにこの関数でシートへ登録する。
+function uaRegisterHubTvCancellerArticle20260907() {
+  const appConfig = UA_APP_TYPES.drive;
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(appConfig.articleSheetName);
+  if (!sheet) {
+    throw new Error('記事管理シートが見つかりません: ' + appConfig.articleSheetName);
+  }
+
+  const postId = 2544;
+  const wpConfig = uaGetWpConfig_(appConfig);
+  const post = uaCallWordPressApi_(wpConfig, '/wp-json/wp/v2/posts/' + postId + '?context=edit', 'get');
+  if (!post || Number(post.id) !== postId) {
+    throw new Error('WP投稿の取得に失敗しました: postId=' + postId);
+  }
+
+  const rawBody = (post.content && (post.content.raw || post.content.rendered)) || '';
+  const rawTitle = (post.title && (post.title.raw || post.title.rendered)) || '';
+  const slug = post.slug || '';
+  const editUrl = uaBuildWpEditUrl_(wpConfig.siteUrl, postId);
+  const now = new Date();
+  const metaDescription = 'テレビキャンセラーのデメリット・メリットを車種を問わず整理。法律・保証・車検・費用の注意点と、車種別の詳しい選び方まとめへのリンクを掲載。';
+
+  const values = [
+    appConfig.label,
+    'テレビキャンセラー デメリット（車種名なし・ハブ記事）',
+    '',
+    'ナビ男くん',
+    '',
+    '車種別テレビキャンセラー記事群（シエンタ/CX-5/N-BOX/ハリアー/ヤリスクロス/ステップワゴン/CX-8/新型ノア）へのハブ記事。既存記事は変更しない。',
+    '',
+    '',
+    '',
+    '',
+    UA_STATUS_WP_DRAFTED,
+    now,
+    '',
+    rawBody,
+    rawTitle,
+    'テレビキャンセラー,デメリット,車検,ナビ男くん,ナビキャンセラー',
+    metaDescription,
+    slug,
+    '・「テレビキャンセラー デメリット」(車種名なし、12.9位)対策のハブ記事として新規作成し、シートへ事後登録',
+    postId,
+    editUrl,
+    now,
+    ''
+  ];
+
+  sheet.appendRow(values);
+  const newRow = sheet.getLastRow();
+
+  return {
+    ok: true,
+    row: newRow,
+    postId: postId,
+    message: 'ハブ記事（WP投稿ID ' + postId + '）をシートの' + newRow + '行目として登録しました。'
+  };
+}
+
 function uaGetRakutenActiveRowContext_() {
   const sheet = SpreadsheetApp.getActiveSheet();
   const row = sheet.getActiveCell().getRow();

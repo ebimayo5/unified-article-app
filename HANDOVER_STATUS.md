@@ -4,11 +4,18 @@
 作業を始める前・区切りがつくたびに、必ずここを読み書きすること（CLAUDE.md / AGENTS.md の「並行作業ルール」参照）。
 複数エージェントが同時に動く前提のため、このセクションだけは「最終更新」より新しい情報になり得る。
 
-- 状態: 作業中
-- エージェント: Claude Code
-- 開始時刻: 2026-09-07
-- やっていること: `たくみパパ_GSC実績`シートの最新化。automation.gsに一回限り関数`uaRunGscPerformanceRefresh20260907_`を追加し、実際のSearch Consoleデータ（本セッション内でブラウザから取得済み）で再シードする。既存の`uaSaveGscPerformanceRows_`をそのまま呼ぶだけで、候補選定ロジック自体は変更しない。
-- 本番影響: あり（予定）。clasp push後、Apps Scriptエディタから関数を手動実行してシートを書き換える。自動投稿の停止・再開は行わない。
+- 状態: 空き
+- エージェント: なし
+- 開始時刻: -
+- やっていること: なし
+- 本番影響: なし
+- 完了内容（2026-09-07 Claude Code、続き）: ユーザーとAhrefs/Search Console実データでたくみパパ(kurashi-ie.com)のSEO分析を実施。DR0・被リンク100%低品質・全トラフィックの86%が1記事(ラバー付き軍手)に依存という実態を特定した上で、ユーザー承認のもとブラウザ経由でWordPress本文を3件直接編集（コードエディタでGutenbergブロックHTMLを直接差し込み、OpenAI課金なし）。
+  1. [second-floor-washstand-regret](https://kurashi-ie.com/second-floor-washstand-regret/)（post272）: 「二階洗面台のメリット・デメリット一覧」H2＋比較表を追加（「セカンド洗面台 デメリット」29.2位・「二階 洗面台」27.1位の取りこぼし対策）。
+  2. [laundry-chest-mold-resistant-2](https://kurashi-ie.com/laundry-chest-mold-resistant-2/)（post433）: 素材比較セクション末尾に「結局、湿気に強い素材はどれ？」H3を追加（「ランドリーチェスト 湿気に強い」12.4位対策）。
+  3. [refrigerator-stove-facing-layout](https://kurashi-ie.com/refrigerator-stove-facing-layout/)（post193）: 「②通路が狭い」セクションに具体的な通路幅の目安（80cm・肩幅+10〜20cm）を追記（「冷蔵庫 コンロ 向かい合わせ 狭い」10.2位対策）。
+  4. [easy-toilet-cleaning-without-brush](https://kurashi-ie.com/easy-toilet-cleaning-without-brush/)（post581）から[toilet-cleaning-sheets-not-needed](https://kurashi-ie.com/toilet-cleaning-sheets-not-needed/)（post615、「トイレ掃除シート いらない」10.3位）への内部リンクを追加（他の関連3記事とも未リンクだったことをREST APIで確認済み）。
+  いずれも既存本文・画像・見出し構成は保持し、追記のみ。全て公開ページで反映確認済み。順位変動の確認は数日〜数週間後にユーザーと再度Search Consoleで実施予定。
+  また、`automation.gs`に一回限り関数`uaRunGscPerformanceRefresh20260907`を追加し、2026-08-30から古くなっていた`たくみパパ_GSC実績`シート（候補選定ロジックの「実績シグナル」データ源）を、本セッションでブラウザから取得した実際のSearch Console直近3ヶ月データ（クリック数>0の37クエリ）で再シード。Apps Scriptエディタから関数を手動実行し、シートの更新日が2026/09/07になったことを実際のスプレッドシートで確認済み。全テストPASS、git push済み（`a112de7`まで）。clasp pushはHEADまで反映済み（本番デプロイ@343は変更なし、コードは全て一回限り関数の追加のみでWebアプリの動作に影響しないため、今回はデプロイ更新不要と判断）。自動投稿の停止・再開は行っていない。
 - 完了内容（2026-09-07 Codex）: Claude Codeから依頼された「お宝キーワード」タブの本番反映を完了。リポジトリと`deploy_stale_guard`の`keyword_discovery.gs`、`web_app.gs`、`ua_web_app.html`が完全一致し、Gitがclean、自動投稿の実処理およびローカル処理がないことを確認してから、既存デプロイIDをバージョン343（`Add treasure-keyword panel tab`）へ更新。`clasp deployments`で同じIDが`@343`になったことを再確認。本番URLで「ダッシュボード」「詳細編集」「お宝キーワード」の3タブと、お宝キーワード画面（新規発掘・手動評価・既存候補の再評価・候補一覧）の表示を確認した。書き込み系ボタンおよび自動投稿の開始・停止・再開は操作していない。
 - 完了内容（2026-09-06 Codex）: DRIVE BASE公開記事を全件検査し、旧Cocoon版ナビ男くん紹介セットが残っていた8件（post 2414/2424/2446/2456/2464/2474/2484/2512）を完全一致置換でSWELL版へ更新。再検出0件、8記事すべて公開画面で`article-compass-notice-box`表示を確認。本文再生成、自動投稿の停止・再開は行っていない。全38テストPASS。Claude Codeの完成済み変更がcommit/push済み（`048237e`、引き継ぎ`48f0c5a`）、HEADとorigin/main一致を確認後、同じWebアプリURLを本番バージョン342へ更新。`doGet`と`uaGetWebAppBootData`が342で完了していることを実行履歴で確認。
 - 完了内容（2026-09-06 Claude Code、セッション全体の詳細引き継ぎ）:

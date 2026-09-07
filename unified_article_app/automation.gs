@@ -1034,6 +1034,52 @@ function uaSeedGscPerformanceSheet20260830_() {
   ]);
 }
 
+// 2026-09-07: 2026-08-30シードから1週間以上経ち古くなっていたため、実際の
+// Search Console検索パフォーマンス（過去3ヶ月、クリック数>0の全クエリ）で
+// 再シード。件数が増えた（30件→37件）のは、シートの都合ではなく実データの
+// 反映件数が変わっただけ。uaSaveGscPerformanceRows_は毎回全置換なので、
+// 古い行が残る心配はない。
+function uaRunGscPerformanceRefresh20260907_() {
+  return uaSaveGscPerformanceRows_([
+    { query: '二階 洗面台 後悔', clicks: 35 },
+    { query: '冷蔵庫 マット 後悔', clicks: 15 },
+    { query: 'ランドリールーム 木製 チェスト カビ', clicks: 15 },
+    { query: '排水口 不織布 つまる', clicks: 14 },
+    { query: '排水溝ネット 不織布 詰まる', clicks: 10 },
+    { query: 'キッチン 排水溝ネット すぐ詰まる', clicks: 9 },
+    { query: '冷蔵庫 コンロ 向かい合わせ', clicks: 8 },
+    { query: 'ランドリー チェスト カビない', clicks: 8 },
+    { query: 'サンシェード強風対策', clicks: 7 },
+    { query: '冷蔵庫 コンロ 向かい合わせ 対策', clicks: 6 },
+    { query: 'トイレ掃除シート 代用', clicks: 6 },
+    { query: '隣の家との距離 1m', clicks: 4 },
+    { query: '水切りフィルター 不織布 詰まる', clicks: 4 },
+    { query: '冷蔵庫 コンロ 向かい合わせ 狭い', clicks: 3 },
+    { query: 'トイレ掃除シート いらない', clicks: 3 },
+    { query: 'サンシェード 強風対策', clicks: 3 },
+    { query: 'ランドリーチェスト カビない', clicks: 3 },
+    { query: '洗面所 タンス カビ', clicks: 3 },
+    { query: 'ランドリーチェスト', clicks: 3 },
+    { query: 'セカンド洗面台 後悔', clicks: 2 },
+    { query: '100均 水切りネット 詰まる', clicks: 2 },
+    { query: '2階 洗面台 後悔', clicks: 2 },
+    { query: '2階 洗面台後悔', clicks: 2 },
+    { query: 'ポップアップテント たためない', clicks: 2 },
+    { query: 'ランドリールーム チェスト 湿気', clicks: 2 },
+    { query: '冷蔵庫 コンロ 向かい合わせ 距離', clicks: 1 },
+    { query: '冷蔵庫マット 後悔', clicks: 1 },
+    { query: 'ランドリー チェスト 湿気に強い', clicks: 1 },
+    { query: '洗い桶 ステンレス デメリット', clicks: 1 },
+    { query: 'コンロ 冷蔵庫 向かい合わせ', clicks: 1 },
+    { query: '洗面所 窓なし 後悔', clicks: 1 },
+    { query: 'シンク 洗い桶 いらない', clicks: 1 },
+    { query: 'サンシェード 台風対策', clicks: 1 },
+    { query: 'シンクに洗い桶は必要か', clicks: 1 },
+    { query: '洗い桶', clicks: 1 },
+    { query: '脱衣所 髪の毛 掃除', clicks: 1 }
+  ]);
+}
+
 function uaEnsureAutomaticPostingSheet_() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   let sheet = ss.getSheetByName(UA_AUTOMATION_SHEET_NAME);

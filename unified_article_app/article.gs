@@ -2408,6 +2408,109 @@ function uaMarkHubTvCancellerPublished20260907() {
   return { ok: true, row: row, message: '行' + row + 'を公開済みに更新しました。' };
 }
 
+// 2026-09-07: 「テレビキャンセラー」ハブの成功パターンを横展開し、DRIVE BASE/たくみパパ双方の
+// 追加トピッククラスターハブ5本（WordPress側は下書き作成・本文・メタディスクリプションまで済み）を
+// まとめてシートへ事後登録する一回限り関数。postIdで重複登録を防ぎ、複数回実行しても安全。
+const UA_PENDING_HUB_ARTICLES_20260907 = [
+  { appKey: 'drive', postId: 2561, mainInput: 'HDMI端子 どこ（車種名なし・ハブ記事）', affiliateName: 'ナビ男くん', structureMemo: '車種別HDMI端子記事群（18本）へのハブ記事。既存記事は変更しない。' },
+  { appKey: 'drive', postId: 2562, mainInput: '後席モニター 後付け（車種名なし・ハブ記事）', affiliateName: 'ナビ男くん', structureMemo: '車種別後席モニター後付け記事群（8本）へのハブ記事。既存記事は変更しない。' },
+  { appKey: 'home', postId: 1312, mainInput: 'トイレ掃除 道具選び（ハブ記事）', affiliateName: '', structureMemo: 'トイレ掃除・トイレブラシ関連記事群（4本）へのハブ記事。既存記事は変更しない。' },
+  { appKey: 'home', postId: 1313, mainInput: 'リビング テレビ配置（ハブ記事）', affiliateName: '', structureMemo: 'リビングのテレビ配置関連記事群（4本）へのハブ記事。既存記事は変更しない。' },
+  { appKey: 'home', postId: 1314, mainInput: '洗面所づくり（ハブ記事）', affiliateName: '', structureMemo: '洗面所の間取り・掃除関連記事群（5本）へのハブ記事。既存記事は変更しない。' },
+];
+
+function uaRegisterPendingHubArticles20260907() {
+  const results = [];
+  for (const item of UA_PENDING_HUB_ARTICLES_20260907) {
+    const appConfig = UA_APP_TYPES[item.appKey];
+    const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(appConfig.articleSheetName);
+    if (!sheet) {
+      results.push({ postId: item.postId, ok: false, reason: 'シートが見つかりません: ' + appConfig.articleSheetName });
+      continue;
+    }
+
+    const existingIds = sheet.getRange(2, UA_COLUMNS.wpPostId, Math.max(sheet.getLastRow() - 1, 0), 1).getValues().flat();
+    if (existingIds.some(function (v) { return Number(v) === item.postId; })) {
+      results.push({ postId: item.postId, ok: true, skipped: true, reason: '登録済み' });
+      continue;
+    }
+
+    const wpConfig = uaGetWpConfig_(appConfig);
+    const post = uaCallWordPressApi_(wpConfig, '/wp-json/wp/v2/posts/' + item.postId + '?context=edit', 'get');
+    if (!post || Number(post.id) !== item.postId) {
+      results.push({ postId: item.postId, ok: false, reason: 'WP投稿の取得に失敗しました' });
+      continue;
+    }
+
+    const rawBody = (post.content && (post.content.raw || post.content.rendered)) || '';
+    const rawTitle = (post.title && (post.title.raw || post.title.rendered)) || '';
+    const slug = post.slug || '';
+    const editUrl = uaBuildWpEditUrl_(wpConfig.siteUrl, item.postId);
+    const now = new Date();
+
+    const values = [
+      appConfig.label,
+      item.mainInput,
+      '',
+      item.affiliateName || '',
+      '',
+      item.structureMemo,
+      '', '', '', '',
+      UA_STATUS_WP_DRAFTED,
+      now,
+      '',
+      rawBody,
+      rawTitle,
+      '',
+      '',
+      slug,
+      'トピッククラスターのハブ記事として新規作成し、シートへ事後登録',
+      item.postId,
+      editUrl,
+      now,
+      ''
+    ];
+
+    sheet.appendRow(values);
+    results.push({ postId: item.postId, ok: true, row: sheet.getLastRow() });
+  }
+  return results;
+}
+
+// UA_PENDING_HUB_ARTICLES_20260907と同じ5件について、WordPress側で実際に公開した後に
+// シートのステータス・パーマリンクを一括反映するための一回限り関数。
+function uaMarkPendingHubArticlesPublished20260907() {
+  const results = [];
+  for (const item of UA_PENDING_HUB_ARTICLES_20260907) {
+    const appConfig = UA_APP_TYPES[item.appKey];
+    const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(appConfig.articleSheetName);
+    if (!sheet) {
+      results.push({ postId: item.postId, ok: false, reason: 'シートが見つかりません: ' + appConfig.articleSheetName });
+      continue;
+    }
+
+    const postIds = sheet.getRange(2, UA_COLUMNS.wpPostId, Math.max(sheet.getLastRow() - 1, 0), 1).getValues().flat();
+    const rowIndex = postIds.findIndex(function (v) { return Number(v) === item.postId; });
+    if (rowIndex === -1) {
+      results.push({ postId: item.postId, ok: false, reason: 'シートに未登録です' });
+      continue;
+    }
+    const row = rowIndex + 2;
+
+    const wpConfig = uaGetWpConfig_(appConfig);
+    const post = uaCallWordPressApi_(wpConfig, '/wp-json/wp/v2/posts/' + item.postId + '?context=edit', 'get');
+    if (!post || post.status !== 'publish') {
+      results.push({ postId: item.postId, ok: false, reason: 'WordPress側がまだpublishではありません（status=' + (post && post.status) + '）' });
+      continue;
+    }
+
+    sheet.getRange(row, UA_COLUMNS.status).setValue(UA_STATUS_POSTED);
+    sheet.getRange(row, UA_COLUMNS.permalink).setValue(post.link);
+    results.push({ postId: item.postId, ok: true, row: row, link: post.link });
+  }
+  return results;
+}
+
 function uaGetRakutenActiveRowContext_() {
   const sheet = SpreadsheetApp.getActiveSheet();
   const row = sheet.getActiveCell().getRow();

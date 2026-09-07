@@ -1039,7 +1039,7 @@ function uaSeedGscPerformanceSheet20260830_() {
 // 再シード。件数が増えた（30件→37件）のは、シートの都合ではなく実データの
 // 反映件数が変わっただけ。uaSaveGscPerformanceRows_は毎回全置換なので、
 // 古い行が残る心配はない。
-function uaRunGscPerformanceRefresh20260907_() {
+function uaRunGscPerformanceRefresh20260907() {
   return uaSaveGscPerformanceRows_([
     { query: '二階 洗面台 後悔', clicks: 35 },
     { query: '冷蔵庫 マット 後悔', clicks: 15 },

@@ -9,6 +9,8 @@
 - 開始時刻: -
 - やっていること: なし
 - 本番影響: なし
+- 完了内容（2026-09-07 Claude Code、続き2）: 同日、DRIVE BASE(ebimayo5.com)もAhrefs/Search Console実データで分析。DR1.5・被リンク100%低品質、実質119記事に対しSearch Consoleで表示回数のあるクエリは142個・直近3ヶ月197クリック（たくみパパの半分以下）。稼いでいるのは「ナビ/車載機器の困りごと」ジャンルのみ（cx-30ナビ小さい・新型ノアテレビキャンセラーデメリット・レーダー探知機工賃・ベンツナビひどい等）で、2026-08-29の過去監査結果が半年後も変わっていないことを確認。「買って後悔」系（残クレ失敗談vol300→31位、ルーミー買ってよかったvol350→20位等）はサイトの表向きの主軸なのに軒並み圏外という構造的な的外れも再確認。
+  ユーザー承認のもと、[noah-tv-canceller-demerit](https://ebimayo5.com/archives/noah-tv-canceller-demerit/)（post967、DRIVE BASE）に「そもそもテレビキャンセラーのデメリットとは？」H3＋車種非依存の要約段落を追加（「テレビキャンセラー デメリット」12.9位、車種名なしの一般クエリ対策。同ジャンルに車種別記事が9本以上あるが車種非依存の一般解説がなかったため）。既存本文・画像は保持し追記のみ、公開ページで反映確認済み。OpenAI課金なし。
 - 完了内容（2026-09-07 Claude Code、続き）: ユーザーとAhrefs/Search Console実データでたくみパパ(kurashi-ie.com)のSEO分析を実施。DR0・被リンク100%低品質・全トラフィックの86%が1記事(ラバー付き軍手)に依存という実態を特定した上で、ユーザー承認のもとブラウザ経由でWordPress本文を3件直接編集（コードエディタでGutenbergブロックHTMLを直接差し込み、OpenAI課金なし）。
   1. [second-floor-washstand-regret](https://kurashi-ie.com/second-floor-washstand-regret/)（post272）: 「二階洗面台のメリット・デメリット一覧」H2＋比較表を追加（「セカンド洗面台 デメリット」29.2位・「二階 洗面台」27.1位の取りこぼし対策）。
   2. [laundry-chest-mold-resistant-2](https://kurashi-ie.com/laundry-chest-mold-resistant-2/)（post433）: 素材比較セクション末尾に「結局、湿気に強い素材はどれ？」H3を追加（「ランドリーチェスト 湿気に強い」12.4位対策）。

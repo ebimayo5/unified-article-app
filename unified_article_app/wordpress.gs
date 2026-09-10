@@ -4707,6 +4707,11 @@ function uaApplyDriveNaviokunTextLinks20260910() {
   for (let postIndex = 0; postIndex < posts.length; postIndex += 1) {
     const post = posts[postIndex];
     const postId = Number(post.id || 0);
+    // The published-post list already contains editable raw content. Use it as
+    // a cheap candidate filter, then refetch only posts that actually need a
+    // mutation. The fresh refetch below remains the source of truth.
+    const listedScan = uaTransformNaviokunTextMentions_(uaGetWpPostRawContent_(post), exactUrl);
+    if (!listedScan.unlinked) continue;
     let before = '';
     let scan;
     let freshPost;

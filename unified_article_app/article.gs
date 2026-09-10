@@ -468,7 +468,7 @@ function uaRunArticleFromPanel(data) {
       resultJson.product_plan || resultJson.productPlan
     );
     const body = uaRemoveRedundantAffiliateDisclosure_(uaNormalizeAnchorRelAttributes_(uaApplyRakutenAffiliateBanner_(
-      uaApplyNaviokunIntroSet_(
+      uaApplyNaviokunPostProcessing_(
         uaApplyManagedAffiliateCta_(
           uaApplyYmylNotice_(
             uaNormalizeFaqHeadingLevels_(bodyWithProductPlan),
@@ -1470,6 +1470,94 @@ function uaApplyNaviokunIntroSet_(body, rowData, appConfig) {
     introSet,
     html.slice(insertionIndex).trimStart()
   ].filter(Boolean).join('\n\n');
+}
+
+// Link every visible, otherwise-unlinked "ナビ男くん" mention to the exact
+// affiliate URL stored in 案件管理. HTML tags/attributes, Gutenberg comments,
+// shortcodes, scripts/styles/code, and already-linked text are deliberately
+// left untouched. Keeping this separate from uaApplyNaviokunIntroSet_ preserves
+// that function's existing idempotency/placement contract for callers/tests.
+function uaApplyNaviokunPostProcessing_(body, rowData, appConfig) {
+  return uaLinkifyNaviokunTextMentions_(
+    uaApplyNaviokunIntroSet_(body, rowData, appConfig),
+    appConfig
+  );
+}
+
+function uaLinkifyNaviokunTextMentions_(body, appConfig, affiliateUrl) {
+  const html = String(body || '');
+  if (!html || !appConfig || appConfig.key !== 'drive' || html.indexOf('ナビ男くん') === -1) return html;
+
+  let exactUrl = String(affiliateUrl || '').trim();
+  if (!exactUrl) {
+    const project = uaReadAffiliateProjectByName_('ナビ男くん', false);
+    exactUrl = String(project && project.url || '').trim();
+  }
+  if (!/^https?:\/\/[^\s"'<>]+$/i.test(exactUrl)) return html;
+
+  return uaTransformNaviokunTextMentions_(html, exactUrl).html;
+}
+
+function uaTransformNaviokunTextMentions_(body, affiliateUrl) {
+  const html = String(body || '');
+  const exactUrl = String(affiliateUrl || '').trim();
+  const result = { html: html, unlinked: 0, alreadyLinked: 0, linked: 0 };
+  if (!html || html.indexOf('ナビ男くん') === -1) return result;
+
+  const canLink = /^https?:\/\/[^\s"'<>]+$/i.test(exactUrl);
+  const anchor = canLink
+    ? '<a href="' + uaEscapeHtml_(exactUrl) + '" target="_blank" rel="nofollow sponsored noopener">ナビ男くん</a>'
+    : '';
+  // Keep quoted ">" characters inside attributes from splitting a tag.
+  const tokens = html.split(/(<!--[\s\S]*?-->|<(?:"[^"]*"|'[^']*'|[^'">])*>)/g);
+  let anchorDepth = 0;
+  let excludedDepth = 0;
+  const excludedTags = { script: true, style: true, code: true, pre: true };
+
+  for (let i = 0; i < tokens.length; i += 1) {
+    const token = String(tokens[i] || '');
+    if (!token) continue;
+
+    if (token.charAt(0) === '<') {
+      if (/^<!--/.test(token)) continue;
+      const close = /^<\s*\/\s*([a-z0-9:-]+)/i.exec(token);
+      const open = close ? null : /^<\s*([a-z0-9:-]+)/i.exec(token);
+      if (close) {
+        const name = String(close[1] || '').toLowerCase();
+        if (name === 'a') anchorDepth = Math.max(0, anchorDepth - 1);
+        if (excludedTags[name]) excludedDepth = Math.max(0, excludedDepth - 1);
+      } else if (open && !/\/\s*>$/.test(token)) {
+        const name = String(open[1] || '').toLowerCase();
+        if (name === 'a') anchorDepth++;
+        if (excludedTags[name]) excludedDepth++;
+      }
+      continue;
+    }
+
+    const mentions = token.match(/ナビ男くん/g) || [];
+    if (!mentions.length || excludedDepth > 0) continue;
+    if (anchorDepth > 0) {
+      result.alreadyLinked += mentions.length;
+      continue;
+    }
+
+    // Do not alter shortcode attributes or shortcode content.
+    const pieces = token.split(/(\[[^\]\r\n]*\])/g);
+    for (let j = 0; j < pieces.length; j += 1) {
+      if (/^\[[^\]\r\n]*\]$/.test(pieces[j])) continue;
+      const count = (String(pieces[j] || '').match(/ナビ男くん/g) || []).length;
+      if (!count) continue;
+      result.unlinked += count;
+      if (canLink) {
+        pieces[j] = pieces[j].replace(/ナビ男くん/g, anchor);
+        result.linked += count;
+      }
+    }
+    tokens[i] = pieces.join('');
+  }
+
+  result.html = tokens.join('');
+  return result;
 }
 
 function uaRemoveNaviokunIntroSet_(body) {

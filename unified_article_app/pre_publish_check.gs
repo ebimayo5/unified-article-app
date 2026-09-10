@@ -312,7 +312,7 @@ function uaApplyPrePublishFixesOnceFromPanel(data) {
     rowData,
     protectedBody.body
   );
-  let revisedBody = uaNormalizeAnchorRelAttributes_(uaApplyNaviokunIntroSet_(
+  let revisedBody = uaNormalizeAnchorRelAttributes_(uaApplyNaviokunPostProcessing_(
     uaApplyManagedAffiliateCta_(
       uaApplyYmylNotice_(
         uaNormalizeFaqHeadingLevels_(uaFixGeneratedHtml_(

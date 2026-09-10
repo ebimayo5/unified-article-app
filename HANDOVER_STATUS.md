@@ -4,11 +4,11 @@
 作業を始める前・区切りがつくたびに、必ずここを読み書きすること（CLAUDE.md / AGENTS.md の「並行作業ルール」参照）。
 複数エージェントが同時に動く前提のため、このセクションだけは「最終更新」より新しい情報になり得る。
 
-- 状態: 空き（GPT Image 2.5本番反映完了）
-- エージェント: なし（最終更新 Codex / 2026-09-10 23:25）
+- 状態: 作業中
+- エージェント: Codex（2026-09-10）
 - 開始時刻: 2026-09-10
-- やっていること: GPT Image 2.5対応（config/main/両パネル/回帰テスト）。既存の未コミットのナビ男くんリンク対応は保持し、今回の変更に混ぜない。
-- 本番影響: GPT Image 2.5対応を既存WebアプリURLのバージョン344へ反映済み。DRIVE BASEは待機・本日1/1公開完了、途中停止表示あり。自動投稿の開始・再開は行っていない。
+- やっていること: DRIVE BASE公開記事の未リンク「ナビ男くん」を案件管理シートの正規URLへリンク化し、今後の生成・WP反映にも同じ処理を適用する。既存差分の安全レビュー、監査、バックアップ付き更新を実施中。
+- 本番影響: Apps Scriptの更新と、監査で特定したWordPress公開記事の本文更新を予定。DRIVE BASEは待機・本日1/1公開完了。自動投稿・途中停止記事の開始や再開は行わない。
 - 引き継ぎ（2026-09-10 Codex / GPT Image 2.5）: config.gsの既定をgpt-image-2.5-sunburstへ変更、Flareも選択可能。main.gsは未設定/1/1.5/2をSunburstへ読み取り時に解決（プロパティ書換えなし）。両HTMLパネルのフォールバックも更新。画像サイズ1536x1024・quality high・APIキー・本文モデルは維持。test_image_25_models.js追加、全40本のtest_*.js成功。実画像生成/API課金テストは未実施。
 - Git/本番: GPT Image 2.5対応のみコミットab6a5b8、origin/mainへpush済み。デプロイ用フォルダーへconfig.gs/main.gs/app_panel.html/ua_web_app.htmlの4ファイルだけコピーし、既存Webアプリを@344へ更新。実画面でSunburst選択済み・Flare選択肢を確認。既存のarticle.gs/pre_publish_check.gs/wordpress.gs/test_naviokun_text_linking.jsとこの引き継ぎのナビ男くん対応は未コミットのまま保持。WordPress更新・自動投稿操作なし。
 - 次担当: ナビ男くん一括修正を安全監査後に別コミット・別反映する。GPT Image 2.5は実画像生成による課金テスト未実施。公式 https://developers.openai.com/api/docs/models/gpt-image-2.5-sunburst / https://developers.openai.com/api/docs/models/gpt-image-2.5-flare 。ユーザーは既存APIキー再利用を承認済み。

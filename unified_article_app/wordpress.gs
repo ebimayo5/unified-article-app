@@ -707,7 +707,7 @@ function uaCreateWpDraftFromPanel(data) {
 
   const wpConfig = uaGetWpConfig_(appConfig);
   const productPlan = uaExtractProductPlan_(rowData.body);
-  const storedBody = uaNormalizeSwellManagedCoreGroups_(uaNormalizeSwellInternalLinkBlocks_(uaNormalizeUnsupportedTrialGuidance_(uaRemoveRedundantAffiliateDisclosure_(uaNormalizeAnchorRelAttributes_(uaApplyNaviokunIntroSet_(
+  const storedBody = uaNormalizeSwellManagedCoreGroups_(uaNormalizeSwellInternalLinkBlocks_(uaNormalizeUnsupportedTrialGuidance_(uaRemoveRedundantAffiliateDisclosure_(uaNormalizeAnchorRelAttributes_(uaApplyNaviokunPostProcessing_(
     uaApplyManagedAffiliateCta_(uaRemoveRedundantAffiliateDisclosure_(rowData.body), rowData, appConfig),
     rowData,
     appConfig
@@ -834,7 +834,7 @@ function uaUpdatePublishedWpFromPanelCore_(sheet, row) {
   }
 
   const productPlan = uaExtractProductPlan_(rowData.body);
-  const storedBody = uaNormalizeSwellManagedCoreGroups_(uaNormalizeSwellInternalLinkBlocks_(uaNormalizeUnsupportedTrialGuidance_(uaRemoveRedundantAffiliateDisclosure_(uaNormalizeAnchorRelAttributes_(uaApplyNaviokunIntroSet_(
+  const storedBody = uaNormalizeSwellManagedCoreGroups_(uaNormalizeSwellInternalLinkBlocks_(uaNormalizeUnsupportedTrialGuidance_(uaRemoveRedundantAffiliateDisclosure_(uaNormalizeAnchorRelAttributes_(uaApplyNaviokunPostProcessing_(
     uaApplyManagedAffiliateCta_(uaRemoveRedundantAffiliateDisclosure_(rowData.body), rowData, appConfig),
     rowData,
     appConfig
@@ -922,7 +922,7 @@ function uaAddWpImagesFromPanel(data) {
   }
 
   const wpConfig = uaGetWpConfig_(appConfig);
-  let body = uaNormalizeAnchorRelAttributes_(uaApplyNaviokunIntroSet_(
+  let body = uaNormalizeAnchorRelAttributes_(uaApplyNaviokunPostProcessing_(
     uaApplyManagedAffiliateCta_(rowData.body, rowData, appConfig),
     rowData,
     appConfig
@@ -4568,4 +4568,209 @@ function uaInspectLaundryChestPostImage452Position20260904() {
   console.log(body.slice(Math.max(0, imgIdx - 300), imgIdx + 100));
 
   return { imgIdx: imgIdx, removalStart: removalStart, removalEnd: removalEnd };
+}
+
+// 2026-09-10: DRIVE BASE全公開記事にある、リンクされていない
+// 「ナビ男くん」の本文テキストを案件管理シートの正規URLへ統一する。
+// 先にuaAuditDriveNaviokunTextLinks20260910（読み取り専用）で対象を確認し、
+// 問題なければuaApplyDriveNaviokunTextLinks20260910を実行する。
+const UA_DRIVE_NAVIOKUN_TEXT_LINK_BACKUP_SHEET = 'DRIVE BASE_ナビ男くんリンク修正バックアップ';
+
+function uaAuditDriveNaviokunTextLinks20260910() {
+  const appConfig = UA_APP_TYPES.drive;
+  const project = uaReadAffiliateProjectByName_('ナビ男くん', true);
+  const exactUrl = String(project && project.url || '').trim();
+  if (!/^https?:\/\/[^\s"'<>]+$/i.test(exactUrl)) {
+    throw new Error('案件管理シートのナビ男くんURLが有効なHTTP(S) URLではありません。');
+  }
+
+  const posts = uaListDrivePublishedPostsForSwellMigration_();
+  const details = [];
+  let unlinked = 0;
+  let alreadyLinked = 0;
+  posts.forEach(function(post) {
+    const scan = uaTransformNaviokunTextMentions_(uaGetWpPostRawContent_(post), exactUrl);
+    if (!scan.unlinked && !scan.alreadyLinked) return;
+    unlinked += scan.unlinked;
+    alreadyLinked += scan.alreadyLinked;
+    details.push({
+      id: Number(post.id || 0),
+      slug: String(post.slug || ''),
+      title: String(post && post.title && (post.title.raw || post.title.rendered) || ''),
+      unlinked: scan.unlinked,
+      alreadyLinked: scan.alreadyLinked,
+      link: String(post.link || '')
+    });
+  });
+
+  const result = {
+    ok: true,
+    dryRun: true,
+    affiliateUrl: exactUrl,
+    publishedPosts: posts.length,
+    mentionPosts: details.length,
+    unlinkedMentions: unlinked,
+    alreadyLinkedMentions: alreadyLinked,
+    details: details
+  };
+  console.log(JSON.stringify(result));
+  return result;
+}
+
+function uaGetOrCreateDriveNaviokunTextLinkBackupSheet_() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName(UA_DRIVE_NAVIOKUN_TEXT_LINK_BACKUP_SHEET);
+  if (!sheet) {
+    sheet = ss.insertSheet(UA_DRIVE_NAVIOKUN_TEXT_LINK_BACKUP_SHEET);
+    sheet.getRange(1, 1, 1, 9).setValues([[
+      'バックアップ日時', '投稿ID', 'スラッグ', 'タイトル', '公開URL',
+      '本文チャンク番号', '本文チャンク数', '修正前本文チャンク', '使用した案件URL'
+    ]]);
+    sheet.setFrozenRows(1);
+    sheet.hideSheet();
+  }
+  return sheet;
+}
+
+function uaAppendDriveNaviokunTextLinkBackup_(sheet, post, before, exactUrl) {
+  const text = String(before || '');
+  const chunkSize = 45000;
+  const chunks = [];
+  for (let offset = 0; offset < text.length; offset += chunkSize) {
+    chunks.push(text.slice(offset, offset + chunkSize));
+  }
+  if (!chunks.length) chunks.push('');
+  const timestamp = new Date();
+  const rows = chunks.map(function(chunk, index) {
+    return [
+      timestamp,
+      Number(post && post.id || 0),
+      String(post && post.slug || ''),
+      String(post && post.title && (post.title.raw || post.title.rendered) || ''),
+      String(post && post.link || ''),
+      index + 1,
+      chunks.length,
+      chunk,
+      exactUrl
+    ];
+  });
+  sheet.getRange(sheet.getLastRow() + 1, 1, rows.length, rows[0].length).setValues(rows);
+  SpreadsheetApp.flush();
+}
+
+function uaAssertDriveNaviokunTextLinkSafety_(before, after) {
+  const strip = function(value) {
+    return String(value || '')
+      .replace(/<!--[\s\S]*?-->/g, '')
+      .replace(/<[^>]+>/g, '');
+  };
+  if (strip(before) !== strip(after)) {
+    throw new Error('リンクタグ以外の本文テキストが変化するため停止しました。');
+  }
+  const missingImages = uaFindMissingPublishedWpImages_(before, after);
+  if (missingImages.length) {
+    throw new Error('既存画像が減るため停止しました: ' + missingImages.join(', '));
+  }
+  const beforeShortcodes = uaExtractDriveSwellMigrationShortcodes_(before);
+  const afterShortcodes = uaExtractDriveSwellMigrationShortcodes_(after);
+  if (JSON.stringify(beforeShortcodes) !== JSON.stringify(afterShortcodes)) {
+    throw new Error('ショートコードが変化するため停止しました。');
+  }
+  return true;
+}
+
+function uaApplyDriveNaviokunTextLinks20260910() {
+  const appConfig = UA_APP_TYPES.drive;
+  const wpConfig = uaGetWpConfig_(appConfig);
+  const project = uaReadAffiliateProjectByName_('ナビ男くん', true);
+  const exactUrl = String(project && project.url || '').trim();
+  if (!/^https?:\/\/[^\s"'<>]+$/i.test(exactUrl)) {
+    throw new Error('案件管理シートのナビ男くんURLが有効なHTTP(S) URLではありません。');
+  }
+
+  const posts = uaListDrivePublishedPostsForSwellMigration_();
+  const articleSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(appConfig.articleSheetName);
+  if (!articleSheet) throw new Error('記事管理シートが見つかりません: ' + appConfig.articleSheetName);
+
+  const rowByPostId = {};
+  if (articleSheet.getLastRow() >= 2) {
+    const ids = articleSheet.getRange(2, UA_COLUMNS.wpPostId, articleSheet.getLastRow() - 1, 1).getValues();
+    ids.forEach(function(row, index) {
+      const postId = Number(row[0] || 0);
+      if (postId > 0) rowByPostId[postId] = index + 2;
+    });
+  }
+
+  const backupSheet = uaGetOrCreateDriveNaviokunTextLinkBackupSheet_();
+  const updated = [];
+  const errors = [];
+  for (let postIndex = 0; postIndex < posts.length; postIndex += 1) {
+    const post = posts[postIndex];
+    const postId = Number(post.id || 0);
+    let before = '';
+    let scan;
+    let freshPost;
+    try {
+      // Refetch immediately before mutation so an editor change made after the
+      // audit/list request can never be overwritten by a stale snapshot.
+      freshPost = uaFetchWpPostForEdit_(wpConfig, postId);
+      if (String(freshPost && freshPost.status || '') !== 'publish') continue;
+      before = uaGetWpPostRawContent_(freshPost);
+      scan = uaTransformNaviokunTextMentions_(before, exactUrl);
+    } catch (error) {
+      errors.push({ id: postId, slug: String(post.slug || ''), error: String(error && error.message || error) });
+      break;
+    }
+    if (!scan.unlinked) continue;
+
+    try {
+      const after = scan.html;
+      uaAssertDriveNaviokunTextLinkSafety_(before, after);
+      uaAppendDriveNaviokunTextLinkBackup_(backupSheet, freshPost, before, exactUrl);
+
+      uaCallWordPressApi_(
+        wpConfig,
+        '/wp-json/wp/v2/posts/' + encodeURIComponent(postId),
+        'post',
+        { content: after }
+      );
+
+      const verifiedPost = uaCallWordPressApi_(
+        wpConfig,
+        '/wp-json/wp/v2/posts/' + encodeURIComponent(postId) + '?context=edit&_fields=id,status,content',
+        'get'
+      );
+      const verifiedBody = uaGetWpPostRawContent_(verifiedPost);
+      const verified = uaTransformNaviokunTextMentions_(verifiedBody, exactUrl);
+      if (verified.unlinked !== 0 || verifiedBody !== after || String(verifiedPost && verifiedPost.status || '') !== 'publish') {
+        throw new Error('WordPress再取得後の検証に失敗しました。未リンク=' + verified.unlinked + ' status=' + String(verifiedPost && verifiedPost.status || ''));
+      }
+
+      const sheetRow = rowByPostId[postId] || 0;
+      if (sheetRow) articleSheet.getRange(sheetRow, UA_COLUMNS.body).setValue(verifiedBody);
+      updated.push({
+        id: postId,
+        slug: String(post.slug || ''),
+        linkedMentions: scan.unlinked,
+        articleSheetRow: sheetRow || null
+      });
+    } catch (error) {
+      errors.push({ id: postId, slug: String(post.slug || ''), error: String(error && error.message || error) });
+      break;
+    }
+  }
+  SpreadsheetApp.flush();
+
+  const result = {
+    ok: errors.length === 0,
+    affiliateUrl: exactUrl,
+    publishedPosts: posts.length,
+    updatedPosts: updated.length,
+    linkedMentions: updated.reduce(function(total, item) { return total + item.linkedMentions; }, 0),
+    missingArticleSheetRows: updated.filter(function(item) { return !item.articleSheetRow; }).map(function(item) { return item.id; }),
+    updated: updated,
+    errors: errors
+  };
+  console.log(JSON.stringify(result));
+  return result;
 }

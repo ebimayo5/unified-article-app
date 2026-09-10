@@ -1089,7 +1089,8 @@ function uaGetSelectedImageModelValue_() {
 
 function uaGetOpenAiImageModel_() {
   const model = PropertiesService.getScriptProperties().getProperty('OPENAI_IMAGE_MODEL');
-  if (!model || model === 'gpt-image-1' || model === 'gpt-image-1.5') {
+  // Resolve legacy settings without writing properties during a read.
+  if (!model || model === 'gpt-image-1' || model === 'gpt-image-1.5' || model === 'gpt-image-2') {
     return UA_DEFAULT_OPENAI_IMAGE_MODEL;
   }
   return model;

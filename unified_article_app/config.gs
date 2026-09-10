@@ -11,7 +11,7 @@ const UA_GEMINI_MODELS = [
 ];
 
 const UA_DEFAULT_OPENAI_MODEL = 'gpt-5.2';
-const UA_DEFAULT_OPENAI_IMAGE_MODEL = 'gpt-image-2';
+const UA_DEFAULT_OPENAI_IMAGE_MODEL = 'gpt-image-2.5-sunburst';
 const UA_OPENAI_TEXT_MODEL_OPTIONS = [
   { value: 'gpt-5.2', label: 'GPT-5.2（現在の安定設定）' },
   { value: 'gpt-5.6-terra', label: 'GPT-5.6 Terra（推奨・品質とコストのバランス）' },
@@ -19,7 +19,8 @@ const UA_OPENAI_TEXT_MODEL_OPTIONS = [
   { value: 'gpt-5.6-luna', label: 'GPT-5.6 Luna（コスト重視）' }
 ];
 const UA_OPENAI_IMAGE_MODEL_OPTIONS = [
-  { value: 'gpt-image-2', label: 'GPT Image 2' }
+  { value: 'gpt-image-2.5-sunburst', label: 'GPT Image 2.5 Sunburst（品質重視）' },
+  { value: 'gpt-image-2.5-flare', label: 'GPT Image 2.5 Flare（速度重視）' }
 ];
 const UA_DEFAULT_GEMINI_IMAGE_MODEL = 'models/gemini-3-pro-image-preview';
 const UA_GEMINI_IMAGE_MODEL_OPTIONS = [

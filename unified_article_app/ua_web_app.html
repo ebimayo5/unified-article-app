@@ -716,7 +716,7 @@
           imageModels = data.imageModels || [];
           fillSelect('appType', appConfigs.map(function(item) { return { value: item.label, label: item.label }; }), appConfigs[0] && appConfigs[0].label);
           fillSelect('textModel', textModels, data.selectedTextModel || 'gpt-5.2');
-          fillSelect('imageModel', imageModels, data.selectedImageModel || 'gpt-image-2');
+          fillSelect('imageModel', imageModels, data.selectedImageModel || 'gpt-image-2.5-sunburst');
           applyDefaultImageStyle();
           applyTheme();
           setProgress('done');

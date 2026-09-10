@@ -4,14 +4,15 @@
 作業を始める前・区切りがつくたびに、必ずここを読み書きすること（CLAUDE.md / AGENTS.md の「並行作業ルール」参照）。
 複数エージェントが同時に動く前提のため、このセクションだけは「最終更新」より新しい情報になり得る。
 
-- 状態: 作業中
-- エージェント: Codex（2026-09-10）
-- 開始時刻: 2026-09-10
-- やっていること: DRIVE BASE公開記事の未リンク「ナビ男くん」を案件管理シートの正規URLへリンク化し、今後の生成・WP反映にも同じ処理を適用する。既存差分の安全レビュー、監査、バックアップ付き更新を実施中。
-- 本番影響: Apps Scriptの更新と、監査で特定したWordPress公開記事の本文更新を予定。DRIVE BASEは待機・本日1/1公開完了。自動投稿・途中停止記事の開始や再開は行わない。
+- 状態: 空き（Codex作業完了）
+- エージェント: なし
+- 開始時刻: -
+- やっていること: -
+- 本番影響: -
+- 完了内容（2026-09-10 Codex / ナビ男くん本文リンク）: DRIVE BASE全公開123記事を読み取り監査し、62記事にある「ナビ男くん」257箇所のうち未リンク180箇所を案件管理シートの正規A8 URLへリンク化。更新対象は54記事、エラー0件。更新前本文は`DRIVE BASE_ナビ男くんリンク修正バックアップ`シートへ分割保存し、各記事を更新直前に再取得、本文・画像・ショートコードの不変確認、更新後の再取得一致、publish維持を検証。再監査で未リンク0件・リンク済み257箇所を確認。古い5記事（WP 872/880/967/1004/1132）は記事管理シートに対応行がないためシート本文同期のみ対象外だが、WordPressのバックアップ・更新・検証は成功。今後の生成・下書き作成・公開更新にも同じリンク処理を適用。本番Webアプリは@347。Gitは`3beae85`と`12d9302`をorigin/mainへpush済み。自動投稿の開始・停止・再開は行っていない。
 - 引き継ぎ（2026-09-10 Codex / GPT Image 2.5）: config.gsの既定をgpt-image-2.5-sunburstへ変更、Flareも選択可能。main.gsは未設定/1/1.5/2をSunburstへ読み取り時に解決（プロパティ書換えなし）。両HTMLパネルのフォールバックも更新。画像サイズ1536x1024・quality high・APIキー・本文モデルは維持。test_image_25_models.js追加、全40本のtest_*.js成功。実画像生成/API課金テストは未実施。
-- Git/本番: GPT Image 2.5対応のみコミットab6a5b8、origin/mainへpush済み。デプロイ用フォルダーへconfig.gs/main.gs/app_panel.html/ua_web_app.htmlの4ファイルだけコピーし、既存Webアプリを@344へ更新。実画面でSunburst選択済み・Flare選択肢を確認。既存のarticle.gs/pre_publish_check.gs/wordpress.gs/test_naviokun_text_linking.jsとこの引き継ぎのナビ男くん対応は未コミットのまま保持。WordPress更新・自動投稿操作なし。
-- 次担当: ナビ男くん一括修正を安全監査後に別コミット・別反映する。GPT Image 2.5は実画像生成による課金テスト未実施。公式 https://developers.openai.com/api/docs/models/gpt-image-2.5-sunburst / https://developers.openai.com/api/docs/models/gpt-image-2.5-flare 。ユーザーは既存APIキー再利用を承認済み。
+- Git/本番: GPT Image 2.5対応はコミット`ab6a5b8`、記録更新`bce591c`、ナビ男くん対応`3beae85`、候補限定の安全化`12d9302`までorigin/mainへpush済み。本番Webアプリは@347。実画面でSunburst選択済み・Flare選択肢を確認。WordPress更新は上記ナビ男くん54記事のみ。自動投稿操作なし。
+- 次担当: GPT Image 2.5は実画像生成による課金テスト未実施。公式 https://developers.openai.com/api/docs/models/gpt-image-2.5-sunburst / https://developers.openai.com/api/docs/models/gpt-image-2.5-flare 。ユーザーは既存APIキー再利用を承認済み。
 - 完了内容（2026-09-08 Claude Code・カニバリ記事のリライトによる解消）: 前回セッションで相互リンクによる暫定対応にとどめていた2件のカニバリを、ユーザー承認のもとタイトル・本文を書き直す形で本解消。リダイレクト系プラグインの追加や.htaccess編集は不要だった。
   1. DRIVE BASE [car-navigation-tv-not-showing](https://ebimayo5.com/archives/car-navigation-tv-not-showing/)（post 1811）: 「カーナビのテレビが映らない原因と症状別の確認手順」（post 1679「...直す前の確認手順」とほぼ同一の書き出し）だったのを、「社外ナビ・後付けナビでテレビが映らない原因と対処法」へ切り口を変更。本文も後付けナビ特有の原因（配線接続忘れ・フルセグ非対応・チャンネル設定引き継ぎ漏れ・配線キット相性）に全面書き換え。メタディスクリプションも更新。スラッグ・投稿IDは維持（URL変更なし）。
      あわせて、旧本文へ張っていた3記事（1679・1858・1214）からのリンクも、新しい切り口に合わせて張り替え／削除。

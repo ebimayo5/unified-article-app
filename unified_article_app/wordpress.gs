@@ -5040,7 +5040,30 @@ function uaFetchCirculatorRinkerRepairItems20260911_() {
       throw new Error('除湿機を含む候補を検出したため停止しました: ' + String(item && item.name || ''));
     }
   });
-  return items;
+  return items.map(function(item) {
+    const copy = Object.assign({}, item);
+    copy.sourceName = String(item && item.name || '');
+    copy.name = uaBuildCirculatorRinkerDisplayName20260911_(copy.sourceName);
+    return copy;
+  });
+}
+
+function uaBuildCirculatorRinkerDisplayName20260911_(rawName) {
+  const raw = String(rawName || '');
+  const compact = raw.replace(/[\s　]+/g, ' ');
+  const modelMatch = compact.match(/\b(?:PCF-[A-Z0-9-]+|YAR-[A-Z0-9-]+)\b/i);
+  const coverageMatch = compact.match(/(?:最大)?\d+畳(?:対応)?/);
+  const parts = [];
+  if (/アイリスオーヤマ|WOOZOO/i.test(compact)) parts.push('アイリスオーヤマ');
+  else if (/山善|YAMAZEN/i.test(compact)) parts.push('山善');
+  if (/冷暖|ホット\s*&\s*クール|HOT\s*[＆&]\s*COOL/i.test(compact)) parts.push('冷暖');
+  if (/DCモーター/i.test(compact)) parts.push('DCモーター');
+  parts.push('サーキュレーター');
+  if (coverageMatch) parts.push(coverageMatch[0]);
+  if (modelMatch) parts.push(modelMatch[0].toUpperCase());
+  return parts.filter(function(value, index, values) {
+    return value && values.indexOf(value) === index;
+  }).join(' ');
 }
 
 function uaPreviewCirculatorRinkerRepair20260911() {
@@ -5054,7 +5077,7 @@ function uaPreviewCirculatorRinkerRepair20260911() {
     currentHasRawSalePrefix: /[≪《〈＜][^≫》〉＞]{0,50}[≫》〉＞]/.test(context.currentBlock),
     candidates: items.map(function(item) {
       return {
-        rawName: String(item.name || ''),
+        rawName: String(item.sourceName || item.name || ''),
         displayName: uaTruncateForDisplay_(uaCleanRakutenItemName_(item.name) || item.name, 60),
         itemCode: String(item.itemCode || ''),
         price: Number(item.price || 0)

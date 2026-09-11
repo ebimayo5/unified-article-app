@@ -122,6 +122,21 @@ function buildTaftLikeBody() {
   assert.strictEqual(match, null, '短い記事では発火しない');
 }
 
+// A qualifier on the primary query must not disguise the same category.
+// Confirmed live on post 1190: primary "サーキュレーター 掃除" and matched
+// category "サーキュレーター" previously produced a second duplicate link.
+{
+  const body = [
+    '<h2>サーキュレーター掃除で外れない時の答え</h2>',
+    padParagraphs(20, 'サーキュレーターの掃除方法を説明します。'),
+    '<h2>修理相談か買い替えかの判断基準</h2>',
+    padParagraphs(20, 'サーキュレーターを選び直す条件を説明します。'),
+    '<h2>まとめ</h2><p>まとめです。</p>'
+  ].join('\n');
+  const match = uaFindSecondaryProductSectionQuery_(body, homeConfig, 'サーキュレーター 掃除');
+  assert.strictEqual(match, null, '用途語が付いていても同じサーキュレーターの重複リンクを作らない');
+}
+
 // 4) No matching accessory term anywhere -- must return null, not throw.
 {
   const body = [

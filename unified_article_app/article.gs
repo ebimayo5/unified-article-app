@@ -3043,7 +3043,13 @@ function uaApplyRakutenAffiliateBanner_(body, rowData, appConfig) {
   if (contextualIndex > -1) {
     const secondaryIndex = uaFindRakutenSecondaryMentionIndex_(sourceBody, rowData, appConfig, contextualIndex);
     if (secondaryIndex > -1) {
-      const lightMention = uaBuildRakutenLightMentionHtml_(UA_LAST_RAKUTEN_ITEMS, rowData && rowData.mainInput);
+      const lightMentionLabel = effectiveProductPlan && effectiveProductPlan.primaryProduct ||
+        uaGetFallbackProductDisplayLabel_(selectedQuery);
+      const lightMention = uaBuildRakutenLightMentionHtml_(
+        UA_LAST_RAKUTEN_ITEMS,
+        rowData && rowData.mainInput,
+        lightMentionLabel
+      );
       if (lightMention) {
         resultBody = sourceBody.slice(0, secondaryIndex).trimEnd() + '\n\n' + lightMention + '\n\n' +
           sourceBody.slice(secondaryIndex, contextualIndex).trim() + '\n\n' + banner + '\n\n' +
@@ -3175,7 +3181,11 @@ function uaFindSecondaryProductSectionQuery_(body, appConfig, primaryQuery) {
       if (!match) continue;
       const canonicalQuery = uaSelectRakutenKeywordFallbackQuery_(match[0], appKey) || match[0];
       if (!canonicalQuery) continue;
-      if (primaryNormalized && uaNormalizeForScore_(canonicalQuery) === primaryNormalized) continue;
+      const canonicalNormalized = uaNormalizeForScore_(canonicalQuery);
+      if (primaryNormalized && canonicalNormalized &&
+        (canonicalNormalized === primaryNormalized ||
+          primaryNormalized.indexOf(canonicalNormalized) !== -1 ||
+          canonicalNormalized.indexOf(primaryNormalized) !== -1)) continue;
       // match[0] is the short, natural category noun actually matched in the
       // article's own text (e.g. "フロアマット") -- pass it through so the
       // mention's link text can use it instead of the raw Rakuten listing
@@ -4841,6 +4851,12 @@ function uaScoreRakutenItem_(item, query, productPlan) {
     plan && plan.marketQuery
   ].join(' '));
   if (!explicitlyRequestsUsed && /中古|ジャンク|レンタル品|used\b/i.test(itemName)) return -1000;
+
+  const planIntent = [query, plan && plan.primaryProduct, plan && plan.marketQuery].join(' ');
+  const explicitlyRequestsTradingCards = /遊戯王|デュエル.?マスターズ|トレーディングカード|カードゲーム|\bTCG\b/i.test(planIntent);
+  if (!explicitlyRequestsTradingCards && /遊戯王|デュエル.?マスターズ|トレーディングカード|カードゲーム|Speed Duel|\bTCG\b/i.test(itemName)) {
+    return -1000;
+  }
 
   // A combo appliance can contain the requested category as a secondary
   // feature while its actual main product is something else. Confirmed live

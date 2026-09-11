@@ -5165,3 +5165,114 @@ function uaApplyCirculatorRinkerRepair20260911() {
   console.log(JSON.stringify(result, null, 2));
   return result;
 }
+
+function uaTransformCirculatorEarlyCta20260912_(body, replacementItem) {
+  const source = String(body || '');
+  const rinkerStart = source.search(/<!--\s*UA_RINKER_PRODUCTS_START\s*-->/i);
+  if (rinkerStart < 0) throw new Error('主商品Rinkerブロックが見つかりません。');
+
+  const early = source.slice(0, rinkerStart);
+  const late = source.slice(rinkerStart);
+  const markedPattern = /<!--\s*UA_SECONDARY_PRODUCT_START\s*-->[\s\S]*?<!--\s*UA_SECONDARY_PRODUCT_END\s*-->\s*/gi;
+  const removalRanges = [];
+  let match;
+  while ((match = markedPattern.exec(early)) !== null) {
+    if (/hb\.afl\.rakuten\.co\.jp/i.test(match[0]) && /サーキュレーター/i.test(match[0])) {
+      removalRanges.push({ start: match.index, end: markedPattern.lastIndex });
+    }
+  }
+  const templateParagraphPattern = /<p>(?:(?:先に候補を見ておきたい場合は|気になる場合は|具体的な商品を先に見たい場合は|選択肢のひとつとして、)[\s\S]{0,1200}?)<\/p>\s*/gi;
+  while ((match = templateParagraphPattern.exec(early)) !== null) {
+    const isInsideMarkedRemoval = removalRanges.some(function(range) {
+      return match.index >= range.start && templateParagraphPattern.lastIndex <= range.end;
+    });
+    if (!isInsideMarkedRemoval && /hb\.afl\.rakuten\.co\.jp/i.test(match[0]) && /サーキュレーター/i.test(match[0])) {
+      removalRanges.push({ start: match.index, end: templateParagraphPattern.lastIndex });
+    }
+  }
+  removalRanges.sort(function(a, b) { return a.start - b.start; });
+  const oldCtaCount = removalRanges.length;
+  if (oldCtaCount < 2) {
+    throw new Error('前半の重複サーキュレーターCTAが2件以上見つからないため停止しました（実際: ' + oldCtaCount + '件）。');
+  }
+
+  const insertionIndex = removalRanges[0].start;
+  let workingEarly = early;
+  removalRanges.slice().reverse().forEach(function(range) {
+    workingEarly = workingEarly.slice(0, range.start) + workingEarly.slice(range.end);
+  });
+
+  const mention = uaBuildRakutenLightMentionHtml_(
+    [replacementItem],
+    'post1190|early-cta-20260912',
+    'サーキュレーター'
+  );
+  if (!mention || /遊戯王|Speed Duel|トレーディングカード/i.test(mention)) {
+    throw new Error('安全な前半CTAを作れないため停止しました。');
+  }
+  const managedMention = [
+    UA_SECONDARY_PRODUCT_START,
+    mention,
+    UA_SECONDARY_PRODUCT_END
+  ].join('\n');
+  const repairedEarly = workingEarly.slice(0, insertionIndex).trimEnd() + '\n\n' + managedMention + '\n\n' +
+    workingEarly.slice(insertionIndex).trimStart();
+  return {
+    html: repairedEarly + late,
+    removedCtaCount: oldCtaCount,
+    replacementText: 'サーキュレーター',
+    replacementUrl: String(replacementItem && replacementItem.url || '')
+  };
+}
+
+function uaPreviewCirculatorEarlyCtaRepair20260912() {
+  const context = uaGetCirculatorRinkerRepairContext20260911_();
+  const items = uaFetchCirculatorRinkerRepairItems20260911_();
+  const transformed = uaTransformCirculatorEarlyCta20260912_(context.body, items[0]);
+  const result = {
+    ok: true,
+    postId: 1190,
+    removedCtaCount: transformed.removedCtaCount,
+    replacementText: transformed.replacementText,
+    replacementItem: items[0].name,
+    bodyChanged: transformed.html !== context.body,
+    rinkerBlockUnchanged: (context.body.match(context.blockPattern) || [])[0] === (transformed.html.match(context.blockPattern) || [])[0]
+  };
+  console.log(JSON.stringify(result, null, 2));
+  return result;
+}
+
+function uaApplyCirculatorEarlyCtaRepair20260912() {
+  const context = uaGetCirculatorRinkerRepairContext20260911_();
+  const before = context.body;
+  const items = uaFetchCirculatorRinkerRepairItems20260911_();
+  const transformed = uaTransformCirculatorEarlyCta20260912_(before, items[0]);
+  const beforeRinker = (before.match(context.blockPattern) || [])[0];
+  const afterRinker = (transformed.html.match(context.blockPattern) || [])[0];
+  if (!beforeRinker || beforeRinker !== afterRinker) throw new Error('下部Rinker商品枠が変化するため停止しました。');
+  const missingImages = uaFindMissingPublishedWpImages_(before, transformed.html);
+  if (missingImages.length) throw new Error('既存画像が減るため停止しました: ' + missingImages.join(', '));
+
+  const backupSheet = uaGetOrCreateCirculatorRinkerBackupSheet20260911_();
+  uaAppendCirculatorRinkerBackup20260911_(backupSheet, context.post, before);
+  uaCallWordPressApi_(context.wpConfig, '/wp-json/wp/v2/posts/1190', 'post', { content: transformed.html });
+  const verifiedPost = uaFetchWpPostForEdit_(context.wpConfig, 1190);
+  const verifiedBody = uaGetWpPostRawContent_(verifiedPost);
+  if (String(verifiedPost && verifiedPost.status || '') !== 'publish' || verifiedBody !== transformed.html) {
+    throw new Error('WordPress再取得後の本文・公開状態検証に失敗しました。');
+  }
+  context.sheet.getRange(context.row, UA_COLUMNS.body).setValue(verifiedBody);
+  SpreadsheetApp.flush();
+  const result = {
+    ok: true,
+    postId: 1190,
+    removedCtaCount: transformed.removedCtaCount,
+    replacementText: transformed.replacementText,
+    replacementItem: items[0].name,
+    backupSheet: UA_HOME_CIRCULATOR_RINKER_BACKUP_SHEET,
+    published: true,
+    rinkerBlockUnchanged: true
+  };
+  console.log(JSON.stringify(result, null, 2));
+  return result;
+}

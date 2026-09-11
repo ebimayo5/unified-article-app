@@ -686,6 +686,15 @@ assert.ok(
   ) > 0,
   '対照群: 単体サーキュレーターは引き続き候補に残す'
 );
+assert.strictEqual(
+  context.uaScoreRakutenItem_(
+    { name: '遊戯王 SGX3-ENH11 エア・サーキュレーター Speed Duel ノーマル', url: 'https://item.rakuten.co.jp/shop/card/' },
+    'サーキュレーター',
+    { primaryProduct: 'サーキュレーター', marketQuery: 'サーキュレーター' }
+  ),
+  -1000,
+  '家電の検索では商品名にサーキュレーターを含むトレーディングカードを除外する'
+);
 [
   '車載 サーキュレーター USB電源式 クリップ式 車用 扇風機',
   'エアコンすっきりワイパー 本体 サーキュレーター掃除'

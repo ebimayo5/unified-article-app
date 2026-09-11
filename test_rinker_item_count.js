@@ -665,6 +665,28 @@ assert.strictEqual(
   '先頭の【〜】装飾タグも除去する'
 );
 assert.strictEqual(
+  context.uaCleanRakutenItemName_('≪ ★11日09:59迄≫ サーキュレーター アイリスオーヤマ dcモーター 上下左右首振り'),
+  'サーキュレーター アイリスオーヤマ dcモーター 上下左右首振り',
+  '先頭の≪〜≫セール期限も商品名から除去する'
+);
+assert.strictEqual(
+  context.uaScoreRakutenItem_(
+    { name: '除湿機 アイリスオーヤマ 衣類乾燥 サーキュレーター付', url: 'https://item.rakuten.co.jp/shop/combo/' },
+    'サーキュレーター 本体',
+    { primaryProduct: 'サーキュレーター', marketQuery: 'サーキュレーター 本体' }
+  ),
+  -1000,
+  '単体サーキュレーター記事では、サーキュレーター付き除湿機を主役商品にしない'
+);
+assert.ok(
+  context.uaScoreRakutenItem_(
+    { name: 'アイリスオーヤマ サーキュレーター DCモーター 上下左右首振り', url: 'https://item.rakuten.co.jp/shop/circulator/' },
+    'サーキュレーター 本体',
+    { primaryProduct: 'サーキュレーター', marketQuery: 'サーキュレーター 本体' }
+  ) > 0,
+  '対照群: 単体サーキュレーターは引き続き候補に残す'
+);
+assert.strictEqual(
   context.uaTruncateForDisplay_('あ'.repeat(70), 60),
   'あ'.repeat(60) + '…',
   '60文字を超える商品名は末尾を…で切り詰める'

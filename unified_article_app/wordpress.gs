@@ -4956,3 +4956,185 @@ function uaApplyHomeProductCtaCopy20260911() {
   console.log(JSON.stringify(result));
   return result;
 }
+
+// 2026-09-11: post 1190 had a dehumidifier/circulator combo in a block whose
+// main product is a standalone circulator. It also exposed a Rakuten seller's
+// leading sale deadline in the visible Rinker title. Preview is read-only;
+// apply replaces exactly one managed Rinker block after saving the full WP
+// body, and verifies that every byte outside that block stayed unchanged.
+const UA_HOME_CIRCULATOR_RINKER_BACKUP_SHEET = 'たくみパパ_post1190商品修正バックアップ';
+
+function uaGetCirculatorRinkerRepairPlan20260911_() {
+  return uaNormalizeProductPlan_({
+    shouldInsert: true,
+    primaryProduct: 'サーキュレーター本体',
+    marketQuery: 'サーキュレーター 本体',
+    purpose: 'カバーが外れない機種から、手入れしやすいサーキュレーターへ見直す',
+    mustHave: ['サーキュレーター'],
+    exclude: ['除湿機', '除湿器', 'カバーのみ', '交換用', '部品'],
+    purchaseScale: 'standard',
+    benefit: '価格と仕様を比べながら、掃除のしやすさも確認できます',
+    ctaReason: '分解や手入れのしやすさを重視して選び直したい方に向いています'
+  });
+}
+
+function uaGetCirculatorRinkerRepairContext20260911_() {
+  const appConfig = UA_APP_TYPES.home;
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(appConfig.articleSheetName);
+  if (!sheet) throw new Error('記事管理シートが見つかりません: ' + appConfig.articleSheetName);
+
+  const postId = 1190;
+  let row = 0;
+  if (sheet.getLastRow() >= 2) {
+    const ids = sheet.getRange(2, UA_COLUMNS.wpPostId, sheet.getLastRow() - 1, 1).getValues();
+    for (let index = 0; index < ids.length; index += 1) {
+      if (Number(ids[index][0] || 0) === postId) {
+        row = index + 2;
+        break;
+      }
+    }
+  }
+  if (!row) throw new Error('wpPostId=1190の記事管理行が見つかりません。');
+
+  const wpConfig = uaGetWpConfig_(appConfig);
+  const post = uaFetchWpPostForEdit_(wpConfig, postId);
+  if (Number(post && post.id || 0) !== postId || String(post && post.status || '') !== 'publish') {
+    throw new Error('post 1190が公開状態ではないため停止しました。');
+  }
+  const body = uaGetWpPostRawContent_(post);
+  const blockPattern = /<!--\s*UA_RINKER_PRODUCTS_START\s*-->[\s\S]*?<!--\s*UA_RINKER_PRODUCTS_END\s*-->/gi;
+  const blocks = body.match(blockPattern) || [];
+  if (blocks.length !== 1) {
+    throw new Error('管理対象Rinkerブロックが1件ではありません（実際: ' + blocks.length + '件）。');
+  }
+  return {
+    appConfig: appConfig,
+    wpConfig: wpConfig,
+    sheet: sheet,
+    row: row,
+    post: post,
+    body: body,
+    blockPattern: blockPattern,
+    currentBlock: blocks[0]
+  };
+}
+
+function uaFetchCirculatorRinkerRepairItems20260911_() {
+  const plan = uaGetCirculatorRinkerRepairPlan20260911_();
+  const items = uaFetchRakutenItems_(
+    plan.marketQuery,
+    3,
+    'post1190|circulator-rinker-repair-20260911',
+    plan
+  );
+  if (items.length < 2) {
+    throw new Error('安全に比較できる単体サーキュレーター候補が2件未満のため停止しました。' + UA_LAST_RAKUTEN_STATUS);
+  }
+  items.forEach(function(item) {
+    if (/除湿機|除湿器/i.test(String(item && item.name || ''))) {
+      throw new Error('除湿機を含む候補を検出したため停止しました: ' + String(item && item.name || ''));
+    }
+  });
+  return items;
+}
+
+function uaPreviewCirculatorRinkerRepair20260911() {
+  const context = uaGetCirculatorRinkerRepairContext20260911_();
+  const items = uaFetchCirculatorRinkerRepairItems20260911_();
+  const result = {
+    ok: true,
+    postId: 1190,
+    row: context.row,
+    currentHasDehumidifier: /除湿機|除湿器/.test(context.currentBlock),
+    currentHasRawSalePrefix: /[≪《〈＜][^≫》〉＞]{0,50}[≫》〉＞]/.test(context.currentBlock),
+    candidates: items.map(function(item) {
+      return {
+        rawName: String(item.name || ''),
+        displayName: uaTruncateForDisplay_(uaCleanRakutenItemName_(item.name) || item.name, 60),
+        itemCode: String(item.itemCode || ''),
+        price: Number(item.price || 0)
+      };
+    })
+  };
+  console.log(JSON.stringify(result, null, 2));
+  return result;
+}
+
+function uaGetOrCreateCirculatorRinkerBackupSheet20260911_() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName(UA_HOME_CIRCULATOR_RINKER_BACKUP_SHEET);
+  if (!sheet) {
+    sheet = ss.insertSheet(UA_HOME_CIRCULATOR_RINKER_BACKUP_SHEET);
+    sheet.getRange(1, 1, 1, 8).setValues([[
+      'バックアップ日時', '投稿ID', 'スラッグ', 'タイトル', '公開URL',
+      '本文チャンク番号', '本文チャンク数', '修正前本文チャンク'
+    ]]);
+    sheet.setFrozenRows(1);
+    sheet.hideSheet();
+  }
+  return sheet;
+}
+
+function uaAppendCirculatorRinkerBackup20260911_(sheet, post, before) {
+  const text = String(before || '');
+  const chunkSize = 45000;
+  const chunks = [];
+  for (let offset = 0; offset < text.length; offset += chunkSize) chunks.push(text.slice(offset, offset + chunkSize));
+  if (!chunks.length) chunks.push('');
+  const title = String(post && post.title && (post.title.raw || post.title.rendered) || '');
+  const rows = chunks.map(function(chunk, index) {
+    return [new Date(), 1190, String(post && post.slug || ''), title, String(post && post.link || ''), index + 1, chunks.length, chunk];
+  });
+  sheet.getRange(sheet.getLastRow() + 1, 1, rows.length, rows[0].length).setValues(rows);
+  SpreadsheetApp.flush();
+}
+
+function uaApplyCirculatorRinkerRepair20260911() {
+  const context = uaGetCirculatorRinkerRepairContext20260911_();
+  const before = context.body;
+  const withoutOldBlock = before.replace(context.blockPattern, '');
+  const items = uaFetchCirculatorRinkerRepairItems20260911_();
+  const plan = uaGetCirculatorRinkerRepairPlan20260911_();
+  const replacement = uaBuildRakutenItemBannerHtml_(items, plan.marketQuery, plan, context.appConfig);
+
+  const itemlinks = replacement.match(/\[itemlink\s+post_id=["']?\d+["']?\]/gi) || [];
+  if (!/UA_RINKER_PRODUCTS_START/.test(replacement) || itemlinks.length < 2 || /除湿機|除湿器/.test(replacement)) {
+    throw new Error('新しいRinkerブロックが安全条件を満たさないため、記事は更新していません。');
+  }
+  const after = before.replace(context.blockPattern, replacement);
+  if (after === before || after.replace(/<!--\s*UA_RINKER_PRODUCTS_START\s*-->[\s\S]*?<!--\s*UA_RINKER_PRODUCTS_END\s*-->/gi, '') !== withoutOldBlock) {
+    throw new Error('Rinkerブロック以外も変化するため停止しました。');
+  }
+  const missingImages = uaFindMissingPublishedWpImages_(before, after);
+  if (missingImages.length) throw new Error('既存画像が減るため停止しました: ' + missingImages.join(', '));
+
+  const backupSheet = uaGetOrCreateCirculatorRinkerBackupSheet20260911_();
+  uaAppendCirculatorRinkerBackup20260911_(backupSheet, context.post, before);
+  uaCallWordPressApi_(context.wpConfig, '/wp-json/wp/v2/posts/1190', 'post', { content: after });
+  const verifiedPost = uaFetchWpPostForEdit_(context.wpConfig, 1190);
+  const verifiedBody = uaGetWpPostRawContent_(verifiedPost);
+  if (String(verifiedPost && verifiedPost.status || '') !== 'publish' || verifiedBody !== after) {
+    throw new Error('WordPress再取得後の本文・公開状態検証に失敗しました。');
+  }
+  if (verifiedBody.replace(/<!--\s*UA_RINKER_PRODUCTS_START\s*-->[\s\S]*?<!--\s*UA_RINKER_PRODUCTS_END\s*-->/gi, '') !== withoutOldBlock) {
+    throw new Error('WordPress再取得後、商品ブロック外の差分を検出しました。');
+  }
+  context.sheet.getRange(context.row, UA_COLUMNS.body).setValue(verifiedBody);
+  SpreadsheetApp.flush();
+
+  const result = {
+    ok: true,
+    postId: 1190,
+    row: context.row,
+    itemlinkCount: itemlinks.length,
+    displayNames: items.map(function(item) {
+      return uaTruncateForDisplay_(uaCleanRakutenItemName_(item.name) || item.name, 60);
+    }),
+    backupSheet: UA_HOME_CIRCULATOR_RINKER_BACKUP_SHEET,
+    published: true,
+    outsideProductBlockUnchanged: true
+  };
+  console.log(JSON.stringify(result, null, 2));
+  return result;
+}

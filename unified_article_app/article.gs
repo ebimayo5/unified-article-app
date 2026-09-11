@@ -4837,6 +4837,21 @@ function uaScoreRakutenItem_(item, query, productPlan) {
   ].join(' '));
   if (!explicitlyRequestsUsed && /中古|ジャンク|レンタル品|used\b/i.test(itemName)) return -1000;
 
+  // A combo appliance can contain the requested category as a secondary
+  // feature while its actual main product is something else. Confirmed live
+  // on post 1190: "除湿機 ... サーキュレーター付" passed the old substring
+  // relevance check for a standalone circulator article. Keep combo products
+  // available when the plan explicitly asks for a dehumidifier, but reject
+  // them when the requested main unit is only a circulator.
+  const planIntentText = [
+    query,
+    plan && plan.primaryProduct,
+    plan && plan.marketQuery
+  ].join(' ');
+  const requestsCirculator = /サーキュレーター/i.test(planIntentText);
+  const requestsDehumidifier = /除湿機|除湿器/i.test(planIntentText);
+  if (requestsCirculator && !requestsDehumidifier && /除湿機|除湿器/i.test(itemName)) return -1000;
+
   const planFit = uaEvaluateProductPlanFit_(itemName, plan);
   if (!planFit.pass) return -1000;
 
@@ -5375,6 +5390,7 @@ function uaBuildAmazonSameProductButton_(itemName, fallbackQuery, appConfig) {
 
 function uaCleanRakutenItemName_(itemName) {
   return String(itemName || '')
+    .replace(/^(?:\s*[≪《〈＜][^≫》〉＞]{0,50}[≫》〉＞]\s*)+/g, ' ')
     .replace(/[＼\\][^＼\\／/]{0,30}[／/]/g, ' ')
     .replace(/【[^】]{0,50}】/g, ' ')
     .replace(/\[[^\]]{0,50}\]/g, ' ')

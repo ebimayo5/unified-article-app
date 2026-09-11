@@ -3399,6 +3399,19 @@ function uaIsRakutenItemNameRelevant_(itemName, categoryLabel, rowData) {
   const cleanName = String(itemName || '').trim();
   if (!cleanName) return false;
 
+  // Secondary mentions are generated from a single noun found in the body.
+  // Reject obvious category mismatches locally before spending a Gemini call.
+  // This catches actual live failures such as ラック -> balloon/tights and
+  // エアコン -> a pipe-work warning sticker.
+  const compactName = cleanName.replace(/[\s　]+/g, '').toLowerCase();
+  const compactCategory = String(categoryLabel || '').replace(/[\s　]+/g, '').toLowerCase();
+  if (/ラック/.test(compactCategory) &&
+    (/ブラック|バルーン|タイツ|レギンス/.test(compactName) || !/ラック|棚|シェルフ|収納|スタンド/.test(compactName))) return false;
+  if (/エアコン/.test(compactCategory) && !/エアコン本体|ルームエアコン|窓用エアコン|スポットクーラー/.test(compactName)) return false;
+  if (/カーテン/.test(compactCategory) && !/カーテン|カーテンレール/.test(compactName)) return false;
+  if (/サーキュレーター/.test(compactCategory) &&
+    (!/サーキュレーター/.test(compactName) || /遊戯王|デュエル.?マスターズ|トレーディングカード|カードゲーム|speedduel|\btcg\b/i.test(compactName))) return false;
+
   const mainInput = String(rowData && rowData.mainInput || '').trim();
   const cacheKey = mainInput + '␟' + String(categoryLabel || '') + '␟' + cleanName;
   if (Object.prototype.hasOwnProperty.call(UA_RAKUTEN_ITEM_NAME_RELEVANCE_CACHE_, cacheKey)) {
@@ -4705,7 +4718,7 @@ function uaBuildRakutenSearchTuning_(productPlan, query) {
 function uaIsMainUnitRakutenQuery_(query) {
   const value = String(query || '').replace(/[\s　]+/g, '').toLowerCase();
   if (!value) return false;
-  if (/テレビスタンド|テレビ台|配線カバー/.test(value)) return false;
+  if (/テレビスタンド|テレビ台|テレビ(?:裏|背面)(?:収納|ラック)|(?:収納|ラック).*テレビ(?:裏|背面)|配線カバー/.test(value)) return false;
   return /テレビ|シーリングライト|天井照明|室内ジャングルジム|ジャングルジム|室内遊具|ビーズソファ|ビーズクッション|サーキュレーター/.test(value);
 }
 
@@ -4751,6 +4764,30 @@ function uaIsRakutenItemRelevant_(itemName, query) {
   const queryText = String(query || '').replace(/[\s　]+/g, '').toLowerCase();
   if (!name || !queryText) return false;
   if (!uaIsMainUnitRakutenItem_(itemName, query)) return false;
+
+  // A bare substring match is not enough for categories that frequently
+  // occur in unrelated seller titles. These are deterministic, fail-closed
+  // guards for real mismatches found in published articles in September 2026.
+  if (/(?:l字|l型).*?(?:プラグ|アダプター)|(?:プラグ|アダプター).*?(?:l字|l型)/i.test(queryText)) {
+    if (!/(?:l字|l型|エル型).*?(?:プラグ|アダプター)|(?:プラグ|アダプター).*?(?:l字|l型|エル型)/i.test(name)) return false;
+  }
+  if (/除草剤|草枯らし/.test(queryText) && !/除草剤|除草液|草枯らし/.test(name)) return false;
+  if (/テレビ(?:裏|背面).*(?:収納|ラック)|(?:収納|ラック).*テレビ(?:裏|背面)/.test(queryText)) {
+    if (!/ラック|収納|ケーブルボックス|配線ボックス|テレビ台|テレビスタンド/.test(name)) return false;
+    if (/液晶テレビ|スマートテレビ|テレビ本体|\d+(?:v型|型|インチ).*テレビ/.test(name) &&
+      !/ラック|収納|テレビ台|テレビスタンド/.test(name)) return false;
+  }
+  if (/冷蔵庫.*(?:床保護|保護マット|マット)|(?:床保護|保護マット|マット).*冷蔵庫/.test(queryText)) {
+    if (/庫内|ドアポケット|食器棚|棚板|シェルフライナー/.test(name)) return false;
+    if (!/冷蔵庫/.test(name) || !/床|フローリング|保護マット|ポリカーボネート|キズ防止|傷防止/.test(name)) return false;
+  }
+  if (/(?:浴室|お風呂|ユニットバス).*(?:排水口|排水トラップ).*(?:ブラシ|トング)/.test(queryText)) {
+    if (/キッチン|シンク|三角コーナー/.test(name) && !/浴室|お風呂|風呂|バス/.test(name)) return false;
+    if (!/排水口|排水トラップ|パイプ/.test(name) || !/ブラシ|トング|クリーナー/.test(name)) return false;
+  }
+  if (/掃除機.*(?:交換)?バッテリー|(?:交換)?バッテリー.*掃除機/.test(queryText)) {
+    if (!/バッテリー|電池/.test(name) || /ライト|照明|センサー|アダプター|変換/.test(name)) return false;
+  }
 
   const brandRequirements = uaExtractRequiredProductBrands_(query);
   for (let brandIndex = 0; brandIndex < brandRequirements.length; brandIndex++) {

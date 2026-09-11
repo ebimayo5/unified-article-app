@@ -5276,3 +5276,304 @@ function uaApplyCirculatorEarlyCtaRepair20260912() {
   console.log(JSON.stringify(result, null, 2));
   return result;
 }
+
+// 2026-09-12: full published-post audit found six managed Rinker boxes whose
+// actual products do not solve the article's stated problem, plus three
+// secondary text links whose labels point to unrelated Rakuten items. Preview
+// fetches and validates replacement candidates without writing. Apply backs up
+// every full WP body, changes only the exact managed blocks, keeps the posts
+// published, verifies images and byte-for-byte content, then syncs the sheet.
+const UA_HOME_WRONG_AFFILIATE_BACKUP_SHEET = 'たくみパパ_楽天誤リンク修正バックアップ';
+
+function uaGetHomeWrongAffiliateRepairSpecs20260912_() {
+  return [
+    {
+      postId: 1062,
+      key: 'microwave_l_plug',
+      queries: ['L字プラグ 変換アダプター', 'L型プラグ 変換アダプター', 'コンセント L字 変換プラグ'],
+      minItems: 2,
+      plan: {
+        shouldInsert: true,
+        primaryProduct: 'L字プラグ変換アダプター',
+        marketQuery: 'L字プラグ 変換アダプター',
+        purpose: '電子レンジ背面でプラグを無理に曲げず、壁との干渉を避ける',
+        exclude: ['延長コード', '医療用品', '工作機械', '洗浄剤'],
+        purchaseScale: 'standard',
+        benefit: '壁との距離と定格を確認できる候補を比較できます',
+        ctaReason: '定格と設置寸法を確認し、プラグの圧迫を避けたい方に向いています'
+      }
+    },
+    {
+      postId: 1145,
+      key: 'weed_killer',
+      queries: ['ヤブガラシ 除草剤', 'つる植物 除草剤', '根まで枯らす 除草剤'],
+      minItems: 2,
+      secondarySignature: /ikkyuuhinnnomiseikkyuu|>エアコン</i,
+      secondaryLabel: 'ヤブガラシ向け除草剤',
+      plan: {
+        shouldInsert: true,
+        primaryProduct: 'ヤブガラシ向け除草剤',
+        marketQuery: 'ヤブガラシ 除草剤',
+        purpose: 'ラベルの対象雑草と使用場所を確認してヤブガラシを管理する',
+        mustHave: ['除草剤'],
+        exclude: ['物置', '収納ボックス', 'キーボックス', 'エアコン'],
+        purchaseScale: 'standard',
+        benefit: '使用場所と散布方法を商品ラベルで比較できます',
+        ctaReason: '周辺植物や水路への影響を確認したうえで使う候補を選べます'
+      }
+    },
+    {
+      postId: 1106,
+      key: 'tv_rear_storage',
+      queries: ['テレビ裏 収納 ラック', 'テレビ背面 収納 ラック', 'テレビ裏 ケーブル 収納'],
+      minItems: 2,
+      secondarySignature: /wac-up\/unblnm0058|>ラック</i,
+      secondaryLabel: 'テレビ裏収納ラック',
+      plan: {
+        shouldInsert: true,
+        primaryProduct: 'テレビ裏収納ラック',
+        marketQuery: 'テレビ裏 収納 ラック',
+        purpose: 'テレビ背面の放熱と配線の逃げ道を残して周辺機器を整理する',
+        exclude: ['テレビ本体', '液晶テレビ', 'バルーン', '風船'],
+        purchaseScale: 'standard',
+        benefit: '設置寸法と耐荷重を比較できます',
+        ctaReason: '通気口をふさがず、配線へ手が届く収納を選びたい方に向いています'
+      }
+    },
+    {
+      postId: 502,
+      key: 'fridge_floor_mat',
+      queries: ['冷蔵庫 床 保護マット 透明', '冷蔵庫下 マット 床保護', '冷蔵庫マット ポリカーボネート'],
+      minItems: 2,
+      plan: {
+        shouldInsert: true,
+        primaryProduct: '冷蔵庫用床保護マット',
+        marketQuery: '冷蔵庫 床 保護マット',
+        purpose: '冷蔵庫の重さや水滴から床を保護する',
+        exclude: ['庫内', 'ドアポケット', '食器棚', '棚板', 'シェルフライナー'],
+        purchaseScale: 'standard',
+        benefit: '冷蔵庫寸法と床材に合う保護マットを比較できます',
+        ctaReason: '床全体を保護できるサイズと素材を選びたい方に向いています'
+      }
+    },
+    {
+      postId: 650,
+      key: 'bath_drain_brush',
+      queries: ['浴室 排水口 ブラシ', 'お風呂 排水口 ブラシ', 'ユニットバス 排水口 ブラシ'],
+      minItems: 1,
+      plan: {
+        shouldInsert: true,
+        primaryProduct: '浴室排水口ブラシ',
+        marketQuery: '浴室 排水口 ブラシ',
+        purpose: '薬剤を入れる前に浴室排水口の髪や汚れを除く',
+        exclude: ['キッチン専用', 'シンク専用', '三角コーナー'],
+        purchaseScale: 'standard',
+        benefit: '浴室排水口に使える形状を比較できます',
+        ctaReason: '排水口へ届きやすく、使用後に洗いやすい道具を選べます'
+      }
+    },
+    {
+      postId: 1290,
+      key: 'vacuum_battery',
+      queries: ['掃除機 交換バッテリー', 'コードレス掃除機 交換バッテリー', '掃除機 バッテリー 長寿命'],
+      minItems: 2,
+      plan: {
+        shouldInsert: true,
+        primaryProduct: '掃除機用交換バッテリー',
+        marketQuery: '掃除機 交換バッテリー',
+        purpose: '型番と電圧を確認して掃除機の消耗したバッテリーを交換する',
+        exclude: ['ライト', '照明', 'センサー', 'アダプター', '変換'],
+        purchaseScale: 'standard',
+        benefit: '対応型番・電圧・容量を比較できます',
+        ctaReason: '本体型番と純正指定を確認して交換候補を絞れます'
+      }
+    },
+    {
+      postId: 1132,
+      key: 'dishwasher_bad_rack_cta',
+      removeSecondaryOnly: true,
+      secondarySignature: /hitogone\/w1215ss|>ラック</i
+    }
+  ];
+}
+
+function uaGetHomePublishedPostContext20260912_(postId) {
+  const appConfig = UA_APP_TYPES.home;
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(appConfig.articleSheetName);
+  if (!sheet) throw new Error('記事管理シートが見つかりません: ' + appConfig.articleSheetName);
+  let row = 0;
+  if (sheet.getLastRow() >= 2) {
+    const ids = sheet.getRange(2, UA_COLUMNS.wpPostId, sheet.getLastRow() - 1, 1).getValues();
+    for (let index = 0; index < ids.length; index += 1) {
+      if (Number(ids[index][0] || 0) === Number(postId)) {
+        row = index + 2;
+        break;
+      }
+    }
+  }
+  if (!row) throw new Error('wpPostId=' + postId + 'の記事管理行が見つかりません。');
+  const wpConfig = uaGetWpConfig_(appConfig);
+  const post = uaFetchWpPostForEdit_(wpConfig, postId);
+  if (Number(post && post.id || 0) !== Number(postId) || String(post && post.status || '') !== 'publish') {
+    throw new Error('post ' + postId + 'が公開状態ではないため停止しました。');
+  }
+  return {
+    appConfig: appConfig,
+    sheet: sheet,
+    row: row,
+    wpConfig: wpConfig,
+    post: post,
+    body: uaGetWpPostRawContent_(post)
+  };
+}
+
+function uaIsHomeWrongAffiliateReplacementItemValid20260912_(key, itemName) {
+  const name = String(itemName || '');
+  if (key === 'microwave_l_plug') return /(?:L字|L型|エル型).*?(?:プラグ|アダプター)|(?:プラグ|アダプター).*?(?:L字|L型|エル型)/i.test(name) && !/医療|患者|工作機械|切削油|洗浄剤/.test(name);
+  if (key === 'weed_killer') return /除草剤|除草液|草枯らし/.test(name) && !/物置|収納ボックス|キーボックス|エアコン/.test(name);
+  if (key === 'tv_rear_storage') return /ラック|収納|ケーブルボックス|配線ボックス|テレビ台|テレビスタンド/.test(name) && !/バルーン|風船|タイツ|レギンス/.test(name);
+  if (key === 'fridge_floor_mat') return /冷蔵庫/.test(name) && /床|フローリング|保護マット|ポリカーボネート|キズ防止|傷防止/.test(name) && !/庫内|ドアポケット|食器棚|棚板|シェルフライナー/.test(name);
+  if (key === 'bath_drain_brush') return /排水口|排水トラップ|パイプ/.test(name) && /ブラシ|トング|クリーナー/.test(name) && !(/キッチン|シンク|三角コーナー/.test(name) && !/浴室|お風呂|風呂|バス/.test(name));
+  if (key === 'vacuum_battery') return /掃除機/.test(name) && /バッテリー|電池/.test(name) && !/ライト|照明|センサー|アダプター|変換/.test(name);
+  return false;
+}
+
+function uaFetchHomeWrongAffiliateReplacementItems20260912_(spec) {
+  if (spec.removeSecondaryOnly) return [];
+  const plan = uaNormalizeProductPlan_(spec.plan);
+  const items = uaFetchRakutenItemsByQueries_(spec.queries, 3, 'wrong-affiliate-20260912|' + spec.postId, plan)
+    .filter(function(item) {
+      return uaIsHomeWrongAffiliateReplacementItemValid20260912_(spec.key, item && item.name);
+    });
+  if (items.length < spec.minItems) {
+    throw new Error('post ' + spec.postId + 'の安全な代替商品が不足しています（必要' + spec.minItems + '件、実際' + items.length + '件）。' + UA_LAST_RAKUTEN_STATUS);
+  }
+  return items;
+}
+
+function uaFindHomeWrongAffiliateSecondaryBlock20260912_(body, spec) {
+  if (!spec.secondarySignature) return '';
+  const blocks = String(body || '').match(/<!--\s*UA_SECONDARY_PRODUCT_START\s*-->[\s\S]*?<!--\s*UA_SECONDARY_PRODUCT_END\s*-->/gi) || [];
+  const matches = blocks.filter(function(block) { return spec.secondarySignature.test(block); });
+  if (matches.length !== 1) throw new Error('post ' + spec.postId + 'の誤った補助CTAが1件ではありません（実際' + matches.length + '件）。');
+  return matches[0];
+}
+
+function uaTransformHomeWrongAffiliatePost20260912_(context, spec, items) {
+  const before = context.body;
+  let after = before;
+  let replacedMain = false;
+  let changedSecondary = false;
+  if (!spec.removeSecondaryOnly) {
+    const blockPattern = /<!--\s*UA_RINKER_PRODUCTS_START\s*-->[\s\S]*?<!--\s*UA_RINKER_PRODUCTS_END\s*-->/gi;
+    const currentBlocks = before.match(blockPattern) || [];
+    if (currentBlocks.length !== 1) throw new Error('post ' + spec.postId + 'の管理対象Rinker枠が1件ではありません（実際' + currentBlocks.length + '件）。');
+    const replacement = uaBuildRakutenItemBannerHtml_(items, spec.plan.marketQuery, uaNormalizeProductPlan_(spec.plan), context.appConfig);
+    const count = (replacement.match(/\[itemlink\s+post_id=["']?\d+["']?\]/gi) || []).length;
+    if (count < spec.minItems) throw new Error('post ' + spec.postId + 'の新しい商品枠が安全条件を満たしません。');
+    after = after.replace(currentBlocks[0], replacement);
+    replacedMain = true;
+  }
+  if (spec.secondarySignature) {
+    const currentSecondary = uaFindHomeWrongAffiliateSecondaryBlock20260912_(after, spec);
+    let replacementSecondary = '';
+    if (!spec.removeSecondaryOnly) {
+      const mention = uaBuildRakutenLightMentionHtml_(items, 'wrong-affiliate-secondary-20260912|' + spec.postId, spec.secondaryLabel);
+      if (!mention) throw new Error('post ' + spec.postId + 'の補助CTAを安全に生成できません。');
+      replacementSecondary = [UA_SECONDARY_PRODUCT_START, mention, UA_SECONDARY_PRODUCT_END].join('\n');
+    }
+    after = after.replace(currentSecondary, replacementSecondary);
+    changedSecondary = true;
+  }
+  if (after === before) throw new Error('post ' + spec.postId + 'に変更がありません。');
+  const missingImages = uaFindMissingPublishedWpImages_(before, after);
+  if (missingImages.length) throw new Error('post ' + spec.postId + 'で既存画像が減るため停止しました: ' + missingImages.join(', '));
+  return { body: after, replacedMain: replacedMain, changedSecondary: changedSecondary };
+}
+
+function uaPreviewHomeWrongAffiliateRepairs20260912() {
+  const result = uaGetHomeWrongAffiliateRepairSpecs20260912_().map(function(spec) {
+    const context = uaGetHomePublishedPostContext20260912_(spec.postId);
+    const items = uaFetchHomeWrongAffiliateReplacementItems20260912_(spec);
+    const transformed = uaTransformHomeWrongAffiliatePost20260912_(context, spec, items);
+    return {
+      postId: spec.postId,
+      key: spec.key,
+      row: context.row,
+      candidates: items.map(function(item) { return String(item.name || ''); }),
+      replacedMain: transformed.replacedMain,
+      changedSecondary: transformed.changedSecondary,
+      published: true
+    };
+  });
+  console.log(JSON.stringify(result, null, 2));
+  return result;
+}
+
+function uaGetOrCreateHomeWrongAffiliateBackupSheet20260912_() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName(UA_HOME_WRONG_AFFILIATE_BACKUP_SHEET);
+  if (!sheet) {
+    sheet = ss.insertSheet(UA_HOME_WRONG_AFFILIATE_BACKUP_SHEET);
+    sheet.getRange(1, 1, 1, 8).setValues([[
+      'バックアップ日時', '投稿ID', 'スラッグ', 'タイトル', '公開URL',
+      '本文チャンク番号', '本文チャンク数', '修正前本文チャンク'
+    ]]);
+    sheet.setFrozenRows(1);
+    sheet.hideSheet();
+  }
+  return sheet;
+}
+
+function uaAppendHomeWrongAffiliateBackup20260912_(sheet, post, before) {
+  const text = String(before || '');
+  const chunks = [];
+  for (let offset = 0; offset < text.length; offset += 45000) chunks.push(text.slice(offset, offset + 45000));
+  if (!chunks.length) chunks.push('');
+  const postId = Number(post && post.id || 0);
+  const title = String(post && post.title && (post.title.raw || post.title.rendered) || '');
+  const rows = chunks.map(function(chunk, index) {
+    return [new Date(), postId, String(post && post.slug || ''), title, String(post && post.link || ''), index + 1, chunks.length, chunk];
+  });
+  sheet.getRange(sheet.getLastRow() + 1, 1, rows.length, rows[0].length).setValues(rows);
+}
+
+function uaApplyHomeWrongAffiliateRepairs20260912() {
+  const specs = uaGetHomeWrongAffiliateRepairSpecs20260912_();
+  const prepared = specs.map(function(spec) {
+    const context = uaGetHomePublishedPostContext20260912_(spec.postId);
+    const items = uaFetchHomeWrongAffiliateReplacementItems20260912_(spec);
+    return { spec: spec, context: context, items: items, transformed: uaTransformHomeWrongAffiliatePost20260912_(context, spec, items) };
+  });
+  const backupSheet = uaGetOrCreateHomeWrongAffiliateBackupSheet20260912_();
+  prepared.forEach(function(entry) {
+    uaAppendHomeWrongAffiliateBackup20260912_(backupSheet, entry.context.post, entry.context.body);
+  });
+  SpreadsheetApp.flush();
+
+  const results = [];
+  prepared.forEach(function(entry) {
+    const spec = entry.spec;
+    const context = entry.context;
+    const after = entry.transformed.body;
+    uaCallWordPressApi_(context.wpConfig, '/wp-json/wp/v2/posts/' + spec.postId, 'post', { content: after });
+    const verifiedPost = uaFetchWpPostForEdit_(context.wpConfig, spec.postId);
+    const verifiedBody = uaGetWpPostRawContent_(verifiedPost);
+    if (String(verifiedPost && verifiedPost.status || '') !== 'publish' || verifiedBody !== after) {
+      throw new Error('post ' + spec.postId + 'の再取得後検証に失敗しました。バックアップから復元してください。');
+    }
+    context.sheet.getRange(context.row, UA_COLUMNS.body).setValue(verifiedBody);
+    results.push({
+      postId: spec.postId,
+      row: context.row,
+      candidates: entry.items.map(function(item) { return String(item.name || ''); }),
+      replacedMain: entry.transformed.replacedMain,
+      changedSecondary: entry.transformed.changedSecondary,
+      published: true
+    });
+  });
+  SpreadsheetApp.flush();
+  const result = { ok: true, updatedPosts: results.length, backupSheet: UA_HOME_WRONG_AFFILIATE_BACKUP_SHEET, results: results };
+  console.log(JSON.stringify(result, null, 2));
+  return result;
+}

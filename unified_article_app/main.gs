@@ -181,6 +181,20 @@ function uaMoveWriteCandidatesForApp_(candidateSheet, articleSheet) {
     .getValues();
   const rowsToAppend = [];
   const candidateRowsToMark = [];
+  const candidateRowsToHoldAsDuplicate = [];
+
+  // 既に「転送済み」になっているキーワードは、同じキーワードの「書く」行が
+  // 残っていても二重に記事化しない（重複記事の再発防止）。
+  const alreadySentKeywords = {};
+  values.forEach(function(row) {
+    const status = String(row[UA_CANDIDATE_COLUMNS.status - 1] || '').trim();
+    const keyword = String(row[UA_CANDIDATE_COLUMNS.keyword - 1] || '').trim();
+    if (status === UA_CANDIDATE_STATUS_SENT && keyword) {
+      alreadySentKeywords[keyword] = true;
+    }
+  });
+
+  const keywordsHandledThisRun = {};
 
   values.forEach(function(row, index) {
     const status = String(row[UA_CANDIDATE_COLUMNS.status - 1] || '').trim();
@@ -192,6 +206,13 @@ function uaMoveWriteCandidatesForApp_(candidateSheet, articleSheet) {
       return;
     }
 
+    if (alreadySentKeywords[keyword] || keywordsHandledThisRun[keyword]) {
+      // 既に他の行で転送済み、または同じ実行内で先に処理済みの重複キーワード。
+      // 記事化はせず「保留」に落として、重複記事の生成を防ぐ。
+      candidateRowsToHoldAsDuplicate.push(index + 2);
+      return;
+    }
+
     const affiliate = uaGetAffiliateProjectByName_(affiliateName);
     rowsToAppend.push(uaBuildArticleRowFromCandidate_(
       keyword,
@@ -200,9 +221,19 @@ function uaMoveWriteCandidatesForApp_(candidateSheet, articleSheet) {
       affiliate
     ));
     candidateRowsToMark.push(index + 2);
+    keywordsHandledThisRun[keyword] = true;
+  });
+
+  candidateRowsToHoldAsDuplicate.forEach(function(rowNumber) {
+    candidateSheet
+      .getRange(rowNumber, UA_CANDIDATE_COLUMNS.status)
+      .setValue(UA_CANDIDATE_STATUS_HOLD);
   });
 
   if (rowsToAppend.length === 0) {
+    if (candidateRowsToHoldAsDuplicate.length > 0) {
+      uaApplyCandidateSheetRules_(candidateSheet);
+    }
     return 0;
   }
 

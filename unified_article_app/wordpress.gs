@@ -5290,14 +5290,14 @@ function uaGetHomeWrongAffiliateRepairSpecs20260912_() {
     {
       postId: 1062,
       key: 'microwave_l_plug',
-      queries: ['L字プラグ 変換アダプター', 'L型プラグ 変換アダプター', 'コンセント L字 変換プラグ'],
+      queries: ['電源プラグ L型 変換アダプター 15A', 'コンセント L字 変換プラグ 125V', 'L型プラグアダプター AC 15A'],
       minItems: 2,
       plan: {
         shouldInsert: true,
         primaryProduct: 'L字プラグ変換アダプター',
-        marketQuery: 'L字プラグ 変換アダプター',
+        marketQuery: '電源プラグ L型 変換アダプター 15A',
         purpose: '電子レンジ背面でプラグを無理に曲げず、壁との干渉を避ける',
-        exclude: ['延長コード', '医療用品', '工作機械', '洗浄剤'],
+        exclude: ['延長コード', '医療用品', '工作機械', '洗浄剤', 'iPhone', 'USB', 'オーディオ', 'HDMI'],
         purchaseScale: 'standard',
         benefit: '壁との距離と定格を確認できる候補を比較できます',
         ctaReason: '定格と設置寸法を確認し、プラグの圧迫を避けたい方に向いています'
@@ -5334,7 +5334,7 @@ function uaGetHomeWrongAffiliateRepairSpecs20260912_() {
         primaryProduct: 'テレビ裏収納ラック',
         marketQuery: 'テレビ裏 収納 ラック',
         purpose: 'テレビ背面の放熱と配線の逃げ道を残して周辺機器を整理する',
-        exclude: ['テレビ本体', '液晶テレビ', 'バルーン', '風船'],
+        exclude: ['テレビ本体', '液晶テレビ', 'バルーン', '風船', 'ケーブルホルダー', 'ケーブルクリップ'],
         purchaseScale: 'standard',
         benefit: '設置寸法と耐荷重を比較できます',
         ctaReason: '通気口をふさがず、配線へ手が届く収納を選びたい方に向いています'
@@ -5429,9 +5429,9 @@ function uaGetHomePublishedPostContext20260912_(postId) {
 
 function uaIsHomeWrongAffiliateReplacementItemValid20260912_(key, itemName) {
   const name = String(itemName || '');
-  if (key === 'microwave_l_plug') return /(?:L字|L型|エル型).*?(?:プラグ|アダプター)|(?:プラグ|アダプター).*?(?:L字|L型|エル型)/i.test(name) && !/医療|患者|工作機械|切削油|洗浄剤/.test(name);
+  if (key === 'microwave_l_plug') return /(?:L字|L型|エル型).*?(?:プラグ|アダプター)|(?:プラグ|アダプター).*?(?:L字|L型|エル型)/i.test(name) && /コンセント|電源|AC|125V|15A/i.test(name) && !/医療|患者|工作機械|切削油|洗浄剤|iPhone|iPad|スマホ|USB|オーディオ|ステレオ|HDMI|イヤホン/i.test(name);
   if (key === 'weed_killer') return /除草剤|除草液|草枯らし/.test(name) && !/物置|収納ボックス|キーボックス|エアコン/.test(name);
-  if (key === 'tv_rear_storage') return /ラック|収納|ケーブルボックス|配線ボックス|テレビ台|テレビスタンド/.test(name) && !/バルーン|風船|タイツ|レギンス/.test(name);
+  if (key === 'tv_rear_storage') return /テレビ(?:裏|背面)(?:収納)?ラック|テレビ(?:裏|背面).*?(?:棚|ラック)|(?:棚|ラック).*テレビ(?:裏|背面)/.test(name) && !/バルーン|風船|タイツ|レギンス|ケーブルホルダー|ケーブルクリップ/.test(name);
   if (key === 'fridge_floor_mat') return /冷蔵庫/.test(name) && /床|フローリング|保護マット|ポリカーボネート|キズ防止|傷防止/.test(name) && !/庫内|ドアポケット|食器棚|棚板|シェルフライナー/.test(name);
   if (key === 'bath_drain_brush') return /排水口|排水トラップ|パイプ/.test(name) && /ブラシ|トング|クリーナー/.test(name) && !(/キッチン|シンク|三角コーナー/.test(name) && !/浴室|お風呂|風呂|バス/.test(name));
   if (key === 'vacuum_battery') return /掃除機/.test(name) && /バッテリー|電池/.test(name) && !/ライト|照明|センサー|アダプター|変換/.test(name);

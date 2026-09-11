@@ -4770,10 +4770,11 @@ function uaIsRakutenItemRelevant_(itemName, query) {
   // guards for real mismatches found in published articles in September 2026.
   if (/(?:l字|l型).*?(?:プラグ|アダプター)|(?:プラグ|アダプター).*?(?:l字|l型)/i.test(queryText)) {
     if (!/(?:l字|l型|エル型).*?(?:プラグ|アダプター)|(?:プラグ|アダプター).*?(?:l字|l型|エル型)/i.test(name)) return false;
+    if (!/コンセント|電源|ac|125v|15a/i.test(name) || /iphone|ipad|スマホ|usb|オーディオ|ステレオ|hdmi|イヤホン/i.test(name)) return false;
   }
   if (/除草剤|草枯らし/.test(queryText) && !/除草剤|除草液|草枯らし/.test(name)) return false;
   if (/テレビ(?:裏|背面).*(?:収納|ラック)|(?:収納|ラック).*テレビ(?:裏|背面)/.test(queryText)) {
-    if (!/ラック|収納|ケーブルボックス|配線ボックス|テレビ台|テレビスタンド/.test(name)) return false;
+    if (!/テレビ(?:裏|背面)(?:収納)?ラック|テレビ(?:裏|背面).*?(?:棚|ラック)|(?:棚|ラック).*テレビ(?:裏|背面)/.test(name)) return false;
     if (/液晶テレビ|スマートテレビ|テレビ本体|\d+(?:v型|型|インチ).*テレビ/.test(name) &&
       !/ラック|収納|テレビ台|テレビスタンド/.test(name)) return false;
   }

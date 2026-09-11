@@ -5291,7 +5291,7 @@ function uaGetHomeWrongAffiliateRepairSpecs20260912_() {
       postId: 1062,
       key: 'microwave_l_plug',
       queries: ['電源プラグ L型 変換アダプター 15A', 'コンセント L字 変換プラグ 125V', 'L型プラグアダプター AC 15A'],
-      minItems: 2,
+      minItems: 1,
       plan: {
         shouldInsert: true,
         primaryProduct: 'L字プラグ変換アダプター',

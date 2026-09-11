@@ -5022,8 +5022,12 @@ function uaGetCirculatorRinkerRepairContext20260911_() {
 
 function uaFetchCirculatorRinkerRepairItems20260911_() {
   const plan = uaGetCirculatorRinkerRepairPlan20260911_();
-  const items = uaFetchRakutenItems_(
-    plan.marketQuery,
+  const items = uaFetchRakutenItemsByQueries_(
+    [
+      'アイリスオーヤマ サーキュレーター',
+      '山善 サーキュレーター',
+      'サーキュレーター DCモーター'
+    ],
     3,
     'post1190|circulator-rinker-repair-20260911',
     plan

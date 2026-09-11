@@ -4696,7 +4696,7 @@ function uaIsMainUnitRakutenQuery_(query) {
   const value = String(query || '').replace(/[\s　]+/g, '').toLowerCase();
   if (!value) return false;
   if (/テレビスタンド|テレビ台|配線カバー/.test(value)) return false;
-  return /テレビ|シーリングライト|天井照明|室内ジャングルジム|ジャングルジム|室内遊具|ビーズソファ|ビーズクッション/.test(value);
+  return /テレビ|シーリングライト|天井照明|室内ジャングルジム|ジャングルジム|室内遊具|ビーズソファ|ビーズクッション|サーキュレーター/.test(value);
 }
 
 function uaIsMainUnitRakutenItem_(itemName, query) {
@@ -4727,6 +4727,11 @@ function uaIsMainUnitRakutenItem_(itemName, query) {
 
   if (/ビーズソファ|ビーズクッション/.test(queryText)) {
     return !/カバーのみ|専用カバー|替えカバー|交換用カバー|補充ビーズ|中材のみ/.test(name);
+  }
+
+  if (/サーキュレーター/.test(queryText) && !/除湿機|除湿器/.test(queryText)) {
+    if (/除湿機|除湿器|車載|車用|カー用品|クリップ式|usb電源|エアコン掃除|ワイパー|ブラシ|モップ|カバーのみ|交換用|補修部品|パーツのみ/.test(name)) return false;
+    return /サーキュレーター/.test(name);
   }
   return true;
 }
@@ -5394,7 +5399,8 @@ function uaCleanRakutenItemName_(itemName) {
     .replace(/[＼\\][^＼\\／/]{0,30}[／/]/g, ' ')
     .replace(/【[^】]{0,50}】/g, ' ')
     .replace(/\[[^\]]{0,50}\]/g, ' ')
-    .replace(/送料無料|送料込み|ポイント\s*\d+倍|クーポン(?:利用)?|期間限定|楽天市場/gi, ' ')
+    .replace(/本日ポイント\s*\d+倍!?|ポイント\s*\d+倍|送料無料|送料込み|送料込|クーポン(?:利用)?|期間限定|楽天市場|ついで買い特集|夏物特集/gi, ' ')
+    .replace(/^[!！★☆◇◆・\s]+/g, '')
     .replace(/\s+/g, ' ')
     .trim();
 }

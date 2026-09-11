@@ -686,6 +686,20 @@ assert.ok(
   ) > 0,
   '対照群: 単体サーキュレーターは引き続き候補に残す'
 );
+[
+  '車載 サーキュレーター USB電源式 クリップ式 車用 扇風機',
+  'エアコンすっきりワイパー 本体 サーキュレーター掃除'
+].forEach((name) => {
+  assert.strictEqual(
+    context.uaScoreRakutenItem_(
+      { name, url: 'https://item.rakuten.co.jp/shop/not-main-unit/' },
+      'サーキュレーター 本体',
+      { primaryProduct: 'サーキュレーター', marketQuery: 'サーキュレーター 本体' }
+    ),
+    -1000,
+    'サーキュレーター本体の記事では周辺用品・車載用品を候補にしない: ' + name
+  );
+});
 assert.strictEqual(
   context.uaTruncateForDisplay_('あ'.repeat(70), 60),
   'あ'.repeat(60) + '…',

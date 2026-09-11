@@ -18,6 +18,7 @@ assert.strictEqual(relevant('根まで枯らす 液体除草剤', 'ヤブガラ�
 assert.strictEqual(relevant('液晶テレビ 24V型', 'テレビ裏 収納 ラック'), false);
 assert.strictEqual(relevant('テレビ裏 収納ラック 配線整理', 'テレビ裏 収納 ラック'), true);
 assert.strictEqual(relevant('ケーブルホルダー コード収納 テレビ裏用', 'テレビ裏 収納 ラック'), false);
+assert.strictEqual(relevant('ケーブルバンド ブラック テレビ裏 整理用品', 'テレビ裏 収納 ラック'), false);
 assert.strictEqual(relevant('食器棚シート 冷蔵庫マット 庫内用', '冷蔵庫 床 保護マット'), false);
 assert.strictEqual(relevant('冷蔵庫 床保護マット 透明 ポリカーボネート', '冷蔵庫 床 保護マット'), true);
 assert.strictEqual(relevant('キッチン排水口 掃除ブラシ シンク用', '浴室 排水口 ブラシ'), false);

@@ -123,7 +123,7 @@ function uaGetHomeRevenuePolicy_(rowData) {
     return {
       key: 'product_conversion',
       label: '暮らし用品の成約記事',
-      instruction: '条件別の比較、買わなくてよい人、購入前確認を示したうえで、実際に選べる商品候補とAmazon・楽天等の購入先へ明確につなぐ。CTA前に、なぜその商品を確認するのかを具体的に書く。'
+      instruction: '条件別の比較と購入前確認を示したうえで、実際に選べる商品候補とAmazon・楽天等の購入先へ明確につなぐ。CTA前に、なぜその商品を確認するのかを具体的に書き、「買わなくてよい」「購入不要」で締めず前向きな比較行動を促す。'
     };
   }
   if (hasProductDecisionIntent) {

@@ -305,7 +305,7 @@ function uaBuildSupplementalProductPlan_(productPlan, rowData, appConfig) {
   const productLabel = plan.primaryProduct || inferredProduct || plan.marketQuery || inferredQuery || '関連商品';
   const hasTroubleAndPrePurchaseIntent = /(たためない|畳めない|できない|使えない|外れない|動かない|入らない|後悔|やめた|デメリット|いらない|難しい|面倒)/.test(mainInput);
   const ctaReason = hasTroubleAndPrePurchaseIntent
-    ? '今使っているもので解決できるなら買い替えは不要です。購入前の人や同じ不便を繰り返したくない人は、' + productLabel + 'のサイズや仕様を比較してから選べます'
+    ? '同じ不便を繰り返さず、使いやすい' + productLabel + 'を選びたい方に向いています'
     : '本文の判断条件に当てはまり、' + productLabel + 'で手間や不便を減らしたい場合は、購入前にサイズや仕様を比較してから選べます';
   return uaNormalizeProductPlan_(Object.assign({}, plan, {
     shouldInsert: true,
@@ -2827,7 +2827,9 @@ function uaIsManagedProductLinkBlock_(body) {
   const text = String(body || '');
   return text.indexOf('UA_PRODUCT_FOLLOWUP_START') !== -1 ||
     text.indexOf('UA_RINKER_PRODUCTS_START') !== -1 ||
-    text.indexOf('条件に合わなければ、無理に購入する必要はありません。') !== -1 &&
+    (text.indexOf('条件に合わなければ、無理に購入する必要はありません。') !== -1 ||
+      text.indexOf('自分の使い方や設置条件に合う候補を、価格と仕様で見比べてみてください。') !== -1 ||
+      text.indexOf('自分の使い方に合うかチェックしてみてください。') !== -1) &&
       text.indexOf('楽天で見る') !== -1;
 }
 
@@ -5154,9 +5156,9 @@ function uaBuildRakutenItemBannerHtml_(items, query, productPlan, appConfig) {
   const benefit = plan && plan.benefit ? uaEscapeHtml_(plan.benefit.replace(/[。．.]+$/, '')) + '。' : '';
   const ctaReason = plan && plan.ctaReason ? uaEscapeHtml_(plan.ctaReason.replace(/[。．.]+$/, '')) + '。' : '';
   const compareAction = items.length > 1
-    ? '条件に合う場合は、下の商品候補で価格と仕様を見比べられます。'
-    : '条件に合う場合は、下の商品候補で価格と仕様を確認できます。';
-  const leadText = '<p>' + ctaReason + benefit + compareAction + '条件に合わなければ、無理に購入する必要はありません。</p>';
+    ? '下の商品候補で価格と仕様を見比べ、自分の使い方に合うものを選んでみてください。'
+    : '商品ページで詳しい仕様を確認し、自分の使い方に合うかチェックしてみてください。';
+  const leadText = '<p>' + ctaReason + benefit + compareAction + '</p>';
   const amazonButton = usesRinker ? '' : uaBuildAmazonSearchButton_(plan, query || productLabel, appConfig);
   const comparisonHeading = usesRinker
     ? '「' + queryText + '」を楽天・Amazonで比較する'

@@ -544,8 +544,12 @@ assert.ok(
 );
 const supplementalPopupPlan = context.uaBuildSupplementalProductPlan_(normalizedPopupPlan, popupRow, homeConfig);
 assert.ok(
-  supplementalPopupPlan.ctaReason.includes('買い替えは不要') && supplementalPopupPlan.ctaReason.includes('購入前'),
-  '所有者と購入前読者を分けたCTAにする'
+  supplementalPopupPlan.ctaReason.includes('同じ不便を繰り返さず') && supplementalPopupPlan.ctaReason.includes('向いています'),
+  '購入意欲を下げず、同じ不便を避けるための比較CTAにする'
+);
+assert.ok(
+  !/(?:買い替えは不要|買わなくてよい|購入する必要はありません)/.test(supplementalPopupPlan.ctaReason),
+  '商品CTAに購入を否定する表現を入れない'
 );
 assert.strictEqual(
   supplementalPopupPlan.primaryProduct,
@@ -640,6 +644,11 @@ delete context.PropertiesService;
 assert.ok(
   bareBanner.includes('UA_PRODUCT_FOLLOWUP_START') && bareBanner.includes('UA_PRODUCT_FOLLOWUP_END'),
   'Rinker未使用サイトの商品バナーもUA_PRODUCT_FOLLOWUP印を付けて自動生成ブロックと分かるようにする'
+);
+assert.ok(
+  bareBanner.includes('商品ページで詳しい仕様を確認し、自分の使い方に合うかチェックしてみてください') &&
+    !/(?:買わなくて|購入する必要はありません)/.test(bareBanner),
+  '商品バナー前文は購入を否定せず、価格・仕様の確認へ前向きにつなぐ'
 );
 
 // Rakuten item names are real seller listings and are often keyword-stuffed with

@@ -4779,3 +4779,180 @@ function uaApplyDriveNaviokunTextLinks20260910() {
   console.log(JSON.stringify(result));
   return result;
 }
+
+// 2026-09-11: たくみパパの商品バナー直前に自動挿入されていた
+// 「買い替え不要」「無理に購入する必要はない」を、比較を促す前向きな文へ置換する。
+// 本文中の代用品説明などは対象にせず、既知の自動生成定型文だけを変更する。
+const UA_HOME_PRODUCT_CTA_COPY_BACKUP_SHEET = 'たくみパパ_商品CTA文修正バックアップ';
+
+function uaTransformHomeProductCtaCopy_(html) {
+  const before = String(html || '');
+  let after = before;
+  let replacements = 0;
+  const replaceLiteral = function(from, to) {
+    const parts = after.split(from);
+    if (parts.length <= 1) return;
+    replacements += parts.length - 1;
+    after = parts.join(to);
+  };
+
+  after = after.replace(
+    /今使っているもので解決できるなら買い替えは不要(?:です。|ですが、)購入前の人や同じ不便を繰り返したくない人は、([^。<>]+?)のサイズや仕様を比較(?:してから選べます|できるため)。/g,
+    function(match, productLabel) {
+      replacements += 1;
+      return '同じ不便を繰り返さず、使いやすい' + productLabel + 'を選びたい方に向いています。';
+    }
+  );
+  replaceLiteral(
+    '条件に合わなければ、無理に購入する必要はありません。',
+    '自分の使い方や設置条件に合う候補を、価格と仕様で見比べてみてください。'
+  );
+  replaceLiteral(
+    '合わなければ購入する必要はありません。',
+    '使い方に合うか、価格と仕様を比較してみてください。'
+  );
+
+  return { html: after, replacements: replacements, changed: after !== before };
+}
+
+function uaAuditHomeProductCtaCopy20260911() {
+  const posts = uaListHomePublishedPostsForSwellMigration_();
+  const details = [];
+  posts.forEach(function(post) {
+    const scan = uaTransformHomeProductCtaCopy_(uaGetWpPostRawContent_(post));
+    if (!scan.changed) return;
+    details.push({
+      id: Number(post.id || 0),
+      slug: String(post.slug || ''),
+      replacements: scan.replacements,
+      link: String(post.link || '')
+    });
+  });
+  const result = {
+    ok: true,
+    dryRun: true,
+    publishedPosts: posts.length,
+    targetPosts: details.length,
+    replacements: details.reduce(function(total, item) { return total + item.replacements; }, 0),
+    details: details
+  };
+  console.log(JSON.stringify(result));
+  return result;
+}
+
+function uaGetOrCreateHomeProductCtaCopyBackupSheet_() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName(UA_HOME_PRODUCT_CTA_COPY_BACKUP_SHEET);
+  if (!sheet) {
+    sheet = ss.insertSheet(UA_HOME_PRODUCT_CTA_COPY_BACKUP_SHEET);
+    sheet.getRange(1, 1, 1, 8).setValues([[
+      'バックアップ日時', '投稿ID', 'スラッグ', 'タイトル', '公開URL',
+      '本文チャンク番号', '本文チャンク数', '修正前本文チャンク'
+    ]]);
+    sheet.setFrozenRows(1);
+    sheet.hideSheet();
+  }
+  return sheet;
+}
+
+function uaAppendHomeProductCtaCopyBackup_(sheet, post, before) {
+  const text = String(before || '');
+  const chunkSize = 45000;
+  const chunks = [];
+  for (let offset = 0; offset < text.length; offset += chunkSize) chunks.push(text.slice(offset, offset + chunkSize));
+  if (!chunks.length) chunks.push('');
+  const timestamp = new Date();
+  const rows = chunks.map(function(chunk, index) {
+    return [
+      timestamp,
+      Number(post && post.id || 0),
+      String(post && post.slug || ''),
+      String(post && post.title && (post.title.raw || post.title.rendered) || ''),
+      String(post && post.link || ''),
+      index + 1,
+      chunks.length,
+      chunk
+    ];
+  });
+  sheet.getRange(sheet.getLastRow() + 1, 1, rows.length, rows[0].length).setValues(rows);
+  SpreadsheetApp.flush();
+}
+
+function uaAssertHomeProductCtaCopySafety_(before, after) {
+  const missingImages = uaFindMissingPublishedWpImages_(before, after);
+  if (missingImages.length) throw new Error('既存画像が減るため停止しました: ' + missingImages.join(', '));
+  const beforeShortcodes = uaExtractDriveSwellMigrationShortcodes_(before);
+  const afterShortcodes = uaExtractDriveSwellMigrationShortcodes_(after);
+  if (JSON.stringify(beforeShortcodes) !== JSON.stringify(afterShortcodes)) {
+    throw new Error('ショートコードが変化するため停止しました。');
+  }
+  if (String(after || '').length < String(before || '').length * 0.98) {
+    throw new Error('本文が想定以上に短くなるため停止しました。');
+  }
+  return true;
+}
+
+function uaApplyHomeProductCtaCopy20260911() {
+  const appConfig = UA_APP_TYPES.home;
+  const wpConfig = uaGetWpConfig_(appConfig);
+  const posts = uaListHomePublishedPostsForSwellMigration_();
+  const articleSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(appConfig.articleSheetName);
+  if (!articleSheet) throw new Error('記事管理シートが見つかりません: ' + appConfig.articleSheetName);
+
+  const rowByPostId = {};
+  if (articleSheet.getLastRow() >= 2) {
+    const ids = articleSheet.getRange(2, UA_COLUMNS.wpPostId, articleSheet.getLastRow() - 1, 1).getValues();
+    ids.forEach(function(row, index) {
+      const postId = Number(row[0] || 0);
+      if (postId > 0) rowByPostId[postId] = index + 2;
+    });
+  }
+
+  const backupSheet = uaGetOrCreateHomeProductCtaCopyBackupSheet_();
+  const updated = [];
+  const errors = [];
+  for (let index = 0; index < posts.length; index += 1) {
+    const listedPost = posts[index];
+    const listedScan = uaTransformHomeProductCtaCopy_(uaGetWpPostRawContent_(listedPost));
+    if (!listedScan.changed) continue;
+    const postId = Number(listedPost.id || 0);
+    try {
+      const freshPost = uaFetchWpPostForEdit_(wpConfig, postId);
+      if (String(freshPost && freshPost.status || '') !== 'publish') continue;
+      const before = uaGetWpPostRawContent_(freshPost);
+      const scan = uaTransformHomeProductCtaCopy_(before);
+      if (!scan.changed) continue;
+      uaAssertHomeProductCtaCopySafety_(before, scan.html);
+      uaAppendHomeProductCtaCopyBackup_(backupSheet, freshPost, before);
+      uaCallWordPressApi_(wpConfig, '/wp-json/wp/v2/posts/' + encodeURIComponent(postId), 'post', { content: scan.html });
+
+      const verifiedPost = uaCallWordPressApi_(
+        wpConfig,
+        '/wp-json/wp/v2/posts/' + encodeURIComponent(postId) + '?context=edit&_fields=id,status,content',
+        'get'
+      );
+      const verifiedBody = uaGetWpPostRawContent_(verifiedPost);
+      if (verifiedBody !== scan.html || uaTransformHomeProductCtaCopy_(verifiedBody).changed || String(verifiedPost.status || '') !== 'publish') {
+        throw new Error('WordPress再取得後の本文・公開状態検証に失敗しました。');
+      }
+      const sheetRow = rowByPostId[postId] || 0;
+      if (sheetRow) articleSheet.getRange(sheetRow, UA_COLUMNS.body).setValue(verifiedBody);
+      updated.push({ id: postId, slug: String(listedPost.slug || ''), replacements: scan.replacements, articleSheetRow: sheetRow || null });
+    } catch (error) {
+      errors.push({ id: postId, slug: String(listedPost.slug || ''), error: String(error && error.message || error) });
+      break;
+    }
+  }
+  SpreadsheetApp.flush();
+  const result = {
+    ok: errors.length === 0,
+    publishedPosts: posts.length,
+    updatedPosts: updated.length,
+    replacements: updated.reduce(function(total, item) { return total + item.replacements; }, 0),
+    missingArticleSheetRows: updated.filter(function(item) { return !item.articleSheetRow; }).map(function(item) { return item.id; }),
+    updated: updated,
+    errors: errors
+  };
+  console.log(JSON.stringify(result));
+  return result;
+}

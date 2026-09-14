@@ -142,6 +142,61 @@ function uaPrepareSolutionProductPlan_(productPlan) {
   }));
 }
 
+// Older saved articles may predate UA_PRODUCT_PLAN and therefore have no
+// structured bridge between the reader's problem and marketplace search.
+// Resolve that bridge from the saved body once instead of falling back to a
+// literal title query.  The result still passes the deterministic sanitizer,
+// category-anchor checks and per-item fit checks below.
+const UA_SOLUTION_PRODUCT_PLAN_CACHE_ = {};
+
+function uaResolveLegacySolutionProductPlan_(body, rowData, appConfig) {
+  if (!appConfig || appConfig.key === 'general') return null;
+  const mainInput = String(rowData && rowData.mainInput || '').trim();
+  const visibleBody = String(body || '')
+    .replace(/<!--([\s\S]*?)-->/g, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!mainInput || visibleBody.length < 200) return null;
+
+  const cacheKey = [appConfig.key, mainInput, visibleBody.length, visibleBody.slice(-180)].join('␟');
+  if (Object.prototype.hasOwnProperty.call(UA_SOLUTION_PRODUCT_PLAN_CACHE_, cacheKey)) {
+    return UA_SOLUTION_PRODUCT_PLAN_CACHE_[cacheKey];
+  }
+
+  const prompt = [
+    '次の記事について、読者の困りごとを実際に解決する商品検索計画を1つだけ作ってください。',
+    '検索語への共感ではなく、本文で説明済みの回避策・代替案・負担軽減策から選びます。',
+    '否定的な検索語でも、条件に合う読者が失敗を避ける選択肢になる商品が本文にあれば should_insert=true にします。',
+    '本文で具体的な解決商品を特定できない場合、制度・費用・安全確認だけが解決の場合は false にします。',
+    'primary_product は実際に販売される一般商品カテゴリを1つ。market_query は楽天市場で探せる短い語にします。',
+    'market_query に「後悔、失敗、やめとけ、いらない、原因、対処法、口コミ、評判、おすすめ」を入れないでください。',
+    '本文中で脇役として一度出ただけの商品を主役にせず、purposeにどの困りごとを解くのか明記してください。',
+    '',
+    '記事テーマ: ' + mainInput,
+    '読者心理: ' + String(rowData && rowData.readerMindMemo || '').slice(0, 4000),
+    '保存済み本文: ' + visibleBody.slice(0, 12000),
+    '',
+    'JSONのみ: {"should_insert":true,"primary_product":"商品カテゴリ","market_query":"短い商品検索語","purpose":"解く困りごと","must_have":["必須条件"],"exclude":["除外カテゴリ"],"purchase_scale":"standard","required_features":[],"excluded_features":[],"benefit":"読者に起きる変化","cta_reason":"確認する理由"}'
+  ].join('\n');
+
+  let resolved = null;
+  try {
+    const response = uaCallGeminiJson_(prompt, 900, 0);
+    const data = response && response.data;
+    const normalized = uaNormalizeProductPlan_(data && (data.product_plan || data.productPlan || data));
+    resolved = normalized && normalized.shouldInsert
+      ? uaPrepareSolutionProductPlan_(normalized)
+      : normalized && normalized.purpose ? normalized : null;
+  } catch (e) {
+    console.error('uaResolveLegacySolutionProductPlan_: ' + (e && e.message || e));
+  }
+  UA_SOLUTION_PRODUCT_PLAN_CACHE_[cacheKey] = resolved;
+  return resolved;
+}
+
 function uaGetMainKeywordProductProfile_(rowData, appConfig) {
   if (!appConfig || appConfig.key !== 'home') return null;
 
@@ -2196,7 +2251,21 @@ function uaEnsureAutomaticProductLinksForData_(data) {
 
   const notes = String(context.rowData && context.rowData.affiliateNotes || '');
   const mainKeywordProfile = uaGetMainKeywordProductProfile_(context.rowData, context.appConfig);
-  const productLinkRequired = !!mainKeywordProfile && !/楽天バナーなし|楽天なし/.test(notes);
+  const storedProductPlan = uaExtractProductPlan_(context.body);
+  const resolvedProductPlan = storedProductPlan || uaResolveLegacySolutionProductPlan_(
+    context.body,
+    context.rowData,
+    context.appConfig
+  );
+  const hasExplicitProductDecision = !!(resolvedProductPlan && (
+    resolvedProductPlan.primaryProduct || resolvedProductPlan.marketQuery || resolvedProductPlan.purpose
+  ));
+  const productLinkRequired = !/楽天バナーなし|楽天なし/.test(notes) && (
+    /楽天バナーあり|楽天あり/.test(notes) ||
+    (hasExplicitProductDecision
+      ? !!resolvedProductPlan.shouldInsert || !!(mainKeywordProfile && mainKeywordProfile.comparison)
+      : !!mainKeywordProfile)
+  );
 
   UA_LAST_RAKUTEN_STATUS = '';
   if (!uaShouldInsertRakutenAffiliateBanner_(context.body, context.rowData, context.appConfig)) {
@@ -3238,8 +3307,19 @@ function uaBuildRakutenAffiliateBanner_(body, rowData, appConfig) {
   const manualQueryOverride = uaGetManualRakutenQueryOverride_(rowData);
   const productPlan = uaExtractProductPlan_(body);
   const hasExplicitSolutionPlan = !!uaPrepareSolutionProductPlan_(productPlan);
+  let hasResolvedSolutionPlan = hasExplicitSolutionPlan;
   const mainKeywordProfile = manualQueryOverride ? null : uaGetMainKeywordProductProfile_(rowData, appConfig);
   let effectiveProductPlan = uaPrepareSolutionProductPlan_(productPlan);
+  if (!effectiveProductPlan && !manualQueryOverride) {
+    const legacyProductDecision = uaResolveLegacySolutionProductPlan_(body, rowData, appConfig);
+    if (legacyProductDecision && !legacyProductDecision.shouldInsert &&
+      !(mainKeywordProfile && mainKeywordProfile.comparison)) {
+      UA_LAST_RAKUTEN_STATUS = '保存済み本文を再判定した結果、商品購入は困りごとの解決策ではありません';
+      return '';
+    }
+    effectiveProductPlan = uaPrepareSolutionProductPlan_(legacyProductDecision);
+    hasResolvedSolutionPlan = !!effectiveProductPlan;
+  }
   if (!effectiveProductPlan && uaCanUseSupplementalProductPlan_(productPlan, body, rowData, appConfig)) {
     effectiveProductPlan = uaPrepareSolutionProductPlan_(
       uaBuildSupplementalProductPlan_(productPlan, rowData, appConfig)
@@ -3270,7 +3350,7 @@ function uaBuildRakutenAffiliateBanner_(body, rowData, appConfig) {
   // A valid solution plan may intentionally recommend an alternative to the
   // product named in the negative title (for example individual chairs
   // instead of a bench).  Do not force that back to the title's noun.
-  if (!hasExplicitSolutionPlan) {
+  if (!hasResolvedSolutionPlan) {
     effectiveProductPlan = uaAlignProductPlanToMainIntent_(effectiveProductPlan, rowData, appConfig);
   }
   const query = manualQueryOverride || (effectiveProductPlan && effectiveProductPlan.shouldInsert
@@ -5676,18 +5756,17 @@ function uaShouldInsertRakutenAffiliateBanner_(body, rowData, appConfig) {
     return true;
   }
 
-  const mainKeywordProfile = uaGetMainKeywordProductProfile_(rowData, appConfig);
-  if (mainKeywordProfile) {
-    UA_LAST_RAKUTEN_STATUS = 'メインキーワードの商品を優先して挿入: ' + mainKeywordProfile.label;
-    return true;
-  }
-
   const productPlan = uaExtractProductPlan_(body);
   const hasPlanDecision = productPlan && (
     productPlan.primaryProduct || productPlan.marketQuery || productPlan.purpose ||
     productPlan.mustHave.length > 0 || productPlan.exclude.length > 0
   );
   if (hasPlanDecision && !productPlan.shouldInsert) {
+    const comparisonProductProfile = uaGetMainKeywordProductProfile_(rowData, appConfig);
+    if (comparisonProductProfile && comparisonProductProfile.comparison) {
+      UA_LAST_RAKUTEN_STATUS = '商品比較が検索意図の中心のため、誤った未挿入判定を上書き: ' + comparisonProductProfile.label;
+      return true;
+    }
     if (uaCanUseSupplementalProductPlan_(productPlan, body, rowData, appConfig)) {
       UA_LAST_RAKUTEN_STATUS = '主回答を妨げない補助商品として自然に挿入: ' +
         (productPlan.primaryProduct || productPlan.marketQuery);
@@ -5698,6 +5777,26 @@ function uaShouldInsertRakutenAffiliateBanner_(body, rowData, appConfig) {
   }
   if (productPlan && productPlan.shouldInsert && (productPlan.primaryProduct || productPlan.marketQuery)) {
     UA_LAST_RAKUTEN_STATUS = '商品選定設計に基づき挿入: ' + (productPlan.primaryProduct || productPlan.marketQuery);
+    return true;
+  }
+
+  if (!hasPlanDecision) {
+    const legacyProductDecision = uaResolveLegacySolutionProductPlan_(body, rowData, appConfig);
+    if (legacyProductDecision) {
+      if (!legacyProductDecision.shouldInsert) {
+        UA_LAST_RAKUTEN_STATUS = '保存済み本文を再判定した結果、商品購入は困りごとの解決策ではありません';
+        return false;
+      }
+      if (uaIsActionableSolutionProductPlan_(legacyProductDecision)) {
+        UA_LAST_RAKUTEN_STATUS = '保存済み本文の解決策に基づき挿入: ' + legacyProductDecision.primaryProduct;
+        return true;
+      }
+    }
+  }
+
+  const mainKeywordProfile = uaGetMainKeywordProductProfile_(rowData, appConfig);
+  if (mainKeywordProfile) {
+    UA_LAST_RAKUTEN_STATUS = 'メインキーワードの商品を予備候補として挿入: ' + mainKeywordProfile.label;
     return true;
   }
 

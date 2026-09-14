@@ -67,6 +67,59 @@ assert.strictEqual(
   '読者の検索文を商品名としてコピーしただけの計画を拒否する'
 );
 
+// Articles saved before UA_PRODUCT_PLAN existed must also use the article's
+// actual solution, rather than dropping back to a literal negative title.
+context.uaCallGeminiJson_ = () => ({
+  data: {
+    should_insert: true,
+    primary_product: '背もたれ付きダイニングベンチ',
+    market_query: '背もたれ付き ダイニングベンチ 後悔しない おすすめ',
+    purpose: '長時間座ると疲れる悩みを減らす',
+    must_have: ['背もたれ付き'],
+    exclude: ['屋外用ベンチ'],
+    purchase_scale: 'standard',
+    benefit: '食事中に姿勢を保ちやすくなる',
+    cta_reason: '座面高とテーブル高を比較して選べる'
+  }
+});
+const legacyBody = [
+  '<h2>失敗を避ける選び方</h2>',
+  '<p>長時間座る家庭では背もたれ付きベンチを候補にし、座面高とテーブル高を測ります。</p>',
+  '<p>出入りが多い家庭は個別チェアも比較し、通路と脚間を床に再現して確認します。</p>',
+  '<p>短時間の食事と人数調整が中心なら片側ベンチが役立ちます。家族の使い方を基準に決めます。</p>'
+].join('').repeat(2);
+const legacyPlan = context.uaResolveLegacySolutionProductPlan_(legacyBody, {
+  ...row,
+  mainInput: 'ダイニングテーブル ベンチ 失敗 旧記事'
+}, homeConfig);
+assert.ok(legacyPlan && legacyPlan.shouldInsert, '旧本文からも解決商品計画を構造化できる');
+assert.strictEqual(legacyPlan.marketQuery, '背もたれ付き ダイニングベンチ', '旧本文の検索語から否定・販促語を除去する');
+assert.strictEqual(legacyPlan.purpose, '長時間座ると疲れる悩みを減らす', '商品が解く困りごとを保持する');
+
+context.uaCallGeminiJson_ = () => ({
+  data: {
+    should_insert: false,
+    primary_product: '',
+    market_query: '',
+    purpose: '制度の確認と申請手続きが解決であり、商品購入では解決しない',
+    purchase_scale: 'standard'
+  }
+});
+const nonProductLegacyBody = '<h2>申請条件</h2><p>対象年度と所得条件を公式窓口で確認し、必要書類を揃えて期限までに申請します。</p>'.repeat(5);
+const nonProductLegacyRow = {
+  mainInput: '住宅 補助金 失敗 旧記事',
+  affiliateName: '案件無し',
+  affiliateNotes: '',
+  readerMindMemo: '申請漏れを避けたい'
+};
+const noProductDecision = context.uaResolveLegacySolutionProductPlan_(nonProductLegacyBody, nonProductLegacyRow, homeConfig);
+assert.ok(noProductDecision && !noProductDecision.shouldInsert, '旧本文でも商品不要という明示判断を保持する');
+assert.strictEqual(
+  context.uaShouldInsertRakutenAffiliateBanner_(nonProductLegacyBody, nonProductLegacyRow, homeConfig),
+  false,
+  '商品で解決しない記事をタイトル由来の予備候補へ戻さない'
+);
+
 assert.ok(
   promptSource.includes('悩み→起きる原因→自分で確認する方法→回避策→次の行動'),
   '本文プロンプトが共感だけで終わらず解決まで進むよう要求する'

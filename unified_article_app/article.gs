@@ -99,11 +99,47 @@ function uaCleanMainKeywordProductQuery_(keyword) {
     .replace(/[「」『』【】（）()！？!?]/g, ' ')
     .replace(/(?:暮らし|生活|家庭|家族|自宅|部屋)に合う(?:の)?は/g, ' ')
     .replace(/どっち|どちら|おすすめ|ランキング|比較|選び方|口コミ|評判|レビュー/g, ' ')
-    .replace(/後悔(?:する|しない)?|デメリット|メリット|いらない|必要(?:か)?|不要/g, ' ')
+    .replace(/後悔(?:する|しない)?|失敗(?:する|しない)?|やめとけ|やめた(?:方がいい)?|デメリット|メリット|いらない|必要(?:か)?|不要/g, ' ')
     .replace(/どこが安い|どこで買う|どこに売ってる|価格|値段|費用|相場/g, ' ')
     .replace(/使い方|置き方|置き場所|判断軸|見分け方|注意点|確認ポイント/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+// Search the marketplace for a sellable solution category, never for the
+// reader's question or anxiety verbatim.  Phrases such as "後悔" and "失敗"
+// are useful when understanding intent, but they are not product attributes;
+// leaving them in the Rakuten query is what caused literal, unrelated matches.
+function uaSanitizeProductMarketQuery_(value) {
+  return String(value || '')
+    .replace(/[「」『』【】（）()！？!?]/g, ' ')
+    .replace(/(?:後悔|失敗)(?:する|しない|した|したくない)?|やめとけ|やめた(?:方がいい)?|いらない|不要|デメリット|メリット/g, ' ')
+    .replace(/口コミ|評判|レビュー|おすすめ|ランキング|比較|選び方|原因|理由|対処法|解決方法|注意点|確認ポイント/g, ' ')
+    .replace(/(?:とは|って何|なぜ|どうして|どうする|どうすればいい)/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function uaIsActionableSolutionProductPlan_(productPlan) {
+  const plan = uaNormalizeProductPlan_(productPlan);
+  if (!plan || !plan.shouldInsert || !plan.primaryProduct) return false;
+  const query = uaSanitizeProductMarketQuery_(plan.marketQuery || plan.primaryProduct);
+  if (!query || query.length < 2) return false;
+  // A product plan must explain which problem it solves.  This prevents an
+  // incidental noun found elsewhere in the article from becoming the CTA.
+  if (!plan.purpose && !plan.benefit && !plan.ctaReason) return false;
+  const rawIntentNoise = /後悔|失敗|やめとけ|いらない|デメリット|原因|対処法|口コミ|評判/;
+  const primary = String(plan.primaryProduct || '').trim();
+  if (rawIntentNoise.test(primary)) return false;
+  return true;
+}
+
+function uaPrepareSolutionProductPlan_(productPlan) {
+  const plan = uaNormalizeProductPlan_(productPlan);
+  if (!uaIsActionableSolutionProductPlan_(plan)) return null;
+  return uaNormalizeProductPlan_(Object.assign({}, plan, {
+    marketQuery: uaSanitizeProductMarketQuery_(plan.marketQuery || plan.primaryProduct)
+  }));
 }
 
 function uaGetMainKeywordProductProfile_(rowData, appConfig) {
@@ -3201,11 +3237,19 @@ function uaFindSecondaryProductSectionQuery_(body, appConfig, primaryQuery) {
 function uaBuildRakutenAffiliateBanner_(body, rowData, appConfig) {
   const manualQueryOverride = uaGetManualRakutenQueryOverride_(rowData);
   const productPlan = uaExtractProductPlan_(body);
+  const hasExplicitSolutionPlan = !!uaPrepareSolutionProductPlan_(productPlan);
   const mainKeywordProfile = manualQueryOverride ? null : uaGetMainKeywordProductProfile_(rowData, appConfig);
-  let effectiveProductPlan = uaCanUseSupplementalProductPlan_(productPlan, body, rowData, appConfig)
-    ? uaBuildSupplementalProductPlan_(productPlan, rowData, appConfig)
-    : productPlan;
-  if (mainKeywordProfile) {
+  let effectiveProductPlan = uaPrepareSolutionProductPlan_(productPlan);
+  if (!effectiveProductPlan && uaCanUseSupplementalProductPlan_(productPlan, body, rowData, appConfig)) {
+    effectiveProductPlan = uaPrepareSolutionProductPlan_(
+      uaBuildSupplementalProductPlan_(productPlan, rowData, appConfig)
+    );
+  }
+  // A structured plan describes the solution chosen after reading the whole
+  // article.  Keep it ahead of the raw title-derived profile.  The old order
+  // replaced "背もたれ付きダイニングベンチ" with the literal negative query
+  // "ダイニングテーブル ベンチ 失敗".
+  if (!effectiveProductPlan && mainKeywordProfile) {
     effectiveProductPlan = uaBuildMainKeywordProductPlan_(mainKeywordProfile, effectiveProductPlan);
   }
   if (!effectiveProductPlan && !manualQueryOverride && appConfig && appConfig.key === 'home' && !uaHasMainAffiliateProject_(rowData)) {
@@ -3223,10 +3267,15 @@ function uaBuildRakutenAffiliateBanner_(body, rowData, appConfig) {
       });
     }
   }
-  effectiveProductPlan = uaAlignProductPlanToMainIntent_(effectiveProductPlan, rowData, appConfig);
-  const query = effectiveProductPlan && effectiveProductPlan.shouldInsert
-    ? (effectiveProductPlan.marketQuery || effectiveProductPlan.primaryProduct)
-    : uaSelectRakutenProductQuery_(body, rowData, appConfig);
+  // A valid solution plan may intentionally recommend an alternative to the
+  // product named in the negative title (for example individual chairs
+  // instead of a bench).  Do not force that back to the title's noun.
+  if (!hasExplicitSolutionPlan) {
+    effectiveProductPlan = uaAlignProductPlanToMainIntent_(effectiveProductPlan, rowData, appConfig);
+  }
+  const query = manualQueryOverride || (effectiveProductPlan && effectiveProductPlan.shouldInsert
+    ? uaSanitizeProductMarketQuery_(effectiveProductPlan.marketQuery || effectiveProductPlan.primaryProduct)
+    : uaSelectRakutenProductQuery_(body, rowData, appConfig));
   UA_LAST_RAKUTEN_QUERY = String(query || '');
 
   if (!query) {
@@ -3453,17 +3502,15 @@ function uaSelectRakutenProductQueryRaw_(body, rowData, appConfig) {
     return manualOverride;
   }
 
-  const mainKeywordProfile = uaGetMainKeywordProductProfile_(rowData, appConfig);
-  if (mainKeywordProfile) {
-    return mainKeywordProfile.query;
+  const productPlan = uaExtractProductPlan_(body);
+  const solutionPlan = uaPrepareSolutionProductPlan_(productPlan);
+  if (solutionPlan) {
+    return solutionPlan.marketQuery || solutionPlan.primaryProduct;
   }
 
-  const productPlan = uaExtractProductPlan_(body);
-  if (productPlan && productPlan.shouldInsert) {
-    if (productPlan.marketQuery) return productPlan.marketQuery;
-    if (productPlan.primaryProduct) {
-      return [productPlan.primaryProduct].concat(productPlan.mustHave.slice(0, 2)).join(' ').trim();
-    }
+  const mainKeywordProfile = uaGetMainKeywordProductProfile_(rowData, appConfig);
+  if (mainKeywordProfile) {
+    return uaSanitizeProductMarketQuery_(mainKeywordProfile.query);
   }
   if (uaCanUseSupplementalProductPlan_(productPlan, body, rowData, appConfig)) {
     if (productPlan.marketQuery) return productPlan.marketQuery;
@@ -3995,10 +4042,15 @@ function uaSelectRakutenCategoryQueries_(body, rowData, appConfig, primaryQuery)
     });
   }
 
+  // The resolved solution query is the strongest signal.  Body keyword
+  // candidates are fallbacks only and must never displace it.
+  add(uaSanitizeProductMarketQuery_(primaryQuery));
+
   const mainKeywordProfile = uaGetManualRakutenQueryOverride_(rowData)
     ? null
     : uaGetMainKeywordProductProfile_(rowData, appConfig);
-  if (mainKeywordProfile) {
+  const productPlan = uaPrepareSolutionProductPlan_(uaExtractProductPlan_(body));
+  if (mainKeywordProfile && !productPlan) {
     mainKeywordProfile.queries.forEach(add);
   }
 
@@ -4759,11 +4811,73 @@ function uaIsMainUnitRakutenItem_(itemName, query) {
   return true;
 }
 
+const UA_RAKUTEN_CATEGORY_ANCHOR_GROUPS_ = [
+  ['ダイニングベンチ', 'ベンチチェア', 'ベンチ'],
+  ['ダイニングチェア', 'チェア', '椅子', 'いす'],
+  ['ダイニングテーブル', 'テーブル', '机', 'デスク'],
+  ['ビーズソファ', 'ビーズクッション', 'ソファ', 'クッション'],
+  ['シーリングライト', '天井照明', 'ライト', '照明'],
+  ['サーキュレーター'],
+  ['除湿機', '除湿器'],
+  ['冷蔵庫'],
+  ['洗濯機'],
+  ['掃除機'],
+  ['電子レンジ'],
+  ['テレビ'],
+  ['カーテン', 'ブラインド'],
+  ['収納ボックス', '収納ケース', 'チェスト', 'ラック', '棚', 'ワゴン'],
+  ['サンシェード', '日よけ', '日除け', 'シェード'],
+  ['ドライブレコーダー', 'ドラレコ'],
+  ['レーダー探知機'],
+  ['スマホホルダー'],
+  ['フロアマット', 'ラゲッジマット', '荷室マット', 'トランクマット', 'シートマット'],
+  ['カーシャンプー'],
+  ['ガラスクリーナー'],
+  ['マイクロファイバークロス', 'マイクロファイバー'],
+  ['ベビーゲート'],
+  ['センサーライト'],
+  ['室内物干し', '物干し'],
+  ['防災用品', '防災セット'],
+  ['ポータブル電源'],
+  ['ジャンプスターター'],
+  ['タイヤチェーン']
+];
+
+// A query for a part/accessory (plug adapter, replacement battery, filter...)
+// legitimately never contains the base appliance's own name in the sold
+// item's title. These queries already have dedicated, more precise guards
+// further down uaIsRakutenItemRelevant_, so the base-appliance anchor groups
+// must not gate them here.
+const UA_RAKUTEN_ACCESSORY_QUERY_HINT_ = /プラグ|アダプター|変換|バッテリー|フィルター|部品|パーツ|替え刃/;
+
+function uaDoesRakutenItemMatchCategoryAnchor_(itemName, query) {
+  const name = String(itemName || '').replace(/[\s　]+/g, '').toLowerCase();
+  const queryText = String(query || '').replace(/[\s　]+/g, '').toLowerCase();
+  if (UA_RAKUTEN_ACCESSORY_QUERY_HINT_.test(queryText)) return true;
+  const requestedGroups = UA_RAKUTEN_CATEGORY_ANCHOR_GROUPS_.filter(function(group) {
+    return group.some(function(term) {
+      return queryText.indexOf(String(term).replace(/[\s　]+/g, '').toLowerCase()) !== -1;
+    });
+  });
+  if (requestedGroups.length === 0) return true;
+  return requestedGroups.some(function(group) {
+    return group.some(function(term) {
+      return name.indexOf(String(term).replace(/[\s　]+/g, '').toLowerCase()) !== -1;
+    });
+  });
+}
+
 function uaIsRakutenItemRelevant_(itemName, query) {
   const name = String(itemName || '').replace(/[\s　]+/g, '').toLowerCase();
   const queryText = String(query || '').replace(/[\s　]+/g, '').toLowerCase();
   if (!name || !queryText) return false;
   if (!uaIsMainUnitRakutenItem_(itemName, query)) return false;
+  if (!uaDoesRakutenItemMatchCategoryAnchor_(itemName, query)) return false;
+
+  if (/ダイニング/.test(queryText)) {
+    if (!/ダイニング/.test(name) || !/ベンチ|チェア|椅子|いす|テーブル/.test(name)) return false;
+    if (/トレーニング|筋トレ|プレスベンチ|ガーデン|屋外|アウトドア/.test(name)) return false;
+  }
 
   // A bare substring match is not enough for categories that frequently
   // occur in unrelated seller titles. These are deterministic, fail-closed

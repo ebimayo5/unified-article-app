@@ -5653,7 +5653,7 @@ function uaGetHomeNegativeSolutionLinkSpecs20260915_() {
 
 function uaIsHomeNegativeSolutionItemValid20260915_(key, itemName) {
   const name = String(itemName || '');
-  if (key === 'closet_curtain') return /カーテン/.test(name) && !/シャワー|浴室|ブラケット|レール|ホック|パイプ|金具/.test(name);
+  if (key === 'closet_curtain') return /カーテン/.test(name) && !/シャワー|浴室|ブラケット|レール|ホック|パイプ|金具|つっぱり棒|突っ張り棒|テンションポール/.test(name);
   if (key === 'honeycomb_screen') return /ハニカム/.test(name) && /スクリーン|シェード/.test(name) && !/車用/.test(name);
   if (key === 'washroom_dehumidifier') return /除湿機/.test(name) && !/除湿剤|乾燥剤|車載|シューズ|靴/.test(name);
   if (key === 'tv_stand') return /テレビ/.test(name) && /スタンド/.test(name) && /VESA|対応インチ|耐荷重|高さ調整|ロータイプ|ハイタイプ|移動式|キャスター/.test(name) && !/テレビ本体|液晶テレビ|有機ELテレビ|オプション|専用棚|棚板|コーナーガード|保護|交換部品|パーツ/.test(name);
@@ -5803,6 +5803,62 @@ function uaApplyHomeNegativeSolutionLinks20260915() {
   });
   SpreadsheetApp.flush();
   const result = { ok: true, updatedPosts: results.length, backupSheet: UA_HOME_NEGATIVE_SOLUTION_LINK_BACKUP_SHEET, results: results };
+  console.log(JSON.stringify(result, null, 2));
+  return result;
+}
+
+function uaPrepareHomeClosetCurtainSolutionRepair20260915_() {
+  const spec = uaGetHomeNegativeSolutionLinkSpecs20260915_().filter(function(item) { return item.postId === 1396; })[0];
+  if (!spec) throw new Error('post 1396の商品仕様が見つかりません。');
+  const context = uaGetHomePublishedPostContextForSolutionLinks20260915_(1396);
+  const source = uaRemoveGeneratedRakutenBanner_(context.body);
+  if (source === context.body || uaHasRakutenBanner_(source)) {
+    throw new Error('post 1396の管理対象商品ブロックを安全に取り外せません。');
+  }
+  const items = uaFetchHomeNegativeSolutionItems20260915_(spec);
+  const cleanContext = Object.assign({}, context, { body: source });
+  const after = uaBuildHomeNegativeSolutionBody20260915_(cleanContext, spec, items);
+  return { spec: spec, context: context, items: items, after: after };
+}
+
+function uaPreviewHomeClosetCurtainSolutionRepair20260915() {
+  const entry = uaPrepareHomeClosetCurtainSolutionRepair20260915_();
+  const result = {
+    postId: 1396,
+    row: entry.context.row,
+    candidates: entry.items.map(function(item) { return String(item.name || ''); }),
+    itemlinks: (entry.after.match(/\[itemlink\s+post_id=["']?\d+/gi) || []).length,
+    published: true
+  };
+  console.log(JSON.stringify(result, null, 2));
+  return result;
+}
+
+function uaApplyHomeClosetCurtainSolutionRepair20260915() {
+  const entry = uaPrepareHomeClosetCurtainSolutionRepair20260915_();
+  const backupSheet = uaGetOrCreateHomeNegativeSolutionBackupSheet20260915_();
+  uaAppendHomeWrongAffiliateBackup20260912_(backupSheet, entry.context.post, entry.context.body);
+  SpreadsheetApp.flush();
+  uaCallWordPressApi_(entry.context.wpConfig, '/wp-json/wp/v2/posts/1396', 'post', { content: entry.after });
+  const verifiedPost = uaFetchWpPostForEdit_(entry.context.wpConfig, 1396);
+  const verifiedBody = uaGetWpPostRawContent_(verifiedPost);
+  if (String(verifiedPost && verifiedPost.status || '') !== 'publish' || verifiedBody !== entry.after) {
+    throw new Error('post 1396の再取得後検証に失敗しました。バックアップから復元してください。');
+  }
+  if (uaFindMissingPublishedWpImages_(entry.context.body, verifiedBody).length) {
+    throw new Error('post 1396の再取得後に既存画像が減ったため停止しました。');
+  }
+  if (entry.context.row > 0) entry.context.sheet.getRange(entry.context.row, UA_COLUMNS.body).setValue(verifiedBody);
+  SpreadsheetApp.flush();
+  const result = {
+    ok: true,
+    postId: 1396,
+    row: entry.context.row,
+    candidates: entry.items.map(function(item) { return String(item.name || ''); }),
+    itemlinks: (verifiedBody.match(/\[itemlink\s+post_id=["']?\d+/gi) || []).length,
+    published: true,
+    backupSheet: UA_HOME_NEGATIVE_SOLUTION_LINK_BACKUP_SHEET
+  };
   console.log(JSON.stringify(result, null, 2));
   return result;
 }

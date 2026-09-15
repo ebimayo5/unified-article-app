@@ -53,6 +53,11 @@ const invalidExamples = {
 for (const [key, title] of Object.entries(invalidExamples)) {
   assert.strictEqual(context.uaIsHomeNegativeSolutionItemValid20260915_(key, title), false, key + 'の誤カテゴリ商品を拒否する');
 }
+assert.strictEqual(
+  context.uaIsHomeNegativeSolutionItemValid20260915_('closet_curtain', 'つっぱり棒 テンションポール カフェカーテン用'),
+  false,
+  'カーテンという用途語があるだけの突っ張り棒を実物カーテンとして採用しない'
+);
 
 for (const spec of specs) {
   const plan = context.uaNormalizeProductPlan_(spec.plan);

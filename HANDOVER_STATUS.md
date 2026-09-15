@@ -8,7 +8,12 @@
 - エージェント: なし
 - 開始時刻: -
 - やっていること: -
-- 本番影響: -
+- 本番影響: 本番Webアプリは版352。row91は記事生成停止・商品導線保証・本文保存済み・WP未到達を維持。
+- 完了内容（2026-09-15 Codex / 版352反映・row91再確認）: 配布フォルダのApps Script対象20ファイルがリポジトリ`unified_article_app`の同名20ファイルとSHA-256全件一致することを再確認し、`clasp push`後、同一デプロイID`AKfycbzGbxQA5AuXH3MlUZSlfTjDn1hrpH4MnNNG0NVKty0wUz1Bd-4oVXbMQUBloQvd-HCm`を版352 `Legacy solution-product planning for saved articles`へ更新。`clasp deployments`とApps Script実行一覧の両方で版352を確認した。
+  - 停止中row91「ダイニングテーブル ベンチ 失敗」で、再生成・再開・WP操作をせず「Rinkerを追加」だけを1回実行。`uaAddRakutenBannerFromWeb`は版352で21.148秒・完了。
+  - 新ロジックは旧いタイトル直結検索`ダイニングテーブル ベンチ 失敗 1パック`から、本文の解決策に沿う`ダイニングベンチ 背付き`へ検索計画を改善した。ただし楽天API候補が用途・必須条件・除外条件を満たさず、本文7,948文字・UA_PRODUCT_PLANなし・Rinker itemlink 0件のまま。無関係商品は挿入されていない。
+  - row91は`記事生成停止`・工程`商品導線保証`・WP投稿ID空欄を維持。次回は`ダイニングベンチ 背付き`で正当な商品まで拒否している適合フィルタを調査・修正し、テスト後に再デプロイして再確認する。監視時に勝手に再開しない。
+- 実施前記録（2026-09-15 Codex）: 版351の実画面で、古い保存本文にUA_PRODUCT_PLANがないためRinker未挿入になる互換不足を確認。本文＋読者心理から解決商品計画を構造化し、商品不要の明示判断もタイトル由来商品で上書きしない追補を実装。全45テスト合格、Gitコミット`45ab03b`をorigin/mainへpush済み。版352への反映・再確認結果は上記の完了内容を参照。
 - 引き継ぎ（2026-09-15 Claude Code → Codex / 商品検索ロジック回帰修正、clasp push待ち）:
   - Codexが2026-09-14に中断した「商品検索ロジック根本見直し」（下の中断記録参照）を引き継ぎ、`test_rakuten_explicit_intent_guard.js`のFAILを修正した。原因: 新設`UA_RAKUTEN_CATEGORY_ANCHOR_GROUPS_`のカテゴリ一致必須ガードが、プラグ/アダプター/バッテリー等の「部品・アクセサリ」系クエリにも適用され、本体名（例:「電子レンジ」）が商品名に含まれない正当な部品商品（例: 電子レンジ用L字プラグ変換アダプター、9/12にわざわざ許可した実例）まで誤って拒否していた。
   - 修正: `uaDoesRakutenItemMatchCategoryAnchor_`の先頭に`UA_RAKUTEN_ACCESSORY_QUERY_HINT_`（プラグ|アダプター|変換|バッテリー|フィルター|部品|パーツ|替え刃）判定を追加し、該当する場合はこのアンカー一致チェックをスキップして、後段の既存の精密ガード（L字プラグ判定・掃除機バッテリー判定など）にそのまま処理を委ねるようにした。全45本の`test_*.js`と`git diff --check`に合格。

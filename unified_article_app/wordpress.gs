@@ -5609,7 +5609,7 @@ function uaGetHomeNegativeSolutionLinkSpecs20260915_() {
       plan: { shouldInsert: true, primaryProduct: '洗面所向けコンパクト除湿機', marketQuery: '洗面所 除湿機 コンパクト', purpose: '湿気がこもりやすい洗面所のカビと部屋干し臭を抑える', exclude: ['除湿剤', '車載', '靴'], purchaseScale: 'standard', benefit: '除湿能力とタンク容量、設置寸法を比較できます', ctaReason: '換気だけでは湿気が残りやすい洗面所に向いています' }
     },
     {
-      postId: 1313, key: 'tv_stand', queries: ['テレビスタンド 壁寄せ', 'テレビスタンド 高さ調整'],
+      postId: 1313, key: 'tv_stand', queries: ['壁寄せ テレビスタンド 本体 VESA', 'テレビスタンド 高さ調整 耐荷重'],
       plan: { shouldInsert: true, primaryProduct: '壁寄せテレビスタンド', marketQuery: 'テレビスタンド 壁寄せ', purpose: 'テレビ台の奥行きを減らし、見やすい位置へ配置する', exclude: ['テレビ本体', 'モニター本体', '卓上ミニ'], purchaseScale: 'standard', benefit: '対応インチとVESA規格、高さを比較できます', ctaReason: 'テレビの位置を壁工事なしで調整したい方に向いています' }
     },
     {
@@ -5653,10 +5653,10 @@ function uaGetHomeNegativeSolutionLinkSpecs20260915_() {
 
 function uaIsHomeNegativeSolutionItemValid20260915_(key, itemName) {
   const name = String(itemName || '');
-  if (key === 'closet_curtain') return /カーテン/.test(name) && !/シャワー|浴室/.test(name);
+  if (key === 'closet_curtain') return /カーテン/.test(name) && !/シャワー|浴室|ブラケット|レール|ホック|パイプ|金具/.test(name);
   if (key === 'honeycomb_screen') return /ハニカム/.test(name) && /スクリーン|シェード/.test(name) && !/車用/.test(name);
   if (key === 'washroom_dehumidifier') return /除湿機/.test(name) && !/除湿剤|乾燥剤|車載|シューズ|靴/.test(name);
-  if (key === 'tv_stand') return /テレビ/.test(name) && /スタンド/.test(name) && !/テレビ本体|液晶テレビ|有機ELテレビ/.test(name);
+  if (key === 'tv_stand') return /テレビ/.test(name) && /スタンド/.test(name) && /VESA|対応インチ|耐荷重|高さ調整|ロータイプ|ハイタイプ|移動式|キャスター/.test(name) && !/テレビ本体|液晶テレビ|有機ELテレビ|オプション|専用棚|棚板|コーナーガード|保護|交換部品|パーツ/.test(name);
   if (key === 'toilet_brush') return /トイレ/.test(name) && /ブラシ/.test(name) && /使い捨て|流せる|替え/.test(name) && !/浴室|キッチン/.test(name);
   if (key === 'fridge_floor_mat') return /冷蔵庫/.test(name) && /床|フローリング|保護マット|ポリカーボネート|キズ防止|傷防止/.test(name) && !/庫内|ドアポケット|食器棚|棚板/.test(name);
   if (key === 'tension_roll_screen') return /ロールスクリーン|ロールカーテン/.test(name) && /つっぱり|突っ張り/.test(name) && !/車用/.test(name);
@@ -5670,7 +5670,7 @@ function uaIsHomeNegativeSolutionItemValid20260915_(key, itemName) {
 
 function uaFetchHomeNegativeSolutionItems20260915_(spec) {
   const plan = uaNormalizeProductPlan_(spec.plan);
-  const items = uaFetchRakutenItemsByQueries_(spec.queries, 2, 'negative-solution-20260915|' + spec.postId, plan)
+  const items = uaFetchRakutenItemsByQueries_(spec.queries, 3, 'negative-solution-20260915|' + spec.postId, plan)
     .filter(function(item) { return uaIsHomeNegativeSolutionItemValid20260915_(spec.key, item && item.name); })
     .slice(0, 2);
   if (!items.length) {

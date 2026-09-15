@@ -37,10 +37,10 @@ for (const [key, title] of Object.entries(validExamples)) {
 }
 
 const invalidExamples = {
-  closet_curtain: '浴室用 シャワーカーテン',
+  closet_curtain: 'クローゼット用 カーテンレール ブラケット 金具',
   honeycomb_screen: '車用 サンシェード ハニカム柄',
   washroom_dehumidifier: '靴用 除湿剤 10個セット',
-  tv_stand: '55型 液晶テレビ本体 スタンド付き',
+  tv_stand: 'テレビスタンド WALLシリーズ オプション品 コーナーガード',
   toilet_brush: 'キッチン 排水口ブラシ',
   fridge_floor_mat: '冷蔵庫 庫内 棚板シート',
   tension_roll_screen: '車用 ロールスクリーン',

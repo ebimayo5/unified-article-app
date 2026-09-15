@@ -312,21 +312,31 @@ function uaApplyPrePublishFixesOnceFromPanel(data) {
     rowData,
     protectedBody.body
   );
-  let revisedBody = uaNormalizeAnchorRelAttributes_(uaApplyNaviokunPostProcessing_(
-    uaApplyManagedAffiliateCta_(
-      uaApplyYmylNotice_(
-        uaNormalizeFaqHeadingLevels_(uaFixGeneratedHtml_(
-          uaRestorePrePublishProtectedBlocks_(revision.bodyHtml, protectedBody.blocks)
-        )),
+  let revisedBody = originalBody;
+  let rejectedRevisionReason = '';
+  try {
+    revisedBody = uaNormalizeAnchorRelAttributes_(uaApplyNaviokunPostProcessing_(
+      uaApplyManagedAffiliateCta_(
+        uaApplyYmylNotice_(
+          uaNormalizeFaqHeadingLevels_(uaFixGeneratedHtml_(
+            uaRestorePrePublishProtectedBlocks_(revision.bodyHtml, protectedBody.blocks)
+          )),
+          rowData,
+          appConfig
+        ),
         rowData,
         appConfig
       ),
       rowData,
       appConfig
-    ),
-    rowData,
-    appConfig
-  ));
+    ));
+  } catch (restoreError) {
+    rejectedRevisionReason = restoreError && restoreError.message
+      ? restoreError.message
+      : String(restoreError || '保護要素を復元できませんでした。');
+    revision = uaBuildRejectedPrePublishRevisionFallback_(revision, rowData, rejectedRevisionReason);
+    revisedBody = originalBody;
+  }
   const allowedNewUrls = uaExtractPrePublishUrlsFromText_(externalSourcesPrompt)
     .concat([String(rowData.affiliateUrl || '').trim()])
     .concat(uaGetManagedAffiliateUrls_(rowData))
@@ -335,17 +345,18 @@ function uaApplyPrePublishFixesOnceFromPanel(data) {
     .concat(uaGetYmylNoticeSourceUrls_(rowData, appConfig, revisedBody))
     .filter(Boolean);
 
-  let rejectedRevisionReason = '';
-  try {
-    uaValidatePrePublishRevision_(originalBody, revisedBody, allowedNewUrls, appConfig);
-  } catch (revisionError) {
-    rejectedRevisionReason = revisionError && revisionError.message
-      ? revisionError.message
-      : String(revisionError || '安全検証に失敗しました。');
-    revision = uaBuildRejectedPrePublishRevisionFallback_(revision, rowData, rejectedRevisionReason);
-    revisedBody = originalBody;
-    uaValidatePrePublishRevision_(originalBody, revisedBody, allowedNewUrls, appConfig);
+  if (!rejectedRevisionReason) {
+    try {
+      uaValidatePrePublishRevision_(originalBody, revisedBody, allowedNewUrls, appConfig);
+    } catch (revisionError) {
+      rejectedRevisionReason = revisionError && revisionError.message
+        ? revisionError.message
+        : String(revisionError || '安全検証に失敗しました。');
+      revision = uaBuildRejectedPrePublishRevisionFallback_(revision, rowData, rejectedRevisionReason);
+      revisedBody = originalBody;
+    }
   }
+  uaValidatePrePublishRevision_(originalBody, revisedBody, allowedNewUrls, appConfig);
 
   sheet.getRange(row, UA_COLUMNS.body, 1, 5).setValues([[
     revisedBody,
@@ -630,7 +641,13 @@ function uaProtectPrePublishRevisionBody_(body) {
 
 function uaRestorePrePublishProtectedBlocks_(body, blocks) {
   let restoredBody = String(body || '');
-  (blocks || []).forEach(function(block) {
+  // Protected patterns can be nested. For example, the complete product follow-up
+  // block contains the narrower Rinker block. Protection encounters the inner
+  // block first and stores its placeholder inside the later outer block. Restore
+  // in reverse registration order so the outer HTML returns before its inner
+  // placeholder is resolved. The AI only supplies text patches and never controls
+  // either block's location or content.
+  (blocks || []).slice().reverse().forEach(function(block) {
     const count = uaCountPrePublishToken_(restoredBody, block.placeholder);
     if (count !== 1) {
       throw new Error(

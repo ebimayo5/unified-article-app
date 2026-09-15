@@ -5597,8 +5597,8 @@ const UA_HOME_NEGATIVE_SOLUTION_LINK_BACKUP_SHEET = 'たくみパパ_否定KW商
 function uaGetHomeNegativeSolutionLinkSpecs20260915_() {
   return [
     {
-      postId: 1396, key: 'closet_curtain', queries: ['クローゼット 間仕切り カーテン', 'クローゼット用 カーテン'],
-      plan: { shouldInsert: true, primaryProduct: 'クローゼット用カーテン', marketQuery: 'クローゼット 間仕切り カーテン', purpose: '扉を外した収納の中身を隠し、ほこりを抑える', exclude: ['シャワー', '浴室'], purchaseScale: 'standard', benefit: '開口幅と丈、透けにくさを比較できます', ctaReason: '扉の圧迫感を減らしながら収納を隠したい方に向いています' }
+      postId: 1396, key: 'closet_curtain', queries: ['クローゼット カーテン 遮光', 'クローゼット用 カーテン'],
+      plan: { shouldInsert: true, primaryProduct: 'クローゼット用カーテン', marketQuery: 'クローゼット カーテン 遮光', purpose: '扉を外した収納の中身を隠し、ほこりを抑える', exclude: ['シャワー', '浴室'], purchaseScale: 'standard', benefit: '開口幅と丈、透けにくさを比較できます', ctaReason: '扉の圧迫感を減らしながら収納を隠したい方に向いています' }
     },
     {
       postId: 1355, key: 'honeycomb_screen', queries: ['ハニカムスクリーン 断熱', 'ハニカムシェード 断熱'],

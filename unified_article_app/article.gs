@@ -3839,6 +3839,12 @@ function uaBuildPurchaseScaleRetryQueries_(query, productPlan) {
   const plan = uaNormalizeProductPlan_(productPlan);
   if (!base || !plan) return [];
 
+  // 「単品」「1パック」は、トイレットペーパーで大容量セットを避けるために
+  // 導入した専用の検索補助。一般商品へ流用すると、家具のカバーや部品など
+  // 本体ではない安価な商品へ検索結果が寄るため、対象を明示的に限定する。
+  const scaleTarget = [base, plan.primaryProduct, plan.marketQuery].join(' ');
+  if (!/トイレットペーパー/.test(scaleTarget)) return [];
+
   const suffixes = plan.purchaseScale === 'trial'
     ? ['少量', 'お試し', '単品']
     : plan.purchaseScale === 'bulk'
@@ -4847,10 +4853,20 @@ function uaBuildRakutenSearchTuning_(productPlan, query) {
   };
 }
 
+function uaIsDurableHomeProductQuery_(query) {
+  const value = String(query || '').replace(/[\s　]+/g, '').toLowerCase();
+  if (!value) return false;
+  if (/固定金具|取付金具|カバー|座布団|クッションのみ|脚キャップ|滑り止め|保護マット|交換用|補修|部品|パーツ|フィルター|バッテリー|シート|ブラシ|クリーナー|除草剤/.test(value)) {
+    return false;
+  }
+  return /ダイニングベンチ|ベンチチェア|ダイニングチェア|ダイニングテーブル|ソファ|チェスト|収納ボックス|収納ケース|テレビスタンド|テレビ台|除湿機|除湿器|サーキュレーター|サンシェード|日よけ|日除け|湿度計|センサーライト|室内物干し|見守りカメラ|ベビーゲート|スロープ|防災セット|ポータブル電源|ジャングルジム|室内遊具|シーリングライト|天井照明/.test(value);
+}
+
 function uaIsMainUnitRakutenQuery_(query) {
   const value = String(query || '').replace(/[\s　]+/g, '').toLowerCase();
   if (!value) return false;
   if (/テレビスタンド|テレビ台|テレビ(?:裏|背面)(?:収納|ラック)|(?:収納|ラック).*テレビ(?:裏|背面)|配線カバー/.test(value)) return false;
+  if (uaIsDurableHomeProductQuery_(value)) return true;
   return /テレビ|シーリングライト|天井照明|室内ジャングルジム|ジャングルジム|室内遊具|ビーズソファ|ビーズクッション|サーキュレーター/.test(value);
 }
 
@@ -4858,6 +4874,17 @@ function uaIsMainUnitRakutenItem_(itemName, query) {
   if (!uaIsMainUnitRakutenQuery_(query)) return true;
   const name = String(itemName || '').replace(/[\s　]+/g, '').toLowerCase();
   const queryText = String(query || '').replace(/[\s　]+/g, '').toLowerCase();
+
+  if (/ダイニングベンチ|ベンチチェア|ダイニングチェア|ダイニングテーブル/.test(queryText)) {
+    if (/カバーのみ|替えカバー|交換用カバー|クッションのみ|座布団|脚キャップ|滑り止め|補修部品|パーツのみ/.test(name)) return false;
+    if (!/ダイニング/.test(name)) return false;
+    if (/ダイニングベンチ|ベンチチェア/.test(queryText) && !/ベンチ|長椅子/.test(name)) return false;
+    if (/ダイニングチェア/.test(queryText) && !/チェア|椅子|いす/.test(name)) return false;
+    if (/ダイニングテーブル/.test(queryText) && !/テーブル|机/.test(name)) return false;
+    if (/背付き|背もたれ|バックレスト/.test(queryText) && !/背付き|背もたれ|バックレスト|ハイバック/.test(name)) return false;
+    if (/トレーニング|筋トレ|プレスベンチ|ガーデン|屋外|アウトドア/.test(name)) return false;
+    return true;
+  }
 
   if (/テレビ/.test(queryText) && !/テレビスタンド|テレビ台|配線カバー/.test(queryText)) {
     if (/リモコン|壁掛け金具|壁掛けラック|テレビ台|テレビスタンド|保護パネル|液晶保護|アンテナ|同軸ケーブル|hdmiケーブル|録画用|ハードディスク|テレビカバー/.test(name)) return false;

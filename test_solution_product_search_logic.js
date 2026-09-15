@@ -56,6 +56,64 @@ const categories = Array.from(context.uaSelectRakutenCategoryQueries_(body, row,
 assert.strictEqual(categories[0], '背もたれ付き ダイニングベンチ', '解決策から決めた主検索語を候補の先頭に固定する');
 assert.ok(categories.every((query) => !/失敗|後悔|やめとけ/.test(query)), '候補検索語へ否定語を再混入させない');
 
+const furnitureSearchTuning = context.uaBuildRakutenSearchTuning_(solutionPlan, 'ダイニングベンチ 背付き');
+assert.strictEqual(furnitureSearchTuning.sort, 'standard', '耐久家具は安い順にせず、本体が上位に出る関連度順で検索する');
+assert.strictEqual(furnitureSearchTuning.ngKeyword, 'ふるさと納税', '耐久家具からふるさと納税枠を除外する');
+assert.deepStrictEqual(
+  Array.from(context.uaBuildPurchaseScaleRetryQueries_('ダイニングベンチ 背付き', solutionPlan)),
+  [],
+  'トイレットペーパー専用の単品・1パック検索を家具へ流用しない'
+);
+assert.deepStrictEqual(
+  Array.from(context.uaBuildPurchaseScaleRetryQueries_('排水口ブラシ', solutionPlan)),
+  [],
+  '購入単位の再検索は一般的な日用品にも自動適用しない'
+);
+assert.deepStrictEqual(
+  Array.from(context.uaBuildPurchaseScaleRetryQueries_('トイレットペーパー 2倍巻き', {
+    ...solutionPlan,
+    primary_product: '2倍巻きトイレットペーパー',
+    market_query: 'トイレットペーパー 2倍巻き'
+  })),
+  ['トイレットペーパー 2倍巻き 単品', 'トイレットペーパー 2倍巻き 1パック'],
+  '単品・1パック検索は導入元のトイレットペーパーだけに適用する'
+);
+assert.strictEqual(
+  context.uaIsRakutenItemRelevant_('背もたれ付き ダイニングベンチ 2人掛け 木製 幅110cm', 'ダイニングベンチ 背付き'),
+  true,
+  '悩みの解決に合う背もたれ付きダイニングベンチ本体を採用する'
+);
+assert.strictEqual(
+  context.uaIsRakutenItemRelevant_('ダイニングベンチ用 替えカバー 洗える', 'ダイニングベンチ 背付き'),
+  false,
+  '安価な替えカバーをベンチ本体として採用しない'
+);
+assert.strictEqual(
+  context.uaIsRakutenItemRelevant_('屋外 ガーデンベンチ 背もたれ付き', 'ダイニングベンチ 背付き'),
+  false,
+  '屋外用ベンチをダイニングの解決商品として採用しない'
+);
+assert.strictEqual(
+  context.uaBuildRakutenSearchTuning_(solutionPlan, '除湿機 コンパクト').sort,
+  'standard',
+  'たくみの家電本体も安価な交換部品より本体を優先する'
+);
+assert.strictEqual(
+  context.uaBuildRakutenSearchTuning_(solutionPlan, 'サンシェード ベランダ 日よけ').sort,
+  'standard',
+  'たくみの日よけ本体も関連度順で探す'
+);
+assert.strictEqual(
+  context.uaBuildRakutenSearchTuning_(solutionPlan, 'サンシェード 固定金具 屋外').sort,
+  '+itemPrice',
+  '明示された金具・小物は本体扱いせず従来の価格順を維持する'
+);
+assert.strictEqual(
+  context.uaBuildRakutenSearchTuning_(solutionPlan, '排水口ブラシ 排水トラップ 掃除').sort,
+  '+itemPrice',
+  '消耗・清掃用品は価格比較を維持する'
+);
+
 assert.strictEqual(
   context.uaIsActionableSolutionProductPlan_({
     should_insert: true,

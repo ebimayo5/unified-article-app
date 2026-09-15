@@ -5584,3 +5584,193 @@ function uaApplyHomeWrongAffiliateRepairs20260912() {
   console.log(JSON.stringify(result, null, 2));
   return result;
 }
+
+// 2026-09-15: published-post audit found thirteen negative-intent articles
+// that explain how to avoid a failure but have no concrete product route.
+// Each entry below uses a human-reviewed solution query.  Candidate titles
+// must also pass the category-specific validator before any published post is
+// changed.  The apply function prepares all thirteen entries first, backs up
+// every full body, then updates WordPress while preserving publish status and
+// synchronising the matching article-sheet row.
+const UA_HOME_NEGATIVE_SOLUTION_LINK_BACKUP_SHEET = 'たくみパパ_否定KW商品導線追加バックアップ_20260915';
+
+function uaGetHomeNegativeSolutionLinkSpecs20260915_() {
+  return [
+    {
+      postId: 1396, key: 'closet_curtain', queries: ['クローゼット カーテン 遮光', 'クローゼット用 カーテン'],
+      plan: { shouldInsert: true, primaryProduct: 'クローゼット用カーテン', marketQuery: 'クローゼット カーテン 遮光', purpose: '扉を外した収納の中身を隠し、光やほこりを抑える', exclude: ['シャワー', '浴室'], purchaseScale: 'standard', benefit: '開口幅と丈、遮光性を比較できます', ctaReason: '扉の圧迫感を減らしながら収納を隠したい方に向いています' }
+    },
+    {
+      postId: 1355, key: 'honeycomb_screen', queries: ['ハニカムスクリーン 断熱', 'ハニカムシェード 断熱'],
+      plan: { shouldInsert: true, primaryProduct: '断熱ハニカムスクリーン', marketQuery: 'ハニカムスクリーン 断熱', purpose: '内窓まわりの断熱と目隠しを両立する', exclude: ['車用', 'サンシェード'], purchaseScale: 'standard', benefit: '窓寸法と採光・遮光タイプを比較できます', ctaReason: 'カーテン以外で冷気と視線を抑えたい方に向いています' }
+    },
+    {
+      postId: 1314, key: 'washroom_dehumidifier', queries: ['洗面所 除湿機 コンパクト', '脱衣所 除湿機 コンパクト'],
+      plan: { shouldInsert: true, primaryProduct: '洗面所向けコンパクト除湿機', marketQuery: '洗面所 除湿機 コンパクト', purpose: '湿気がこもりやすい洗面所のカビと部屋干し臭を抑える', exclude: ['除湿剤', '車載', '靴'], purchaseScale: 'standard', benefit: '除湿能力とタンク容量、設置寸法を比較できます', ctaReason: '換気だけでは湿気が残りやすい洗面所に向いています' }
+    },
+    {
+      postId: 1313, key: 'tv_stand', queries: ['テレビスタンド 壁寄せ', 'テレビスタンド 高さ調整'],
+      plan: { shouldInsert: true, primaryProduct: '壁寄せテレビスタンド', marketQuery: 'テレビスタンド 壁寄せ', purpose: 'テレビ台の奥行きを減らし、見やすい位置へ配置する', exclude: ['テレビ本体', 'モニター本体', '卓上ミニ'], purchaseScale: 'standard', benefit: '対応インチとVESA規格、高さを比較できます', ctaReason: 'テレビの位置を壁工事なしで調整したい方に向いています' }
+    },
+    {
+      postId: 1312, key: 'toilet_brush', queries: ['流せる トイレブラシ 使い捨て', 'トイレブラシ 使い捨て'],
+      plan: { shouldInsert: true, primaryProduct: '使い捨てトイレブラシ', marketQuery: '流せる トイレブラシ 使い捨て', purpose: '便器掃除後のブラシ保管と衛生の負担を減らす', exclude: ['浴室', 'キッチン'], purchaseScale: 'standard', benefit: '本体形状と替えブラシの入手性を比較できます', ctaReason: '掃除道具を清潔に保ちやすくしたい方に向いています' }
+    },
+    {
+      postId: 1267, key: 'fridge_floor_mat', queries: ['冷蔵庫 床 保護マット 透明', '冷蔵庫下 マット 床保護'],
+      plan: { shouldInsert: true, primaryProduct: '冷蔵庫用床保護マット', marketQuery: '冷蔵庫 床 保護マット 透明', purpose: '冷蔵庫の重さや水滴から床を保護する', exclude: ['庫内', 'ドアポケット', '食器棚', '棚板'], purchaseScale: 'standard', benefit: '冷蔵庫寸法と床材に合うサイズ・素材を比較できます', ctaReason: '100均素材より広い面を安定して保護したい方に向いています' }
+    },
+    {
+      postId: 1082, key: 'tension_roll_screen', queries: ['つっぱり ロールスクリーン 遮光', '突っ張り ロールカーテン 遮光'],
+      plan: { shouldInsert: true, primaryProduct: 'つっぱり式ロールスクリーン', marketQuery: 'つっぱり ロールスクリーン 遮光', purpose: '縦すべり出し窓の開閉を妨げにくい目隠しを付ける', exclude: ['車用', '浴室カーテン'], purchaseScale: 'standard', benefit: '窓枠寸法と取付方法、遮光性を比較できます', ctaReason: 'カーテンレールを付けずに視線と光を調整したい方に向いています' }
+    },
+    {
+      postId: 793, key: 'washroom_dehumidifier', queries: ['洗面所 除湿機 コンパクト', '脱衣所 除湿機 コンパクト'],
+      plan: { shouldInsert: true, primaryProduct: '洗面所向けコンパクト除湿機', marketQuery: '洗面所 除湿機 コンパクト', purpose: '窓がない洗面所の湿気と部屋干し臭を抑える', exclude: ['除湿剤', '車載', '靴'], purchaseScale: 'standard', benefit: '除湿能力とタンク容量、設置寸法を比較できます', ctaReason: '窓なしでも湿気をためにくくしたい方に向いています' }
+    },
+    {
+      postId: 681, key: 'bath_hair_catcher', queries: ['浴室 排水口 ゴミ受け ステンレス', 'お風呂 排水口 ヘアキャッチャー'],
+      plan: { shouldInsert: true, primaryProduct: '浴室排水口ヘアキャッチャー', marketQuery: '浴室 排水口 ゴミ受け ステンレス', purpose: '髪の毛を受け止めて排水口掃除の負担を減らす', exclude: ['キッチン専用', '洗面台専用'], purchaseScale: 'standard', benefit: '排水口径と形状、捨てやすさを比較できます', ctaReason: '髪の毛をまとめて取り除きやすくしたい方に向いています' }
+    },
+    {
+      postId: 660, key: 'drain_net', queries: ['排水口ネット ストッキング 浅型', 'キッチン 排水口ネット 浅型'],
+      plan: { shouldInsert: true, primaryProduct: '浅型排水口ネット', marketQuery: '排水口ネット ストッキング 浅型', purpose: '細かな生ごみを受け止めて排水口の詰まりと掃除負担を減らす', exclude: ['浴室用', '洗濯機用'], purchaseScale: 'standard', benefit: '排水口の深さと口径、網目の細かさを比較できます', ctaReason: '100均以外も含めて交換しやすいネットを選びたい方に向いています' }
+    },
+    {
+      postId: 315, key: 'folding_wash_basin', queries: ['折りたたみ 洗い桶 キッチン', 'シリコン 洗い桶 折りたたみ'],
+      plan: { shouldInsert: true, primaryProduct: '折りたたみ洗い桶', marketQuery: '折りたたみ 洗い桶 キッチン', purpose: '必要なときだけ洗い桶を使い、収納場所と作業スペースを確保する', exclude: ['洗濯かご', 'ベビーバス', '足湯'], purchaseScale: 'standard', benefit: 'シンク寸法と容量、折りたたみ時の厚さを比較できます', ctaReason: '洗い桶の便利さを残しつつ置き場所を減らしたい方に向いています' }
+    },
+    {
+      postId: 317, key: 'outdoor_sunshade', queries: ['窓 サンシェード 屋外 遮熱', '日よけ シェード 窓 屋外'],
+      plan: { shouldInsert: true, primaryProduct: '窓用屋外サンシェード', marketQuery: '窓 サンシェード 屋外 遮熱', purpose: '南西側の強い日差しを窓の外で遮り、室温上昇を抑える', exclude: ['車用', 'ベビーカー'], purchaseScale: 'standard', benefit: '窓寸法と遮熱率、取付方法を比較できます', ctaReason: '西日による暑さとまぶしさを抑えたい方に向いています' }
+    },
+    {
+      postId: 230, key: 'privacy_film', queries: ['窓 目隠しフィルム 貼り直し', '窓用 目隠しシート'],
+      plan: { shouldInsert: true, primaryProduct: '窓用目隠しフィルム', marketQuery: '窓 目隠しフィルム 貼り直し', purpose: '隣家との距離が近い窓からの視線を抑える', exclude: ['車用', 'スマホ', '液晶'], purchaseScale: 'standard', benefit: '窓寸法と採光性、貼り付け方法を比較できます', ctaReason: '採光を残しながら外からの視線を抑えたい方に向いています' }
+    }
+  ];
+}
+
+function uaIsHomeNegativeSolutionItemValid20260915_(key, itemName) {
+  const name = String(itemName || '');
+  if (key === 'closet_curtain') return /カーテン/.test(name) && !/シャワー|浴室/.test(name);
+  if (key === 'honeycomb_screen') return /ハニカム/.test(name) && /スクリーン|シェード/.test(name) && !/車用/.test(name);
+  if (key === 'washroom_dehumidifier') return /除湿機/.test(name) && !/除湿剤|乾燥剤|車載|シューズ|靴/.test(name);
+  if (key === 'tv_stand') return /テレビ/.test(name) && /スタンド/.test(name) && !/テレビ本体|液晶テレビ|有機ELテレビ/.test(name);
+  if (key === 'toilet_brush') return /トイレ/.test(name) && /ブラシ/.test(name) && /使い捨て|流せる|替え/.test(name) && !/浴室|キッチン/.test(name);
+  if (key === 'fridge_floor_mat') return /冷蔵庫/.test(name) && /床|フローリング|保護マット|ポリカーボネート|キズ防止|傷防止/.test(name) && !/庫内|ドアポケット|食器棚|棚板/.test(name);
+  if (key === 'tension_roll_screen') return /ロールスクリーン|ロールカーテン/.test(name) && /つっぱり|突っ張り/.test(name) && !/車用/.test(name);
+  if (key === 'bath_hair_catcher') return /排水口|排水溝/.test(name) && /ゴミ受け|ヘアキャッチ|髪の毛/.test(name) && !(/キッチン|台所|シンク/.test(name) && !/浴室|お風呂|風呂|ユニットバス/.test(name));
+  if (key === 'drain_net') return /排水口/.test(name) && /ネット/.test(name) && !/浴室|洗濯機/.test(name);
+  if (key === 'folding_wash_basin') return /洗い桶|洗いおけ/.test(name) && /折りたたみ|折畳|シリコン/.test(name) && !/ベビーバス|足湯|洗濯かご/.test(name);
+  if (key === 'outdoor_sunshade') return /サンシェード|日よけ|日除け/.test(name) && /窓|屋外|ベランダ|オーニング/.test(name) && !/車用|自動車|ベビーカー/.test(name);
+  if (key === 'privacy_film') return /窓/.test(name) && /目隠し|プライバシー/.test(name) && /フィルム|シート/.test(name) && !/車用|スマホ|液晶/.test(name);
+  return false;
+}
+
+function uaFetchHomeNegativeSolutionItems20260915_(spec) {
+  const plan = uaNormalizeProductPlan_(spec.plan);
+  const items = uaFetchRakutenItemsByQueries_(spec.queries, 2, 'negative-solution-20260915|' + spec.postId, plan)
+    .filter(function(item) { return uaIsHomeNegativeSolutionItemValid20260915_(spec.key, item && item.name); })
+    .slice(0, 2);
+  if (!items.length) {
+    throw new Error('post ' + spec.postId + 'に安全な解決商品がありません。' + String(UA_LAST_RAKUTEN_STATUS || ''));
+  }
+  return items;
+}
+
+function uaBuildHomeNegativeSolutionBody20260915_(context, spec, items) {
+  const before = String(context.body || '');
+  if (uaHasRakutenBanner_(before)) throw new Error('post ' + spec.postId + 'には既に楽天・Rinker商品導線があります。');
+  const plan = uaNormalizeProductPlan_(spec.plan);
+  let source = uaAttachProductPlanMarker_(before, plan);
+  const banner = uaBuildRakutenItemBannerHtml_(items, plan.marketQuery, plan, context.appConfig);
+  const itemlinks = (String(banner || '').match(/\[itemlink\s+post_id=["']?\d+/gi) || []).length;
+  if (!banner || itemlinks < 1) throw new Error('post ' + spec.postId + 'のRinker商品枠を作成できませんでした。' + String(UA_LAST_RINKER_FAILURE_REASON || ''));
+  const block = [
+    '<!-- UA_PRODUCT_FOLLOWUP_START -->',
+    '<h2>対策を実行しやすくするアイテム</h2>',
+    banner,
+    '<!-- UA_PRODUCT_FOLLOWUP_END -->'
+  ].join('\n');
+  const after = uaInsertRakutenBlockIntoBody_(source, block, { mainInput: plan.marketQuery }, context.appConfig);
+  if (after === before || !uaHasRakutenBanner_(after)) throw new Error('post ' + spec.postId + 'の商品導線挿入に失敗しました。');
+  const missingImages = uaFindMissingPublishedWpImages_(before, after);
+  if (missingImages.length) throw new Error('post ' + spec.postId + 'で既存画像が減るため停止しました: ' + missingImages.join(', '));
+  return after;
+}
+
+function uaPrepareHomeNegativeSolutionLinks20260915_() {
+  return uaGetHomeNegativeSolutionLinkSpecs20260915_().map(function(spec) {
+    const context = uaGetHomePublishedPostContext20260912_(spec.postId);
+    const items = uaFetchHomeNegativeSolutionItems20260915_(spec);
+    const after = uaBuildHomeNegativeSolutionBody20260915_(context, spec, items);
+    return { spec: spec, context: context, items: items, after: after };
+  });
+}
+
+function uaPreviewHomeNegativeSolutionLinks20260915() {
+  const result = uaPrepareHomeNegativeSolutionLinks20260915_().map(function(entry) {
+    return {
+      postId: entry.spec.postId,
+      key: entry.spec.key,
+      row: entry.context.row,
+      candidates: entry.items.map(function(item) { return String(item.name || ''); }),
+      itemlinks: (entry.after.match(/\[itemlink\s+post_id=["']?\d+/gi) || []).length,
+      published: true
+    };
+  });
+  console.log(JSON.stringify(result, null, 2));
+  return result;
+}
+
+function uaGetOrCreateHomeNegativeSolutionBackupSheet20260915_() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName(UA_HOME_NEGATIVE_SOLUTION_LINK_BACKUP_SHEET);
+  if (!sheet) {
+    sheet = ss.insertSheet(UA_HOME_NEGATIVE_SOLUTION_LINK_BACKUP_SHEET);
+    sheet.getRange(1, 1, 1, 8).setValues([[
+      'バックアップ日時', '投稿ID', 'スラッグ', 'タイトル', '公開URL',
+      '本文チャンク番号', '本文チャンク数', '修正前本文チャンク'
+    ]]);
+    sheet.setFrozenRows(1);
+    sheet.hideSheet();
+  }
+  return sheet;
+}
+
+function uaApplyHomeNegativeSolutionLinks20260915() {
+  const prepared = uaPrepareHomeNegativeSolutionLinks20260915_();
+  if (prepared.length !== 13) throw new Error('更新準備数が13件ではないため停止しました。');
+  const backupSheet = uaGetOrCreateHomeNegativeSolutionBackupSheet20260915_();
+  prepared.forEach(function(entry) {
+    uaAppendHomeWrongAffiliateBackup20260912_(backupSheet, entry.context.post, entry.context.body);
+  });
+  SpreadsheetApp.flush();
+
+  const results = [];
+  prepared.forEach(function(entry) {
+    const postId = entry.spec.postId;
+    uaCallWordPressApi_(entry.context.wpConfig, '/wp-json/wp/v2/posts/' + postId, 'post', { content: entry.after });
+    const verifiedPost = uaFetchWpPostForEdit_(entry.context.wpConfig, postId);
+    const verifiedBody = uaGetWpPostRawContent_(verifiedPost);
+    if (String(verifiedPost && verifiedPost.status || '') !== 'publish' || verifiedBody !== entry.after) {
+      throw new Error('post ' + postId + 'の再取得後検証に失敗しました。バックアップから復元してください。');
+    }
+    if (uaFindMissingPublishedWpImages_(entry.context.body, verifiedBody).length) {
+      throw new Error('post ' + postId + 'の再取得後に既存画像が減ったため停止しました。');
+    }
+    entry.context.sheet.getRange(entry.context.row, UA_COLUMNS.body).setValue(verifiedBody);
+    results.push({
+      postId: postId,
+      row: entry.context.row,
+      candidates: entry.items.map(function(item) { return String(item.name || ''); }),
+      itemlinks: (verifiedBody.match(/\[itemlink\s+post_id=["']?\d+/gi) || []).length,
+      published: true
+    });
+  });
+  SpreadsheetApp.flush();
+  const result = { ok: true, updatedPosts: results.length, backupSheet: UA_HOME_NEGATIVE_SOLUTION_LINK_BACKUP_SHEET, results: results };
+  console.log(JSON.stringify(result, null, 2));
+  return result;
+}

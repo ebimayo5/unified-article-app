@@ -5679,6 +5679,35 @@ function uaFetchHomeNegativeSolutionItems20260915_(spec) {
   return items;
 }
 
+function uaGetHomePublishedPostContextForSolutionLinks20260915_(postId) {
+  const appConfig = UA_APP_TYPES.home;
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(appConfig.articleSheetName);
+  if (!sheet) throw new Error('記事管理シートが見つかりません: ' + appConfig.articleSheetName);
+  let row = 0;
+  if (sheet.getLastRow() >= 2) {
+    const ids = sheet.getRange(2, UA_COLUMNS.wpPostId, sheet.getLastRow() - 1, 1).getValues();
+    for (let index = 0; index < ids.length; index += 1) {
+      if (Number(ids[index][0] || 0) === Number(postId)) {
+        row = index + 2;
+        break;
+      }
+    }
+  }
+  const wpConfig = uaGetWpConfig_(appConfig);
+  const post = uaFetchWpPostForEdit_(wpConfig, postId);
+  if (Number(post && post.id || 0) !== Number(postId) || String(post && post.status || '') !== 'publish') {
+    throw new Error('post ' + postId + 'が公開状態ではないため停止しました。');
+  }
+  return {
+    appConfig: appConfig,
+    sheet: sheet,
+    row: row,
+    wpConfig: wpConfig,
+    post: post,
+    body: uaGetWpPostRawContent_(post)
+  };
+}
+
 function uaBuildHomeNegativeSolutionBody20260915_(context, spec, items) {
   const before = String(context.body || '');
   if (uaHasRakutenBanner_(before)) throw new Error('post ' + spec.postId + 'には既に楽天・Rinker商品導線があります。');
@@ -5702,7 +5731,7 @@ function uaBuildHomeNegativeSolutionBody20260915_(context, spec, items) {
 
 function uaPrepareHomeNegativeSolutionLinks20260915_() {
   return uaGetHomeNegativeSolutionLinkSpecs20260915_().map(function(spec) {
-    const context = uaGetHomePublishedPostContext20260912_(spec.postId);
+    const context = uaGetHomePublishedPostContextForSolutionLinks20260915_(spec.postId);
     const items = uaFetchHomeNegativeSolutionItems20260915_(spec);
     const after = uaBuildHomeNegativeSolutionBody20260915_(context, spec, items);
     return { spec: spec, context: context, items: items, after: after };
@@ -5760,10 +5789,13 @@ function uaApplyHomeNegativeSolutionLinks20260915() {
     if (uaFindMissingPublishedWpImages_(entry.context.body, verifiedBody).length) {
       throw new Error('post ' + postId + 'の再取得後に既存画像が減ったため停止しました。');
     }
-    entry.context.sheet.getRange(entry.context.row, UA_COLUMNS.body).setValue(verifiedBody);
+    if (entry.context.row > 0) {
+      entry.context.sheet.getRange(entry.context.row, UA_COLUMNS.body).setValue(verifiedBody);
+    }
     results.push({
       postId: postId,
       row: entry.context.row,
+      sheetSynced: entry.context.row > 0,
       candidates: entry.items.map(function(item) { return String(item.name || ''); }),
       itemlinks: (verifiedBody.match(/\[itemlink\s+post_id=["']?\d+/gi) || []).length,
       published: true

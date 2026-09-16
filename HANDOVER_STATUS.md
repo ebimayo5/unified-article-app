@@ -9,13 +9,13 @@
 - 開始時刻: -
 - やっていること: -
 - 本番影響: -
-- 引き継ぎ（2026-09-16 Claude Code → Codex / 商品AI順位付け機能、clasp push〜デプロイ待ち・ユーザー承認済み）:
+- 完了内容（2026-09-16 Claude Code / 商品AI順位付け機能・本番デプロイ完了）:
   - Codexが中断した「商品AI順位付け」実装（楽天候補を広く取得→明白な誤商品を除外→OpenAIが記事文脈で順位付け→実際の商品ページ/Amazonページで裏取り）をClaude Codeが引き継ぎ完了。実装ロジック（`uaRankRakutenArticleCandidates_`, `uaValidateProductRanking_`, `uaVerifyRankedRakutenPage_`, `uaFindAmazonSameProduct_`等）はCodexのまま変更なし。新規`test_rakuten_ai_ranking.js`がFAILしていた原因（AI応答モックの`evidence`フィールド未設定/4文字未満で実装側の検証条件を満たせず、全パターンで安全停止していただけ）を特定し、テストのフィクスチャのみ修正。全48本の`test_*.js`と`git diff --check`に合格。
-  - Git状態: `article.gs`, `test_rakuten_ai_ranking.js`をコミット・push済み（`7241537`、origin/mainと一致）。
-  - **未実施（Codexへ依頼、ユーザーが承認済み＝「このままやって」）**:
-    1. `C:\Users\ebima\Documents\Codex\deploy_stale_guard`のarticle.gsが、このリポジトリのHEAD（`7241537`）と一致しているか確認（コピーしてSHA-256/diffで確認）。
-    2. `clasp push`（HEADへの反映）。
-    3. Apps Scriptエディタまたはパネルで動作確認。特に、このリポジトリの`test_rakuten_ai_ranking.js`が検証しているケース（40系アルファードテレビキャンセラー選定、別車種/汎用品の拒否、AI応答不正時の安全停止、ダイニングベンチ・電子レンジ・トイレットペーパー等の既存カテゴリを壊さないこと）が実環境でも成立するか、可能な範囲で確認する。
+  - Git状態: `article.gs`, `test_rakuten_ai_ranking.js`, 本ファイルをコミット・push済み（`26fd2e8`まで、origin/mainと一致）。
+  - **clasp push/deploy: 完了**（ユーザー自身の端末で実行、Claude Codeが手順を指示）。`C:\Users\ebima\Documents\Codex\deploy_stale_guard`をリポジトリHEADと同期→`clasp.cmd push --force`で20ファイル反映確認→同一デプロイID`AKfycbzGbxQA5AuXH3MlUZSlfTjDn1hrpH4MnNNG0NVKty0wUz1Bd-4oVXbMQUBloQvd-HCm`へ`clasp.cmd deploy -d "Add hybrid AI product ranking"`→`clasp.cmd deployments`で**版361**になったことを確認済み。Apps Scriptエディタでの個別関数実行によるユニットレベルの動作確認は行っていない（テストはローカルのNode.js回帰テストのみ）。
+  - **次回確認事項（重要・まだ未実施）**: この機能は記事ごとにOpenAI呼び出し1回＋楽天商品ページの実フェッチ＋Amazon同一商品確認（Serper経由、最大3件）を新たに追加する。版361デプロイ後、最初に自動投稿で商品導線が生成される記事（次はDRIVE BASE 5:00またはたくみパパ6:00の定時投稿）で、`UA_LAST_PRODUCT_RANKING_REASON`（fact-checkポイントに記録される選定理由ログ）を確認し、想定通りAI選定＋実ページ照合が機能しているか、無関係な理由で安全停止（商品導線が入らない）が多発していないかを見ること。異常があれば、保存済み本文・停止位置を保ったまま原因調査し、再開・再生成は勝手にしない。
+  - row138（DRIVE BASE、新型アルファード テレビキャンセラー）は21:59:42時点でWordPress公開工程・WP ID 2750へ進行中との記録あり。今回のデプロイ・作業でこの記事には一切触れていない。
+  - 詳細引き継ぎ原本: `C:\Users\ebima\Documents\Codex\2026-08-27\new-chat\Article_Compass_System_詳細引き継ぎ_2026-09-16.md`（実装要件のユーザー承認内容）。
     4. 問題なければ同一WebアプリURLへ`clasp deploy`し、`clasp deployments`で新バージョンが本番ポインタになったことを確認。
     5. **重要**: この機能は記事ごとにOpenAI呼び出し1回＋楽天商品ページ最大数件のフェッチ＋Amazon同一商品確認（Serper検索経由、最大3件）を新たに追加する。デプロイ後の最初の数記事は、商品選定理由（`UA_LAST_PRODUCT_RANKING_REASON`、公開時のfact-checkポイントに記録される）を確認し、想定通りAI選定＋実ページ照合が機能しているか、無関係な安全停止が多発していないかを見ること。
     6. 詳細引き継ぎ原本: `C:\Users\ebima\Documents\Codex\2026-08-27\new-chat\Article_Compass_System_詳細引き継ぎ_2026-09-16.md`（実装要件のユーザー承認内容）。

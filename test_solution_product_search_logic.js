@@ -125,6 +125,34 @@ assert.strictEqual(
   false,
   '車種適合以外の必須条件は従来どおり商品名で厳密に確認する'
 );
+const alphardPlan = {
+  should_insert: true,
+  primary_product: '新型アルファード対応テレビキャンセラー施工',
+  market_query: 'アルファード40系 テレビキャンセラー',
+  required_features: ['40系', '適合表', '施工対応'],
+  purchase_scale: 'standard'
+};
+assert.strictEqual(
+  context.uaIsRakutenItemRelevant_(
+    'TVキャンセラー アルファード・ヴェルファイア 40系対応',
+    'アルファード40系 テレビキャンセラー'
+  ),
+  true,
+  'テレビキャンセラーをテレビ本体用の判定に流して車載AV部品を落とさない'
+);
+assert.strictEqual(
+  context.uaEvaluateProductPlanFit_('テレビキャンセラー アルファード・ヴェルファイア 40系対応', alphardPlan).pass,
+  true,
+  '適合表・施工対応は商品名で検証できない確認条件なので、正しい40系車種専用品を落とさない'
+);
+assert.ok(
+  context.uaScoreRakutenItem_(
+    { itemName: 'テレビキャンセラー アルファード・ヴェルファイア 40系対応' },
+    'アルファード40系 テレビキャンセラー',
+    alphardPlan
+  ) > -1000,
+  '車種名と40系が確認できるテレビキャンセラーを、主検索語の語順差だけで候補から除外しない'
+);
 assert.strictEqual(
   context.uaBuildRakutenSearchTuning_(solutionPlan, '除湿機 コンパクト').sort,
   'standard',

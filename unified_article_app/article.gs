@@ -407,6 +407,17 @@ function uaBuildSupplementalProductPlan_(productPlan, rowData, appConfig) {
   }));
 }
 
+function uaDoesProductNameMeetVehicleSeriesFeature_(required, itemName) {
+  const compactRequired = String(required || '').replace(/[\s　・、,\/／()（）\[\]【】]+/g, '').replace(/新型/g, '');
+  const compactName = String(itemName || '').replace(/[\s　・、,\/／()（）\[\]【】]+/g, '');
+  const models = ['アルファード', 'ヴェルファイア'];
+  const model = models.find(function(candidate) {
+    return compactRequired.indexOf(candidate) !== -1;
+  });
+  if (!model || !/[4４][0０](?:系)?/.test(compactRequired)) return false;
+  return compactName.indexOf(model) !== -1 && /[4４][0０](?:系)?/.test(compactName);
+}
+
 function uaEvaluateProductPlanFit_(itemName, productPlan) {
   const plan = uaNormalizeProductPlan_(productPlan);
   if (!plan) return { pass: true, reason: '' };
@@ -422,32 +433,21 @@ function uaEvaluateProductPlanFit_(itemName, productPlan) {
       .toLowerCase();
   }
 
-  // 車種適合は、楽天の商品名で「アルファード 40系」のように語順が
-  // 入れ替わることがある。文字列の完全一致だけで落とすと、正しい車種
-  // 専用品まで候補から消えるため、車名と世代の両方が確認できる場合だけ
-  // 同じ適合条件として扱う。世代や車名の片方だけでは通さない。
-  function matchesVehicleSeriesFeature(required, name) {
-    const compactRequired = String(required || '').replace(/新型/g, '');
-    const compactName = String(name || '');
-    const models = ['アルファード', 'ヴェルファイア'];
-    const model = models.find(function(candidate) {
-      return compactRequired.indexOf(candidate) !== -1;
-    });
-    if (!model || !/[4４][0０](?:系)?/.test(compactRequired)) return false;
-    return compactName.indexOf(model) !== -1 && /[4４][0０](?:系)?/.test(compactName);
-  }
-
   const explicitExcluded = (plan.excludedFeatures || []).map(normalizeFeature).filter(function(term) {
     return term.length >= 2;
   });
   const excludedHit = explicitExcluded.find(function(term) { return normalizedName.indexOf(term) !== -1; });
   if (excludedHit) return { pass: false, reason: '除外条件に一致: ' + excludedHit };
 
+  // 「適合表」「施工対応」は購入前に別途確認する根拠・サービス条件であり、
+  // 楽天の商品名に含まれることは保証されない。ここで必須化すると正しい
+  // 車種専用品を全件落とすため、商品名で確認可能な仕様だけを絞り込みに使う。
+  const nonTitleVerifiableFeatures = ['適合表', '施工', '取付', '施工サポート'];
   const explicitRequired = (plan.requiredFeatures || []).map(normalizeFeature).filter(function(term) {
-    return term.length >= 2;
+    return term.length >= 2 && nonTitleVerifiableFeatures.indexOf(term) === -1;
   });
   const missingRequired = explicitRequired.find(function(term) {
-    return normalizedName.indexOf(term) === -1 && !matchesVehicleSeriesFeature(term, normalizedName);
+    return normalizedName.indexOf(term) === -1 && !uaDoesProductNameMeetVehicleSeriesFeature_(term, normalizedName);
   });
   if (missingRequired) return { pass: false, reason: '必須条件を商品名で確認できない: ' + missingRequired };
 
@@ -4894,6 +4894,9 @@ function uaIsDurableHomeProductQuery_(query) {
 function uaIsMainUnitRakutenQuery_(query) {
   const value = String(query || '').replace(/[\s　]+/g, '').toLowerCase();
   if (!value) return false;
+  // テレビキャンセラーはテレビ本体ではない。テレビ本体専用の除外判定へ
+  // 流すと、正しい車種専用キャンセラーまで「テレビではない」と落ちる。
+  if (/(?:テレビ|tv)(?:キャンセラー|キット)/i.test(value)) return false;
   if (/テレビスタンド|テレビ台|テレビ(?:裏|背面)(?:収納|ラック)|(?:収納|ラック).*テレビ(?:裏|背面)|配線カバー/.test(value)) return false;
   if (uaIsDurableHomeProductQuery_(value)) return true;
   return /テレビ|シーリングライト|天井照明|室内ジャングルジム|ジャングルジム|室内遊具|ビーズソファ|ビーズクッション|サーキュレーター/.test(value);
@@ -4989,6 +4992,9 @@ const UA_RAKUTEN_ACCESSORY_QUERY_HINT_ = /プラグ|アダプター|変換|バ�
 function uaDoesRakutenItemMatchCategoryAnchor_(itemName, query) {
   const name = String(itemName || '').replace(/[\s　]+/g, '').toLowerCase();
   const queryText = String(query || '').replace(/[\s　]+/g, '').toLowerCase();
+  if (/(?:テレビ|tv)(?:キャンセラー|キット)/i.test(queryText)) {
+    return /(?:テレビ|tv)(?:キャンセラー|キット)/i.test(name);
+  }
   if (UA_RAKUTEN_ACCESSORY_QUERY_HINT_.test(queryText)) return true;
   const requestedGroups = UA_RAKUTEN_CATEGORY_ANCHOR_GROUPS_.filter(function(group) {
     return group.some(function(term) {
@@ -5009,6 +5015,12 @@ function uaIsRakutenItemRelevant_(itemName, query) {
   if (!name || !queryText) return false;
   if (!uaIsMainUnitRakutenItem_(itemName, query)) return false;
   if (!uaDoesRakutenItemMatchCategoryAnchor_(itemName, query)) return false;
+
+  // テレビキャンセラーは車載AV用の部品。一般の「テレビ」カテゴリに
+  // 含めると、テレビ本体を求める判定と衝突するため商品名で専用語を確認する。
+  if (/(?:テレビ|tv)(?:キャンセラー|キット)/i.test(queryText)) {
+    return /(?:テレビ|tv)(?:キャンセラー|キット)/i.test(name);
+  }
 
   if (/ダイニング/.test(queryText)) {
     if (!/ダイニング/.test(name) || !/ベンチ|チェア|椅子|いす|テーブル/.test(name)) return false;
@@ -5187,8 +5199,11 @@ function uaScoreRakutenItem_(item, query, productPlan) {
       return term.length >= 2 && !/^(家庭用|屋外|室内|コンパクト|おすすめ|比較|対策)$/.test(term);
     });
     const primaryMatches = primaryTerms.filter(function(term) { return normalizedName.indexOf(term) !== -1; }).length;
-    if (primaryTerms.length > 0 && primaryMatches === 0 && normalizedName.indexOf(normalizedQuery) === -1) return -1000;
-    score += Math.min(30, primaryMatches * 10);
+    const vehicleSeriesMatch = [plan.primaryProduct, plan.marketQuery, query].some(function(value) {
+      return uaDoesProductNameMeetVehicleSeriesFeature_(value, itemName);
+    });
+    if (primaryTerms.length > 0 && primaryMatches === 0 && normalizedName.indexOf(normalizedQuery) === -1 && !vehicleSeriesMatch) return -1000;
+    score += Math.min(30, primaryMatches * 10) + (vehicleSeriesMatch ? 10 : 0);
 
     const mustTerms = normalizedTerms(plan.mustHave);
     score += Math.min(20, mustTerms.filter(function(term) { return normalizedName.indexOf(term) !== -1; }).length * 5);

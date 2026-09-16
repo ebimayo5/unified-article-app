@@ -2286,10 +2286,22 @@ function uaEnsureAutomaticProductLinksForData_(data) {
     const reason = String(
       UA_LAST_RAKUTEN_STATUS || refreshedAssessment.reason || '適切な商品候補を取得できませんでした'
     );
+    // A saved article can carry an actionable solution product plan even when
+    // its title does not match the main-keyword product catalog.  Do not turn
+    // that quality stop into a TypeError while composing the diagnostic.
+    const searchConditions = mainKeywordProfile && Array.isArray(mainKeywordProfile.queries)
+      ? mainKeywordProfile.queries.join(' / ')
+      : [
+        resolvedProductPlan && resolvedProductPlan.marketQuery,
+        resolvedProductPlan && resolvedProductPlan.primaryProduct
+      ].filter(function(value, index, values) {
+        value = String(value || '').trim();
+        return value && values.indexOf(value) === index;
+      }).join(' / ') || '商品プロフィール未取得';
     throw new Error(
       'メインキーワードが商品を示す記事ですが、適切なRinker・楽天・Amazon導線を作成できませんでした。' +
       '無関係商品で埋めず、WordPress下書き前で停止します。検索条件: ' +
-      mainKeywordProfile.queries.join(' / ') + '。理由: ' + reason
+      searchConditions + '。理由: ' + reason
     );
   }
   return result;

@@ -520,9 +520,24 @@ assert.throws(
   /適切なRinker・楽天・Amazon導線を作成できませんでした/,
   '比較記事の再選定後も1候補しかない場合はWPへ進めず停止する'
 );
+const originalMainKeywordProfile = context.uaGetMainKeywordProductProfile_;
+const originalProductAssessment = context.uaGetExistingProductLinkAssessment_;
+context.uaGetMainKeywordProductProfile_ = () => null;
+context.uaGetExistingProductLinkAssessment_ = () => ({ adequate: false, reason: '候補が適合条件を満たしませんでした' });
+ensuredBody = context.uaAttachProductPlanMarker_(
+  '<p>テレビキャンセラーの適合を確認してから選びます。</p>',
+  { should_insert: true, primary_product: 'テレビキャンセラー', market_query: '新型アルファード テレビキャンセラー' }
+);
+assert.throws(
+  () => context.uaEnsureAutomaticProductLinksForData_({ row: 2 }),
+  /検索条件: 新型アルファード テレビキャンセラー \/ テレビキャンセラー。理由:/,
+  '商品プロフィールが未取得でも、商品導線保証はnull参照で落ちず検索条件を残して安全停止する'
+);
+context.uaGetMainKeywordProductProfile_ = originalMainKeywordProfile;
+context.uaGetExistingProductLinkAssessment_ = originalProductAssessment;
 ensuredBody = '[itemlink post_id="801"]';
 context.uaEnsureAutomaticProductLinksForData_({ row: 2 });
-assert.strictEqual(ensureCalls, 2, '手動Rinkerは商品導線保証工程でも置換しない');
+assert.strictEqual(ensureCalls, 3, '手動Rinkerは商品導線保証工程でも置換しない');
 context.uaGetSheetForData_ = originalGetSheetForData;
 context.uaGetRakutenRowContext_ = originalGetRakutenRowContext;
 context.uaBuildRowData_ = originalBuildRowData;

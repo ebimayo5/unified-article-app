@@ -4,11 +4,22 @@
 作業を始める前・区切りがつくたびに、必ずここを読み書きすること（CLAUDE.md / AGENTS.md の「並行作業ルール」参照）。
 複数エージェントが同時に動く前提のため、このセクションだけは「最終更新」より新しい情報になり得る。
 
-- 状態: 作業中
-- エージェント: Claude Code（Codexがレート制限に達したため引き継ぎ）
-- 開始時刻: 2026-09-16（継続セッション）
-- やっていること: Codexが中断した「商品AI順位付け」実装（article.gs、未コミットで216行追加・新規test_rakuten_ai_ranking.js）を引き継ぎ完了。テストのフィクスチャ不備（AI応答モックのranking.evidenceが未設定/短すぎて、実装側の検証条件を満たさず全件安全停止していた）を修正し、新規テストを含む全48本の`test_*.js`がPASSする状態にした。コードのロジック自体（uaRankRakutenArticleCandidates_等）はCodexの実装のまま変更していない。
-- 本番影響: まだなし。commit/push予定だが、`clasp push`はこの環境では自動モードの分類器にブロックされる（前回同様）。この機能は記事ごとにOpenAI呼び出し＋楽天商品ページ・Amazon商品ページへの実際のHTTPフェッチを追加で行う、本番の商品選定ロジックを変える大きめの変更のため、デプロイ前に一度ユーザー確認を挟むことを推奨。詳細引き継ぎは `C:\Users\ebima\Documents\Codex\2026-08-27\new-chat\Article_Compass_System_詳細引き継ぎ_2026-09-16.md` 参照（実装要件の原本）。版360 `Fix TV canceller product matching`が引き続き本番稼働中。row138は21:59:42時点でWordPress公開工程・WP ID 2750へ進行中との記録あり（Claude Codeはこのセッションで再開・再生成・WordPress操作は一切行っていない）。
+- 状態: 空き
+- エージェント: なし
+- 開始時刻: -
+- やっていること: -
+- 本番影響: -
+- 引き継ぎ（2026-09-16 Claude Code → Codex / 商品AI順位付け機能、clasp push〜デプロイ待ち・ユーザー承認済み）:
+  - Codexが中断した「商品AI順位付け」実装（楽天候補を広く取得→明白な誤商品を除外→OpenAIが記事文脈で順位付け→実際の商品ページ/Amazonページで裏取り）をClaude Codeが引き継ぎ完了。実装ロジック（`uaRankRakutenArticleCandidates_`, `uaValidateProductRanking_`, `uaVerifyRankedRakutenPage_`, `uaFindAmazonSameProduct_`等）はCodexのまま変更なし。新規`test_rakuten_ai_ranking.js`がFAILしていた原因（AI応答モックの`evidence`フィールド未設定/4文字未満で実装側の検証条件を満たせず、全パターンで安全停止していただけ）を特定し、テストのフィクスチャのみ修正。全48本の`test_*.js`と`git diff --check`に合格。
+  - Git状態: `article.gs`, `test_rakuten_ai_ranking.js`をコミット・push済み（`7241537`、origin/mainと一致）。
+  - **未実施（Codexへ依頼、ユーザーが承認済み＝「このままやって」）**:
+    1. `C:\Users\ebima\Documents\Codex\deploy_stale_guard`のarticle.gsが、このリポジトリのHEAD（`7241537`）と一致しているか確認（コピーしてSHA-256/diffで確認）。
+    2. `clasp push`（HEADへの反映）。
+    3. Apps Scriptエディタまたはパネルで動作確認。特に、このリポジトリの`test_rakuten_ai_ranking.js`が検証しているケース（40系アルファードテレビキャンセラー選定、別車種/汎用品の拒否、AI応答不正時の安全停止、ダイニングベンチ・電子レンジ・トイレットペーパー等の既存カテゴリを壊さないこと）が実環境でも成立するか、可能な範囲で確認する。
+    4. 問題なければ同一WebアプリURLへ`clasp deploy`し、`clasp deployments`で新バージョンが本番ポインタになったことを確認。
+    5. **重要**: この機能は記事ごとにOpenAI呼び出し1回＋楽天商品ページ最大数件のフェッチ＋Amazon同一商品確認（Serper検索経由、最大3件）を新たに追加する。デプロイ後の最初の数記事は、商品選定理由（`UA_LAST_PRODUCT_RANKING_REASON`、公開時のfact-checkポイントに記録される）を確認し、想定通りAI選定＋実ページ照合が機能しているか、無関係な安全停止が多発していないかを見ること。
+    6. 詳細引き継ぎ原本: `C:\Users\ebima\Documents\Codex\2026-08-27\new-chat\Article_Compass_System_詳細引き継ぎ_2026-09-16.md`（実装要件のユーザー承認内容）。
+  - 版360 `Fix TV canceller product matching`が引き続き本番稼働中（今回の機能はまだ含まれない）。row138は21:59:42時点でWordPress公開工程・WP ID 2750へ進行中との記録あり（Claude Codeはこのセッションで再開・再生成・WordPress操作は一切行っていない）。
 - 完了内容（2026-09-16 Codex / 次チャット用詳細引き継ぎ作成）: 本番版360、Git、Apps Script配布先、row138停止の保存状態・版358/360の真因と修正、既存OpenAI固定設定、ユーザー承認済みの「楽天候補→明白な除外→OpenAI順位付け→実ページ照合」実装要件、監査安全規則を詳細ファイルへ整理。次チャットで既存の定時監査automationを確認して送信先を移し、旧チャットと重複させない指示も追加した。
 - 完了内容（2026-09-16 Codex / DRIVE BASEテレビキャンセラー停止の根本修正）: 版358後もrow138が停止したため保存済み`UA_PRODUCT_PLAN`を直接確認。必須条件`適合表`・`施工対応`は楽天の商品名で検証できない確認・サービス条件なのに、商品名の必須語として全候補を誤拒否していた。さらに`テレビキャンセラー`をテレビ本体として扱う既存判定が、テレビ本体でない車載AV部品を拒否していた。商品名で確認できる40系・車名・テレビキャンセラーだけを厳密に照合し、適合表・施工対応は購入前の確認条件として本文側に残すよう修正。車種違い・世代違い・テレビ本体以外の無関係品は引き続き拒否するテストを含め、全テストと`git diff --check`に合格。Git `77d1a39`をorigin/mainへpush済み。Apps Scriptをpushし、同一WebアプリURLは版360（版359は反映コマンドの二重実行で同内容）へ更新、`clasp versions`と`clasp deployments`で版360を確認。row138の本文・停止位置・WP未投稿状態は保持し、再開・再生成はしていない。
 - 完了内容（2026-09-16 Codex / DRIVE BASE車種適合商品の誤拒否修正）: row138「新型アルファード テレビキャンセラー」が、楽天API候補なしではなく、楽天商品名の語順差（例: `アルファード・ヴェルファイア 40系対応`）を必須条件`新型アルファード40系対応`との完全一致で誤拒否して停止していたことを確認。`uaEvaluateProductPlanFit_`を修正し、車名と40系の両方を商品名で確認できる場合だけ同じ適合条件として許可するようにした。別車種、30系、車種以外の必須条件は従来どおり拒否する回帰テスト4件を追加し、全テストと`git diff --check`に合格。Git `c484e0f`をorigin/mainへpush済み。Apps Scriptソースをpushし、同一WebアプリURLを版358 `Fix vehicle-fit product matching`へ更新、`clasp versions`と`clasp deployments`の両方で版358を確認。停止中row138の本文・停止位置・WP未投稿状態は保持し、ユーザーの明示指示がないため再開・再生成はしていない。

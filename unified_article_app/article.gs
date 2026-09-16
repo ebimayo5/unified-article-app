@@ -422,6 +422,21 @@ function uaEvaluateProductPlanFit_(itemName, productPlan) {
       .toLowerCase();
   }
 
+  // 車種適合は、楽天の商品名で「アルファード 40系」のように語順が
+  // 入れ替わることがある。文字列の完全一致だけで落とすと、正しい車種
+  // 専用品まで候補から消えるため、車名と世代の両方が確認できる場合だけ
+  // 同じ適合条件として扱う。世代や車名の片方だけでは通さない。
+  function matchesVehicleSeriesFeature(required, name) {
+    const compactRequired = String(required || '').replace(/新型/g, '');
+    const compactName = String(name || '');
+    const models = ['アルファード', 'ヴェルファイア'];
+    const model = models.find(function(candidate) {
+      return compactRequired.indexOf(candidate) !== -1;
+    });
+    if (!model || !/[4４][0０](?:系)?/.test(compactRequired)) return false;
+    return compactName.indexOf(model) !== -1 && /[4４][0０](?:系)?/.test(compactName);
+  }
+
   const explicitExcluded = (plan.excludedFeatures || []).map(normalizeFeature).filter(function(term) {
     return term.length >= 2;
   });
@@ -431,7 +446,9 @@ function uaEvaluateProductPlanFit_(itemName, productPlan) {
   const explicitRequired = (plan.requiredFeatures || []).map(normalizeFeature).filter(function(term) {
     return term.length >= 2;
   });
-  const missingRequired = explicitRequired.find(function(term) { return normalizedName.indexOf(term) === -1; });
+  const missingRequired = explicitRequired.find(function(term) {
+    return normalizedName.indexOf(term) === -1 && !matchesVehicleSeriesFeature(term, normalizedName);
+  });
   if (missingRequired) return { pass: false, reason: '必須条件を商品名で確認できない: ' + missingRequired };
 
   const bulkTerms = [

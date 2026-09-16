@@ -94,6 +94,38 @@ assert.strictEqual(
   '屋外用ベンチをダイニングの解決商品として採用しない'
 );
 assert.strictEqual(
+  context.uaEvaluateProductPlanFit_('テレビキャンセラー アルファード・ヴェルファイア 40系対応', {
+    should_insert: true,
+    required_features: ['新型アルファード40系対応']
+  }).pass,
+  true,
+  '車名と世代が商品名で確認できれば、語順や「新型」の有無だけで正しい車種適合品を落とさない'
+);
+assert.strictEqual(
+  context.uaEvaluateProductPlanFit_('テレビキャンセラー ヴェルファイア 40系対応', {
+    should_insert: true,
+    required_features: ['新型アルファード40系対応']
+  }).pass,
+  false,
+  '世代が一致しても指定車名がない車種専用品は通さない'
+);
+assert.strictEqual(
+  context.uaEvaluateProductPlanFit_('テレビキャンセラー アルファード 30系対応', {
+    should_insert: true,
+    required_features: ['新型アルファード40系対応']
+  }).pass,
+  false,
+  '車名が一致しても世代違いの車種専用品は通さない'
+);
+assert.strictEqual(
+  context.uaEvaluateProductPlanFit_('テレビキャンセラー アルファード 40系対応', {
+    should_insert: true,
+    required_features: ['防水']
+  }).pass,
+  false,
+  '車種適合以外の必須条件は従来どおり商品名で厳密に確認する'
+);
+assert.strictEqual(
   context.uaBuildRakutenSearchTuning_(solutionPlan, '除湿機 コンパクト').sort,
   'standard',
   'たくみの家電本体も安価な交換部品より本体を優先する'

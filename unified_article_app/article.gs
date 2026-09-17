@@ -2248,6 +2248,18 @@ function uaAddRakutenBannerForData_(data) {
   return uaAddRakutenBannerForContext_(context);
 }
 
+// Older DRIVE BASE articles can predate UA_PRODUCT_PLAN. A broad explanatory
+// query (for example "純正 ナビ メリット") does not identify a product to sell,
+// so forcing product-link guarantee risks unrelated items and an extra AI call.
+// New product-led articles carry a plan; an explicit note still takes priority.
+function uaShouldSkipUnplannedInformationalDriveProductLinks_(rowData, appConfig, storedProductPlan) {
+  if (!appConfig || appConfig.key !== 'drive' || storedProductPlan) return false;
+  const notes = String(rowData && rowData.affiliateNotes || '');
+  if (/楽天バナーあり|楽天あり/.test(notes)) return false;
+  const keyword = String(rowData && rowData.mainInput || '').replace(/\s+/g, ' ').trim();
+  return /(?:メリット|デメリット|とは|違い|比較|評判|口コミ)/.test(keyword);
+}
+
 function uaEnsureAutomaticProductLinksForData_(data) {
   const sheet = uaGetSheetForData_(data || {});
   const row = Number(data && data.row) || sheet.getActiveCell().getRow();
@@ -2270,8 +2282,20 @@ function uaEnsureAutomaticProductLinksForData_(data) {
   }
 
   const notes = String(context.rowData && context.rowData.affiliateNotes || '');
-  const mainKeywordProfile = uaGetMainKeywordProductProfile_(context.rowData, context.appConfig);
   const storedProductPlan = uaExtractProductPlan_(context.body);
+  if (uaShouldSkipUnplannedInformationalDriveProductLinks_(
+    context.rowData,
+    context.appConfig,
+    storedProductPlan
+  )) {
+    const skipped = uaBuildRowData_(sheet, row);
+    const reason = '保存済み商品計画のない情報記事のため、無関係な商品を選定せず主要案件導線を保持';
+    uaAppendFactCheckPoint_(sheet, row, '・商品導線保証をスキップ｜' + reason);
+    skipped.message = '商品導線は意図的にスキップしました: ' + reason;
+    return skipped;
+  }
+
+  const mainKeywordProfile = uaGetMainKeywordProductProfile_(context.rowData, context.appConfig);
   const resolvedProductPlan = storedProductPlan || uaResolveLegacySolutionProductPlan_(
     context.body,
     context.rowData,
@@ -4893,9 +4917,12 @@ function uaFindAmazonProductPages_(item) {
 function uaRankRakutenArticleCandidates_(ruleItems, pool, rowData, plan, query, count, profile) {
   // No fetched pool means this call did not perform product discovery.
   if (!pool.length) return ruleItems;
-  let candidates = uaDedupeRakutenItems_(ruleItems.concat(pool)).filter(function(item) {
-    return uaRakutenDirectItemUrl_(item.itemUrl) &&
-      !uaIsClearlyWrongRakutenCandidate_(item.name, item.searchQuery || query, plan);
+  const discoveredCandidates = uaDedupeRakutenItems_(ruleItems.concat(pool));
+  const directUrlCandidates = discoveredCandidates.filter(function(item) {
+    return uaRakutenDirectItemUrl_(item.itemUrl);
+  });
+  let candidates = directUrlCandidates.filter(function(item) {
+    return !uaIsClearlyWrongRakutenCandidate_(item.name, item.searchQuery || query, plan);
   }).slice(0, 5);
   const boundedPlan = {};
   ['primaryProduct', 'marketQuery', 'purpose', 'benefit', 'mustHave', 'exclude', 'requiredFeatures', 'excludedFeatures'].forEach(function(key) {
@@ -4918,7 +4945,9 @@ function uaRankRakutenArticleCandidates_(ruleItems, pool, rowData, plan, query, 
     // with the same article/candidates during the same Apps Script execution.
     result = { items: [], reason: '' };
     UA_PRODUCT_RANKING_CACHE[cacheKey] = result;
-    let stage = '候補なし';
+    let stage = '候補なし（楽天候補' + discoveredCandidates.length + '件・正規URL' +
+      directUrlCandidates.length + '件・明白な不適合除外' +
+      Math.max(0, directUrlCandidates.length - candidates.length) + '件）';
     try {
       if (!candidates.length) throw new Error('No eligible candidates');
       stage = '楽天ページ取得';

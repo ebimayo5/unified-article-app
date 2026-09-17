@@ -1058,7 +1058,10 @@
           renderAutomaticPostingProgress(settings.activeProgress);
         }
         const notice = document.getElementById('notice');
-        if (settings.activeKeyword && !window.uaCurrentOperationToken) {
+        const actionNoticeUntil = notice ? Number(notice.dataset.actionNoticeUntil || 0) : 0;
+        const keepActionNotice = actionNoticeUntil > Date.now();
+        if (notice && actionNoticeUntil && !keepActionNotice) delete notice.dataset.actionNoticeUntil;
+        if (settings.activeKeyword && !window.uaCurrentOperationToken && !keepActionNotice) {
           if (notice) {
             const now = new Date();
             const timeText = [now.getHours(), now.getMinutes(), now.getSeconds()]
@@ -3178,7 +3181,7 @@
           fillForm(data);
           showTab('body');
           setProgress('done');
-          setNotice(data.message || commerceLinkText('楽天バナーを本文へ追加しました。', 'Rinker商品を本文へ追加しました。'), false);
+          setNotice(data.message || commerceLinkText('楽天バナーを本文へ追加しました。', 'Rinker商品を本文へ追加しました。'), false, 12000);
         }).withFailureHandler(fail).uaAddRakutenBannerFromWeb(payload);
       }
 
@@ -3476,10 +3479,15 @@
         }
       }
 
-      function setNotice(message, isError) {
+      function setNotice(message, isError, keepVisibleMs) {
         const notice = document.getElementById('notice');
         notice.textContent = message;
         notice.className = isError ? 'status error' : 'status';
+        if (Number(keepVisibleMs) > 0) {
+          notice.dataset.actionNoticeUntil = String(Date.now() + Number(keepVisibleMs));
+        } else {
+          delete notice.dataset.actionNoticeUntil;
+        }
       }
 
       function beginCancelableOperation(message, button) {

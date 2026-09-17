@@ -3167,7 +3167,7 @@ function uaApplyRakutenAffiliateBanner_(body, rowData, appConfig) {
     ? uaAttachProductPlanMarker_(body, effectiveProductPlan)
     : body;
   const productPlan = uaExtractProductPlan_(body);
-  const selectedQuery = uaSelectRakutenProductQuery_(body, rowData, appConfig);
+  const selectedQuery = UA_LAST_RAKUTEN_QUERY || uaSelectRakutenProductQuery_(sourceBody, rowData, appConfig);
   UA_LAST_RAKUTEN_STATUS = '挿入済み｜主役商品: ' +
     String(productPlan && productPlan.primaryProduct || selectedQuery || '関連商品') +
     '｜検索条件: ' + String(selectedQuery || '自動判定') +
@@ -4749,7 +4749,15 @@ function uaIsClearlyWrongRakutenCandidate_(name, query, plan) {
 
 // Only API-supplied item URLs may be fetched. Never follow redirects or AI URLs.
 function uaRakutenDirectItemUrl_(value) {
-  const match = String(value || '').match(/^https:\/\/item\.rakuten\.co\.jp\/([a-z0-9_-]+)\/([a-z0-9_.%-]+)\/?(?:[?#].*)?$/i);
+  let raw = String(value || '').trim().replace(/&amp;/g, '&');
+  // Rakuten's API returns an affiliate link in itemUrl too when affiliateId
+  // is supplied. Decode its declared target locally; never fetch the redirect.
+  if (/^https:\/\/hb\.afl\.rakuten\.co\.jp\//i.test(raw)) {
+    const target = raw.match(/[?&](?:pc|m)=([^&]+)/i);
+    if (!target) return '';
+    try { raw = decodeURIComponent(target[1]); } catch (e) { return ''; }
+  }
+  const match = raw.match(/^https?:\/\/item\.rakuten\.co\.jp\/([a-z0-9_-]+)\/([a-z0-9_.%-]+)\/?(?:[?#].*)?$/i);
   return match ? 'https://item.rakuten.co.jp/' + match[1] + '/' + match[2] + '/' : '';
 }
 
@@ -4965,6 +4973,9 @@ function uaRankRakutenArticleCandidates_(ruleItems, pool, rowData, plan, query, 
         return uaVerifyRankedRakutenPage_(item, plan);
       })) throw new Error('Unverified product page');
       result.items = selected;
+      // Placement helpers reuse this already judged query instead of spending
+      // a second AI call to rejudge its wording after successful page ranking.
+      UA_RAKUTEN_QUERY_RELEVANCE_CACHE_[String(rowData && rowData.mainInput || '').trim() + '␟' + String(query || '').trim()] = true;
       result.reason = 'OpenAI商品選定・実ページ照合済み｜' +
         selected.map(function(item) { return item.amazonVerifiedUrl ? 'Amazon同一商品AI照合済み' : 'Amazon同一商品未確認'; }).join(' / ') +
         '｜' + response.data.reason.replace(/[\r\n<>]/g, ' ').slice(0, 180);

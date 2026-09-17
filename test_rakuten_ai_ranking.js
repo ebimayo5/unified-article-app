@@ -137,6 +137,22 @@ for (const matched of [true, false]) {
 }
 console.log('Rakuten AI ranking safety tests passed');
 {
+  const { context: c, calls } = setup(answer, goodName);
+  const direct = 'https://item.rakuten.co.jp/shop/item0/';
+  const wrapped = 'https://hb.afl.rakuten.co.jp/hgc/test/?pc=' + encodeURIComponent(direct) + '&m=' + encodeURIComponent(direct);
+  assert.strictEqual(c.uaRakutenDirectItemUrl_(wrapped), direct);
+  assert.strictEqual(run(c, [{ ...good, itemUrl: wrapped }]).length, 1, 'affiliateId指定APIのitemUrlも検証できる');
+  assert.strictEqual(calls.page, 1, '広告リダイレクト自体は取得しない');
+  for (const bad of [
+    'https://hb.afl.rakuten.co.jp.evil.example/?pc=' + encodeURIComponent(direct),
+    'https://hb.afl.rakuten.co.jp/hgc/test/?pc=' + encodeURIComponent('https://evil.example/x'),
+    'https://hb.afl.rakuten.co.jp/hgc/test/?pc=%ZZ',
+    'https://hb.afl.rakuten.co.jp/hgc/test/'
+  ]) assert.strictEqual(c.uaRakutenDirectItemUrl_(bad), '', '不正ホスト・転送先・エンコード拒否');
+  c.uaCallGeminiJson_ = () => { throw new Error('重複AI判定は禁止'); };
+  assert.strictEqual(c.uaIsRakutenProductQueryRelevant_(query, { mainInput: query }, {}), true, 'AI選定済みクエリは配置処理で再判定しない');
+}
+{
   const { context: c } = setup(answer, goodName);
   c.uaSelectRakutenProductQuery_ = () => { throw new Error('旧検索語判定へ戻ってはいけない'); };
   c.uaBuildRakutenAffiliateBanner_ = () => '<p>verified product</p>';

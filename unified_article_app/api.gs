@@ -138,18 +138,34 @@ function uaCallOpenAiJson_(promptText, maxOutputTokens) {
   const responseText = response.getContentText();
 
   if (statusCode < 200 || statusCode >= 300) {
-    throw new Error('OpenAI APIエラー: ' + responseText);
+    const error = new Error('OpenAI APIエラー: ' + responseText);
+    error.productDiagnosticCode = 'http_' + statusCode;
+    throw error;
   }
 
   const json = JSON.parse(responseText);
   const text = uaExtractOpenAiText_(json);
 
-  if (!text) {
-    throw new Error('OpenAIから本文が返りませんでした。');
+  if (json.status === 'incomplete') {
+    const error = new Error('OpenAIのJSON応答が未完了です。');
+    error.productDiagnosticCode = json.incomplete_details && json.incomplete_details.reason === 'max_output_tokens'
+      ? 'output_token_limit' : 'incomplete_response';
+    throw error;
   }
 
+  if (!text) {
+    const error = new Error('OpenAIから本文が返りませんでした。');
+    error.productDiagnosticCode = 'empty_response';
+    throw error;
+  }
+  let data;
+  try { data = JSON.parse(uaStripJsonFence_(text)); } catch (e) {
+    const error = new Error('OpenAIのJSON応答を解析できませんでした。');
+    error.productDiagnosticCode = 'invalid_json';
+    throw error;
+  }
   return {
-    data: JSON.parse(uaStripJsonFence_(text)),
+    data: data,
     model: model
   };
 }

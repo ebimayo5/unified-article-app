@@ -2260,6 +2260,18 @@ function uaShouldSkipUnplannedInformationalDriveProductLinks_(rowData, appConfig
   return /(?:メリット|デメリット|とは|違い|比較|評判|口コミ)/.test(keyword);
 }
 
+function uaBuildAutomaticProductLinkSkipResult_(context, reason) {
+  const safeReason = String(reason || '商品購入が検索意図の解決策ではありません');
+  uaAppendFactCheckPoint_(
+    context.sheet,
+    context.row,
+    '・商品導線保証をスキップ｜' + safeReason
+  );
+  const skipped = uaBuildRowData_(context.sheet, context.row);
+  skipped.message = '商品導線は意図的にスキップしました: ' + safeReason;
+  return skipped;
+}
+
 function uaEnsureAutomaticProductLinksForData_(data) {
   const sheet = uaGetSheetForData_(data || {});
   const row = Number(data && data.row) || sheet.getActiveCell().getRow();
@@ -2288,11 +2300,8 @@ function uaEnsureAutomaticProductLinksForData_(data) {
     context.appConfig,
     storedProductPlan
   )) {
-    const skipped = uaBuildRowData_(sheet, row);
     const reason = '保存済み商品計画のない情報記事のため、無関係な商品を選定せず主要案件導線を保持';
-    uaAppendFactCheckPoint_(sheet, row, '・商品導線保証をスキップ｜' + reason);
-    skipped.message = '商品導線は意図的にスキップしました: ' + reason;
-    return skipped;
+    return uaBuildAutomaticProductLinkSkipResult_(context, reason);
   }
 
   const mainKeywordProfile = uaGetMainKeywordProductProfile_(context.rowData, context.appConfig);
@@ -2313,10 +2322,10 @@ function uaEnsureAutomaticProductLinksForData_(data) {
 
   UA_LAST_RAKUTEN_STATUS = '';
   if (!uaShouldInsertRakutenAffiliateBanner_(context.body, context.rowData, context.appConfig)) {
-    const skipped = uaBuildRowData_(sheet, row);
-    skipped.message = '商品導線は意図的にスキップしました: ' +
-      String(UA_LAST_RAKUTEN_STATUS || '商品購入が検索意図の解決策ではありません');
-    return skipped;
+    return uaBuildAutomaticProductLinkSkipResult_(
+      context,
+      UA_LAST_RAKUTEN_STATUS || '商品購入が検索意図の解決策ではありません'
+    );
   }
 
   const result = uaAddRakutenBannerForContext_(context);

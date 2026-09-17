@@ -39,4 +39,18 @@ assert.strictEqual(
   'たくみパパの既存商品導線判定には影響しない'
 );
 
+const logged = [];
+context.uaAppendFactCheckPoint_ = (sheet, row, line) => logged.push({ sheet, row, line });
+context.uaBuildRowData_ = (sheet, row) => ({ sheet, row });
+const skipped = context.uaBuildAutomaticProductLinkSkipResult_(
+  { sheet: 'article-sheet', row: 139 },
+  '商品購入が検索意図の解決策ではありません'
+);
+assert.strictEqual(skipped.message, '商品導線は意図的にスキップしました: 商品購入が検索意図の解決策ではありません');
+assert.deepStrictEqual(logged, [{
+  sheet: 'article-sheet',
+  row: 139,
+  line: '・商品導線保証をスキップ｜商品購入が検索意図の解決策ではありません'
+}], '商品なしで続行した理由を確認記録へ残す');
+
 console.log('DRIVE unplanned informational product-link skip tests passed');

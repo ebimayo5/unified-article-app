@@ -2260,6 +2260,18 @@ function uaShouldSkipUnplannedInformationalDriveProductLinks_(rowData, appConfig
   return /(?:メリット|デメリット|とは|違い|比較|評判|口コミ)/.test(keyword);
 }
 
+// Distinguishes a legitimate "nothing sellable fits" content judgment from a
+// technical/process failure worth stopping for human review. "候補なし" means
+// the marketplace search itself never produced an eligible candidate (often
+// because the keyword's real answer is a service or fact, not a product).
+// "AIが適合商品なしと判定" means the AI reviewed real fetched candidates and
+// explicitly rejected every one against the article's own requirements.
+// Both are accurate answers, not errors, and retrying will not change them.
+function uaIsNaturalNoProductOutcome_(reason) {
+  const text = String(reason || '');
+  return /AIが適合商品なしと判定/.test(text) || /候補なし（/.test(text);
+}
+
 function uaBuildAutomaticProductLinkSkipResult_(context, reason) {
   const safeReason = String(reason || '商品購入が検索意図の解決策ではありません');
   uaAppendFactCheckPoint_(
@@ -2351,6 +2363,24 @@ function uaEnsureAutomaticProductLinksForData_(data) {
         value = String(value || '').trim();
         return value && values.indexOf(value) === index;
       }).join(' / ') || '商品プロフィール未取得';
+    // Explicit "楽天あり" always demands a human look. Otherwise, a clean
+    // "no sellable match" finding (the AI reviewed real candidates and
+    // rejected all of them, or the marketplace search itself returned no
+    // eligible candidate at all) is a legitimate content judgment, not a
+    // technical failure. Forcing a stop here does not fix a broken search;
+    // it just leaves the article permanently stuck (e.g. a keyword like
+    // "純正 ナビ メリット" whose natural product is an installation SERVICE,
+    // which by definition has no verifiable Rakuten/Amazon listing). Only
+    // genuine process failures (API/JSON errors, unreadable product pages,
+    // a missing required comparison brand, unverifiable page evidence)
+    // still stop for human review.
+    const explicitProductRequired = /楽天バナーあり|楽天あり/.test(notes);
+    if (!explicitProductRequired && uaIsNaturalNoProductOutcome_(reason)) {
+      return uaBuildAutomaticProductLinkSkipResult_(
+        context,
+        '検索条件: ' + searchConditions + '。理由: ' + reason
+      );
+    }
     throw new Error(
       'メインキーワードが商品を示す記事ですが、適切なRinker・楽天・Amazon導線を作成できませんでした。' +
       '無関係商品で埋めず、WordPress下書き前で停止します。検索条件: ' +

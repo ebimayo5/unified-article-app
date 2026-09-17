@@ -2769,13 +2769,9 @@ function uaGetRakutenRowContext_(sheet, row) {
 }
 
 function uaBuildRakutenFollowupBlock_(body, rowData, appConfig) {
-  const query = uaSelectRakutenProductQuery_(body, rowData, appConfig);
-
-  if (!query) {
-    UA_LAST_RAKUTEN_STATUS = '商品検索キーワードを選定できませんでした。';
-    return '';
-  }
-
+  // The core resolves the article's solution plan and performs grounded ranking.
+  // An earlier title/query-only AI gate rejected useful alternatives before the
+  // candidate pages could be judged, and spent another call on every insertion.
   const banner = uaBuildRakutenAffiliateBanner_(body, rowData, appConfig);
 
   if (!banner) {
@@ -3513,6 +3509,8 @@ function uaSelectRakutenProductQuery_(body, rowData, appConfig) {
 
   const rawQuery = uaSelectRakutenProductQueryRaw_(body, rowData, appConfig);
   if (!rawQuery) return rawQuery;
+
+  if (UA_RAKUTEN_CANDIDATE_POOL !== null) return rawQuery;
 
   return uaIsRakutenProductQueryRelevant_(rawQuery, rowData, appConfig) ? rawQuery : '';
 }
@@ -4947,6 +4945,9 @@ function uaRankRakutenArticleCandidates_(ruleItems, pool, rowData, plan, query, 
       stage = 'OpenAI呼び出し・JSON解析';
       const response = uaCallOpenAiJson_(prompt, 1800);
       stage = response && response.data && response.data.selectedIndex === -1 ? 'AIが適合商品なしと判定' : 'AI応答のindex・実ページ引用検証';
+      if (response && response.data && response.data.selectedIndex === -1 && typeof response.data.reason === 'string') {
+        stage += '｜' + response.data.reason.replace(/[\r\n<>]/g, ' ').slice(0, 160);
+      }
       const ranked = uaValidateProductRanking_(response && response.data, candidates);
       if (!ranked) throw new Error('Invalid ranking');
       stage = '比較記事の指定ブランド確認';

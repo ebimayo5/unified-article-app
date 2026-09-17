@@ -136,3 +136,9 @@ for (const matched of [true, false]) {
   assert.strictEqual(c.uaValidateProductRanking_(fabricated, [candidate]), null, '候補外Amazon index拒否');
 }
 console.log('Rakuten AI ranking safety tests passed');
+{
+  const { context: c } = setup(answer, goodName);
+  c.uaSelectRakutenProductQuery_ = () => { throw new Error('旧検索語判定へ戻ってはいけない'); };
+  c.uaBuildRakutenAffiliateBanner_ = () => '<p>verified product</p>';
+  assert.ok(c.uaBuildRakutenFollowupBlock_('body', {}, {}).includes('verified product'), '後入れも実商品AI選定へ直接進む');
+}

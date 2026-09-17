@@ -18,7 +18,9 @@
     - **例外**: 案件注意点に`楽天バナーあり`/`楽天あり`が明示されている場合は、AIの不一致判定でも停止する（人が明示的に商品導線を要求しているため）。
   - 新規回帰テスト`test_natural_no_product_skip.js`を追加（AI不一致判定・候補ゼロはスキップ、技術的失敗3種は停止、`楽天あり`明示時は停止、を検証）。全51本の`test_*.js`と`git diff --check`に合格。`CURRENT_SPEC.md`の該当仕様（旧「0件なら常に停止」）も新しい分岐仕様へ更新。
   - Git: `e186150`をorigin/mainへpush済み。配布フォルダ`C:\Users\ebima\Documents\Codex\deploy_stale_guard`はリポジトリHEADと全20ファイル一致済み（同期済み・差分なし）。
-  - **未実施**: `clasp push` / `clasp deploy`（Claude Code環境の自動モード分類器が「Production Deploy」としてブロックするため実行できない）。本番は引き続き版367で、この修正はまだ反映されていない。次にユーザーまたはCodexが`clasp.cmd push --force`→同一デプロイIDへ`clasp.cmd deploy`→`clasp.cmd deployments`で版確認、を行うこと。反映後、row139を「停止位置から再開」すれば、商品導線なしのままWP下書き〜公開へ進むはず。
+  - **本番反映: 完了**。ユーザー自身の端末で`clasp.cmd push --force`→同一デプロイID`AKfycbzGbxQA5AuXH3MlUZSlfTjDn1hrpH4MnNNG0NVKty0wUz1Bd-4oVXbMQUBloQvd-HCm`へ`clasp.cmd deploy -d "Continue when no product fits"`を実行し、`clasp.cmd deployments`で**版369**になったことを確認済み（Claude Code環境では自動モード分類器がclaspをブロックするため、手順のみ提示してユーザーが実行）。
+  - **要確認（別件）**: `clasp deployments`にデプロイIDが3つ表示されるようになっている。本番`AKfycbzGbxQA...`＠369、`@HEAD`のほかに、`AKfycbz5WO-xE1NU7ntem-o3UzTFVkA0CBoZTvfLgYWYQtTAOzCxqJ97opncLd5wfZW7xJY-`＠365 `Skip unplanned informational product links`という見覚えのないデプロイIDが増えている。おそらく`-i`を付けずに`clasp deploy`した際に新規デプロイが作られたもの。本番URLではないため実害はないが、紛らわしいので不要なら削除を検討すること（削除は`clasp undeploy <deploymentId>`。本番IDと間違えないよう厳重に確認してから実行すること）。
+  - 版369反映後、row139を「停止位置から再開」すれば、商品導線なしのままWP下書き〜公開へ進むはず（未実施・ユーザー判断待ち）。
   - row139の本文・停止位置・自動投稿設定・WordPressは変更していない。OpenAI生成・自動投稿の開始/停止操作もしていない。
 - 完了内容（2026-09-17 23:20頃 Claude Code / row139再開テスト、詳細診断ログの実動確認）:
   - ユーザー指示で、DRIVE BASE row139「純正 ナビ メリット」をパネルの「停止位置から再開」ボタンで再開した（ダッシュボードタブに移動していた）。

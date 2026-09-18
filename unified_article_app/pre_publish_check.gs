@@ -872,7 +872,11 @@ function uaBuildPrePublishRuleCheck_(rowData) {
   const weakTitleReason = uaFindWeakWpTitleReason_(title);
   const currentSourceIssue = uaCheckCurrentOfficialSourceRequirement_(rowData, body);
   const affiliateDetourIssue = uaFindAffiliateDetourIssue_(rowData, body);
-  const standaloneProductSectionsWithoutRakuten = uaFindPrePublishStandaloneProductSectionsWithoutRakuten_(body);
+  const hasIntentionalNoProductDecision = uaHasIntentionalNoProductDecision_(rowData);
+  const standaloneProductSectionsWithoutRakuten = uaFindPrePublishStandaloneProductSectionsWithoutRakuten_(
+    body,
+    hasIntentionalNoProductDecision
+  );
   let appConfig = null;
   let siteFitIssue = null;
   let ymylNoticeSpec = null;
@@ -1024,6 +1028,9 @@ function uaBuildPrePublishRuleCheck_(rowData) {
       'このH2が読者の判断に不可欠なら商品導線を同じH2内へ入れ、補足にすぎない場合はH2を外して既存の関連章へ1〜3段落で統合してください。'
     );
   });
+  if (hasIntentionalNoProductDecision) {
+    result.ok.push('商品導線は適合候補なしの記録に基づき意図的に省略しています。安全確認・判断手順のH2は商品リンクなしでも維持します。');
+  }
   if (siteFitIssue) {
     result.critical.push(uaBuildSiteFitStopMessage_(siteFitIssue, uaGetAppConfigByLabel_(rowData && rowData.appType)));
   }
@@ -1089,7 +1096,12 @@ function uaBuildPrePublishRuleCheck_(rowData) {
   return result;
 }
 
-function uaFindPrePublishStandaloneProductSectionsWithoutRakuten_(body) {
+function uaHasIntentionalNoProductDecision_(rowData) {
+  return /商品導線保証をスキップ/.test(String(rowData && rowData.factCheckPoints || ''));
+}
+
+function uaFindPrePublishStandaloneProductSectionsWithoutRakuten_(body, allowWithoutProductLinks) {
+  if (allowWithoutProductLinks) return [];
   const html = String(body || '');
   const headings = [];
   const headingPattern = /<h2\b[^>]*>([\s\S]*?)<\/h2>/gi;

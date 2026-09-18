@@ -22,6 +22,11 @@ assert.strictEqual(
   'マーケットプレイス検索自体が候補ゼロなのも自然な結果として扱う'
 );
 assert.strictEqual(
+  context.uaIsNaturalNoProductOutcome_('楽天APIの検索結果に、用途・必須条件・除外条件を満たす商品がありませんでした。検索キーワード: 防災備蓄 収納ボックス ラベル'),
+  true,
+  '楽天検索で用途・条件を満たす商品がない場合も、無関係な商品を足さず自然な結果として扱う'
+);
+assert.strictEqual(
   context.uaIsNaturalNoProductOutcome_('商品AI選定を安全停止：OpenAI呼び出し・JSON解析（http_500）'),
   false,
   'OpenAI呼び出し失敗などの技術的失敗は自然な結果として扱わない'
@@ -87,6 +92,16 @@ function setupEnsureStubs(overrides) {
   assert.doesNotThrow(
     () => context.uaEnsureAutomaticProductLinksForData_({ row: 139 }),
     '検索自体が候補ゼロの場合も止めずに次工程へ進む'
+  );
+}
+
+{
+  setupEnsureStubs({
+    rakutenStatus: '楽天APIの検索結果に、用途・必須条件・除外条件を満たす商品がありませんでした。検索キーワード: 防災備蓄 収納ボックス ラベル'
+  });
+  assert.doesNotThrow(
+    () => context.uaEnsureAutomaticProductLinksForData_({ row: 139 }),
+    '楽天検索が条件を満たす候補を返さない場合も、商品なしの理由を残して次工程へ進む'
   );
 }
 

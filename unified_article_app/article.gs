@@ -2269,7 +2269,9 @@ function uaShouldSkipUnplannedInformationalDriveProductLinks_(rowData, appConfig
 // Both are accurate answers, not errors, and retrying will not change them.
 function uaIsNaturalNoProductOutcome_(reason) {
   const text = String(reason || '');
-  return /AIが適合商品なしと判定/.test(text) || /候補なし（/.test(text);
+  return /AIが適合商品なしと判定/.test(text) ||
+    /候補なし（/.test(text) ||
+    /楽天APIの検索結果に、用途・必須条件・除外条件を満たす商品がありませんでした/.test(text);
 }
 
 function uaBuildAutomaticProductLinkSkipResult_(context, reason) {

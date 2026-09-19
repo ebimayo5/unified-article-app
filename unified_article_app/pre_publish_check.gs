@@ -1096,8 +1096,14 @@ function uaBuildPrePublishRuleCheck_(rowData) {
   return result;
 }
 
+// The dedicated column is the durable record. 要確認ポイント is still checked so
+// rows that were already mid-flight when this column was introduced keep working,
+// but it cannot be relied on: stage 7 replaces that cell with its own report and
+// drops the stage 4 line, which is what stalled row93 on 2026-09-19.
 function uaHasIntentionalNoProductDecision_(rowData) {
-  return /商品導線保証をスキップ/.test(String(rowData && rowData.factCheckPoints || ''));
+  const pattern = /商品導線保証をスキップ/;
+  return pattern.test(String(rowData && rowData.productLinkSkipNote || '')) ||
+    pattern.test(String(rowData && rowData.factCheckPoints || ''));
 }
 
 function uaFindPrePublishStandaloneProductSectionsWithoutRakuten_(body, allowWithoutProductLinks) {

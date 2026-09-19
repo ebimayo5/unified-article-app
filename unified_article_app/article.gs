@@ -2281,9 +2281,23 @@ function uaBuildAutomaticProductLinkSkipResult_(context, reason) {
     context.row,
     '・商品導線保証をスキップ｜' + safeReason
   );
+  // 要確認ポイント is a human-readable log that stage 7 replaces wholesale, so the
+  // note above does not survive to the stage 8 re-check. Record the same decision
+  // in its own column, which nothing else overwrites.
+  uaRecordProductLinkSkipNote_(context.sheet, context.row, safeReason);
   const skipped = uaBuildRowData_(context.sheet, context.row);
   skipped.message = '商品導線は意図的にスキップしました: ' + safeReason;
   return skipped;
+}
+
+// Stores the "no product fits, and that is the right answer" decision where it
+// survives every later stage. Keep the 商品導線保証をスキップ marker in the text so
+// older rows and this column read the same way.
+function uaRecordProductLinkSkipNote_(sheet, row, reason) {
+  const stamp = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm:ss');
+  sheet
+    .getRange(row, UA_COLUMNS.productLinkSkipNote)
+    .setValue('商品導線保証をスキップ｜' + stamp + '｜' + String(reason || ''));
 }
 
 function uaEnsureAutomaticProductLinksForData_(data) {

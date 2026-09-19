@@ -41,6 +41,12 @@ assert.strictEqual(
 
 const logged = [];
 context.uaAppendFactCheckPoint_ = (sheet, row, line) => logged.push({ sheet, row, line });
+// Apps Script globals the skip recorder uses. The fake sheet only needs to accept
+// the write; what it records is asserted in test_product_link_skip_note_column.js.
+context.Utilities = { formatDate: () => '2026-09-19 21:00:00' };
+context.Session = { getScriptTimeZone: () => 'Asia/Tokyo' };
+context.uaRecordProductLinkSkipNote_ = () => {};
+
 context.uaBuildRowData_ = (sheet, row) => ({ sheet, row });
 const skipped = context.uaBuildAutomaticProductLinkSkipResult_(
   { sheet: 'article-sheet', row: 139 },

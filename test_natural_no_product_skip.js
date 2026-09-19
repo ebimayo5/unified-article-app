@@ -71,6 +71,12 @@ function setupEnsureStubs(overrides) {
   context.uaGetExistingProductLinkAssessment_ = () => ({ adequate: false, reason: '候補が適合条件を満たしませんでした' });
   const logged = [];
   context.uaAppendFactCheckPoint_ = (sheet, row, line) => logged.push(line);
+// Apps Script globals the skip recorder uses. The fake sheet only needs to accept
+// the write; what it records is asserted in test_product_link_skip_note_column.js.
+context.Utilities = { formatDate: () => '2026-09-19 21:00:00' };
+context.Session = { getScriptTimeZone: () => 'Asia/Tokyo' };
+context.uaRecordProductLinkSkipNote_ = () => {};
+
   return logged;
 }
 

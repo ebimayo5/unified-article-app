@@ -1539,7 +1539,10 @@ function uaGetSheetForData_(data) {
 
 function uaBuildRowData_(sheet, row) {
   uaEnsureArticleSheetLayout_(sheet);
-  const values = sheet.getRange(row, 1, 1, UA_ARTICLE_COLUMN_COUNT).getValues()[0];
+  // Read wide enough to include productLinkSkipNote, but clamp to the sheet in
+  // case the layout has not been extended yet.
+  const readWidth = Math.min(UA_ARTICLE_READ_COLUMN_COUNT, sheet.getMaxColumns());
+  const values = sheet.getRange(row, 1, 1, readWidth).getValues()[0];
   const sheetConfig = uaGetAppConfigByArticleSheet_(sheet.getName());
   const appType = values[UA_COLUMNS.appType - 1] ||
     (sheetConfig && sheetConfig.label) ||
@@ -1570,6 +1573,7 @@ function uaBuildRowData_(sheet, row) {
     wpEditUrl: values[UA_COLUMNS.wpEditUrl - 1] || '',
     wpDraftedAt: values[UA_COLUMNS.wpDraftedAt - 1] ? String(values[UA_COLUMNS.wpDraftedAt - 1]) : '',
     structureMemo: values[UA_COLUMNS.structureMemo - 1] || '',
+    productLinkSkipNote: values[UA_COLUMNS.productLinkSkipNote - 1] || '',
     selectedArticleModel: uaGetSelectedArticleModelLabel_(),
     selectedReaderMindModel: uaGetSelectedReaderMindModelLabel_()
   };

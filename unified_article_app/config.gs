@@ -171,10 +171,19 @@ const UA_COLUMNS = {
   wpPostId: 20,
   wpEditUrl: 21,
   wpDraftedAt: 22,
-  structureMemo: 23
+  structureMemo: 23,
+  // Written only by its own setter, never by the bulk row write below. The
+  // pre-publish check needs the "products were intentionally omitted" decision
+  // to survive every later stage, and 要確認ポイント cannot carry it: stage 7
+  // replaces that cell wholesale with its own report.
+  productLinkSkipNote: 24
 };
 
+// Width of the bulk row write. productLinkSkipNote is deliberately outside it.
 const UA_ARTICLE_COLUMN_COUNT = UA_COLUMNS.structureMemo;
+
+// Width of a full row read, which does include productLinkSkipNote.
+const UA_ARTICLE_READ_COLUMN_COUNT = UA_COLUMNS.productLinkSkipNote;
 
 const UA_HEADERS = [
   '記事タイプ',
@@ -199,5 +208,6 @@ const UA_HEADERS = [
   'WP投稿ID',
   'WP編集URL',
   'WP入稿日時',
-  '構成メモ'
+  '構成メモ',
+  '商品導線スキップ記録'
 ];

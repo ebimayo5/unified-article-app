@@ -1029,7 +1029,7 @@ function uaBuildPrePublishRuleCheck_(rowData) {
     );
   });
   if (hasIntentionalNoProductDecision) {
-    result.ok.push('商品導線は適合候補なしの記録に基づき意図的に省略しています。安全確認・判断手順のH2は商品リンクなしでも維持します。');
+    result.ok.push('商品導線は適合候補なしの記録に基づき意図的に省略しています。安全確認・判断手順・チェックリストのH2は商品リンクなしでも維持し、価格や型番を並べた商品カタログ的な章だけNGとして扱います。');
   }
   if (siteFitIssue) {
     result.critical.push(uaBuildSiteFitStopMessage_(siteFitIssue, uaGetAppConfigByLabel_(rowData && rowData.appType)));
@@ -1106,8 +1106,23 @@ function uaHasIntentionalNoProductDecision_(rowData) {
     pattern.test(String(rowData && rowData.factCheckPoints || ''));
 }
 
+// When products were intentionally omitted, an ordinary checklist or inspection
+// section must not be flagged just because its heading contains 用品 — that is what
+// stalled row93「防災用品 備蓄 賞味期限切れ 後悔」on 2026-09-19. Only a section that
+// actually reads like a product catalogue still needs a link or removal, so require
+// concrete evidence: several listed items plus repeated prices or model numbers.
+// Deliberately conservative; a false positive here stops a finished article.
+function uaSectionListsSpecificProducts_(sectionHtml) {
+  const html = String(sectionHtml || '');
+  const listedItems = (html.match(/<li\b/gi) || []).length + (html.match(/<h3\b/gi) || []).length;
+  if (listedItems < 3) return false;
+  const text = uaStripPrePublishHtml_(html);
+  const priceMentions = (text.match(/[0-9][0-9,]{2,}\s*円/g) || []).length;
+  const modelNumbers = (text.match(/[A-Za-z]{2,}[-‐–—]?[0-9]{2,}/g) || []).length;
+  return priceMentions >= 2 || modelNumbers >= 2;
+}
+
 function uaFindPrePublishStandaloneProductSectionsWithoutRakuten_(body, allowWithoutProductLinks) {
-  if (allowWithoutProductLinks) return [];
   const html = String(body || '');
   const headings = [];
   const headingPattern = /<h2\b[^>]*>([\s\S]*?)<\/h2>/gi;
@@ -1133,6 +1148,7 @@ function uaFindPrePublishStandaloneProductSectionsWithoutRakuten_(body, allowWit
     const end = index + 1 < headings.length ? headings[index + 1].start : html.length;
     const sectionHtml = html.slice(item.contentStart, end);
     if (!rakutenPattern.test(sectionHtml)) {
+      if (allowWithoutProductLinks && !uaSectionListsSpecificProducts_(sectionHtml)) return;
       issues.push(item.title);
     }
   });

@@ -2192,24 +2192,50 @@ function uaGetSafeWordPressApiPath_(path) {
   return String(path || '').replace(/([?&](?:search)=)[^&]*/gi, '$1…');
 }
 
+// Tags only earn their place if a reader can click them and find more than the
+// article they came from. Attaching every generated name created the opposite:
+// 90 posts on kurashi-ie.com had grown 696 tags, 85% of them used exactly once,
+// so most of the 10 tag links under an article were dead ends. Prefer names that
+// already exist on the site, cap what a post carries, and let at most one
+// genuinely new tag through so a new topic can still start its own.
+const UA_MAX_WP_TAGS_PER_POST = 5;
+const UA_MAX_NEW_WP_TAGS_PER_POST = 1;
+
 function uaEnsureWpTagIds_(wpConfig, tagsText) {
+  // Generated names arrive in relevance order, so keep that order within each group.
   const tagNames = uaSplitTags_(tagsText).slice(0, 10);
-  const ids = [];
+  const existingIds = [];
+  const unknownNames = [];
 
   tagNames.forEach(function(tagName) {
-    const id = uaFindOrCreateWpTag_(wpConfig, tagName);
-    if (id) ids.push(id);
+    const id = uaFindWpTagIdByName_(wpConfig, tagName);
+    if (id) {
+      existingIds.push(id);
+    } else if (String(tagName || '').trim()) {
+      unknownNames.push(String(tagName).trim());
+    }
   });
+
+  const ids = existingIds.slice(0, UA_MAX_WP_TAGS_PER_POST);
+  let newAllowance = Math.min(
+    UA_MAX_NEW_WP_TAGS_PER_POST,
+    UA_MAX_WP_TAGS_PER_POST - ids.length
+  );
+
+  for (let i = 0; i < unknownNames.length && newAllowance > 0; i++) {
+    const created = uaCreateWpTag_(wpConfig, unknownNames[i]);
+    if (created) {
+      ids.push(created);
+      newAllowance--;
+    }
+  }
 
   return ids;
 }
 
-function uaFindOrCreateWpTag_(wpConfig, tagName) {
+function uaFindWpTagIdByName_(wpConfig, tagName) {
   const cleanName = String(tagName || '').trim();
-
-  if (!cleanName) {
-    return 0;
-  }
+  if (!cleanName) return 0;
 
   const searchPath = '/wp-json/wp/v2/tags?search=' + encodeURIComponent(cleanName) + '&per_page=20';
   const results = uaCallWordPressApi_(wpConfig, searchPath, 'get');
@@ -2222,18 +2248,28 @@ function uaFindOrCreateWpTag_(wpConfig, tagName) {
     }
   }
 
+  return 0;
+}
+
+function uaCreateWpTag_(wpConfig, tagName) {
+  const cleanName = String(tagName || '').trim();
+  if (!cleanName) return 0;
+
   try {
     const created = uaCallWordPressApi_(wpConfig, '/wp-json/wp/v2/tags', 'post', {
       name: cleanName
     });
     return created && created.id ? created.id : 0;
   } catch (e) {
-    const retryResults = uaCallWordPressApi_(wpConfig, searchPath, 'get');
-    if (Array.isArray(retryResults) && retryResults.length > 0) {
-      return retryResults[0].id || 0;
-    }
+    // A parallel run may have created the same name between the lookup and here.
+    const retry = uaFindWpTagIdByName_(wpConfig, cleanName);
+    if (retry) return retry;
     throw e;
   }
+}
+
+function uaFindOrCreateWpTag_(wpConfig, tagName) {
+  return uaFindWpTagIdByName_(wpConfig, tagName) || uaCreateWpTag_(wpConfig, tagName);
 }
 
 function uaSplitTags_(tagsText) {

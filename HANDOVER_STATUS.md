@@ -12,13 +12,12 @@
   - 原因: prompt.gs がタグを10個固定で生成し、既存タグから選ぶ制約がない。
   - 実装: `uaEnsureWpTagIds_`（wordpress.gs）を、既存タグ優先・1記事最大5個・新規作成は1記事1個までに変更。生成AIの出力に依存しない決定論的な絞り込みで、下書き作成(728)と更新(861)の両経路に効く。`uaFindWpTagIdByName_` と `uaCreateWpTag_` に分割し、`uaFindOrCreateWpTag_` は互換のため残置。prompt.gs にも「他の記事にも当てはまる語を優先」「上位数件だけ使われる」を追記。
   - 新規テスト `test_wp_tag_budget.js`（RESTの検索が部分一致であることを踏まえ、部分一致を既存タグ扱いしないことも検証）。全55本PASS、`git diff --check`クリーン、`cc6145a` をorigin/mainへpush。**clasp push/deploy は未実施**。
-- **(2) 記事下のタグ表示を2記事以上に絞る: 未実施（Claude Codeからは実行不可）**
-  - 両サイトとも SWELL CHILD が有効。コードスニペット系プラグインは無し。子テーマ functions.php への追記が必要。
-  - kurashi-ie の子テーマ functions.php は24行・483文字、`<?php`開始・波括弧の対応0・閉じタグ無し・末尾改行ありで、追記して安全な形であることを確認済み。未パッチ。
-  - **ブロック理由**: テーマエディタへの書き込みが自動モード分類器に「Production Deploy」として拒否された（claspと同じ）。スニペット本文はユーザーへ提示済みで、`get_the_terms` フィルタで singular の post_tag のみ count>=2 に絞る内容。
-  - 注意: `node -e "..."` の中にバッククォートを書くとシェルがコマンド置換してしまい、記録が壊れる。バッククォートを含む編集はスクリプトファイルに書いてから実行すること（2026-09-20に2回やらかした）。
-- やっていること: タグ運用の是正。(1) タグ生成を既存タグ優先・上限5個に変更（現状prompt.gsで10個固定・既存タグ制約なし、結果として1記事専用タグが85%）。(2) 記事ページで2記事以上のタグだけ表示する。対象: prompt.gs ほか。既存タグの削除・統合はやらない（noindex済みでSEO上の損がないため）。
-- 本番影響: 最終的にclasp push/deployあり（実行はユーザー端末）。WordPress側の表示変更が必要な場合は別途相談。
+- **(2) 記事下のタグ表示を2記事以上に絞る: 完了（両サイト）**
+  - 両サイトとも SWELL CHILD が有効。コードスニペット系プラグインは無いため、子テーマ functions.php に `ua_hide_single_use_tags` を追加（`get_the_terms` フィルタ、singular の post_tag のみ count>=2 に絞る）。タグ自体は削除していない。
+  - Claude Codeからはテーマエディタへの書き込みが自動モード分類器に「Production Deploy」として拒否されたため、コードを提示してユーザーが貼り付けた。
+  - 途中、最初は誤って `style.css` に貼られPHPがそのまま配信されていた（実行されないだけで表示崩れは無し）。ファイルの見分け方は1行目が `@charset` なら style.css、`<?php` なら functions.php。現在は両サイトとも style.css から除去済みを確認。
+  - 検証: 記事下のタグリンクが各10件から、たくみパパ 4/5/0件、DRIVE BASE 5/8/5件へ減少。両サイトのトップ200。タグ0件になる記事（全タグが1記事専用の新着記事）ではタグ欄ごと消え、空の枠は残らないことも確認済み。
+- 本番影響: (2)はWordPress側で反映済み。(1)はclasp push/deploy待ち。
 - 直前の完了: 空き（2026-09-19 23:45頃 Claude Code 完了）
 - **デプロイ整理済み**: 見覚えのなかった `AKfycbz5WO-…＠365` をユーザーが undeploy。`clasp.cmd deployments` で残りは本番 `AKfycbzGbxQA…＠375 Narrow dedicated product H2 rule` と `@HEAD` の2つだけになったことを確認済み。
 - エージェント: なし

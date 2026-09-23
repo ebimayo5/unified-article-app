@@ -4,10 +4,10 @@
 作業を始める前・区切りがつくたびに、必ずここを読み書きすること（CLAUDE.md / AGENTS.md の「並行作業ルール」参照）。
 複数エージェントが同時に動く前提のため、このセクションだけは「最終更新」より新しい情報になり得る。
 
-- 状態: 作業中（2026-09-24 JST）
-- エージェント: Codex
-- 開始時刻: 2026-09-24 09:xx頃
-- やっていること: DRIVE BASEの自動投稿がWordPressタグ確認APIの一時的なHTTP 503で停止した件を調査・修正中（wordpress.gs／回帰テスト）。再開・再生成・WordPress投稿は行わない。
+- 状態: 空き（2026-09-24 JST Codex 完了）
+- エージェント: なし
+- 開始時刻: -
+- 直前の完了: DRIVE BASEの「ディスプレイオーディオ グーグルマップ アンドロイド」が、タグ名ではなくWordPressの一時メンテナンス（タグ確認GETのHTTP 503）で停止していた。`wordpress.gs` のWordPress GETを429/502/503/504時だけ3秒間隔で最大3回試行するよう修正。POSTは再送しないためタグの重複作成を防ぐ。`test_wp_transient_read_retry.js` を追加し、既存を含む全56テストがPASS。`ac5c5cd` をコミット済み。本番は `clasp push --force` 後に `AKfycbzGbxQA5AuXH3MlUZSlfTjDn1hrpH4MnNNG0NVKty0wUz1Bd-4oVXbMQUBloQvd-HCm @378` へデプロイ済み。停止中の記事は再開・再生成・WordPress投稿をしていない。
 - **(1)の本番反映: 完了**。ターミナル11で `Pushed 20 files at 12:42:06.`（wordpress.gs・prompt.gs を含む20ファイル）を確認し、そのあと `Deployed …@377`。@376はpushより前に作られた版なので中身は旧コード、本番ポインタは@377。
   - 教訓: `clasp deploy` はプロジェクトに入っているコードから版を作るだけで、ローカルを送るのは `clasp push`。版番号が上がっても中身が変わっていないことがあるため、deployの出力だけでなくpushの「Pushed N files」まで確認すること。
 - **(1) タグ生成の是正: 実装完了・デプロイ待ち**

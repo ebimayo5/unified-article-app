@@ -2063,9 +2063,24 @@ function uaCallWordPressApi_(wpConfig, path, method, payload) {
     options.payload = JSON.stringify(payload);
   }
 
-  const res = UrlFetchApp.fetch(url, options);
-  const statusCode = res.getResponseCode();
-  const text = res.getContentText();
+  // A WordPress host can briefly return 503 while applying scheduled
+  // maintenance. GET requests are safe to repeat, and one short bounded retry
+  // prevents that transient response from stranding an otherwise-complete
+  // automatic posting job. Do not retry writes here: after an ambiguous POST,
+  // uaCreateWpTag_ re-checks the exact tag name before deciding what to do.
+  let res;
+  let statusCode = 0;
+  let text = '';
+  const maxAttempts = 3;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    res = UrlFetchApp.fetch(url, options);
+    statusCode = res.getResponseCode();
+    text = res.getContentText();
+    if (!uaShouldRetryWordPressRead_(requestMethod, statusCode) || attempt === maxAttempts) {
+      break;
+    }
+    uaPauseBeforeWordPressReadRetry_();
+  }
 
   let json = {};
 
@@ -2099,6 +2114,17 @@ function uaCallWordPressApi_(wpConfig, path, method, payload) {
   }
 
   return json;
+}
+
+function uaShouldRetryWordPressRead_(method, statusCode) {
+  if (String(method || '').toUpperCase() !== 'GET') return false;
+  return [429, 502, 503, 504].indexOf(Number(statusCode)) !== -1;
+}
+
+function uaPauseBeforeWordPressReadRetry_() {
+  if (typeof Utilities !== 'undefined' && Utilities && typeof Utilities.sleep === 'function') {
+    Utilities.sleep(3000);
+  }
 }
 
 function uaSyncWpMetaDescription_(wpConfig, postId, metaDescription) {

@@ -307,10 +307,20 @@ function uaApplyPrePublishFixesOnceFromPanel(data) {
       [rowData.titleIdeas, rowData.structureMemo, rowData.body].join(' ')
     );
   }
+  // 差分単位のURL判定に使う許可リスト。本文に依存しない分だけを先に組む
+  // （YMYL出典と補完案件は修正後の本文を見て決まるため、ここでは含められない）。
+  // 取りこぼしても最後の uaValidatePrePublishRevision_ が全体を再検証するので、
+  // 安全側は崩れない。
+  const patchAllowedUrls = uaExtractPrePublishUrlsFromText_(externalSourcesPrompt)
+    .concat([String(rowData.affiliateUrl || '').trim()])
+    .concat(uaGetManagedAffiliateUrls_(rowData))
+    .concat([UA_NAVIOKUN_INTRO_URL])
+    .filter(Boolean);
   let revision = uaNormalizePrePublishPatchRevision_(
     result && result.data,
     rowData,
-    protectedBody.body
+    protectedBody.body,
+    patchAllowedUrls
   );
   let revisedBody = originalBody;
   let rejectedRevisionReason = '';
@@ -771,11 +781,12 @@ function uaNormalizePrePublishRevision_(raw, rowData) {
   };
 }
 
-function uaNormalizePrePublishPatchRevision_(raw, rowData, protectedBody) {
+function uaNormalizePrePublishPatchRevision_(raw, rowData, protectedBody, allowedNewUrls) {
   const data = raw && typeof raw === 'object' ? raw : {};
   const editResult = uaApplyPrePublishPatchEdits_(
     String(protectedBody || ''),
-    Array.isArray(data.body_edits) ? data.body_edits : []
+    Array.isArray(data.body_edits) ? data.body_edits : [],
+    allowedNewUrls
   );
   const skippedSuggestions = (Array.isArray(data.skipped_suggestions)
     ? data.skipped_suggestions.slice()
@@ -796,10 +807,21 @@ function uaNormalizePrePublishPatchRevision_(raw, rowData, protectedBody) {
   };
 }
 
-function uaApplyPrePublishPatchEdits_(body, edits) {
+// allowedNewUrls を受け取り、URLの可否を「差分1件ごと」に判定する。
+// 以前はここで判定せず、全差分を適用したあと uaValidatePrePublishRevision_ が
+// 本文全体を見て許可外URLを見つけ、revision ごと破棄していた。公開前チェックは
+// 「根拠リンクを足せ」と指摘するので修正モデルは実際に足すが、そのURLが外部出典
+// シートに無いだけで、同じ修正案に含まれる他の妥当な差分まで巻き添えで消えていた。
+// 2026-09-27の調査では全体棄却31件のうち26件がこの経路（15%短縮は1件のみ）。
+function uaApplyPrePublishPatchEdits_(body, edits, allowedNewUrls) {
   let revisedBody = String(body || '');
   const appliedChanges = [];
   const skippedSuggestions = [];
+  // 元本文に既にあるURLは、差分で再登場しても新規追加ではない。
+  const allowedUrls = uaCountPrePublishValues_(
+    uaGetPrePublishAttributeValues_(revisedBody, 'href')
+      .concat((allowedNewUrls || []).map(uaNormalizePrePublishUrl_).filter(Boolean))
+  );
 
   (edits || []).slice(0, 8).forEach(function(edit, index) {
     const source = edit && typeof edit === 'object' ? edit : {};
@@ -814,6 +836,16 @@ function uaApplyPrePublishPatchEdits_(body, edits) {
     }
     if (/UA_PROTECTED_BLOCK_\d+/.test(findText) || /UA_PROTECTED_BLOCK_\d+/.test(replaceText)) {
       skippedSuggestions.push({ target: target, reason: '保護中の画像・CTA・リンクを含むため適用しませんでした。' });
+      return;
+    }
+
+    const introducedUrls = uaGetPrePublishAttributeValues_(replaceText, 'href')
+      .filter(function(url) { return !allowedUrls[url]; });
+    if (introducedUrls.length) {
+      skippedSuggestions.push({
+        target: target,
+        reason: '確認できない新しいURLを含むため、この差分だけ適用しませんでした: ' + introducedUrls[0]
+      });
       return;
     }
 

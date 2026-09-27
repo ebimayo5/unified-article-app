@@ -1899,13 +1899,32 @@ function uaFindPrePublishLongSections_(body) {
   return warnings.slice(0, 5);
 }
 
+// 語句ごとにしきい値を変える。以前は全語句が一律「2回以上」で、
+// 「場合があります」は公開済み138記事の46%、「可能性があります」は27%が該当していた。
+// 車種記事は年式・グレード・ナビ仕様で結論が変わるため、この2つは断定を避けるための
+// 必要な条件表現であって定型文ではない。実際、指摘修正の見送り163件のうち63件が
+// この2語で、修正モデルは毎回「適合差・仕様差を伝えるのに必要」として正しく却下していた。
+// 2026-09-27に公開済み138記事の分布を数え、上位5〜10%の外れ値だけを拾う値にした。
+// （場合があります: 5回以上=7% / 可能性があります: 4回以上=4% / 重要です: 3回以上=5%）
+// 出現ゼロの語句もしきい値2のまま残す。再発の見張りとして費用がかからないため。
+const UA_PREPUBLISH_PHRASE_THRESHOLDS = {
+  '場合があります': 5,
+  '可能性があります': 4,
+  '重要です': 3,
+  '大切です': 2,
+  'おすすめします': 2,
+  'と言えるでしょう': 2,
+  '確認しておくと安心です': 2,
+  '状況に応じて判断しましょう': 2
+};
+
 function uaFindPrePublishPhraseHits_(body) {
   const text = uaStripPrePublishHtml_(body);
-  const phrases = ['重要です', '大切です', 'おすすめします', '可能性があります', '場合があります', 'と言えるでしょう', '確認しておくと安心です', '状況に応じて判断しましょう'];
   const hits = [];
-  phrases.forEach(function(phrase) {
+  Object.keys(UA_PREPUBLISH_PHRASE_THRESHOLDS).forEach(function(phrase) {
+    const threshold = UA_PREPUBLISH_PHRASE_THRESHOLDS[phrase];
     const count = (text.match(new RegExp(phrase, 'g')) || []).length;
-    if (count >= 2) hits.push(phrase + '（' + count + '回）');
+    if (count >= threshold) hits.push(phrase + '（' + count + '回）');
   });
   return hits.slice(0, 8);
 }

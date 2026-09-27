@@ -271,7 +271,12 @@ function uaApplyPrePublishFixesOnceFromPanel(data) {
     };
     uaSavePrePublishBackgroundState_(backgroundStateKey, backgroundState);
     backgroundResponse = uaStartOpenAiBackgroundJson_(
-      uaBuildPrePublishPatchPrompt_(revisionPromptRowData, originalReport, externalSourcesPrompt),
+      uaBuildPrePublishPatchPrompt_(
+        revisionPromptRowData,
+        originalReport,
+        externalSourcesPrompt,
+        uaBuildPrePublishInternalLinksPrompt_(rowData, appConfig)
+      ),
       6000
     );
     backgroundState.responseId = String(backgroundResponse.id || '');
@@ -311,7 +316,9 @@ function uaApplyPrePublishFixesOnceFromPanel(data) {
   // （YMYL出典と補完案件は修正後の本文を見て決まるため、ここでは含められない）。
   // 取りこぼしても最後の uaValidatePrePublishRevision_ が全体を再検証するので、
   // 安全側は崩れない。
+  const internalLinkUrls = uaGetPrePublishInternalLinkUrls_(rowData, appConfig);
   const patchAllowedUrls = uaExtractPrePublishUrlsFromText_(externalSourcesPrompt)
+    .concat(internalLinkUrls)
     .concat([String(rowData.affiliateUrl || '').trim()])
     .concat(uaGetManagedAffiliateUrls_(rowData))
     .concat([UA_NAVIOKUN_INTRO_URL])
@@ -348,6 +355,7 @@ function uaApplyPrePublishFixesOnceFromPanel(data) {
     revisedBody = originalBody;
   }
   const allowedNewUrls = uaExtractPrePublishUrlsFromText_(externalSourcesPrompt)
+    .concat(internalLinkUrls)
     .concat([String(rowData.affiliateUrl || '').trim()])
     .concat(uaGetManagedAffiliateUrls_(rowData))
     .concat(uaGetManagedComplementaryAffiliateUrls_(rowData, appConfig, revisedBody))
@@ -726,16 +734,54 @@ function uaBuildPrePublishRevisionPrompt_(rowData, checkReport, externalSourcesP
   ].join('\n');
 }
 
-function uaBuildPrePublishPatchPrompt_(rowData, checkReport, externalSourcesPrompt) {
+// 記事生成側（prompt.gs → links.gs）と同じ内部リンク候補を、指摘修正でも使う。
+// 内部リンクを使わない記事タイプでは空を返し、プロンプト側で「新設しない」と伝える。
+function uaBuildPrePublishInternalLinksPrompt_(rowData, appConfig) {
+  if (!appConfig || !appConfig.useInternalLinks) return '';
+  try {
+    return uaBuildInternalLinksPrompt_(rowData && rowData.mainInput, appConfig, rowData);
+  } catch (internalLinkError) {
+    return '';
+  }
+}
+
+// 上と同じ候補からURLだけを取り出す。差分単位のURL判定に使うため、
+// プロンプトに載せた候補は許可リストにも入れておかないと、内部リンクを足した差分が
+// 「確認できない新しいURL」として落ちてしまう。
+function uaGetPrePublishInternalLinkUrls_(rowData, appConfig) {
+  if (!appConfig || !appConfig.useInternalLinks) return [];
+  try {
+    return (uaGetInternalLinkCandidates_(rowData && rowData.mainInput, appConfig, rowData) || [])
+      .map(function(item) { return String(item && item.url || '').trim(); })
+      .filter(Boolean);
+  } catch (internalLinkError) {
+    return [];
+  }
+}
+
+function uaBuildPrePublishPatchPrompt_(rowData, checkReport, externalSourcesPrompt, internalLinksPrompt) {
+  // 2026-09-27: 差分修正のプロンプトにはテーマの説明が1つも無く、その結果
+  // 「Cocoon専用ブロックをSWELL形式へ置換」という提案が繰り返し出ていた。
+  // DRIVE BASEの全137記事で wp:cocoon-blocks は0件なので、これは純粋な誤提案で、
+  // 修正モデル自身が「保護ブロック内なので触れない」と却下する往復が生じていた。
+  const appConfig = uaGetAppConfigByLabel_(rowData && rowData.appType);
+  const themeRule = uaUsesSwellBlocks_(appConfig)
+    ? 'WordPressテーマはSWELLです。既存のSWELL対応コアブロック、article-compass-*クラス、Rinker、画像、リンクをそのまま維持してください。本文にCocoon専用ブロックは含まれていないため、Cocoonからの変換・置換は提案しないでください。'
+    : 'WordPressテーマはCocoonです。「この記事のポイント」はCocoon tab-caption-box-1、CTAはCocoon button-wrap-1、内部リンクは前置き文とCocoonブログカードの形式を守ってください。';
   return [
     'あなたはプロの編集者兼コピーライターです。公開前チェック結果を受けて、記事を1回だけ差分修正してください。',
+    themeRule,
     '本文全体と前後の文脈を読んでください。ただし本文全文を書き直したり返したりせず、実際に変更が必要な箇所だけを body_edits で返してください。',
     '元本文は一定品質に達している前提です。問題のない見出し、段落、具体例、画像、リンク、CTA、ブログカード、WordPressブロックは変更しません。',
     '機械チェックの指摘は修正候補です。質問、引用、条件付き説明など文脈上適切なら変更せず、skipped_suggestions に理由を残してください。',
     'body_edits は最大8件です。find には元本文から完全一致する連続文字列をそのままコピーし、記事内で1回だけ現れる十分な長さにしてください。replace には置換後の文字列を書きます。',
     'find と replace に <!-- UA_PROTECTED_BLOCK_数字 --> を含めてはいけません。保護ブロックの位置・内容は変更しません。',
     '事実、数値、制度、法規、安全、価格、保証、メーカー仕様、対応可否、URLを推測で作らないでください。確認できない内容は manual_confirmation_needed に残してください。',
-    'Cocoon側でサイト共通のアフィリエイト広告表記を自動表示します。本文内のPR・広告表記不足を問題として指摘せず、「PR：本記事にはアフィリエイト広告を含みます。」などの段落を追加しないでください。既に同趣旨の独立段落がある場合は、その重複段落だけを削除対象にしてください。',
+    '内部リンクを足す場合は、【使用を許可する内部リンク候補】にあるURLを一字も変えずに使ってください。候補にないURLの内部リンクは作らないでください。候補が空なら内部リンクは新設しません。',
+    // 2026-09-27: ここは「Cocoon側で」と書かれていたが、本番2サイトはどちらもSWELL。
+    // 当てはまらない前提に見えるせいで指示が効かず、PR・広告表記の追加提案が繰り返し出て、
+    // そのたびに修正モデル自身が却下していた（見送り163件中7件）。テーマ名を出さない書き方にする。
+    'サイト共通のアフィリエイト広告表記はテーマ側で自動表示されます。本文内のPR・広告表記不足を問題として指摘せず、「PR：本記事にはアフィリエイト広告を含みます。」などの段落を追加しないでください。既に同趣旨の独立段落がある場合は、その重複段落だけを削除対象にしてください。',
     'タイトル案は、メインキーワードの主要語を自然な日本語として含め、案1をSEOと読者訴求の両立案、案2を疑問・不安への回答案、案3を読後の判断・価値が分かる案にします。検索語を助詞なしで並べず、数字は本文に根拠があり有効な案だけに使います。',
     '「確認ポイント」「判断基準」「確認手順」「選び方」「解説」だけで無難にまとめず、少なくとも2案は読者の具体的な疑問、迷う二択、避けたい失敗、読後の変化を前面に出します。本文にない問いや約束は作りません。',
     'タイトル案は必ず「案1：タイトル\\n案2：タイトル\\n案3：タイトル」の改行形式で返します。',
@@ -754,6 +800,13 @@ function uaBuildPrePublishPatchPrompt_(rowData, checkReport, externalSourcesProm
     '',
     '【使用を許可する外部出典候補】',
     String(externalSourcesPrompt || '').slice(0, 6000),
+    '',
+    // 2026-09-27: 内部リンク候補は記事生成時にしか渡しておらず、修正時は手元に無かった。
+    // そのため公開前チェックが内部リンク不足を指摘しても、修正モデルは
+    // 「関連する既存記事のURL・内容が提示されておらず関連性が確認できない」として
+    // 毎回見送っていた（見送り163件中19件）。生成時と同じ候補をここでも渡す。
+    '【使用を許可する内部リンク候補】',
+    String(internalLinksPrompt || '内部リンク候補はありません。内部リンクは新設しないでください。').slice(0, 6000),
     '',
     '【公開前チェック結果】',
     String(checkReport || '').slice(0, 14000),

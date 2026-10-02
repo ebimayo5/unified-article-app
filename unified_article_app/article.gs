@@ -1673,6 +1673,14 @@ function uaTransformNaviokunTextMentions_(body, affiliateUrl) {
 
 function uaRemoveNaviokunIntroSet_(body) {
   let html = String(body || '');
+  // The saved WordPress block may normalize `[affi id=7]` from a paragraph
+  // block into a shortcode block.  Remove marked sets before comparing the
+  // historical exact strings so a later post-processing pass cannot append a
+  // second introduction after that harmless normalization.
+  html = html.replace(
+    /<!--\s*UA_NAVIOKUN_INTRO_START\s*-->[\s\S]*?<!--\s*UA_NAVIOKUN_INTRO_END\s*-->/gi,
+    ''
+  );
   // Strip both the legacy Cocoon build and the current SWELL build exactly,
   // so this stays idempotent regardless of which one a given article carries
   // (older published articles still have the Cocoon version baked in).
@@ -1697,10 +1705,12 @@ function uaRemoveNaviokunIntroSet_(body) {
   while (urlIndex !== -1) {
     const start = html.lastIndexOf('<!-- wp:group {"className":"is-style-big_icon_caution article-compass-notice-box article-compass-notice-danger"', urlIndex);
     const affiIndex = html.indexOf('[affi id=7]', urlIndex);
-    const endMarker = '<!-- /wp:paragraph -->';
-    const endStart = affiIndex >= 0 ? html.indexOf(endMarker, affiIndex) : -1;
+    const endMatch = affiIndex >= 0
+      ? /<!--\s*\/wp:(?:paragraph|shortcode)\s*-->/.exec(html.slice(affiIndex))
+      : null;
+    const endStart = endMatch ? affiIndex + endMatch.index : -1;
     if (start < 0 || endStart < 0) break;
-    const end = endStart + endMarker.length;
+    const end = endStart + endMatch[0].length;
     const block = html.slice(start, end);
     if (!/\[affi\s+id\s*=\s*7\s*\]/i.test(block)) break;
     html = html.slice(0, start) + html.slice(end);
@@ -1820,6 +1830,7 @@ function uaBuildNaviokunIntroSetHtmlCocoon_() {
 // wp:loos/post-linkをそのまま踏襲している。
 function uaBuildNaviokunIntroSetHtmlSwell_() {
   return [
+    '<!-- UA_NAVIOKUN_INTRO_START -->',
     '<!-- wp:group {"className":"is-style-big_icon_caution article-compass-notice-box article-compass-notice-danger","layout":{"type":"constrained"}} -->',
     '<div class="wp-block-group is-style-big_icon_caution article-compass-notice-box article-compass-notice-danger">',
     '<!-- wp:paragraph -->',
@@ -1837,8 +1848,31 @@ function uaBuildNaviokunIntroSetHtmlSwell_() {
     '',
     '<!-- wp:paragraph -->',
     '<p>[affi id=7]</p>',
-    '<!-- /wp:paragraph -->'
+    '<!-- /wp:paragraph -->',
+    '<!-- UA_NAVIOKUN_INTRO_END -->'
   ].join('\n');
+}
+
+function uaTestNaviokunIntroSetCleanup() {
+  const swell = uaBuildNaviokunIntroSetHtmlSwell_();
+  const shortcodeNormalized = swell
+    .replace(/<!--\s*UA_NAVIOKUN_INTRO_(?:START|END)\s*-->\s*/g, '')
+    .replace(
+      '<!-- wp:paragraph -->\n<p>[affi id=7]</p>\n<!-- /wp:paragraph -->',
+      '<!-- wp:shortcode -->\n[affi id=7]\n<!-- /wp:shortcode -->'
+    );
+  const cleanedNormalized = uaRemoveNaviokunIntroSet_(shortcodeNormalized);
+  if (cleanedNormalized.indexOf(UA_NAVIOKUN_INTRO_URL) !== -1 || /\[affi\s+id\s*=\s*7\s*\]/i.test(cleanedNormalized)) {
+    throw new Error('shortcode化されたナビ男くん紹介セットを削除できません。');
+  }
+
+  const duplicate = swell + '\n\n' + shortcodeNormalized;
+  const cleanedDuplicate = uaRemoveNaviokunIntroSet_(duplicate);
+  if (cleanedDuplicate.indexOf(UA_NAVIOKUN_INTRO_URL) !== -1 || /\[affi\s+id\s*=\s*7\s*\]/i.test(cleanedDuplicate)) {
+    throw new Error('重複したナビ男くん紹介セットを削除できません。');
+  }
+
+  return { ok: true, cases: 2 };
 }
 
 function uaBuildNaviokunIntroSetHtml_(appConfig) {

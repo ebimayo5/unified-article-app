@@ -14,13 +14,20 @@ function uaUsesRinkerProductLinks_(appConfig) {
 }
 const UA_NAVIOKUN_INTRO_URL = 'https://ebimayo5.com/archives/naviokun-reputation/';
 
+// 2026-10-03: SWELLもCocoonも記事上部にサイト共通の広告表記を自動表示するため、本文側の
+// 表記は重複になる。以前は「本記事にはアフィリエイト広告を含みます。」という定型文の段落
+// だけを消していたが、案件ごとに文面を変えた表記（「PR：ここからは〇〇の案内です。」など）
+// が残り、ユーザーが毎回手で消す状態になっていた。同じ役割の文はまとめて取り除く。
+// 段落がその表記だけなら段落ごと、後ろに本文が続くなら先頭の一文だけを消す。
+const UA_AFFILIATE_DISCLOSURE_WHOLE_PARAGRAPH =
+  /<p\b[^>]*>\s*(?:<strong\b[^>]*>\s*)?(?:PR[：:]\s*[^<。．.]{0,80}?(?:案内です|ご案内です|案内になります|広告を含みます|広告が含まれます|広告を利用しています|プロモーションを含みます|プロモーションが含まれます)|(?:PR[：:]\s*)?本記事(?:には|に|は)アフィリエイト広告を含みます)[。．.]?\s*(?:<\/strong>)?\s*<\/p>\s*/gi;
+const UA_AFFILIATE_DISCLOSURE_LEAD_SENTENCE =
+  /(<p\b[^>]*>\s*(?:<strong\b[^>]*>\s*)?)(?:PR[：:]\s*[^<。．.]{0,80}?(?:案内です|ご案内です|案内になります|広告を含みます|広告が含まれます|広告を利用しています|プロモーションを含みます|プロモーションが含まれます)|(?:PR[：:]\s*)?本記事(?:には|に|は)アフィリエイト広告を含みます)[。．.]?\s*/gi;
+
 function uaRemoveRedundantAffiliateDisclosure_(body) {
-  // Cocoon displays the site's affiliate disclosure automatically. Keep the
-  // generated article body free of a second, CTA-local disclosure paragraph.
-  return String(body || '').replace(
-    /<p\b[^>]*>\s*(?:<strong\b[^>]*>)?\s*(?:PR[：:]\s*)?本記事(?:には|に|は)アフィリエイト広告を含みます。?\s*(?:<\/strong>)?\s*<\/p>\s*/gi,
-    ''
-  );
+  return String(body || '')
+    .replace(UA_AFFILIATE_DISCLOSURE_WHOLE_PARAGRAPH, '')
+    .replace(UA_AFFILIATE_DISCLOSURE_LEAD_SENTENCE, '$1');
 }
 
 function uaNormalizeStandardPurchaseCopy_(text) {

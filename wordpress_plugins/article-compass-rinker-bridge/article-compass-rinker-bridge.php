@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Article Compass Rinker Bridge
  * Description: Article Compass SystemからRinker商品リンクを安全に作成・再利用し、SWELL移行後も既存Cocoon装飾を保ちます。
- * Version: 1.3.3
+ * Version: 1.4.1
  * Author: Article Compass System
  */
 
@@ -24,6 +24,7 @@ final class Article_Compass_Rinker_Bridge {
         add_action('enqueue_block_assets', array(__CLASS__, 'enqueue_rinker_editor_compat_in_canvas'));
         add_action('admin_enqueue_scripts', array(__CLASS__, 'enqueue_rinker_media_compat'));
         add_action('enqueue_block_assets', array(__CLASS__, 'enqueue_swell_compat_styles'));
+        add_action('wp_enqueue_scripts', array(__CLASS__, 'enqueue_ga4_affiliate_tracking'), 20);
         add_filter('ssp_output_description', array(__CLASS__, 'filter_swell_description_from_legacy'));
         add_filter('the_content', array(__CLASS__, 'render_cocoon_blogcards_for_swell'), 8);
     }
@@ -191,6 +192,25 @@ final class Article_Compass_Rinker_Bridge {
         wp_register_style('article-compass-swell-compat', false, array(), '1.3.3');
         wp_enqueue_style('article-compass-swell-compat');
         wp_add_inline_style('article-compass-swell-compat', self::get_swell_compat_css());
+    }
+
+    /**
+     * Track only conversion-oriented outbound links. GA4 enhanced measurement
+     * already records generic external-link clicks; this adds a stable event
+     * name and CTA classification for Rinker and managed affiliate buttons.
+     */
+    public static function enqueue_ga4_affiliate_tracking() {
+        if (is_admin() || !is_singular('post')) {
+            return;
+        }
+
+        wp_enqueue_script(
+            'article-compass-ga4-affiliate-tracking',
+            plugin_dir_url(__FILE__) . 'assets/ga4-affiliate-cta-tracking.js',
+            array(),
+            '1.4.1',
+            true
+        );
     }
 
     private static function get_swell_compat_css() {

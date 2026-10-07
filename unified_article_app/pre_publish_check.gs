@@ -1016,6 +1016,19 @@ function uaBuildPrePublishRuleCheck_(rowData) {
     result.warnings.push('案件URLが未入力のため、CTA形式の確認はスキップしました。');
   }
 
+  const referralCodeRequirement = uaGetManagedAffiliateReferralCodeRequirement_(rowData);
+  if (referralCodeRequirement) {
+    const referralCtaSpec = uaGetManagedAffiliateCtaSpec_(rowData);
+    if (uaHasManagedAffiliateReferralCodeNotice_(body, rowData, referralCtaSpec)) {
+      result.ok.push('紹介コード「' + referralCodeRequirement.code + '」の入力案内がCTA直前にあります。');
+    } else {
+      result.critical.push(
+        '紹介コード「' + referralCodeRequirement.code +
+        '」の入力案内がCTA直前にありません。紹介コード欄への入力が紹介成立の条件であるため、公開前に補完してください。'
+      );
+    }
+  }
+
   relDuplicates.forEach(function(item) {
     result.critical.push('CTA/リンクのrel属性で重複があります: ' + item);
   });

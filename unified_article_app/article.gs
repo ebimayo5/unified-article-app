@@ -758,6 +758,8 @@ function uaApplyManagedAffiliateCta_(body, rowData, appConfig) {
     }
   }
 
+  resultHtml = uaEnsureManagedAffiliateReferralCodeNotice_(resultHtml, rowData, spec);
+
   return uaApplyManagedNaviokunSubTextLink_(
     uaApplyManagedOttocastTextLink_(
       uaApplyManagedSubAffiliateTextLink_(resultHtml, rowData, appConfig, spec),
@@ -769,6 +771,77 @@ function uaApplyManagedAffiliateCta_(body, rowData, appConfig) {
     appConfig,
     spec
   );
+}
+
+/**
+ * 提携メモに「紹介コード欄へ入力しないと紹介が成立しない」と明記された案件だけを対象に、
+ * CTA直前に置く案内文を組み立てる。AIの自由記述には任せず、後処理で必ず反映する。
+ */
+function uaGetManagedAffiliateReferralCodeRequirement_(rowData) {
+  const notes = String((rowData && rowData.affiliateNotes) || '');
+  if (!notes || !/紹介コード欄/.test(notes) || !/(?:入力|記入|コピペ)/.test(notes)) return null;
+
+  const match = /紹介コード(?:欄)?\s*(?:に|は|：|:)?\s*[「『"]?([A-Za-z0-9][A-Za-z0-9_-]{1,63})[」』"]?/i.exec(notes);
+  if (!match) return null;
+
+  // 単にコード名がメモにあるだけの案件へ、不要な表示を足さない。
+  if (!/(?:必要|必須|紹介.{0,40}成立|成立.{0,40}(?:ない|しない)|(?:ないと|なければ).{0,40}紹介)/.test(notes)) {
+    return null;
+  }
+
+  return {
+    code: match[1],
+    text: '紹介サポートを利用する場合は、申込みフォームの紹介コード欄に「' + match[1] +
+      '」をコピペで入力してください。コード欄への入力がないと紹介が成立しません。'
+  };
+}
+
+function uaBuildManagedAffiliateReferralCodeNotice_(requirement) {
+  if (!requirement) return '';
+  return [
+    '<!-- UA_AFFILIATE_REFERRAL_CODE_START -->',
+    '<!-- wp:paragraph -->',
+    '<p><strong>' + uaEscapeHtml_(requirement.text) + '</strong></p>',
+    '<!-- /wp:paragraph -->',
+    '<!-- UA_AFFILIATE_REFERRAL_CODE_END -->'
+  ].join('\n');
+}
+
+function uaHasManagedAffiliateReferralCodeNotice_(body, rowData, spec) {
+  const requirement = uaGetManagedAffiliateReferralCodeRequirement_(rowData);
+  if (!requirement) return true;
+
+  const html = String(body || '');
+  const ctaBounds = uaFindManagedAffiliateCtaBounds_(html, spec || uaGetManagedAffiliateCtaSpec_(rowData));
+  if (!ctaBounds) return false;
+
+  // CTAの直前側だけを確認する。本文中に一度だけコードが出ていても合格にはしない。
+  const preceding = html.slice(Math.max(0, ctaBounds.start - 1500), ctaBounds.start);
+  const codeIndex = preceding.lastIndexOf(requirement.code);
+  if (codeIndex < 0) return false;
+  return preceding.slice(Math.max(0, codeIndex - 500), codeIndex).indexOf('紹介コード欄') >= 0;
+}
+
+function uaEnsureManagedAffiliateReferralCodeNotice_(body, rowData, spec) {
+  const requirement = uaGetManagedAffiliateReferralCodeRequirement_(rowData);
+  if (!requirement) return String(body || '');
+
+  const original = String(body || '');
+  if (uaHasManagedAffiliateReferralCodeNotice_(original, rowData, spec)) return original;
+
+  const html = original.replace(
+    /\s*<!--\s*UA_AFFILIATE_REFERRAL_CODE_START\s*-->[\s\S]*?<!--\s*UA_AFFILIATE_REFERRAL_CODE_END\s*-->\s*/gi,
+    '\n\n'
+  );
+  const ctaBounds = uaFindManagedAffiliateCtaBounds_(html, spec);
+  if (!ctaBounds) return html;
+
+  // 手作業で同じ案内がCTA直前に置かれている既存記事には重複追加しない。
+  if (uaHasManagedAffiliateReferralCodeNotice_(html, rowData, spec)) return html;
+
+  const notice = uaBuildManagedAffiliateReferralCodeNotice_(requirement);
+  return html.slice(0, ctaBounds.start).replace(/\s+$/, '') + '\n\n' + notice + '\n\n' +
+    html.slice(ctaBounds.start).replace(/^\s+/, '');
 }
 
 function uaApplyManagedSubAffiliateTextLink_(body, rowData, appConfig, mainSpec) {

@@ -1293,6 +1293,10 @@ function uaCheckCurrentOfficialSourceRequirement_(rowData, body) {
   const requiresFinanceSource = uaIsFinanceFreshnessTopic_(titleTopicText);
 
   const html = String(body || '');
+  const requiredEvidenceCategories = typeof uaGetRequiredEvidenceSourceCategories_ === 'function'
+    ? uaGetRequiredEvidenceSourceCategories_(input, html)
+    : [];
+  const requiresReliableEvidence = requiredEvidenceCategories.length > 0;
   const links = html.match(/<a\b[^>]*href=["'][^"']+["'][^>]*>[\s\S]*?<\/a>/gi) || [];
   const hasOfficialLink = links.some(function(tag) {
     const urlMatch = tag.match(/href=["']([^"']+)["']/i);
@@ -1300,6 +1304,7 @@ function uaCheckCurrentOfficialSourceRequirement_(rowData, body) {
     const text = uaStripPrePublishHtml_(tag);
     if (/(ebimayo5\.com|px\.a8\.net|rakuten)/i.test(url)) return false;
     return /\.(?:go|lg)\.jp(?:\/|$)/i.test(url) ||
+      (typeof uaIsKnownOfficialEvidenceHost_ === 'function' && uaIsKnownOfficialEvidenceHost_(url)) ||
       /(aftc\.or\.jp|kokusen\.go\.jp|giroj\.or\.jp|jaf\.or\.jp)/i.test(url) ||
       /(公式|公的|省|庁|自治体|メーカー|IR|投資家|公正取引協議会|国民生活センター|損害保険料率算出機構)/i.test(text);
   });
@@ -1310,10 +1315,14 @@ function uaCheckCurrentOfficialSourceRequirement_(rowData, body) {
     if (/(ebimayo5\.com|px\.a8\.net|rakuten)/i.test(url)) return false;
     return /(preowned\.|certified|usedcar|carsensor\.net|goo-net\.com|aftc\.or\.jp)/i.test(url);
   });
+  const missingEvidenceCategories = uaFindMissingPrePublishEvidenceSourceCategories_(
+    links,
+    requiredEvidenceCategories
+  );
 
   // 構成案や本文に価格の補足があるだけで、記事全体を「価格・相場記事」と誤判定しない。
   // 主題ではない価格情報は停止ではなく警告にし、確認時点の明記を促す。
-  if (!requiresStrictOfficial && !requiresCurrentMarketSource && !requiresFinanceSource) {
+  if (!requiresStrictOfficial && !requiresReliableEvidence && !requiresCurrentMarketSource && !requiresFinanceSource) {
     const plainBody = uaStripPrePublishHtml_(html);
     const hasSupplementalPriceClaim = /(?:価格|料金|費用|値段|相場|本体|工事費|設置費)[^。\n]{0,80}(?:[0-9０-９][0-9０-９,，.．]*\s*(?:万|千)?円)/i.test(plainBody) ||
       /(?:[0-9０-９][0-9０-９,，.．]*\s*(?:万|千)?円)[^。\n]{0,80}(?:価格|料金|費用|値段|相場|本体|工事費|設置費)/i.test(plainBody);
@@ -1329,6 +1338,14 @@ function uaCheckCurrentOfficialSourceRequirement_(rowData, body) {
 
   if (requiresStrictOfficial && !hasOfficialLink) {
     return { critical: true, message: '最新性が必要なテーマですが、内容に直接対応する公式・公的リンクがありません。自動検索で信頼できる最新資料を取得できるまで公開しないでください。' };
+  }
+
+  if (missingEvidenceCategories.length) {
+    return {
+      critical: true,
+      message: '根拠リンクが不足しています: ' + missingEvidenceCategories.join('／') +
+        '。別の主張向けの公式リンクや案件CTAで代用せず、該当する段落に対応資料を追加してください。'
+    };
   }
 
   if (requiresCurrentMarketSource && !hasOfficialLink && !hasCurrentMarketLink) {
@@ -1349,7 +1366,38 @@ function uaCheckCurrentOfficialSourceRequirement_(rowData, body) {
 
   return { critical: false, message: requiresCurrentMarketSource
     ? '価格・相場の確認に使える公式・信頼資料があります。'
-    : '最新性が必要なテーマに、公式・公的リンクがあります。' };
+    : (requiresReliableEvidence
+      ? '必要な仕様・安全・施工条件それぞれに対応する信頼リンクがあります。'
+      : '最新性が必要なテーマに、公式・公的リンクがあります。') };
+}
+
+function uaFindMissingPrePublishEvidenceSourceCategories_(links, categories) {
+  const tags = Array.isArray(links) ? links : [];
+  return (categories || []).filter(function(category) {
+    return !tags.some(function(tag) {
+      const urlMatch = String(tag || '').match(/href=["']([^"']+)["']/i);
+      const url = String(urlMatch && urlMatch[1] || '');
+      const text = uaStripPrePublishHtml_(tag);
+      if (category === 'vehicle_spec') {
+        return (typeof uaIsKnownVehicleOfficialHost_ === 'function' && uaIsKnownVehicleOfficialHost_(url)) ||
+          /(?:メーカー公式|取扱説明書|装備情報|車種公式)/.test(text);
+      }
+      if (category === 'driving_safety') {
+        return /(?:npa\.go\.jp|laws\.e-gov\.go\.jp)/i.test(url) ||
+          /(?:警察庁|道路交通法|e-Gov)/i.test(text);
+      }
+      if (category === 'home_construction') {
+        return (typeof uaIsKnownHomeOfficialHost_ === 'function' && uaIsKnownHomeOfficialHost_(url)) ||
+          /(?:メーカー公式|住宅会社公式|仕様書|施工基準)/.test(text);
+      }
+      return true;
+    });
+  }).map(function(category) {
+    if (category === 'vehicle_spec') return '車種・端子仕様のメーカー公式資料';
+    if (category === 'driving_safety') return '走行中の画面注視に関する警察庁・e-Gov資料';
+    if (category === 'home_construction') return '住宅の性能・保証・施工基準に対応する公式資料';
+    return category;
+  });
 }
 
 function uaIsPrimaryMarketFreshnessIntent_(mainInput) {

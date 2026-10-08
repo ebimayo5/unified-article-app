@@ -921,6 +921,74 @@ function uaRequiresStrictOfficialSource_(value) {
   return /(最新|現在|今後|倒産|経営|決算|業績|赤字|黒字|利益|財務|負債|資金繰り|キャッシュフロー|株価|法令|法律|違反|規制|制度|補助金|税制|保険|保証|リコール|改善対策|安全基準)/i.test(String(value || ''));
 }
 
+// 最新性の有無にかかわらず、仕様や施工条件を説明する記事は一次情報を必要とする。
+// ここを任意の「信頼性を高めるリンク」扱いにすると、CTAだけの記事が公開されてしまう。
+function uaRequiresReliableEvidenceSource_(value) {
+  return uaGetRequiredEvidenceSourceCategories_(value, '').length > 0;
+}
+
+// 1本の「公式リンク」で済ませず、主張の種類ごとに必要な一次情報を分ける。
+// たとえば車種のHDMI仕様に警察庁の安全啓発だけを付けても、仕様の根拠にはならない。
+function uaGetRequiredEvidenceSourceCategories_(mainInput, contextText) {
+  const input = String(mainInput || '');
+  const context = String(contextText || '');
+  const text = [input, context].join(' ');
+  const categories = [];
+
+  if (/(HDMI|USB(?:\s*Type-?[AC])?|CarPlay|Android\s*Auto|端子|ナビ|ディスプレイオーディオ|後席モニター|対応可否|適合)/i.test(text)) {
+    categories.push('vehicle_spec');
+  }
+  if (/(走行中|運転者[^。]{0,40}(?:画面|映像|注視)|(?:画面|映像).{0,40}注視|道路交通法|ながら運転)/i.test(context)) {
+    categories.push('driving_safety');
+  }
+  // 暮らし方や間取りの感想は止めない。性能等級・数値・保証・基準のように、
+  // 外部資料が判断根拠になる主張がある場合だけ住宅系の一次情報を必須にする。
+  const isHomeTopic = /(トイレ|キッチン|腰壁|間取り|住宅設備|防音|遮音|換気|配管|断熱|気密)/i.test(text);
+  const hasVerifiableHomeClaim = /(建築基準法|法令|性能(?:等級)?|遮音(?:等級)?|断熱(?:等級)?|耐震(?:等級)?|換気量|dB|デシベル|保証(?:期間|条件|対象)|施工基準|仕様書|数値|JIS)/i.test(context);
+  if (isHomeTopic && hasVerifiableHomeClaim) {
+    categories.push('home_construction');
+  }
+  return categories;
+}
+
+function uaBuildRequiredEvidenceSourceGuidance_(mainInput, contextText) {
+  const categories = uaGetRequiredEvidenceSourceCategories_(mainInput, contextText);
+  if (!categories.length) return '';
+  const rules = [];
+  if (categories.indexOf('vehicle_spec') !== -1) {
+    rules.push('車種・端子・対応可否: 該当車種のメーカー公式装備ページまたは取扱説明書を、仕様を説明する段落に入れる。施工店や案件CTA、安全啓発ページで代用しない。');
+  }
+  if (categories.indexOf('driving_safety') !== -1) {
+    rules.push('走行中の画面注視・映像視聴: 警察庁またはe-Govの道路交通法を、安全上の注意を説明する段落に入れる。車種仕様の根拠とは別に扱う。');
+  }
+  if (categories.indexOf('home_construction') !== -1) {
+    rules.push('住宅設備・施工条件: 該当設備のメーカー公式資料、または住宅会社の公式仕様・施工資料を、音・換気・配管・下地などの説明に対応させて入れる。紹介サービスのCTAで代用しない。');
+  }
+  return '【本文に必要な信頼リンク】\n' + rules.map(function(rule) { return '・' + rule; }).join('\n');
+}
+
+// 検索語との単語一致だけでは「RAV4 HDMI」のような記事から警察庁資料が落ちる。
+// 画面注視を実際に説明する場合だけ、用途を限定した公的資料を候補へ足す。
+// 車種仕様・住宅仕様には共通URLを流用せず、個別の公式資料が取れなければ公開前に止める。
+function uaGetMandatoryEvidenceFallbackSources_(categories) {
+  const result = [];
+  if ((categories || []).indexOf('driving_safety') !== -1) {
+    result.push({
+      genre: '道路交通の安全',
+      name: '警察庁：ながら運転の危険性',
+      url: 'https://www.npa.go.jp/bureau/traffic/keitai/info.html',
+      usage: '走行中の画面注視・映像視聴を避ける注意を説明する段落だけで使う',
+      keywords: '走行中 画面 注視 ながら運転',
+      priority: '最優先',
+      urlStatus: '公式',
+      checkedAt: '',
+      sourceDate: '',
+      verifiedExcerpt: ''
+    });
+  }
+  return result;
+}
+
 function uaIsMarketFreshnessTopic_(value) {
   return /(価格|料金|相場)/i.test(String(value || ''));
 }
@@ -947,10 +1015,24 @@ function uaDiscoverCurrentOfficialSources_(mainInput, appConfig, contextText) {
   const topicText = [input, context].join(' ');
   const requiresFreshSearch = uaRequiresFreshOfficialSourceSearch_(input) ||
     uaRequiresFreshOfficialSourceSearchFromContext_(context);
-  if (!input || !requiresFreshSearch) return [];
+  const evidenceCategories = uaGetRequiredEvidenceSourceCategories_(input, context);
+  const requiresEvidenceSearch = evidenceCategories.length > 0;
+  if (!input || (!requiresFreshSearch && !requiresEvidenceSearch)) return [];
   if (typeof uaFetchSearchResultUrls_ !== 'function' || typeof uaFetchCompetitorPageInfos_ !== 'function') return [];
 
   const queries = [input + ' 最新 公式'];
+  if (requiresEvidenceSearch && !requiresFreshSearch) {
+    queries[0] = input + ' 公式';
+  }
+  if (evidenceCategories.indexOf('vehicle_spec') !== -1) {
+    queries.unshift(input + ' 取扱説明書 公式');
+  }
+  if (evidenceCategories.indexOf('driving_safety') !== -1) {
+    queries.unshift('走行中 画面 注視 警察庁');
+  }
+  if (evidenceCategories.indexOf('home_construction') !== -1) {
+    queries.unshift(input + ' 施工 公式');
+  }
   if (uaIsMarketFreshnessTopic_(topicText)) queries.unshift(input + ' 現在 価格 公式');
   if (uaIsUsedVehicleMarketTopic_(topicText)) {
     queries.unshift(input + ' 認定中古車 公式');
@@ -998,8 +1080,25 @@ function uaIsLikelyOfficialSourcePage_(page) {
   const text = [page && page.title, page && page.description, page && page.bodyText].join(' ');
   if (!/^https?:\/\//i.test(url)) return false;
   if (/(wikipedia|youtube|facebook|instagram|x\.com|twitter|note\.com|ameblo|価格\.com|kakaku|yahoo|goo\.ne\.jp|allabout|carview|minkara)/i.test(url)) return false;
+  if (uaIsKnownOfficialEvidenceHost_(url)) return true;
   if (/\.(?:go|lg)\.jp(?:\/|$)/i.test(url)) return true;
   return /(公式|official|企業サイト|コーポレート|IR情報|投資家情報|株主・投資家|決算|有価証券報告書|取扱説明書|リコール|改善対策)/i.test(text);
+}
+
+function uaIsKnownOfficialEvidenceHost_(url) {
+  const match = String(url || '').toLowerCase().match(/^https?:\/\/([^\/:?#]+)/i);
+  const host = String(match && match[1] || '').replace(/^www\./, '');
+  return uaIsKnownVehicleOfficialHost_(host) || uaIsKnownHomeOfficialHost_(host);
+}
+
+function uaIsKnownVehicleOfficialHost_(hostOrUrl) {
+  const host = String(hostOrUrl || '').toLowerCase().replace(/^https?:\/\//, '').replace(/^www\./, '').split(/[\/:?#]/)[0];
+  return /(?:^|\.)(?:toyota|lexus|honda|nissan|mazda|subaru|suzuki|mitsubishi-motors|daihatsu)\.(?:jp|co\.jp)$/.test(host);
+}
+
+function uaIsKnownHomeOfficialHost_(hostOrUrl) {
+  const host = String(hostOrUrl || '').toLowerCase().replace(/^https?:\/\//, '').replace(/^www\./, '').split(/[\/:?#]/)[0];
+  return /(?:^|\.)(?:toto|lixil|panasonic|daiken|ykkap|sekisuihouse|ichijo|daiwahouse|misawa|swedenhouse|tamahome|asahi-kasei|sumitomo-rd)\.(?:jp|co\.jp)$/.test(host);
 }
 
 function uaExtractOfficialSourceDate_(value) {
@@ -1014,7 +1113,10 @@ function uaExtractOfficialSourceDate_(value) {
 
 function uaBuildExternalSourcesPrompt_(mainInput, appConfig, contextText) {
   const storedCandidates = uaGetExternalSourceCandidates_(mainInput, appConfig);
-  const discoveredCandidates = uaDiscoverCurrentOfficialSources_(mainInput, appConfig, contextText);
+  const evidenceCategories = uaGetRequiredEvidenceSourceCategories_(mainInput, contextText);
+  const discoveredCandidates = uaGetMandatoryEvidenceFallbackSources_(evidenceCategories)
+    .concat(uaDiscoverCurrentOfficialSources_(mainInput, appConfig, contextText));
+  const evidenceGuidance = uaBuildRequiredEvidenceSourceGuidance_(mainInput, contextText);
   const seenUrls = {};
   const candidates = discoveredCandidates.concat(storedCandidates).filter(function(item) {
     const url = String(item && item.url || '').trim();
@@ -1027,6 +1129,7 @@ function uaBuildExternalSourcesPrompt_(mainInput, appConfig, contextText) {
     return `
 外部出典リンク:
 外部出典シートと最新公式情報の自動検索で、関連候補を取得できませんでした。
+${evidenceGuidance}
 記事テーマが最新性を必要とする場合は、本文を一般論だけで完成させず、fact_check_points に「最新の公式情報を取得できないため公開前に確認」と必ず出してください。
 ただし、記事内で法規・安全・メーカー仕様・料金・保証・制度・補助金・公的統計など、読者が「本当かな？」と感じやすい説明をする場合は、URLが確実に分かる公式サイト・公的機関・メーカー公式などの外部リンクを本文中に自然に1〜3個入れてください。
 URLが不確かな場合は本文にリンクを入れず、fact_check_points に確認事項として出してください。
@@ -1055,6 +1158,7 @@ URLが不確かな場合は本文にリンクを入れず、fact_check_points �
   return `
 外部出典リンク:
 以下は、記事テーマに関連しそうな外部出典候補です。
+${evidenceGuidance}
 「自動検索・最新」と付いた候補は、記事生成直前に公式情報を検索して取得した候補です。ページ内の日付候補と実際の内容を比較し、公開時点で最も新しい資料を優先してください。
 最新性が必要なテーマでは、URLを置くだけで終わらせず、資料名・公表日または確認時点・本文の判断に必要な具体的数値や条件を本文へ反映してください。
 具体的な数値や条件は「取得本文抜粋」に実際に含まれる内容だけを使い、抜粋にない数字を推測で補わないでください。

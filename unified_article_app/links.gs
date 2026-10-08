@@ -934,11 +934,16 @@ function uaGetRequiredEvidenceSourceCategories_(mainInput, contextText) {
   const context = String(contextText || '');
   const text = [input, context].join(' ');
   const categories = [];
+  // 住宅設備や家電にも「端子」「USB」は出るため、語だけで車両仕様にはしない。
+  // 車名・カーナビ等の車両文脈と、仕様を確認する語が両方ある場合に限る。
+  const isVehicleTopic = /(?:車種|車両|自動車|カーナビ|ディスプレイオーディオ|後席モニター|テレビキャンセラー|RAV4|ハリアー|ヴェルファイア|アルファード|アクア|ヤリスクロス|ノア|ヴォクシー|シエンタ|カローラ|レクサス|RX|NX|ES|IS|ヴェゼル|オデッセイ|N-BOX|ステップワゴン|セレナ|デイズ|フォレスター|ソリオ|ハスラー|フロンクス|スイフト|デリカ|タフト|CX-5|GR86)/i.test(input);
 
-  if (/(HDMI|USB(?:\s*Type-?[AC])?|CarPlay|Android\s*Auto|端子|ナビ|ディスプレイオーディオ|後席モニター|対応可否|適合)/i.test(text)) {
+  if (isVehicleTopic && /(HDMI|USB(?:\s*Type-?[AC])?|CarPlay|Android\s*Auto|端子|ナビ|ディスプレイオーディオ|後席モニター|対応可否|適合)/i.test(text)) {
     categories.push('vehicle_spec');
   }
-  if (/(走行中|運転者[^。]{0,40}(?:画面|映像|注視)|(?:画面|映像).{0,40}注視|道路交通法|ながら運転)/i.test(context)) {
+  // 単に「運転中」「走行中」とあるだけでは対象にしない。画面・映像・スマホの
+  // 注視や操作を注意する文だけを、警察庁/e-Gov資料が必要な主張として扱う。
+  if (/(?:運転者[^。]{0,40}(?:画面|映像|注視)|(?:画面|映像).{0,40}注視|カーナビ[^。]{0,40}注視|(?:走行中|運転中)[^。]{0,40}(?:画面|映像|スマホ|携帯)|道路交通法|ながら運転)/i.test(context)) {
     categories.push('driving_safety');
   }
   // 暮らし方や間取りの感想は止めない。性能等級・数値・保証・基準のように、

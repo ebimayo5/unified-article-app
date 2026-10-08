@@ -12,6 +12,12 @@ vm.createContext(context);
 assert.strictEqual(context.uaRequiresReliableEvidenceSource_('RAV4 HDMI どこ'), true, 'vehicle HDMI article must require a source');
 assert.strictEqual(context.uaRequiresReliableEvidenceSource_('リビング横 トイレ 音 聞こえる'), false, 'subjective planning article must not be blocked without a verifiable claim');
 assert.strictEqual(context.uaRequiresReliableEvidenceSource_('積水ハウス 値引き 交渉'), false, 'non-technical negotiation article must not be over-classified');
+assert.strictEqual(context.uaRequiresReliableEvidenceSource_('電気毛布を洗濯して壊れたかも'), false, 'a home appliance terminal is not a vehicle specification');
+assert.deepStrictEqual(
+  Array.from(context.uaGetRequiredEvidenceSourceCategories_('旗竿地の手前の家は住みやすい？', '車の運転で通路を出入りするときは見通しを確認します。')),
+  [],
+  'a general driving mention without screen or phone use must not require the NPA screen-use source'
+);
 assert.strictEqual(context.uaIsKnownOfficialEvidenceHost_('https://toyota.jp/rav4/'), true, 'Toyota domain must be accepted as an official source');
 assert.strictEqual(context.uaIsKnownOfficialEvidenceHost_('https://example.com/toyota/'), false, 'unrelated host must not be accepted');
 assert.deepStrictEqual(

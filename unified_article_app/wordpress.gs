@@ -980,6 +980,48 @@ function uaEscapeHtml_(value) {
     .replace(/"/g, '&quot;');
 }
 
+// One-time backfill for published DRIVE BASE articles created while the external-source
+// reuse penalty could hide the police source. It only adds the NPA link immediately
+// after an existing screen-viewing safety warning; it never changes the warning or CTA.
+function uaBackfillDrivingSafetyEvidenceLinks20261008() {
+  const postIds = [3134,3124,3114,3104,3081,3071,3060,2966,2976,2860,2849,2839,2829,2809,2791,2771,2761,2737,2727,2715,2512,2494,2484,2474,2464,2456,2446,2436,2414,2387,2377,2365,2357,2347,2327,2317];
+  const appConfig = uaGetAppConfigByLabel_('DRIVE BASE');
+  const wpConfig = uaGetWpConfig_(appConfig);
+  const sourceUrl = 'https://www.npa.go.jp/bureau/traffic/keitai/info.html';
+  const sourceHtml = '<p>走行中の画面注視・操作の危険性は、<a href="' + sourceUrl + '" target="_blank" rel="noopener">警察庁の「ながら運転」に関する案内</a>でも確認できます。</p>';
+  const results = [];
+
+  postIds.forEach(function(postId) {
+    const post = uaCallWordPressApi_(wpConfig, '/wp-json/wp/v2/posts/' + encodeURIComponent(postId) + '?context=edit', 'get');
+    const before = String(post && post.content && post.content.raw || '');
+    if (!before || before.indexOf(sourceUrl) !== -1) {
+      results.push({ postId: postId, status: 'skipped_existing_or_empty' });
+      return;
+    }
+    const after = uaInsertDrivingSafetyEvidenceLink_(before, sourceHtml);
+    if (after === before) {
+      results.push({ postId: postId, status: 'skipped_no_matching_warning' });
+      return;
+    }
+    uaCallWordPressApi_(wpConfig, '/wp-json/wp/v2/posts/' + encodeURIComponent(postId), 'post', { content: after });
+    results.push({ postId: postId, status: 'updated' });
+  });
+  return results;
+}
+
+function uaInsertDrivingSafetyEvidenceLink_(html, sourceHtml) {
+  const body = String(html || '');
+  if (!body || /npa\.go\.jp\/bureau\/traffic\/keitai\/info\.html/i.test(body)) return body;
+  const paragraphs = body.match(/<p\b[^>]*>[\s\S]*?<\/p>/gi) || [];
+  const warningPattern = /(?:運転者[^。<]{0,80}(?:画面|映像|注視)|(?:画面|映像)[^。<]{0,80}注視|カーナビ[^。<]{0,80}注視|(?:走行中|運転中)[^。<]{0,100}(?:画面|映像|スマホ|携帯)|道路交通法|ながら運転)/i;
+  const target = paragraphs.find(function(paragraph) {
+    return warningPattern.test(String(paragraph).replace(/<[^>]+>/g, ' '));
+  });
+  if (!target) return body;
+  const index = body.indexOf(target);
+  return body.slice(0, index + target.length) + '\n' + sourceHtml + body.slice(index + target.length);
+}
+
 function uaGetWpConfig_(appConfig) {
   if (!appConfig || !appConfig.key) {
     throw new Error('WP config: article type key was not found.');

@@ -1,0 +1,13 @@
+const assert = require('assert');
+const fs = require('fs');
+const vm = require('vm');
+const source = fs.readFileSync('unified_article_app/wordpress.gs', 'utf8');
+const context = {};
+vm.createContext(context);
+vm.runInContext(source, context);
+const link = '<p><a href="https://www.npa.go.jp/bureau/traffic/keitai/info.html">警察庁</a></p>';
+const result = context.uaInsertDrivingSafetyEvidenceLink_('<p>走行中の運転者による画面注視は避けます。</p><p>次の段落</p>', link);
+assert.ok(result.includes('画面注視は避けます。</p>\n' + link), 'inserts the source immediately after the safety warning');
+assert.strictEqual(context.uaInsertDrivingSafetyEvidenceLink_(result, link), result, 'does not duplicate an existing source');
+assert.strictEqual(context.uaInsertDrivingSafetyEvidenceLink_('<p>停車して確認します。</p>', link), '<p>停車して確認します。</p>', 'does not add a source without a screen-viewing safety claim');
+console.log('driving safety backfill: OK');

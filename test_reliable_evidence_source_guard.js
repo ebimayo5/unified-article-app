@@ -45,6 +45,11 @@ assert.deepStrictEqual(
   [],
   'individual contract and construction-company confirmation guidance must not require an unrelated external source'
 );
+assert.deepStrictEqual(
+  Array.from(context.uaGetRequiredEvidenceSourceCategories_('クロス貼る前 狭く見える', "<p>間取りの不安は、契約図面と施工会社へ確認してください。</p><span style='background:linear-gradient(transparent 60%, #fff3a3 60%)'>見た目と実寸は別です。</span><p>壁、下地、断熱、配線に関わる変更は施主判断で進めず、保証への影響は住宅会社へ確認します。</p>")),
+  [],
+  'HTML style percentages and generic insulation-component guidance must not be classified as measurable construction specifications'
+);
 assert.strictEqual(
   context.uaIsIndividualHomeConfirmationGuidance_('変更できる時期、追加費用、工期、保証への影響は物件ごとに違うため、契約図面・仕様書・保証書を施工会社へ確認してください。'),
   true,

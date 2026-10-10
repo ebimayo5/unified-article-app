@@ -932,7 +932,13 @@ function uaRequiresReliableEvidenceSource_(value) {
 function uaGetRequiredEvidenceSourceCategories_(mainInput, contextText) {
   const input = String(mainInput || '');
   const context = String(contextText || '');
-  const text = [input, context].join(' ');
+  // 公開前チェックは本文HTMLを渡す。style属性の「60%」や画像URLの数字を
+  // 寸法・性能値として扱うと、本文に根拠がないのに外部リンクを要求してしまう。
+  // 判定対象は読者に見える本文だけに限定する。
+  const visibleContext = typeof uaStripPrePublishHtml_ === 'function'
+    ? uaStripPrePublishHtml_(context)
+    : context.replace(/<[^>]*>/g, ' ');
+  const text = [input, visibleContext].join(' ');
   const categories = [];
   // 住宅設備や家電にも「端子」「USB」は出るため、語だけで車両仕様にはしない。
   // 車名・カーナビ等の車両文脈と、仕様を確認する語が両方ある場合に限る。
@@ -952,8 +958,10 @@ function uaGetRequiredEvidenceSourceCategories_(mainInput, contextText) {
   // 読者の物件ごとに答えが異なるため、無関係な公式リンクを足すより確認導線を
   // 維持するほうが正しい。単語「仕様書」「保証」だけでは止めない。
   const isHomeTopic = /(トイレ|キッチン|腰壁|間取り|住宅設備|防音|遮音|換気|配管|断熱|気密)/i.test(text);
-  const hasVerifiableHomeClaim = /(建築基準法|法令|性能(?:等級)?|遮音(?:等級)?|断熱(?:等級)?|耐震(?:等級)?|換気量|dB|デシベル|保証(?:期間|条件|対象|内容|範囲|対象外)|施工基準|JIS)/i.test(context) ||
-    /[0-9０-９][0-9０-９,，.．]*\s*(?:mm|cm|ｍ|m|㎡|平方メートル|dB|デシベル|W|ワット|L|リットル|%|％|年|か月|ヶ月)/i.test(context);
+  // 「断熱材」「遮音シート」など、工事中の部材に触れるだけでは性能事実ではない。
+  // 等級・性能・法令・保証条件・測定値のように、外部資料で検証できる主張に限る。
+  const hasVerifiableHomeClaim = /(建築基準法|法令|性能(?:等級)?|遮音(?:性能|等級)|断熱(?:性能|等級)|耐震(?:性能|等級)?|換気量|dB|デシベル|保証(?:期間|条件|対象|内容|範囲|対象外)|施工基準|JIS)/i.test(visibleContext) ||
+    /[0-9０-９][0-9０-９,，.．]*\s*(?:mm|cm|ｍ|m|㎡|平方メートル|dB|デシベル|W|ワット|L|リットル|%|％|年|か月|ヶ月)/i.test(visibleContext);
   if (isHomeTopic && hasVerifiableHomeClaim) {
     categories.push('home_construction');
   }

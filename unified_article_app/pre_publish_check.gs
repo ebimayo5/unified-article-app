@@ -1978,6 +1978,10 @@ function uaFindPrePublishReliabilityClaims_(body) {
   sentences.forEach(function(rawSentence) {
     const sentence = String(rawSentence || '').trim();
     if (!sentence || !pattern.test(sentence)) return;
+    // 個別物件の契約内容・図面・保証書を確認するよう促すだけの文は、一般的な
+    // 性能・保証・施工事実を述べるものではない。ここで外部リンク不足を警告すると、
+    // 読者の物件に対応しないリンクを足す方向へ誘導してしまう。
+    if (uaIsIndividualHomeConfirmationGuidance_(sentence)) return;
     const snippet = sentence.length > 140 ? sentence.slice(0, 139).trim() + '…' : sentence;
     if (!seen[snippet]) {
       seen[snippet] = true;
@@ -1985,6 +1989,15 @@ function uaFindPrePublishReliabilityClaims_(body) {
     }
   });
   return result.slice(0, 12);
+}
+
+function uaIsIndividualHomeConfirmationGuidance_(sentence) {
+  const text = String(sentence || '');
+  const refersToIndividualDocuments = /(契約(?:書|図面)?|承認図|仕様書|保証書|施工会社|住宅会社|現場監督|設計担当|営業担当|物件ごと|書面|議事録)/.test(text);
+  const asksForConfirmation = /(確認(?:して|し|を)|尋ね|相談|聞(?:い|く)|記録に残|受け取)/.test(text);
+  const hasSpecificGeneralFact = /(建築基準法|法令|性能(?:等級)?|遮音(?:等級)?|断熱(?:等級)?|耐震(?:等級)?|換気量|dB|デシベル|保証(?:期間|対象|条件|内容|範囲|対象外)|施工基準|JIS)/i.test(text) ||
+    /[0-9０-９][0-9０-９,，.．]*\s*(?:mm|cm|ｍ|m|㎡|平方メートル|dB|デシベル|W|ワット|L|リットル|%|％|年|か月|ヶ月)/i.test(text);
+  return refersToIndividualDocuments && asksForConfirmation && !hasSpecificGeneralFact;
 }
 
 function uaCountPrePublishExternalSourceLinks_(body, rowData) {

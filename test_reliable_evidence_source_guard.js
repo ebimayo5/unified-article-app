@@ -40,6 +40,26 @@ assert.deepStrictEqual(
   ['home_construction'],
   'home source is required only for verifiable specifications'
 );
+assert.deepStrictEqual(
+  Array.from(context.uaGetRequiredEvidenceSourceCategories_('クロス貼る前 狭く見える', '間取りの変更できる時期、追加費用、工期、保証への影響は物件ごとに違うため、契約図面・仕様書・保証書を施工会社へ確認してください。')),
+  [],
+  'individual contract and construction-company confirmation guidance must not require an unrelated external source'
+);
+assert.strictEqual(
+  context.uaIsIndividualHomeConfirmationGuidance_('変更できる時期、追加費用、工期、保証への影響は物件ごとに違うため、契約図面・仕様書・保証書を施工会社へ確認してください。'),
+  true,
+  'individual property guidance must not create an external-link warning'
+);
+assert.deepStrictEqual(
+  Array.from(context.uaFindPrePublishReliabilityClaims_('<p>変更できる時期、追加費用、工期、保証への影響は物件ごとに違うため、契約図面・仕様書・保証書を施工会社へ確認してください。</p>')),
+  [],
+  'individual property guidance must not produce an external-link warning from cost wording alone'
+);
+assert.strictEqual(
+  context.uaIsIndividualHomeConfirmationGuidance_('断熱等性能等級5の住宅は、契約図面で確認してください。'),
+  false,
+  'specific performance facts still need evidence even when readers are told to check their documents'
+);
 assert.strictEqual(
   context.uaGetMandatoryEvidenceFallbackSources_(['driving_safety'])[0].url,
   'https://www.npa.go.jp/bureau/traffic/keitai/info.html',

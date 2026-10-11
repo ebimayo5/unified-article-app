@@ -19,7 +19,11 @@ function uaUnkanHash_(text) {
 }
 
 function uaUnkanReviewHash_(data) {
-  return uaUnkanHash_([data.body, data.titleIdeas, data.metaDescription, data.tags, data.permalink].join('\n'));
+  // Match the article body displayed by the editor; product-plan metadata is hidden there.
+  const reviewBody = String(data.body || '')
+    .replace(/<p\b[^>]*>\s*<!--\s*UA_PRODUCT_PLAN:[^>]+-->\s*<\/p>\s*/gi, '')
+    .replace(/<!--\s*UA_PRODUCT_PLAN:[^>]+-->\s*/gi, '');
+  return uaUnkanHash_([reviewBody, data.titleIdeas, data.metaDescription, data.tags, data.permalink].join('\n'));
 }
 
 function uaUnkanWpConfig_() {

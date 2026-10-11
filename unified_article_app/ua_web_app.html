@@ -453,7 +453,8 @@
 <textarea id="unkanReviewJson" rows="12" aria-label="根拠確認JSON"></textarea>
 <label><input id="unkanExperience" type="checkbox">実体験・資格の記載を原本と照合した</label>
 <label><input id="unkanAd" type="checkbox">広告表記・リンク・紹介制限を確認した</label>
-<button type="button" onclick="unkanReviewSave()">確認記録を保存</button>
+<button type="button" id="unkanReviewSaveButton" onclick="unkanReviewSave()">確認記録を保存</button>
+<p id="unkanReviewStatus" role="status" style="margin:12px 0 0;padding:10px 12px;border-radius:8px;font-weight:700;display:none"></p>
 </section>
         <div class="main-grid">
           <div class="card">
@@ -3751,15 +3752,29 @@
       function unkanRun(method, args, done) {
         if (unkanBusy) return;
         unkanBusy = true;
+        const isReview = /UnkanReview/.test(method);
+        const saveButton = document.getElementById('unkanReviewSaveButton');
+        if (isReview) {
+          unkanReviewStatus('処理中です。しばらくお待ちください…', 'busy');
+          if (saveButton) { saveButton.disabled = true; saveButton.textContent = '保存中…'; }
+        }
         document.getElementById('unkanNotice').textContent = '処理中…';
         const runner = google.script.run.withSuccessHandler(function(result) {
           unkanBusy = false;
           document.getElementById('unkanNotice').textContent = result.message || '完了しました。';
+          if (isReview) {
+            if (saveButton) { saveButton.disabled = false; saveButton.textContent = '確認記録を保存'; }
+            unkanReviewStatus('✓ ' + (result.message || '完了しました。') + (/Save/.test(method) ? ' 次は「WPへ更新」を押してください。' : ''), 'ok');
+          }
           if (done) done(result);
         }).withFailureHandler(function(error) {
           unkanBusy = false;
           document.getElementById('unkanPass').value = '';
           document.getElementById('unkanNotice').textContent = error.message || String(error);
+          if (isReview) {
+            if (saveButton) { saveButton.disabled = false; saveButton.textContent = '確認記録を保存'; }
+            unkanReviewStatus('✗ 保存できませんでした: ' + (error.message || String(error)), 'error');
+          }
         });
         runner[method].apply(runner, args);
       }
@@ -3769,6 +3784,16 @@
         unkanRun('uaSetupUnkanFromWeb', [settings]);
       }
       function unkanImport() { unkanRun('uaImportUnkanPublishedFromWeb', [], loadUnkanDashboard); }
+      function unkanReviewStatus(message, kind) {
+        const node = document.getElementById('unkanReviewStatus');
+        if (!node) return;
+        node.style.display = 'block';
+        node.textContent = message;
+        node.style.background = kind === 'ok' ? '#e3f6e8' : (kind === 'error' ? '#fde8e8' : '#eef2f7');
+        node.style.color = kind === 'ok' ? '#14532d' : (kind === 'error' ? '#8a1c1c' : '#1f2937');
+        node.style.border = '1px solid ' + (kind === 'ok' ? '#86d19a' : (kind === 'error' ? '#e39a9a' : '#c4ccd8'));
+        if (node.scrollIntoView) node.scrollIntoView({ block: 'nearest' });
+      }
       function unkanReviewLoad() {
         unkanRun('uaGetUnkanReviewFromWeb', [readForm()], function(result) {
           fillForm(result.data);
@@ -3781,7 +3806,8 @@
       function unkanReviewSave() {
         let entries;
         try { entries = JSON.parse(document.getElementById('unkanReviewJson').value); }
-        catch(error) { document.getElementById('unkanNotice').textContent = 'JSONの形式を確認してください。'; return; }
+        catch(error) { unkanReviewStatus('✗ 保存できませんでした: 貼り付けた内容の形式が正しくありません。「現在の記事から確認項目を作成」のあと、大きな欄を全部選択して貼り直してください。', 'error'); return; }
+        if (!document.getElementById('unkanExperience').checked || !document.getElementById('unkanAd').checked) { unkanReviewStatus('✗ 保存できませんでした: 上の2つのチェックを両方入れてください。', 'error'); return; }
         unkanRun('uaSaveUnkanReviewFromWeb', [readForm(), {digest:unkanReviewDigest,entries:entries,experienceReviewed:document.getElementById('unkanExperience').checked,advertisingReviewed:document.getElementById('unkanAd').checked}]);
       }
 

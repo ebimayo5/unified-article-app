@@ -17,7 +17,8 @@ context.uaAssertUnkanReview_(data);
 assert.throws(()=>context.uaAssertUnkanReview_({...data,body:'<p>変更した本文</p>'}),/未完了/);
 assert(context.uaUnkanContentIssues_({...data,body:'<p>成果報酬</p>'}).length);
 assert(context.uaUnkanContentIssues_({...data,body:'<a href="https://example.com/?full=secret">リンク</a>'}).length);
-assert(context.uaUnkanContentIssues_({...data,body:'<a href="https://px.a8.net/a">ユーキャン</a>'}).length);
+// 広告表示はSWELLのPR表記で行うため、本文冒頭の広告表示は要求しない。
+assert.strictEqual(context.uaUnkanContentIssues_({...data,body:'<a href="https://px.a8.net/a">ユーキャン</a>'}).length, 0);
 context.uaUnkanOriginal_=()=>({currentHash:'stale'});
 assert.throws(()=>context.uaAssertUnkanPublishedUpdate_(data,{slug:'study'}),/変更されています/);
 context.uaUnkanOriginal_=()=>({currentHash:context.uaUnkanPostHash_({slug:'study'})});

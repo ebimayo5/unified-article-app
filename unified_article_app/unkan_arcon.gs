@@ -212,9 +212,7 @@ function uaGetUnkanReviewFromWeb(data) {
   let current = uaBuildRowData_(sheet, Number(data.row));
   if (uaIsUnkan_(current)) {
     let body = uaApplyManagedAffiliateCta_(current.body, current, UA_APP_TYPES.unkan);
-    if (/px\.a8\.net/.test(body) && !/広告|アフィリエイト/.test(uaUnkanText_(body).slice(0,160))) {
-      body = '<!-- wp:paragraph --><p>本記事にはアフィリエイト広告を含みます。</p><!-- /wp:paragraph -->\n' + body;
-    }
+    // 広告表示は、SWELLのPR表記(記事上部のテーマ側の表示)で行う。本文に定型文を足さない。
     sheet.getRange(Number(data.row), UA_COLUMNS.body).setValue(body);
     current = uaBuildRowData_(sheet, Number(data.row));
   }
@@ -283,7 +281,6 @@ function uaUnkanContentIssues_(data) {
     .map(uaUnkanText_)
     .concat([data.titleIdeas, data.metaDescription, data.tags].map(uaUnkanText_));
   if (ucanUnits.some(function(unit) { return /ユーキャン/.test(unit) && /合格率|合格者数|教育訓練給付|実質.{0,15}円|受講生の声/.test(unit); })) issues.push('運管：ユーキャン紹介で禁止された合格率・給付制度等の表現を見直してください。');
-  if (/px\.a8\.net/.test(body) && !/広告|アフィリエイト/.test(uaUnkanText_(body).slice(0, 160))) issues.push('運管：広告リンクを含む記事の冒頭に広告表示が必要です。');
   return issues;
 }
 

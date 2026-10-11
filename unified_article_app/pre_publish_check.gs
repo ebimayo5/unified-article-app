@@ -356,6 +356,8 @@ function uaApplyPrePublishFixesOnceFromPanel(data) {
     revision = uaBuildRejectedPrePublishRevisionFallback_(revision, rowData, rejectedRevisionReason);
     revisedBody = originalBody;
   }
+  // AIの修正案の採否に関わらず、手作りの「この記事のポイント」枠はSWELL標準の形へ機械的に直す(中身は変えない)。
+  revisedBody = uaNormalizeLegacyPointBoxToSwell_(revisedBody, appConfig);
   const allowedNewUrls = uaExtractPrePublishUrlsFromText_(externalSourcesPrompt)
     .concat(internalLinkUrls)
     .concat([String(rowData.affiliateUrl || '').trim()])
@@ -2101,4 +2103,29 @@ function uaBuildPrePublishPatchPrompt_(rowData, checkReport, externalSourcesProm
   if ((rowData && (rowData.key === 'unkan' || rowData.appType === '運行管理者試験対策'))) rowData = Object.assign({}, rowData, { affiliateNotes: uaUnkanPublicNotes_(rowData.affiliateNotes) });
   const prompt = uaBuildPrePublishPatchPrompt_UnkanBase_(rowData, checkReport, externalSourcesPrompt, internalLinksPrompt);
   return (rowData && (rowData.key === 'unkan' || rowData.appType === '運行管理者試験対策')) ? uaUnkanPolicy_() + "\n" + prompt + "\n" + uaUnkanPolicy_() : prompt;
+}
+
+// 「この記事のポイント」が手作りのwp:htmlブロック(SWELL標準の article-compass-point-box ではない)のとき、
+// 見出し文言と箇条書きの中身をそのまま、SWELL標準のグループブロックへ入れ替える。
+// SWELL出力のサイトだけが対象。すでに標準形がある本文や、箇条書きを読み取れない本文は変更しない。
+function uaNormalizeLegacyPointBoxToSwell_(body, appConfig) {
+  const html = String(body || '');
+  if (!uaUsesSwellBlocks_(appConfig)) return html;
+  if (html.indexOf('article-compass-point-box') !== -1) return html;
+  const re = /<!--\s*wp:html\s*-->\s*<div\b[^>]*>\s*<p\b[^>]*>(?:\s*<strong\b[^>]*>)?\s*この記事のポイント\s*(?:<\/strong>\s*)?<\/p>\s*(<ul\b[\s\S]*?<\/ul>)\s*<\/div>\s*<!--\s*\/wp:html\s*-->/;
+  const match = html.match(re);
+  if (!match) return html;
+  const items = match[1].match(/<li\b[^>]*>[\s\S]*?<\/li>/g) || [];
+  if (!items.length) return html;
+  const list = '<ul class="wp-block-list">' + items.map(function(li) {
+    return li.replace(/^<li\b[^>]*>/, '<li>');
+  }).join('') + '</ul>';
+  const block = [
+    '<!-- wp:group {"className":"is-style-big_icon_point article-compass-point-box","layout":{"type":"constrained"}} -->',
+    '<div class="wp-block-group is-style-big_icon_point article-compass-point-box">',
+    '<!-- wp:paragraph --><p><strong>この記事のポイント</strong></p><!-- /wp:paragraph -->',
+    '<!-- wp:list -->' + list + '<!-- /wp:list -->',
+    '</div><!-- /wp:group -->'
+  ].join('\n');
+  return html.replace(re, function() { return block; });
 }

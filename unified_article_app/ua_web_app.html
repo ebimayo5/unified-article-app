@@ -448,8 +448,8 @@
         </div>
 
         <div id="editorView" class="hidden">
-<section id="unkanReviewPanel" class="card hidden"><h2>公開前の根拠・広告確認</h2><p>資料本文と適用時点を人が確認して記録します。URLだけで事実確認済みとは扱いません。</p>
-<button type="button" onclick="unkanReviewLoad()">現在の記事から確認項目を作成</button>
+<style>@keyframes unkanSpin{to{transform:rotate(360deg)}}</style><section id="unkanReviewPanel" class="card hidden"><h2>公開前の根拠・広告確認</h2><p>資料本文と適用時点を人が確認して記録します。URLだけで事実確認済みとは扱いません。</p>
+<button type="button" id="unkanReviewLoadButton" onclick="unkanReviewLoad()">現在の記事から確認項目を作成</button>
 <textarea id="unkanReviewJson" rows="12" aria-label="根拠確認JSON"></textarea>
 <label><input id="unkanExperience" type="checkbox">実体験・資格の記載を原本と照合した</label>
 <label><input id="unkanAd" type="checkbox">広告表記・リンク・紹介制限を確認した</label>
@@ -3753,17 +3753,32 @@
         if (unkanBusy) return;
         unkanBusy = true;
         const isReview = /UnkanReview/.test(method);
+        const isLoad = /GetUnkanReview/.test(method);
         const saveButton = document.getElementById('unkanReviewSaveButton');
+        const loadButton = document.getElementById('unkanReviewLoadButton');
+        const jsonBox = document.getElementById('unkanReviewJson');
+        const restoreReviewControls = function() {
+          if (saveButton) { saveButton.disabled = false; saveButton.textContent = '確認記録を保存'; }
+          if (loadButton) { loadButton.disabled = false; loadButton.textContent = '現在の記事から確認項目を作成'; }
+          if (jsonBox) jsonBox.disabled = false;
+        };
         if (isReview) {
-          unkanReviewStatus('処理中です。しばらくお待ちください…', 'busy');
-          if (saveButton) { saveButton.disabled = true; saveButton.textContent = '保存中…'; }
+          if (isLoad) {
+            unkanReviewStatus('読み込み中です。数秒〜十数秒かかります。このまま待ってください…', 'busy');
+            if (loadButton) { loadButton.disabled = true; loadButton.textContent = '読み込み中…'; }
+            if (jsonBox) { jsonBox.value = '読み込み中です。数秒〜十数秒かかります。
+この欄に内容が出るまで、このまま待ってください…'; jsonBox.disabled = true; }
+          } else {
+            unkanReviewStatus('保存中です。しばらくお待ちください…', 'busy');
+            if (saveButton) { saveButton.disabled = true; saveButton.textContent = '保存中…'; }
+          }
         }
         document.getElementById('unkanNotice').textContent = '処理中…';
         const runner = google.script.run.withSuccessHandler(function(result) {
           unkanBusy = false;
           document.getElementById('unkanNotice').textContent = result.message || '完了しました。';
           if (isReview) {
-            if (saveButton) { saveButton.disabled = false; saveButton.textContent = '確認記録を保存'; }
+            restoreReviewControls();
             unkanReviewStatus('✓ ' + (result.message || '完了しました。') + (/Save/.test(method) ? ' 次は「WPへ更新」を押してください。' : ''), 'ok');
           }
           if (done) done(result);
@@ -3772,8 +3787,9 @@
           document.getElementById('unkanPass').value = '';
           document.getElementById('unkanNotice').textContent = error.message || String(error);
           if (isReview) {
-            if (saveButton) { saveButton.disabled = false; saveButton.textContent = '確認記録を保存'; }
-            unkanReviewStatus('✗ 保存できませんでした: ' + (error.message || String(error)), 'error');
+            restoreReviewControls();
+            if (isLoad && jsonBox) jsonBox.value = '';
+            unkanReviewStatus('✗ ' + (isLoad ? '読み込めませんでした: ' : '保存できませんでした: ') + (error.message || String(error)), 'error');
           }
         });
         runner[method].apply(runner, args);
@@ -3788,7 +3804,13 @@
         const node = document.getElementById('unkanReviewStatus');
         if (!node) return;
         node.style.display = 'block';
-        node.textContent = message;
+        node.textContent = '';
+        if (kind === 'busy') {
+          const spinner = document.createElement('span');
+          spinner.style.cssText = 'display:inline-block;width:14px;height:14px;margin-right:8px;vertical-align:-2px;border:2px solid #9aa7b8;border-top-color:#1f3a5f;border-radius:50%;animation:unkanSpin 0.8s linear infinite';
+          node.appendChild(spinner);
+        }
+        node.appendChild(document.createTextNode(message));
         node.style.background = kind === 'ok' ? '#e3f6e8' : (kind === 'error' ? '#fde8e8' : '#eef2f7');
         node.style.color = kind === 'ok' ? '#14532d' : (kind === 'error' ? '#8a1c1c' : '#1f2937');
         node.style.border = '1px solid ' + (kind === 'ok' ? '#86d19a' : (kind === 'error' ? '#e39a9a' : '#c4ccd8'));

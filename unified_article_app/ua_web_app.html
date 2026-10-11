@@ -3766,8 +3766,7 @@
           if (isLoad) {
             unkanReviewStatus('読み込み中です。数秒〜十数秒かかります。このまま待ってください…', 'busy');
             if (loadButton) { loadButton.disabled = true; loadButton.textContent = '読み込み中…'; }
-            if (jsonBox) { jsonBox.value = '読み込み中です。数秒〜十数秒かかります。
-この欄に内容が出るまで、このまま待ってください…'; jsonBox.disabled = true; }
+            if (jsonBox) { jsonBox.value = '読み込み中です。数秒〜十数秒かかります。\nこの欄に内容が出るまで、このまま待ってください…'; jsonBox.disabled = true; }
           } else {
             unkanReviewStatus('保存中です。しばらくお待ちください…', 'busy');
             if (saveButton) { saveButton.disabled = true; saveButton.textContent = '保存中…'; }

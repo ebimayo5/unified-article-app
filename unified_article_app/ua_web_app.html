@@ -2319,8 +2319,30 @@
             schedulePendingArticleGenerationRetry(flow, index, currentData);
             return;
           }
+          if (step.server === 'uaCreateWpDraftFromWeb' && isUnkanPublishedStopError(error)) {
+            finishFullWorkflowAtUnkanPublishedStop(flow);
+            return;
+          }
           failFullArticleWorkflow(error, step.label);
         })[step.server](requestData);
+      }
+
+      // 運管の公開済み記事は、1ボタン作成の最後でWordPressへ書き込まない仕様。エラーではなく「リライト完了」として終える。
+      function isUnkanPublishedStopError(error) {
+        const message = error && error.message ? error.message : String(error || '');
+        return message.indexOf('運管の公開済み記事です') !== -1 && message.indexOf('公開記事を更新') !== -1;
+      }
+
+      function finishFullWorkflowAtUnkanPublishedStop(flow) {
+        clearBusy();
+        renderWorkflowProgress(flow, flow.steps.length, 'done');
+        setProgress('done');
+        setNotice('リライトまで完了しました。公開中の記事(WordPress)はまだ変更していません。内容を確認し、根拠確認を記録してから「公開記事を更新」で反映してください。', false);
+        showTab('check');
+        clearFullWorkflowResumeState();
+        showFullWorkflowResumeButton(false);
+        showFullWorkflowMarketContinueButton(false);
+        window.uaFullWorkflow = null;
       }
 
       function isPendingPrePublishRevisionError(error) {

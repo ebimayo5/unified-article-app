@@ -758,7 +758,10 @@ function uaCreateWpDraftFromPanel(data) {
     const existingStatus = String(existingPost && existingPost.status || '').trim();
     const editableStatuses = ['draft', 'pending', 'auto-draft'];
     if (editableStatuses.indexOf(existingStatus) === -1) {
-      throw new Error('WP draft: 投稿ID ' + existingPostId + ' は「' + (existingStatus || '状態不明') + '」のため自動更新しません。公開済み・予約済み記事の誤更新を防ぐため停止しました。');
+      const unkanPublishedHint = uaIsUnkan_(appConfig) && existingStatus === 'publish'
+        ? ' 運管の公開済み記事です。リライト結果はシートに保存済みで、WordPressは変更していません。根拠確認を記録し、「公開記事を更新」で反映してください。'
+        : '';
+      throw new Error('WP draft: 投稿ID ' + existingPostId + ' は「' + (existingStatus || '状態不明') + '」のため自動更新しません。公開済み・予約済み記事の誤更新を防ぐため停止しました。' + unkanPublishedHint);
     }
     payload.status = existingStatus === 'auto-draft' ? 'draft' : existingStatus;
     post = uaCallWordPressApi_(

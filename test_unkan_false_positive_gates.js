@@ -22,3 +22,10 @@ const row = '<table><tr><td>ユーキャン</td><td>教育訓練給付の対象<
 assert.strictEqual(ctx.uaUnkanContentIssues_({ ...base, body: row }).length, 1);
 assert.strictEqual(ctx.uaUnkanContentIssues_({ ...base, body: 'ユーキャンの合格率' }).length, 1, 'untagged body falls back to whole text');
 console.log('test_unkan_false_positive_gates OK');
+
+// 3) タイトル案の「案1：」は確認対象にしない。数値を含む本当の主張は残す。
+const claimsFor = (title) => Array.from(ctx.uaUnkanReviewClaims_({ body: '<p>本文</p>', titleIdeas: title, metaDescription: '', tags: '' }));
+assert.deepStrictEqual(claimsFor('案1：運行管理者試験の勉強方法｜独学の進め方'), []);
+assert.deepStrictEqual(claimsFor('案1：勉強方法 案2：進め方 案3：選び方'), []);
+assert.strictEqual(claimsFor('案1：合格率は約38%を解説').length, 1);
+console.log('title label gate OK');

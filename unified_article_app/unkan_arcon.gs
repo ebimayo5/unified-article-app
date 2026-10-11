@@ -311,7 +311,8 @@ function uaUnkanRememberUpdatedPost_(data, post) {
 function uaUnkanReviewClaims_(data) {
   const claims = uaUnkanClaimBlocks_(data.body);
   [data.titleIdeas, data.metaDescription, data.tags].forEach(function(text) {
-    const value = uaUnkanText_(text);
+    // タイトル案の「案1：」は番号の見出しで、数値の主張ではない。確認対象にしない。
+    const value = uaUnkanText_(text).replace(/案\s*[1-3１-３一二三]\s*[:：・\-]?\s*/g, '').trim();
     if (value && /[0-9０-９]|法令|義務|禁止|拘束時間|休息期間|受験資格|給付|合格基準/.test(value) && claims.indexOf(value) < 0) claims.push(value);
   });
   return claims;

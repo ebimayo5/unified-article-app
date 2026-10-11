@@ -804,6 +804,21 @@ function uaCreateWpDraftFromPanel(data) {
 }
 
 function uaUpdatePublishedWpFromPanel(data) {
+  if (uaIsUnkan_(data)) {
+    uaAssertUnkanOperator_();
+    const lock = LockService.getScriptLock();
+    lock.waitLock(30000);
+    try {
+      const sheet = uaGetSheetForData_(data);
+      const row = Number(data.row);
+      if (!Number.isInteger(row) || row < 2) throw new Error('運管の記事行を選んでください。');
+      const current = uaBuildRowData_(sheet, row);
+      if (!uaIsUnkan_(current) || uaUnkanReviewHash_(data) !== uaUnkanReviewHash_(current)) {
+        throw new Error('画面と保存済みの記事が異なります。本文は上書きしていません。記事を再読み込みしてください。');
+      }
+      return uaUpdatePublishedWpFromPanelCore_(sheet, row);
+    } finally { lock.releaseLock(); }
+  }
   uaSaveActiveRowData(data || {});
 
   const sheet = uaGetSheetForData_(data || {});

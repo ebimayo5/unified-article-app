@@ -1451,6 +1451,17 @@ function uaGetInitialPanelData() {
 }
 
 function uaSaveActiveRowData(data) {
+  if (data && data.appType === '運行管理者試験対策') {
+    uaAssertUnkanOperator_();
+    const lock = LockService.getScriptLock();
+    lock.waitLock(30000);
+    try { return uaSaveActiveRowDataCore_(data); }
+    finally { lock.releaseLock(); }
+  }
+  return uaSaveActiveRowDataCore_(data);
+}
+
+function uaSaveActiveRowDataCore_(data) {
   if (!data || Object.keys(data).length === 0) {
     throw new Error(
       'uaSaveActiveRowData: dataが空です。パネル（readForm()）以外からこの関数や、これを呼ぶ' +
@@ -1490,6 +1501,12 @@ function uaSaveActiveRowData(data) {
     throw new Error('記事データの行を選択してください。1行目は見出しです。');
   }
 
+  if (sheetConfig && sheetConfig.key === 'unkan') {
+    const current = uaBuildRowData_(sheet, row);
+    if ((current.body || current.mainInput) && (!data.rowVersion || data.rowVersion !== current.rowVersion)) {
+      throw new Error('保存済みの記事が更新されています。古い画面からの上書きを防ぎました。記事を再読み込みしてください。');
+    }
+  }
   uaEnsureArticleSheetLayout_(sheet);
 
   const storedBody = String(sheet.getRange(row, UA_COLUMNS.body).getValue() || '');
@@ -1550,6 +1567,7 @@ function uaBuildRowData_(sheet, row) {
 
   return {
     row: row,
+    rowVersion: appType === '運行管理者試験対策' ? uaUnkanHash_(JSON.stringify(values.slice(0, UA_ARTICLE_COLUMN_COUNT))) : '',
     appType: appType,
     mainInput: values[UA_COLUMNS.mainInput - 1] || '',
     volume: values[UA_COLUMNS.volume - 1] || '',

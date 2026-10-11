@@ -207,15 +207,11 @@ function uaUnkanSourceKind_(url) {
 
 function uaGetUnkanReviewFromWeb(data) {
   uaAssertUnkanOperator_();
-  uaSaveActiveRowData(data || {});
+  // 読み込みではフォームを保存しない。シートの現在値だけを確認対象にする。
   const sheet = uaGetSheetForData_(data || {});
-  let current = uaBuildRowData_(sheet, Number(data.row));
-  if (uaIsUnkan_(current)) {
-    let body = uaApplyManagedAffiliateCta_(current.body, current, UA_APP_TYPES.unkan);
-    // 広告表示は、SWELLのPR表記(記事上部のテーマ側の表示)で行う。本文に定型文を足さない。
-    sheet.getRange(Number(data.row), UA_COLUMNS.body).setValue(body);
-    current = uaBuildRowData_(sheet, Number(data.row));
-  }
+  const row = Number(data && data.row);
+  if (!Number.isInteger(row) || row < 2) throw new Error('運管の記事行を選んでください。');
+  const current = uaBuildRowData_(sheet, row);
   if (!uaIsUnkan_(current)) throw new Error('運管の記事を選んでください。');
   // 用意済みの確認データ(シート「運管_根拠確認」のこの行のJSON)があれば、同じ文の項目へ入れる。
   // 保存済みの記録(review.entries)でも、下書き(配列だけ)でも読める。照合ハッシュは見ない。
@@ -235,11 +231,19 @@ function uaGetUnkanReviewFromWeb(data) {
 
 function uaSaveUnkanReviewFromWeb(data, review) {
   uaAssertUnkanOperator_();
-  uaSaveActiveRowData(data || {});
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try { return uaSaveUnkanReviewCore_(data, review); }
+  finally { lock.releaseLock(); }
+}
+
+function uaSaveUnkanReviewCore_(data, review) {
+  // 確認保存は記事を変更しない。古い画面も未保存の編集も、書き込む前に止める。
   const sheet = uaGetSheetForData_(data || {});
   const row = Number(data && data.row);
   const current = uaBuildRowData_(sheet, row);
   if (!uaIsUnkan_(current) || row < 2) throw new Error('運管の記事を選んでください。');
+  if (uaUnkanReviewHash_(data || {}) !== uaUnkanReviewHash_(current)) throw new Error('画面と保存済みの記事が異なります。記事を再読み込みして確認してください。本文は上書きしていません。');
   if (!review || review.digest !== uaUnkanReviewHash_(current)) throw new Error('確認中に記事が変わりました。確認対象を再取得してください。');
   if (review.experienceReviewed !== true || review.advertisingReviewed !== true) throw new Error('実体験と広告表現の確認が必要です。');
   const entries = review.entries;

@@ -1855,6 +1855,7 @@
         google.script.run
           .withSuccessHandler(function(data) {
             autoSaveInFlight = false;
+            if (String(payload.row) === String(document.getElementById('row').value) && payload.appType === loadedAppType) loadedRowVersion = data && data.rowVersion || '';
             setProgress('done');
             setAutoSaveIndicator('saved');
             if (autoSavePending) scheduleAutoSave();
@@ -2046,10 +2047,12 @@
         }).withFailureHandler(fail).uaCreateBlankArticleForWeb(document.getElementById('appType').value);
       }
 
+      let loadedRowVersion = '';
       function readForm() {
         syncRakutenControlsToNotes();
         const data = { appType: document.getElementById('appType').value };
         fields.forEach(function(id) { const el = document.getElementById(id); if (el) data[id] = el.value; });
+        data.rowVersion = loadedRowVersion;
         data.imageStylePreset = document.getElementById('imageStylePreset').value;
         data.imageStylePrompt = document.getElementById('imageStylePrompt').value;
         return data;
@@ -2062,6 +2065,9 @@
       }
 
       function fillForm(data) {
+        loadedRowVersion = data && data.rowVersion || '';
+        window.clearTimeout(autoSaveTimer);
+        autoSavePending = false;
         isFillingForm = true;
         rakutenSuggestionRequestToken += 1;
         renderRakutenSuggestions([]);

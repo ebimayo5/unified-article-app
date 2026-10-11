@@ -3800,7 +3800,16 @@
           unkanReviewDigest = result.digest;
           document.getElementById('unkanExperience').checked = false;
           document.getElementById('unkanAd').checked = false;
-          document.getElementById('unkanReviewJson').value = JSON.stringify(result.claims.map(function(text) { return {claim:text,url:'',quote:'',checkedOn:'',experience:false}; }), null, 2);
+          const prepared = Array.isArray(result.entries) ? result.entries : [];
+          let filled = 0;
+          const items = result.claims.map(function(text) {
+            const found = prepared.filter(function(entry) { return entry && entry.claim === text; })[0];
+            if (found) { filled += 1; return {claim:text,url:found.url||'',quote:found.quote||'',checkedOn:found.checkedOn||'',experience:found.experience===true}; }
+            return {claim:text,url:'',quote:'',checkedOn:'',experience:false};
+          });
+          document.getElementById('unkanReviewJson').value = JSON.stringify(items, null, 2);
+          const empty = items.length - filled;
+          unkanReviewStatus(filled + '項目は用意済みの内容を入れました。' + (empty > 0 ? '残り' + empty + '項目は空欄です(出典URL・原文・確認日が必要)。' : '貼り付けは不要です。2つのチェックを入れて「確認記録を保存」を押してください。'), empty > 0 ? 'busy' : 'ok');
         });
       }
       function unkanReviewSave() {

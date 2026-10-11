@@ -219,7 +219,20 @@ function uaGetUnkanReviewFromWeb(data) {
     current = uaBuildRowData_(sheet, Number(data.row));
   }
   if (!uaIsUnkan_(current)) throw new Error('運管の記事を選んでください。');
-  return { data: current, digest: uaUnkanReviewHash_(current), claims: uaUnkanReviewClaims_(current), message: '数値・法令等を含む確認対象です。各項目の根拠を公式資料で確認してください。' };
+  // 用意済みの確認データ(シート「運管_根拠確認」のこの行のJSON)があれば、同じ文の項目へ入れる。
+  // 保存済みの記録(review.entries)でも、下書き(配列だけ)でも読める。照合ハッシュは見ない。
+  let savedEntries = [];
+  try {
+    const reviewSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(UA_UNKAN_REVIEWS);
+    const savedRow = reviewSheet && uaUnkanFindIdRow_(reviewSheet, Number(data.row));
+    if (savedRow) {
+      const parsed = JSON.parse(String(reviewSheet.getRange(savedRow, 4).getValue() || '[]'));
+      savedEntries = Array.isArray(parsed) ? parsed : (parsed && Array.isArray(parsed.entries) ? parsed.entries : []);
+    }
+  } catch (error) {
+    savedEntries = [];
+  }
+  return { data: current, digest: uaUnkanReviewHash_(current), claims: uaUnkanReviewClaims_(current), entries: savedEntries, message: '数値・法令等を含む確認対象です。各項目の根拠を公式資料で確認してください。' };
 }
 
 function uaSaveUnkanReviewFromWeb(data, review) {

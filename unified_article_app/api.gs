@@ -316,7 +316,10 @@ function uaNormalizeOpenAiBackgroundJson_(json) {
       : (source.incomplete_details && source.incomplete_details.reason
         ? source.incomplete_details.reason
         : status || 'unknown');
-    throw new Error('OpenAIのバックグラウンド修正が完了しませんでした（' + detail + '）。');
+    const limitHint = detail === 'max_output_tokens'
+      ? '出力の上限に達しました。記事が長いか、指摘が多いためです。'
+      : '';
+    throw new Error('OpenAIのバックグラウンド修正が完了しませんでした（' + detail + '）。' + limitHint);
   }
 
   const outputText = uaExtractOpenAiText_(source);

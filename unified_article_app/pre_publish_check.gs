@@ -277,7 +277,9 @@ function uaApplyPrePublishFixesOnceFromPanel(data) {
         externalSourcesPrompt,
         uaBuildPrePublishInternalLinksPrompt_(rowData, appConfig)
       ),
-      6000
+      // 上限は「使い切る量」ではなく「超えない量」。長い記事・指摘が多い記事で、
+      // 思考分を含めて6000では途中で切れて停止したため、余裕を持たせる(2026-10-11)。
+      14000
     );
     backgroundState.responseId = String(backgroundResponse.id || '');
     backgroundState.phase = 'queued';

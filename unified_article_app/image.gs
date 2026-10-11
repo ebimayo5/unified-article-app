@@ -421,8 +421,17 @@ function uaGenerateWpImagesFromPanel(data) {
   let wpUpdated = false;
   const postId = Number(rowData.wpPostId || 0);
   const existingWpPost = uaTryFetchGeneratedImageWpPost_(wpConfig, postId);
-  if (uaIsUnkan_(appConfig) && postId && (!existingWpPost || ['draft', 'pending', 'auto-draft'].indexOf(String(existingWpPost.status || '')) < 0)) {
-    throw new Error('運管：画像の自動反映は下書き専用です。公開記事は根拠確認後にまとめて更新してください。');
+  // 運管の公開記事は、WordPressへ直接書き込まない。アイキャッチを除く記事内画像だけを作り、
+  // シートの本文へ差し込む。WordPressへの反映は、根拠確認つきの「公開記事を更新」だけが行う。
+  const unkanPublishedBodyOnly = uaIsUnkan_(appConfig) && postId > 0 && !!existingWpPost && String(existingWpPost.status || '') === 'publish';
+  if (uaIsUnkan_(appConfig) && postId && !unkanPublishedBodyOnly && (!existingWpPost || ['draft', 'pending', 'auto-draft'].indexOf(String(existingWpPost.status || '')) < 0)) {
+    throw new Error('運管：投稿の状態を確認できないため、画像を反映しません。WordPressの投稿状態を確認してから再実行してください。');
+  }
+  const activeTasks = unkanPublishedBodyOnly
+    ? tasks.filter(function(task) { return String(task && task.role || '') !== 'eyecatch'; })
+    : tasks;
+  if (activeTasks.length === 0) {
+    throw new Error('画像化できる見出しが見つかりませんでした。');
   }
   const existingFeaturedMediaId = Number(existingWpPost && existingWpPost.featured_media || 0);
   rowData.existingWpBody = existingWpPost ? uaGetWpPostContentText_(existingWpPost) : '';
@@ -430,7 +439,7 @@ function uaGenerateWpImagesFromPanel(data) {
     featuredMediaId = existingFeaturedMediaId;
   }
 
-  const pendingTasks = uaFilterPendingGeneratedImageTasks_(tasks, rowData, existingFeaturedMediaId);
+  const pendingTasks = uaFilterPendingGeneratedImageTasks_(activeTasks, rowData, existingFeaturedMediaId);
   const batchSize = Math.max(1, Math.min(2, Number(data && data.imageBatchSize) || 1));
   const selectedTasks = pendingTasks.slice(0, batchSize);
 
@@ -475,10 +484,10 @@ function uaGenerateWpImagesFromPanel(data) {
 
     if (task.role === 'eyecatch') {
       featuredMediaId = media.id || featuredMediaId;
-      const wpFailure = uaTryUpdateGeneratedImagesCheckpoint_(wpConfig, postId, body, featuredMediaId, uploaded);
+      const wpFailure = unkanPublishedBodyOnly ? null : uaTryUpdateGeneratedImagesCheckpoint_(wpConfig, postId, body, featuredMediaId, uploaded);
       if (wpFailure) {
         failures.push(uaBuildGeneratedImageFailure_('WordPress途中反映', task, index, wpFailure, media));
-      } else if (postId > 0) {
+      } else if (postId > 0 && !unkanPublishedBodyOnly) {
         wpUpdated = true;
       }
       uaTrySaveGeneratedImageCheckpoint_(sheet, row, rowData, body, uploaded, provider, failures);
@@ -497,10 +506,10 @@ function uaGenerateWpImagesFromPanel(data) {
       body = nextBody;
       insertedCount++;
     }
-    const wpFailure = uaTryUpdateGeneratedImagesCheckpoint_(wpConfig, postId, body, featuredMediaId, uploaded);
+    const wpFailure = unkanPublishedBodyOnly ? null : uaTryUpdateGeneratedImagesCheckpoint_(wpConfig, postId, body, featuredMediaId, uploaded);
     if (wpFailure) {
       failures.push(uaBuildGeneratedImageFailure_('WordPress途中反映', task, index, wpFailure, media));
-    } else if (postId > 0) {
+    } else if (postId > 0 && !unkanPublishedBodyOnly) {
       wpUpdated = true;
     }
     uaTrySaveGeneratedImageCheckpoint_(sheet, row, rowData, body, uploaded, provider, failures);
@@ -513,7 +522,7 @@ function uaGenerateWpImagesFromPanel(data) {
     uaThrowGeneratedImageStageError_('スプレッドシートへの保存', null, -1, e);
   }
 
-  if (postId > 0) {
+  if (postId > 0 && !unkanPublishedBodyOnly) {
     try {
       uaUpdateWpPostWithImages_(wpConfig, postId, body, featuredMediaId, uploaded);
       wpUpdated = true;
@@ -539,7 +548,9 @@ function uaGenerateWpImagesFromPanel(data) {
   nextData.imagePendingBefore = pendingTasks.length;
   nextData.imageBatchSize = batchSize;
   nextData.imagePromptPack = data && data.imagePromptPack || '';
-  const wpPart = postId > 0
+  const wpPart = unkanPublishedBodyOnly
+    ? '公開中の記事(WordPress)は変更していません。画像はシートの本文へ差し込みました。内容を確認し、根拠確認後に「公開記事を更新」で反映してください。アイキャッチは変更していません。'
+    : postId > 0
     ? (wpUpdated ? 'WordPress下書きも更新しました。' : 'WordPress下書き更新は失敗しました。生成済み画像の詳細は構成メモに残しました。')
     : '本文に差し込みました。WP下書き作成前の場合、アイキャッチ設定は下書き作成後に手動確認してください。';
   const continuePart = nextData.imageHasMore ? ' 残り' + stillPendingCount + '件を続けて処理します。' : '';

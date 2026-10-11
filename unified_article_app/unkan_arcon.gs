@@ -263,7 +263,13 @@ function uaUnkanContentIssues_(data) {
   const issues = [];
   if (/QUIZ_FULL_KEY|[?&]full=|script\.google\.com\/macros/i.test(rawAll)) issues.push('運管：製品鍵・購入者URL・GAS直URLは公開禁止です。');
   if (/成果報酬|成果条件|否認条件|再訪問期間|成果確定目安|プログラムID|media-console\.a8\.net/.test(text)) issues.push('運管：内部管理情報が本文等に含まれています。');
-  if (/ユーキャン/.test(text) && /合格率|合格者数|教育訓練給付|実質.{0,15}円|受講生の声/.test(text)) issues.push('運管：ユーキャン紹介で禁止された合格率・給付制度等の表現を見直してください。');
+  // 「ユーキャン」と禁止表現が同じ段落・表の行・見出しに並ぶ場合だけを対象にする。
+  // 記事全体で判定すると、合格率の記事へのリンクカードがあるだけで止まってしまう。
+  const bodyBlocks = body.match(/<(?:p|li|tr|h[1-6]|figcaption)\b[^>]*>[\s\S]*?<\/(?:p|li|tr|h[1-6]|figcaption)>/gi) || [];
+  const ucanUnits = (bodyBlocks.length ? bodyBlocks : [body])
+    .map(uaUnkanText_)
+    .concat([data.titleIdeas, data.metaDescription, data.tags].map(uaUnkanText_));
+  if (ucanUnits.some(function(unit) { return /ユーキャン/.test(unit) && /合格率|合格者数|教育訓練給付|実質.{0,15}円|受講生の声/.test(unit); })) issues.push('運管：ユーキャン紹介で禁止された合格率・給付制度等の表現を見直してください。');
   if (/px\.a8\.net/.test(body) && !/広告|アフィリエイト/.test(uaUnkanText_(body).slice(0, 160))) issues.push('運管：広告リンクを含む記事の冒頭に広告表示が必要です。');
   return issues;
 }

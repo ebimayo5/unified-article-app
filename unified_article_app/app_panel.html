@@ -2420,6 +2420,9 @@ function saveOpenAiModels(button) {
         unkanRun('uaGetUnkanReviewFromWeb', [readForm()], function(result) {
           fillForm(result.data);
           unkanReviewDigest = result.digest;
+          let compare = document.getElementById('unkanPublishedComparison');
+          if (!compare) { compare = document.createElement('textarea'); compare.id = 'unkanPublishedComparison'; compare.readOnly = true; compare.setAttribute('aria-label','公開原文との照合結果'); document.getElementById('unkanReviewPanel').appendChild(compare); }
+          compare.value = JSON.stringify(result.publishedCheck || {}, null, 2);
           document.getElementById('unkanExperience').checked = false;
           document.getElementById('unkanAd').checked = false;
           document.getElementById('unkanReviewJson').value = JSON.stringify(result.claims.map(function(text) { return {claim:text,url:'',quote:'',checkedOn:'',experience:false}; }), null, 2);

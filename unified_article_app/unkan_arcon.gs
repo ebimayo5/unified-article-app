@@ -226,7 +226,18 @@ function uaGetUnkanReviewFromWeb(data) {
   } catch (error) {
     savedEntries = [];
   }
-  return { data: current, digest: uaUnkanReviewHash_(current), claims: uaUnkanReviewClaims_(current), entries: savedEntries, message: '数値・法令等を含む確認対象です。各項目の根拠を公式資料で確認してください。' };
+  let publishedCheck = null;
+  if (current.wpPostId) {
+    try {
+      const post = uaFetchWpPostForEdit_(uaUnkanWpConfig_(), Number(current.wpPostId));
+      const original = uaUnkanOriginal_(current.wpPostId);
+      publishedCheck = {postId:post.id, status:post.status, modified:post.modified_gmt,
+        currentHash:uaUnkanPostHash_(post), baselineHash:original && original.currentHash,
+        matchesBaseline:!!original && original.currentHash === uaUnkanPostHash_(post),
+        title:post.title, slug:post.slug, body:uaGetWpPostRawContent_(post)};
+    } catch (error) { publishedCheck = {error:String(error.message || error)}; }
+  }
+  return { data: current, publishedCheck:publishedCheck, digest: uaUnkanReviewHash_(current), claims: uaUnkanReviewClaims_(current), entries: savedEntries, message: '数値・法令等を含む確認対象です。各項目の根拠を公式資料で確認してください。' };
 }
 
 function uaSaveUnkanReviewFromWeb(data, review) {

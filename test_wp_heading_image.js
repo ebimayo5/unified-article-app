@@ -1,0 +1,12 @@
+const fs=require('fs'),vm=require('vm'),assert=require('assert');
+const src=fs.readFileSync(__dirname+'/unified_article_app/wordpress.gs','utf8');
+const c={};vm.createContext(c);vm.runInContext(src,c);
+const media={id:9,url:'https://example.com/image.png',alt:'example'};
+const block='<!-- wp:heading --><h2>見出し</h2>\n<!-- /wp:heading -->';
+const result=c.uaInsertWpImageAfterHeading_(block+'\n<p>本文</p>','見出し',media);
+assert(result.startsWith(block+'\n\n<!-- wp:image'));
+assert(result.indexOf('<!-- /wp:image -->')<result.indexOf('<p>本文</p>'));
+assert.equal(c.uaInsertWpImageAfterHeading_(result,'見出し',media),result);
+assert(c.uaInsertWpImageAfterHeading_('<h2>見出し</h2><p>本文</p>','見出し',media).startsWith('<h2>見出し</h2>\n\n<!-- wp:image'));
+assert.equal(c.uaInsertWpImageAfterHeading_(block,'別の見出し',media),block);
+console.log('Heading images preserve Gutenberg blocks, plain HTML, duplicate protection: PASS');

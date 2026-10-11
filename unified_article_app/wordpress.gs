@@ -1205,7 +1205,10 @@ function uaInsertWpImageAfterHeading_(bodyHtml, headingText, media) {
     const currentHeading = uaNormalizeHeadingText_(match[0]);
     if (currentHeading !== targetHeading) continue;
 
-    const insertAt = match.index + match[0].length;
+    let insertAt = match.index + match[0].length;
+    // Keep the image outside Gutenberg's heading block.
+    const headingClose = bodyHtml.slice(insertAt).match(/^\s*<!--\s*\/wp:heading\s*-->/);
+    if (headingClose) insertAt += headingClose[0].length;
     const nextChunk = bodyHtml.slice(insertAt, insertAt + 500);
     if (nextChunk.indexOf('wp-block-image') !== -1 && nextChunk.indexOf(media.url) !== -1) {
       return bodyHtml;

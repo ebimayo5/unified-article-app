@@ -52,7 +52,7 @@ assert.strictEqual(
 ['ua_web_app.html', 'app_panel.html'].forEach((fileName) => {
   const html = fs.readFileSync(path.join(__dirname, 'unified_article_app', fileName), 'utf8');
   assert.ok(html.includes('onclick="updatePublishedWp(this)"'), fileName + ': update button is missing');
-  assert.ok(html.includes('function updatePublishedWp(button)'), fileName + ': update handler is missing');
+  assert.ok(/function updatePublishedWp\(button(?:, confirmed)?\)/.test(html), fileName + ': update handler is missing');
   assert.ok(html.includes('.uaUpdatePublishedWpFromWeb(data)'), fileName + ': server update call is missing');
 });
 

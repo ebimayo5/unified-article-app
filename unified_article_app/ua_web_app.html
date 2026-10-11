@@ -2380,8 +2380,27 @@
         window.setTimeout(function() {
           if (isOperationCancelled(retryToken) || window.uaFullWorkflowCancelled || window.uaFullWorkflow !== flow) return;
           clearBusy();
-          runFullArticleWorkflowStep(index, currentData || readForm());
+          refreshPendingFullWorkflowStep(flow, index, currentData);
         }, 5 * 60 * 1000);
+      }
+
+      function refreshPendingFullWorkflowStep(flow, index, currentData) {
+        const request = currentData || readForm();
+        if (request.appType !== '運行管理者試験対策') {
+          runFullArticleWorkflowStep(index, request);
+          return;
+        }
+        // The previous call changes status before returning a pending error.
+        // Fetch its current version instead of resubmitting the stale form.
+        google.script.run.withSuccessHandler(function(data) {
+          if (window.uaFullWorkflowCancelled || window.uaFullWorkflow !== flow) return;
+          fillForm(data);
+          flow.steps[index].alwaysRun = true;
+          runFullArticleWorkflowStep(index, data);
+        }).withFailureHandler(function(error) {
+          if (window.uaFullWorkflowCancelled || window.uaFullWorkflow !== flow) return;
+          failFullArticleWorkflow(error, flow.steps[index].label);
+        }).uaGetArticleRowForWeb(request.appType, Number(request.row));
       }
 
       function schedulePendingPrePublishRevisionRetry(flow, index, currentData) {
@@ -2400,7 +2419,7 @@
         window.setTimeout(function() {
           if (isOperationCancelled(retryToken) || window.uaFullWorkflowCancelled || window.uaFullWorkflow !== flow) return;
           clearBusy();
-          runFullArticleWorkflowStep(index, currentData || readForm());
+          refreshPendingFullWorkflowStep(flow, index, currentData);
         }, 5 * 60 * 1000);
       }
 
@@ -2410,7 +2429,7 @@
         if (step.alwaysRun) return false;
         if (step.server === 'uaRunReaderMindMemoFromWeb') return !!value('readerMindMemo');
         if (step.server === 'uaRunArticleStructureFromWeb') return !!value('structureMemo');
-        if (step.server === 'uaRunArticleFromWeb') return !!value('body') && !!value('titleIdeas');
+        if (step.server === 'uaRunArticleFromWeb') return !(value('appType') === '運行管理者試験対策' && value('status') === '取込済み') && !!value('body') && !!value('titleIdeas');
         if (step.server === 'uaCreateWpDraftFromWeb') return !!value('wpPostId');
         if (step.server === 'uaRunPrePublishCheckFromWeb') return value('factCheckPoints').indexOf('\u516c\u958b\u524d\u30c1\u30a7\u30c3\u30af') !== -1 || value('factCheckPoints').indexOf('\u6a5f\u68b0\u30c1\u30a7\u30c3\u30af') !== -1;
         return false;
@@ -3368,14 +3387,40 @@
         }).withFailureHandler(fail).uaCreateWpDraftFromWeb(readForm());
       }
 
-      function updatePublishedWp(button) {
+      function confirmUnkanPublishedUpdate(button, data) {
+        const dialog = document.createElement('dialog');
+        dialog.setAttribute('aria-label', '公開記事の更新確認');
+        const message = document.createElement('p');
+        message.textContent = '運管の公開記事（投稿ID ' + data.wpPostId + '）を更新します。根拠確認記録と公開原文を照合して反映します。';
+        const cancel = document.createElement('button');
+        cancel.type = 'button';
+        cancel.textContent = 'キャンセル';
+        cancel.onclick = function() { dialog.close(); };
+        const approve = document.createElement('button');
+        approve.type = 'button';
+        approve.textContent = '確認して公開記事を更新';
+        approve.onclick = function() { dialog.close(); updatePublishedWp(button, true); };
+        dialog.onclose = function() { dialog.remove(); };
+        dialog.appendChild(message);
+        dialog.appendChild(cancel);
+        dialog.appendChild(approve);
+        document.body.appendChild(dialog);
+        dialog.showModal();
+        cancel.focus();
+      }
+
+      function updatePublishedWp(button, confirmed) {
         const data = readForm();
         if (!Number(data.wpPostId || 0)) {
           setNotice('WP投稿IDがありません。先にWordPressへ入稿してください。', true);
           return;
         }
         const isDraft = String(data.status || '').indexOf('WP下書き') >= 0;
-        if (!isDraft && !window.confirm('公開中の同じ記事を更新します。タイトル案から1件を採用し、本文・Rinker・SEO情報を反映します。よろしいですか？')) {
+        if (!isDraft && data.appType === '運行管理者試験対策' && confirmed !== true) {
+          confirmUnkanPublishedUpdate(button, data);
+          return;
+        }
+        if (!isDraft && data.appType !== '運行管理者試験対策' && !window.confirm('公開中の同じ記事を更新します。タイトル案から1件を採用し、本文・Rinker・SEO情報を反映します。よろしいですか？')) {
           return;
         }
         setBusy(isDraft ? 'WordPress下書きを更新中...' : '公開中のWordPress記事を更新中...', button);
@@ -3825,6 +3870,9 @@
         unkanRun('uaGetUnkanReviewFromWeb', [readForm()], function(result) {
           fillForm(result.data);
           unkanReviewDigest = result.digest;
+          let compare = document.getElementById('unkanPublishedComparison');
+          if (!compare) { compare = document.createElement('textarea'); compare.id = 'unkanPublishedComparison'; compare.readOnly = true; compare.setAttribute('aria-label','公開原文との照合結果'); document.getElementById('unkanReviewPanel').appendChild(compare); }
+          compare.value = JSON.stringify(result.publishedCheck || {}, null, 2);
           document.getElementById('unkanExperience').checked = false;
           document.getElementById('unkanAd').checked = false;
           const prepared = Array.isArray(result.entries) ? result.entries : [];

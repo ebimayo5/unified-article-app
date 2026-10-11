@@ -158,8 +158,8 @@ function uaApplyPrePublishFixesOnceFromPanel(data) {
 
   const currentData = uaBuildRowData_(sheet, row);
   uaSaveActiveRowData(Object.assign({}, currentData, data || {}));
-  const rowData = uaBuildRowData_(sheet, row);
-  const originalBody = String(rowData.body || '').trim();
+  let rowData = uaBuildRowData_(sheet, row);
+  let originalBody = String(rowData.body || '').trim();
   const originalReport = String(rowData.factCheckPoints || '').trim();
 
   if (!originalBody) {
@@ -172,6 +172,17 @@ function uaApplyPrePublishFixesOnceFromPanel(data) {
   const appConfig = uaGetAppConfigByLabel_(rowData.appType);
   if (!appConfig) {
     throw new Error('記事タイプを判定できません。対象行の記事タイプを確認してください。');
+  }
+
+  // 手作りの「この記事のポイント」枠は、AIを使わず機械的にSWELL標準の形へ直す(中身は変えない)。
+  // 保存済みの修正結果を再検査するだけの再開経路でも、この変換を先に反映する。
+  const pointBoxBody = uaNormalizeLegacyPointBoxToSwell_(originalBody, appConfig);
+  if (pointBoxBody !== originalBody) {
+    uaValidatePrePublishRevision_(originalBody, pointBoxBody, [], appConfig);
+    sheet.getRange(row, UA_COLUMNS.body).setValue(pointBoxBody);
+    SpreadsheetApp.flush();
+    rowData = uaBuildRowData_(sheet, row);
+    originalBody = String(rowData.body || '').trim();
   }
 
   const backgroundStateKey = uaGetPrePublishBackgroundStateKey_(sheet, row);

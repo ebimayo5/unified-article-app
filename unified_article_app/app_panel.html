@@ -589,6 +589,8 @@
         50% { transform: translateX(85%); }
         100% { transform: translateX(250%); }
       }
+.theme-navy { --bg:#edf2f7; --panel:#ffffff; --line:#bccbd9; --text:#162c3e; --brand:#0d3049; --brand-dark:#071e30; --soft:#e4edf5; --soft-strong:#c9dae9; --ink:#0d3049; --chrome:#0d3049; --chrome-end:#174a6b; --chrome-border:#38627f; --sidebar-card:#123c59; --sidebar-card-border:#426985; --sidebar-heading-line:#557b98; --sidebar-muted:#e0eaf3; --accent-start:#0d3049; --accent-end:#386986; --primary-top:#174866; --primary-bottom:#0d3049; --primary-border:#071e30; --page-top:#e6eef5; }
+      .theme-navy .header,.theme-navy .topbar,.theme-navy .sidebar { background:linear-gradient(135deg,#0d3049,#174a6b); color:white; }
     </style>
   </head>
   <body>
@@ -648,6 +650,7 @@
             <select id="imageStylePreset">
               <option value="latestAnime">最新アニメ風</option>
               <option value="softFree">柔らかいフリー素材風</option>
+              <option value="unkanFlat">運管フラット(濃紺×オレンジ)</option>
               <option value="custom">手入力の指定</option>
             </select>
           </div>
@@ -676,7 +679,8 @@
               <div><label for="autoPostingDailyLimit">1日の記事数（1〜5）</label><input id="autoPostingDailyLimit" type="number" min="1" max="5" step="1" value="1"></div>
             </div>
             <label for="autoPostingPublishMode">WordPress到達点</label>
-            <select id="autoPostingPublishMode">
+            <p id="unkanAutomationNote" class="muted hidden">運管は下書きまで自動作成します。法令の根拠・広告を確認してから手動で公開してください。</p>
+          <select id="autoPostingPublishMode">
               <option value="下書きまで">下書きまで</option>
               <option value="公開まで">投稿まで（公開）</option>
             </select>
@@ -871,6 +875,20 @@
         </div>
       </div>
     </div>
+<section id="unkanPanel" class="card hidden" style="margin:16px;padding:16px;border:2px solid #0d3049;border-radius:10px">
+<h2>運管専用設定・根拠確認</h2>
+<p>自動投稿は無効です。公開記事の取り込みではWordPressを変更しません。</p>
+<label>WordPressユーザー名<input id="unkanUser" autocomplete="off"></label>
+<label>専用アプリケーションパスワード<input id="unkanPass" type="password" autocomplete="new-password"></label>
+<button type="button" onclick="unkanSetup()">接続・専用シートを準備</button>
+<button type="button" onclick="unkanImport()">公開記事を取り込む</button>
+<hr><p>資料本文と適用時点を人が確認して記録します。URLだけで事実確認済みとは扱いません。</p>
+<button type="button" onclick="unkanReviewLoad()">現在の記事から確認項目を作成</button>
+<textarea id="unkanReviewJson" rows="12" aria-label="根拠確認JSON"></textarea>
+<label><input id="unkanExperience" type="checkbox">実体験・資格の記載を原本と照合した</label>
+<label><input id="unkanAd" type="checkbox">広告表記・リンク・紹介制限を確認した</label>
+<button type="button" onclick="unkanReviewSave()">確認記録を保存</button>
+<p id="unkanNotice" role="status"></p></section>
 <script>
       const fields = [
         'row', 'appType', 'mainInput', 'volume', 'affiliateName', 'affiliateUrl',
@@ -919,8 +937,8 @@
         const appType = document.getElementById('appType').value;
         const panel = document.getElementById('automaticPostingPanel');
         const config = appConfigs.find(function(item) { return item.label === appType; });
-        if (panel) panel.classList.toggle('hidden', !config || config.useWordPress === false);
-        if (!config || config.useWordPress === false) return;
+        if (panel) panel.classList.toggle('hidden', !config || config.useWordPress === false || config.useAutomation === false);
+        if (!config || config.useWordPress === false || config.useAutomation === false) return;
         google.script.run
           .withSuccessHandler(renderAutomaticPostingSettings)
           .withFailureHandler(function(error) {
@@ -946,7 +964,11 @@
         if (heading) heading.textContent = (settings.siteLabel || document.getElementById('appType').value) + ' 自動投稿設定';
         document.getElementById('autoPostingEnabled').value = settings.enabled ? 'ON' : 'OFF';
         document.getElementById('autoPostingImages').value = settings.includeImages === false ? 'なし' : 'あり';
-        document.getElementById('autoPostingPublishMode').value = settings.publishMode === '公開まで' ? '公開まで' : '下書きまで';
+        const unkanAutomation = document.getElementById('appType').value === '運行管理者試験対策';
+        document.getElementById('unkanAutomationNote').classList.toggle('hidden', !unkanAutomation);
+        const publishSelect = document.getElementById('autoPostingPublishMode');
+        Array.from(publishSelect.options).forEach(function(option) { if (option.value === '公開まで') option.disabled = unkanAutomation; });
+        publishSelect.value = !unkanAutomation && settings.publishMode === '公開まで' ? '公開まで' : '下書きまで';
         document.getElementById('autoPostingHour').value = Number(settings.hour) >= 0 ? Number(settings.hour) : 4;
         document.getElementById('autoPostingDailyLimit').value = Number(settings.dailyLimit) || 1;
         const immediateCount = document.getElementById('autoPostingImmediateCount');
@@ -1185,7 +1207,7 @@
         const appTypeEl = document.getElementById('appType');
         const preset = document.getElementById('imageStylePreset');
         if (!appTypeEl || !preset) return;
-        preset.value = appTypeEl.value === 'DRIVE BASE' ? 'latestAnime' : 'softFree';
+        preset.value = appTypeEl.value === 'DRIVE BASE' ? 'latestAnime' : (appTypeEl.value === '運行管理者試験対策' ? 'unkanFlat' : 'softFree');
       }
 
       function clearLoadedArticleForm() {
@@ -1242,18 +1264,28 @@
           .uaSaveActiveRowData(payload);
       }
 
+      function currentConfig() { return appConfigs.find(function(item) { return item.label === document.getElementById('appType').value; }); }
       function applyTheme() {
         const selected = document.getElementById('appType').value;
-        const config = appConfigs.find(function(item) { return item.label === selected; });
+        const config = currentConfig();
+        const unkanPanel = document.getElementById('unkanPanel');
+        if (unkanPanel) unkanPanel.classList.toggle('hidden', !config || config.key !== 'unkan');
+        const automaticPanel = document.getElementById('automaticPostingPanel');
+        if (automaticPanel) automaticPanel.classList.toggle('hidden', !!config && config.useAutomation === false);
+        const keywordTab = document.getElementById('mainViewKeywordsTab');
+        if (keywordTab) keywordTab.classList.remove('hidden');
+        const commerceButton = document.getElementById('addCommerceLinkButton');
+        if (commerceButton) commerceButton.classList.toggle('hidden', !!config && config.useCommerce === false);
         const app = document.getElementById('app');
         [app, document.body].forEach(function(target) {
-          target.classList.remove('theme-brown', 'theme-blue');
+          target.classList.remove('theme-brown', 'theme-blue', 'theme-navy');
+          if (config && config.theme === 'navy') target.classList.add('theme-navy');
           if (config && config.theme === 'brown') target.classList.add('theme-brown');
           if (config && config.theme === 'blue') target.classList.add('theme-blue');
         });
         document.getElementById('mainInputLabel').textContent =
           config && config.inputLabel ? config.inputLabel : 'メインキーワード / 案件指示書';
-        const isGeneric = config && config.key === 'general';
+        const isGeneric = config && (config.key === 'general' || config.useCommerce === false);
         const mode = document.getElementById('rakutenBannerMode');
         const keyword = document.getElementById('rakutenProductKeyword');
         if (mode) mode.disabled = isGeneric;
@@ -1588,6 +1620,7 @@ function saveOpenAiModels(button) {
       function getSelectedImageStylePromptLine() {
         const preset = document.getElementById('imageStylePreset').value;
         const custom = document.getElementById('imageStylePrompt').value.trim();
+        if (preset === 'unkanFlat') return 'フラットなベクターイラスト風。濃紺(#0d3049)背景、オレンジ(#f5a623)アクセント、白の太いゴシック文字。陰影や奥行き、写真風の質感は付けない。装飾は最小限で、信頼感のあるシンプルな構図。';
         if (preset === 'softFree') return '柔らかいフリー素材風。淡い色、やさしい形、ブログ素材として使いやすい清潔なイラスト。';
         if (preset === 'custom') return custom || '手入力の指定。画像スタイル指定欄に書いた内容を優先する。';
         return '最新アニメ風。現代的で高品質なアニメ調、清潔で表情のある線画、自然な光と陰影、奥行き、洗練された配色。平面的な企業向けベクター素材、汎用フリー素材、クリップアート風にはしない。';
@@ -2353,6 +2386,46 @@ function saveOpenAiModels(button) {
       }
 
       init();
+
+      let unkanReviewDigest = '';
+      let unkanBusy = false;
+      function unkanRun(method, args, done) {
+        if (unkanBusy) return;
+        unkanBusy = true;
+        document.getElementById('unkanNotice').textContent = '処理中…';
+        const runner = google.script.run.withSuccessHandler(function(result) {
+          unkanBusy = false;
+          document.getElementById('unkanNotice').textContent = result.message || '完了しました。';
+          if (done) done(result);
+        }).withFailureHandler(function(error) {
+          unkanBusy = false;
+          document.getElementById('unkanPass').value = '';
+          document.getElementById('unkanNotice').textContent = error.message || String(error);
+        });
+        runner[method].apply(runner, args);
+      }
+      function unkanSetup() {
+        const settings = {username:document.getElementById('unkanUser').value, appPassword:document.getElementById('unkanPass').value};
+        document.getElementById('unkanPass').value = '';
+        unkanRun('uaSetupUnkanFromWeb', [settings]);
+      }
+      function unkanImport() { unkanRun('uaImportUnkanPublishedFromWeb', []); }
+      function unkanReviewLoad() {
+        unkanRun('uaGetUnkanReviewFromWeb', [readForm()], function(result) {
+          fillForm(result.data);
+          unkanReviewDigest = result.digest;
+          document.getElementById('unkanExperience').checked = false;
+          document.getElementById('unkanAd').checked = false;
+          document.getElementById('unkanReviewJson').value = JSON.stringify(result.claims.map(function(text) { return {claim:text,url:'',quote:'',checkedOn:'',experience:false}; }), null, 2);
+        });
+      }
+      function unkanReviewSave() {
+        let entries;
+        try { entries = JSON.parse(document.getElementById('unkanReviewJson').value); }
+        catch(error) { document.getElementById('unkanNotice').textContent = 'JSONの形式を確認してください。'; return; }
+        unkanRun('uaSaveUnkanReviewFromWeb', [readForm(), {digest:unkanReviewDigest,entries:entries,experienceReviewed:document.getElementById('unkanExperience').checked,advertisingReviewed:document.getElementById('unkanAd').checked}]);
+      }
+
     </script>
   </body>
 </html>

@@ -114,7 +114,7 @@ const UA_TREASURE_KEYWORD_STRONG_DOMAINS_BY_APP = {
 
 function uaGetTreasureKeywordStrongDomains_(appConfig) {
   const byApp = UA_TREASURE_KEYWORD_STRONG_DOMAINS_BY_APP[appConfig && appConfig.key] || [];
-  return UA_TREASURE_KEYWORD_STRONG_DOMAINS_COMMON.concat(byApp);
+  return UA_TREASURE_KEYWORD_STRONG_DOMAINS_COMMON.concat(byApp, appConfig && appConfig.key === 'unkan' ? ['unkan.or.jp', 'nasva.go.jp', 'mhlw.go.jp', 'mlit.go.jp', 'e-gov.go.jp', 'u-can.co.jp'] : []);
 }
 
 function uaExtractUrlHostname_(url) {
@@ -319,7 +319,8 @@ function uaCollectAffiliateOffers_() {
 
 function uaBuildOfferLinkageCheckPrompt_(appConfig, candidateKeywords, offers) {
   const offerLines = offers.map(function(offer) {
-    return '- ' + offer.name + (offer.notes ? '（' + offer.notes + '）' : '');
+    const notes = /ユーキャン/.test(offer.name) ? uaUnkanPublicNotes_(offer.notes) : offer.notes;
+    return '- ' + offer.name + (notes ? '（' + notes + '）' : '');
   }).join('\n');
   return [
     '「' + appConfig.label + '」というブログで、以下の「候補キーワード」それぞれについて、',
@@ -425,6 +426,13 @@ function uaCheckTreasureKeywordCannibalization_(candidateKeywords, existingArtic
 }
 
 function uaBuildTreasureKeywordIdeationPrompt_(appConfig, existingKeywords, count) {
+  if(appConfig.key === 'unkan') return [
+    '運行管理者試験（貨物）の受験者が検索する記事キーワードを'+count+'個提案してください。',
+    '試験勉強、過去問、計算問題、教材選び、独学、講習、仕事と勉強の両立など、具体的な悩みを対象にします。物理商品・車用品の購入キーワードは対象外です。',
+    'キーワード案のみ。法令の数値、試験日程、合格率、講座条件を断定しない。検索数を推測しない。キーワードは3語以内。',
+    '既存記事・候補と重複しない: '+existingKeywords.slice(0,150).join('、'),
+    'JSONのみ: {"keywords":["キーワード"]}'
+  ].join('\n');
   const genreHint = appConfig.key === 'home'
     ? 'ソファ、チェスト、ラック、収納ケース、洗濯機、冷蔵庫、掃除機、除湿機、加湿器、サーキュレーター、空気清浄機、物干し、ベビーゲート、見守りカメラ、防災用品、サンシェード、日よけ、トイレブラシ、汚れ防止シート、結露防止シート、電気毛布、こたつ、室内ジャングルジム、シーリングライトなど、暮らし用品・家具・家電'
     : 'カーナビ、ドライブレコーダー、レーダー探知機、バックカメラ、スマホホルダー、フロアマット、シートカバー、ポータブル電源、タイヤチェーンなど、車載機器・カー用品';
@@ -496,6 +504,7 @@ function uaAppendAiSuggestedCandidates_(candidateSheet, keywords) {
 const UA_TREASURE_KEYWORD_EVAL_TIME_LIMIT_MS = 4.5 * 60 * 1000;
 
 function uaEvaluateTreasureKeywordCandidates_(appConfig, rawCandidates, existingSet, existingArticleKeywords) {
+  if(appConfig.key === 'unkan') return uaEvaluateUnkanTreasureKeywords_(appConfig,rawCandidates,existingSet,existingArticleKeywords);
   const evalStartTime = Date.now();
   const resultByKeyword = {};
   const toScore = [];
@@ -1266,6 +1275,7 @@ function uaInspectCandidateSheetHeadKeywords20260905(count) {
 
 // AIキーワード発掘（既存ロジックそのまま）。
 function uaDiscoverTreasureKeywordsForWeb(appTypeLabel) {
+  if (['unkan', '運行管理者試験対策'].indexOf(String(appTypeLabel)) >= 0) uaAssertUnkanOperator_();
   const appConfig = uaGetAppConfigByLabel_(appTypeLabel);
   if (!appConfig) throw new Error('不明な記事タイプです: ' + appTypeLabel);
   return uaDiscoverTreasureKeywords_(appConfig);
@@ -1273,6 +1283,7 @@ function uaDiscoverTreasureKeywordsForWeb(appTypeLabel) {
 
 // 手動で貼り付けたキーワード（改行/カンマ/読点区切り）を評価。
 function uaEvaluateManualTreasureKeywordsForWeb(appTypeLabel, keywordsText) {
+  if (['unkan', '運行管理者試験対策'].indexOf(String(appTypeLabel)) >= 0) uaAssertUnkanOperator_();
   const appConfig = uaGetAppConfigByLabel_(appTypeLabel);
   if (!appConfig) throw new Error('不明な記事タイプです: ' + appTypeLabel);
 
@@ -1332,6 +1343,7 @@ function uaCollectCandidateRowsByFilter_(candidateSheet, filter) {
 // 拾える（既存の uaEvaluateAndUpdateCandidateRowsByAffiliateNameAndStatus_ と
 // 同じ設計）。
 function uaEvaluateCandidateRowsForWeb(appTypeLabel, filter) {
+  if (['unkan', '運行管理者試験対策'].indexOf(String(appTypeLabel)) >= 0) uaAssertUnkanOperator_();
   const appConfig = uaGetAppConfigByLabel_(appTypeLabel);
   if (!appConfig) throw new Error('不明な記事タイプです: ' + appTypeLabel);
 
@@ -1419,4 +1431,23 @@ function uaSetCandidateStatusForWeb(appTypeLabel, row, newStatus) {
   candidateSheet.getRange(rowNum, UA_CANDIDATE_COLUMNS.status).setValue(cleanStatus);
 
   return { row: rowNum, status: cleanStatus };
+}
+
+function uaEvaluateUnkanTreasureKeywords_(config, keywords, existingSet, existingArticles) {
+  const started=Date.now();
+  const results=keywords.map(function(keyword) {
+    if(existingSet[keyword]) return {keyword:keyword,kept:false,reason:'既存の候補・記事と重複'};
+    if(!/運行管理|運管|過去問|貨物.*試験|試験.*貨物/.test(keyword)) return {keyword:keyword,kept:false,reason:'運行管理者試験との関連を確認できない'};
+    if(Date.now()-started>UA_TREASURE_KEYWORD_EVAL_TIME_LIMIT_MS) return {keyword:keyword,kept:false,reason:'時間切れのため未評価（もう一度実行すると続きを評価できます）'};
+    try {
+      const serp=uaScoreTreasureKeywordSerp_(keyword,config),kept=serp.score>=UA_TREASURE_KEYWORD_SCORE_THRESHOLD;
+      return {keyword:keyword,kept:kept,productLabel:'運行管理者試験対策',serpScore:serp.score,serpLevel:serp.level,weakUrls:serp.weakUrls,reason:kept?'試験対策に関連・SERP基準通過（検索数は別途確認）':'競合が強い（SERPスコア'+serp.score+'）'};
+    } catch(error) {return {keyword:keyword,kept:false,reason:'SERP取得エラー: '+error.message};}
+  });
+  const passed=results.filter(function(item){return item.kept;}).map(function(item){return item.keyword;});
+  if(passed.length && existingArticles.length) {
+    const verdicts=uaCheckTreasureKeywordCannibalization_(passed,existingArticles);
+    results.forEach(function(item){const verdict=verdicts[item.keyword];if(item.kept && verdict && verdict.cannibalizes){item.kept=false;item.reason='既存記事と内容重複: '+(verdict.matchedExisting||'不明');}});
+  }
+  return results;
 }

@@ -705,9 +705,13 @@ function uaCreateWpDraftFromPanel(data) {
     throw new Error('WP draft: title candidates are empty.');
   }
 
+  if (uaIsUnkan_(appConfig)) {
+    const issues = uaUnkanContentIssues_(rowData);
+    if (issues.length) throw new Error(issues.join('\n'));
+  }
   const wpConfig = uaGetWpConfig_(appConfig);
   const productPlan = uaExtractProductPlan_(rowData.body);
-  const storedBody = uaNormalizeSwellManagedCoreGroups_(uaNormalizeSwellInternalLinkBlocks_(uaNormalizeUnsupportedTrialGuidance_(uaRemoveRedundantAffiliateDisclosure_(uaNormalizeAnchorRelAttributes_(uaApplyNaviokunPostProcessing_(
+  const storedBody = uaIsUnkan_(appConfig) ? String(rowData.body || '') : uaNormalizeSwellManagedCoreGroups_(uaNormalizeSwellInternalLinkBlocks_(uaNormalizeUnsupportedTrialGuidance_(uaRemoveRedundantAffiliateDisclosure_(uaNormalizeAnchorRelAttributes_(uaApplyNaviokunPostProcessing_(
     uaApplyManagedAffiliateCta_(uaRemoveRedundantAffiliateDisclosure_(rowData.body), rowData, appConfig),
     rowData,
     appConfig
@@ -725,7 +729,7 @@ function uaCreateWpDraftFromPanel(data) {
 
   const title = uaPickWpTitle_(rowData.titleIdeas, rowData.mainInput, rowData.body);
   const slug = uaCleanWpSlug_(rowData.permalink);
-  const tagIds = uaEnsureWpTagIds_(wpConfig, rowData.tags);
+  const tagIds = uaIsUnkan_(appConfig) && rowData.wpPostId ? [] : uaEnsureWpTagIds_(wpConfig, rowData.tags);
   const categoryIds = uaResolveWpCategoryIds_(wpConfig, rowData, appConfig);
   const existingPostId = Number(rowData.wpPostId || 0);
 
@@ -825,6 +829,7 @@ function uaUpdatePublishedWpFromPanelCore_(sheet, row) {
 
   const wpConfig = uaGetWpConfig_(appConfig);
   const currentPost = uaFetchWpPostForEdit_(wpConfig, postId);
+  uaAssertUnkanPublishedUpdate_(rowData, currentPost);
   const currentStatus = String(currentPost && currentPost.status || '').trim();
   if (currentStatus !== 'publish') {
     throw new Error(
@@ -834,7 +839,7 @@ function uaUpdatePublishedWpFromPanelCore_(sheet, row) {
   }
 
   const productPlan = uaExtractProductPlan_(rowData.body);
-  const storedBody = uaNormalizeSwellManagedCoreGroups_(uaNormalizeSwellInternalLinkBlocks_(uaNormalizeUnsupportedTrialGuidance_(uaRemoveRedundantAffiliateDisclosure_(uaNormalizeAnchorRelAttributes_(uaApplyNaviokunPostProcessing_(
+  const storedBody = uaIsUnkan_(appConfig) ? String(rowData.body || '') : uaNormalizeSwellManagedCoreGroups_(uaNormalizeSwellInternalLinkBlocks_(uaNormalizeUnsupportedTrialGuidance_(uaRemoveRedundantAffiliateDisclosure_(uaNormalizeAnchorRelAttributes_(uaApplyNaviokunPostProcessing_(
     uaApplyManagedAffiliateCta_(uaRemoveRedundantAffiliateDisclosure_(rowData.body), rowData, appConfig),
     rowData,
     appConfig
@@ -858,7 +863,7 @@ function uaUpdatePublishedWpFromPanelCore_(sheet, row) {
   const title = uaPickWpTitle_(rowData.titleIdeas, rowData.mainInput, rowData.body);
   const payload = uaBuildPublishedWpUpdatePayload_(title, wpBody);
   const slug = uaCleanWpSlug_(rowData.permalink);
-  const tagIds = uaEnsureWpTagIds_(wpConfig, rowData.tags);
+  const tagIds = uaIsUnkan_(appConfig) && rowData.wpPostId ? [] : uaEnsureWpTagIds_(wpConfig, rowData.tags);
   const categoryIds = uaResolveWpCategoryIds_(wpConfig, rowData, appConfig);
   if (slug) payload.slug = slug;
   if (tagIds.length > 0) payload.tags = tagIds;
@@ -888,6 +893,7 @@ function uaUpdatePublishedWpFromPanelCore_(sheet, row) {
   }
 
   uaSyncWpMetaDescription_(wpConfig, postId, rowData.metaDescription);
+  if (appConfig.key === 'unkan') uaUnkanRememberUpdatedPost_(rowData, uaFetchWpPostForEdit_(wpConfig, postId));
   const updatedAt = new Date();
   sheet.getRange(row, UA_COLUMNS.wpDraftedAt).setValue(updatedAt);
 
@@ -897,6 +903,7 @@ function uaUpdatePublishedWpFromPanelCore_(sheet, row) {
 }
 
 function uaAddWpImagesFromPanel(data) {
+  if ((data && (data.key === 'unkan' || data.appType === '運行管理者試験対策'))) throw new Error('運管：画像は本文で確認し、記事更新時にまとめて反映してください。');
   uaSaveActiveRowData(data || {});
 
   const sheet = uaGetSheetForData_(data || {});
@@ -1023,6 +1030,7 @@ function uaInsertDrivingSafetyEvidenceLink_(html, sourceHtml) {
 }
 
 function uaGetWpConfig_(appConfig) {
+  if ((appConfig && (appConfig.key === 'unkan' || appConfig.appType === '運行管理者試験対策'))) return uaUnkanWpConfig_();
   if (!appConfig || !appConfig.key) {
     throw new Error('WP config: article type key was not found.');
   }

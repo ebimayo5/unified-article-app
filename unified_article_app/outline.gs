@@ -784,7 +784,7 @@ function uaIsUsefulCompetitorUrl_(url) {
   return true;
 }
 
-function uaBuildArticleStructurePrompt_(rowData, appConfig, competitorPages) {
+function uaBuildArticleStructurePrompt_UnkanBase_(rowData, appConfig, competitorPages) {
   const competitorText = competitorPages.length === 0
     ? '検索結果から競合ページを取得できませんでした。読者心理メモと入力内容から、競合で扱われやすい論点を推定してください。ただし未確認情報を事実として断定しないでください。'
     : competitorPages.map(function(item, index) {
@@ -874,4 +874,10 @@ function uaFormatStructureReferenceUrls_(competitorPages) {
   }
 
   return '【記事作成のヒントに用いた上位URL】\n' + lines.join('\n');
+}
+
+function uaBuildArticleStructurePrompt_(rowData, appConfig, competitorPages) {
+  if ((rowData && (rowData.key === 'unkan' || rowData.appType === '運行管理者試験対策'))) rowData = Object.assign({}, rowData, { affiliateNotes: uaUnkanPublicNotes_(rowData.affiliateNotes) });
+  const prompt = uaBuildArticleStructurePrompt_UnkanBase_(rowData, appConfig, competitorPages);
+  return (rowData && (rowData.key === 'unkan' || rowData.appType === '運行管理者試験対策')) ? uaUnkanPolicy_() + "\n" + prompt + "\n" + uaUnkanPolicy_() : prompt;
 }

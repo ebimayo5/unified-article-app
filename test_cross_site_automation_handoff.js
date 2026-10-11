@@ -22,7 +22,7 @@ context.Utilities = {
 };
 context.uaGetAutomaticPostingManualBatch_ = function() { return null; };
 context.uaReadAutomaticPostingSettings_ = function(key) {
-  return { enabled: true, hour: key === 'home' ? 5 : 4, dailyLimit: 3 };
+  return { enabled: key !== 'unkan', hour: key === 'home' ? 5 : 4, dailyLimit: 3 };
 };
 context.uaGetAutomaticPostingDailyProgress_ = function(date, key) {
   return { date: date, count: key === 'drive' ? 3 : 0 };

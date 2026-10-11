@@ -230,6 +230,9 @@ function uaNormalizeImagePromptTargets_(suppliedTargets, body) {
 function uaBuildImagePromptPlanStyle_(requestData) {
   const preset = uaResolveImageStylePreset_(requestData);
   const custom = String(requestData && requestData.imageStylePrompt || '').trim();
+  if (preset === 'unkanFlat') {
+    return 'フラットなベクターイラスト風。濃紺(#0d3049)背景、オレンジ(#f5a623)アクセント、白の太いゴシック文字。陰影や奥行き、写真風の質感は付けない。装飾は最小限で、信頼感のあるシンプルな構図。';
+  }
   if (preset === 'softFree') {
     return '柔らかい日本のフリー素材風。親しみやすい形、淡い色、明るい背景、ブログで意味が一目で伝わる清潔なイラスト。既存素材の模倣はしない。';
   }
@@ -241,8 +244,10 @@ function uaBuildImagePromptPlanStyle_(requestData) {
 
 function uaResolveImageStylePreset_(data) {
   const preset = String(data && data.imageStylePreset || '').trim();
-  if (preset === 'latestAnime' || preset === 'softFree' || preset === 'custom') return preset;
-  return String(data && data.appType || '').trim() === 'たくみパパ' ? 'softFree' : 'latestAnime';
+  if (preset === 'latestAnime' || preset === 'softFree' || preset === 'unkanFlat' || preset === 'custom') return preset;
+  const appType = String(data && data.appType || '').trim();
+  if (appType === '運行管理者試験対策') return 'unkanFlat';
+  return appType === 'たくみパパ' ? 'softFree' : 'latestAnime';
 }
 
 function uaFormatImagePromptPack_(planData, title, requestData, targets) {
@@ -416,6 +421,9 @@ function uaGenerateWpImagesFromPanel(data) {
   let wpUpdated = false;
   const postId = Number(rowData.wpPostId || 0);
   const existingWpPost = uaTryFetchGeneratedImageWpPost_(wpConfig, postId);
+  if (uaIsUnkan_(appConfig) && postId && (!existingWpPost || ['draft', 'pending', 'auto-draft'].indexOf(String(existingWpPost.status || '')) < 0)) {
+    throw new Error('運管：画像の自動反映は下書き専用です。公開記事は根拠確認後にまとめて更新してください。');
+  }
   const existingFeaturedMediaId = Number(existingWpPost && existingWpPost.featured_media || 0);
   rowData.existingWpBody = existingWpPost ? uaGetWpPostContentText_(existingWpPost) : '';
   if (existingFeaturedMediaId > 0) {
@@ -1100,6 +1108,7 @@ function uaBuildGeneratedImageStyleInstruction_(rowData) {
   const custom = String(rowData && rowData.imageStylePrompt || '').trim();
   const presetMap = {
     latestAnime: 'modern high-quality Japanese anime key visual style, expressive clean line art, polished natural lighting and shadows, visible depth, vivid but tasteful colors, article-friendly composition; never use flat corporate vector art, generic royalty-free stock illustration, or clip-art style',
+    unkanFlat: 'flat vector illustration style, solid navy blue background (#0d3049), orange accents (#f5a623), bold white sans-serif Japanese text, simple icon-based layout with thick dark-navy outlines, no shadows or depth, no photographic texture, minimal decoration, clean and trustworthy look; never use anime shading, 3D rendering, or photorealism',
     softFree: 'soft royalty-free stock illustration style, gentle colors, rounded shapes, friendly non-branded web media look, practical and approachable',
     custom: ''
   };

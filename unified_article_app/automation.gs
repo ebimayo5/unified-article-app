@@ -7,7 +7,8 @@ const UA_AUTOMATION_MANUAL_BATCH_PROPERTY = 'UA_AUTOMATION_MANUAL_BATCH';
 const UA_AUTOMATION_DAILY_HANDLER = 'uaStartAutomaticPostingDaily';
 const UA_AUTOMATION_DAILY_HANDLERS = {
   drive: 'uaStartAutomaticPostingDriveDaily',
-  home: 'uaStartAutomaticPostingHomeDaily'
+  home: 'uaStartAutomaticPostingHomeDaily',
+  unkan: 'uaStartAutomaticPostingUnkanDaily_'
 };
 const UA_AUTOMATION_WORKER_HANDLER = 'uaRunAutomaticPostingWorker';
 const UA_AUTOMATION_NEXT_HANDLER = 'uaStartNextAutomaticPosting';
@@ -60,8 +61,9 @@ function uaOpenAutomaticPostingSettings() {
 }
 
 function uaGetAutomaticPostingSettingsForPanel(appType) {
-  const sheet = uaEnsureAutomaticPostingSheet_();
   const appConfig = uaGetAutomationAppConfig_(appType);
+  if (appConfig.key === 'unkan') uaAssertUnkanOperator_();
+  const sheet = uaEnsureAutomaticPostingSheet_();
   const settings = uaReadAutomaticPostingSettings_(appConfig.key);
   const column = uaGetAutomationColumn_(appConfig.key);
   const job = uaMarkStaleAutomaticPostingJobError_(uaGetAutomaticPostingJob_());
@@ -78,6 +80,7 @@ function uaGetAutomaticPostingSettingsForPanel(appType) {
     : Math.max(0, (Number(settings.dailyLimit) || 1) - todayCount);
   const todayUpcoming = uaListUpcomingAutomaticPostingCandidates_(appConfig, remainingSlots);
   return {
+    unkanDashboard: appConfig.key === 'unkan' ? uaGetUnkanDashboardFromWeb() : null,
     todayCount: todayCount,
     todayPosted: todayPosted,
     todayUpcoming: todayUpcoming,
@@ -105,7 +108,9 @@ function uaGetAutomaticPostingSettingsForPanel(appType) {
 }
 
 function uaGetActiveAutomaticPostingArticleFromPanel(appType) {
-  const job = uaMarkStaleAutomaticPostingJobError_(uaGetAutomaticPostingJob_());
+  const savedJob = uaGetAutomaticPostingJob_();
+  if (savedJob && uaGetAutomationAppConfig_(savedJob.appType).key === 'unkan') uaAssertUnkanOperator_();
+  const job = uaMarkStaleAutomaticPostingJobError_(savedJob);
   if (!job || String(job.status || '') === 'complete') {
     throw new Error('現在処理中の自動投稿記事はありません。');
   }
@@ -164,8 +169,12 @@ function uaBuildAutomaticPostingProgress_(job) {
 
 function uaSaveAutomaticPostingSettingsFromPanel(data) {
   const request = data || {};
-  const sheet = uaEnsureAutomaticPostingSheet_();
   const appConfig = uaGetAutomationAppConfig_(request.appType);
+  if (appConfig.key === 'unkan') {
+    uaAssertUnkanOperator_();
+    if (String(request.publishMode || '') === '公開まで') throw new Error('運管の自動処理は下書きまでです。公開前に根拠・広告を手動確認してください。');
+  }
+  const sheet = uaEnsureAutomaticPostingSheet_();
   const column = uaGetAutomationColumn_(appConfig.key);
   const enabled = request.enabled === true || String(request.enabled || '').toUpperCase() === 'ON';
   const includeImages = request.includeImages !== false && String(request.includeImages || '') !== 'なし';
@@ -216,6 +225,7 @@ function uaSaveAutomaticPostingSettingsFromPanel(data) {
 function uaDisableAutomaticPosting() {
   const sheet = uaEnsureAutomaticPostingSheet_();
   sheet.getRange('B2:C2').setValue('OFF');
+  sheet.getRange('E2').setValue('OFF');
   uaDeleteAutomaticPostingTriggers_(UA_AUTOMATION_DAILY_HANDLER);
   Object.keys(UA_AUTOMATION_DAILY_HANDLERS).forEach(function(key) {
     uaDeleteAutomaticPostingTriggers_(UA_AUTOMATION_DAILY_HANDLERS[key]);
@@ -228,6 +238,7 @@ function uaDisableAutomaticPosting() {
   );
   uaWriteAutomaticPostingStatus_('drive', '停止中', '');
   uaWriteAutomaticPostingStatus_('home', '停止中', '');
+  uaWriteAutomaticPostingStatus_('unkan', '停止中', '');
   SpreadsheetApp.getUi().alert('自動投稿を停止しました。進行中の記事情報は保存しています。');
 }
 
@@ -250,6 +261,7 @@ function uaResumeAutomaticPostingFromPanel(appType) {
   const job = uaGetAutomaticPostingJob_();
   if (!job) throw new Error('再開対象の記事はありません。');
   const appConfig = uaGetAutomationAppConfig_(job.appType);
+  if (appConfig.key === 'unkan') uaAssertUnkanOperator_();
   const requestedType = String(appType || '').trim();
   if (requestedType) {
     const requestedConfig = uaGetAutomationAppConfig_(requestedType);
@@ -292,6 +304,7 @@ function uaSkipAutomaticPostingFromPanel(appType) {
   const job = uaGetAutomaticPostingJob_();
   if (!job) throw new Error('対象外にする自動投稿記事はありません。');
   const appConfig = uaGetAutomationAppConfig_(job.appType);
+  if (appConfig.key === 'unkan') uaAssertUnkanOperator_();
   const requestedType = String(appType || '').trim();
   if (requestedType) {
     const requestedConfig = uaGetAutomationAppConfig_(requestedType);
@@ -355,12 +368,17 @@ function uaStartAutomaticPostingDriveDaily() {
   uaStartAutomaticPostingForSite_('drive');
 }
 
+function uaStartAutomaticPostingUnkanDaily_() {
+  uaStartAutomaticPostingForSite_('unkan');
+}
+
 function uaStartAutomaticPostingHomeDaily() {
   uaStartAutomaticPostingForSite_('home');
 }
 
 function uaStartAutomaticPostingNowFromPanel(appType, articleCount) {
   const appConfig = uaGetAutomationAppConfig_(appType);
+  if (appConfig.key === 'unkan') uaAssertUnkanOperator_();
   const requestedCount = Math.floor(Number(articleCount));
   if (!isFinite(requestedCount) || requestedCount < 1 || requestedCount > 5) {
     throw new Error('今から開始する記事数は1〜5件で選んでください。');
@@ -787,6 +805,7 @@ function uaRunAutomaticPostingWorker() {
 }
 
 function uaPublishWpPostFromAutomation_(data, requireImages) {
+  if ((data && (data.key === 'unkan' || data.appType === '運行管理者試験対策'))) throw new Error('運管は手動確認後の更新専用です。自動公開はできません。');
   const sheet = uaGetSheetForData_(data || {});
   const row = Number(data && data.row) || 0;
   const rowData = uaBuildRowData_(sheet, row);
@@ -1119,6 +1138,7 @@ function uaEnsureAutomaticPostingSheet_() {
   sheet.setColumnWidth(2, 180);
   sheet.setColumnWidth(3, 180);
   sheet.setColumnWidth(4, 420);
+  uaEnsureUnkanAutomaticPostingColumn_(sheet);
   return sheet;
 }
 
@@ -1135,7 +1155,7 @@ function uaReadAutomaticPostingSettings_(appType) {
     hour: uaNormalizeAutomaticPostingInteger_(values[1], 0, 23, 4),
     dailyLimit: uaNormalizeAutomaticPostingInteger_(values[2], 1, 5, 1),
     includeImages: values[3] !== 'なし',
-    publishMode: values[4] === '公開まで' ? '公開まで' : '下書きまで',
+    publishMode: appConfig.key !== 'unkan' && values[4] === '公開まで' ? '公開まで' : '下書きまで',
     notificationEnabled: notificationValues[0] !== 'OFF',
     notificationEmail: uaNormalizeAutomaticPostingNotificationEmail_(notificationValues[1])
   };
@@ -1561,14 +1581,15 @@ function uaWriteAutomaticPostingStatus_(appType, status, errorMessage) {
 function uaGetAutomationAppConfig_(appType) {
   const text = String(appType || '').trim();
   const config = UA_APP_TYPES[text] || uaGetAppConfigByLabel_(text || UA_APP_TYPES.drive.label);
-  if (!config || ['drive', 'home'].indexOf(config.key) === -1) {
-    throw new Error('自動投稿はDRIVE BASEまたはたくみパパを選んで設定してください。');
+  if (!config || ['drive', 'home', 'unkan'].indexOf(config.key) === -1) {
+    throw new Error('自動投稿の対象サイトを選んで設定してください。');
   }
   return config;
 }
 
 function uaGetAutomationColumn_(appType) {
-  return uaGetAutomationAppConfig_(appType).key === 'home' ? 3 : 2;
+  const key = uaGetAutomationAppConfig_(appType).key;
+  return key === 'unkan' ? 5 : key === 'home' ? 3 : 2;
 }
 
 function uaGetAutomationDailyHandler_(appType) {
@@ -1580,7 +1601,7 @@ function uaGetEligibleAutomationAppKeys_() {
   const now = new Date();
   const today = Utilities.formatDate(now, UA_AUTOMATION_TIMEZONE, 'yyyy-MM-dd');
   const currentHour = Number(Utilities.formatDate(now, UA_AUTOMATION_TIMEZONE, 'H'));
-  return ['drive', 'home'].filter(function(key) {
+  return ['drive', 'home', 'unkan'].filter(function(key) {
     const manualBatch = uaGetAutomaticPostingManualBatch_(key, today);
     if (manualBatch && Number(manualBatch.remaining) > 0) return true;
     const settings = uaReadAutomaticPostingSettings_(key);
@@ -1654,4 +1675,22 @@ function uaTestAutomaticPostingLogic() {
   if (!uaHasBlockingAutomaticPostingJob_({ status: 'error' })) throw new Error('停止中ジョブの重複開始防止テスト失敗');
   if (uaHasBlockingAutomaticPostingJob_({ status: 'complete' })) throw new Error('完了ジョブ判定テスト失敗');
   return { ok: true, tested: ['1日1〜5記事', '0〜23時', '画像あり', '下書き/公開分岐', '再開段階', '重複開始防止'] };
+}
+
+// E is dedicated to Unkan; existing B/C settings and D descriptions keep their positions.
+function uaEnsureUnkanAutomaticPostingColumn_(sheet) {
+  if (sheet.getMaxColumns() < 5) sheet.insertColumnsAfter(sheet.getMaxColumns(), 5 - sheet.getMaxColumns());
+  if (String(sheet.getRange('E1').getDisplayValue() || '') === UA_APP_TYPES.unkan.label) return;
+  sheet.getRange(1, 5, 11, 1).setValues([
+    [UA_APP_TYPES.unkan.label], ['OFF'], [4], [1], ['あり'], ['下書きまで'],
+    ['停止中'], [''], [''], ['ON'], [uaGetDefaultAutomaticPostingNotificationEmail_()]
+  ]);
+  sheet.getRange('E2').setDataValidation(SpreadsheetApp.newDataValidation().requireValueInList(['ON', 'OFF'], true).build());
+  sheet.getRange('E3').setDataValidation(SpreadsheetApp.newDataValidation().requireNumberBetween(0, 23).setAllowInvalid(false).build());
+  sheet.getRange('E4').setDataValidation(SpreadsheetApp.newDataValidation().requireNumberBetween(1, 5).setAllowInvalid(false).build());
+  sheet.getRange('E5').setDataValidation(SpreadsheetApp.newDataValidation().requireValueInList(['あり', 'なし'], true).build());
+  sheet.getRange('E6').setDataValidation(SpreadsheetApp.newDataValidation().requireValueInList(['下書きまで'], true).setAllowInvalid(false).build());
+  sheet.getRange('E10').setDataValidation(SpreadsheetApp.newDataValidation().requireValueInList(['ON', 'OFF'], true).build());
+  sheet.getRange('E1').setBackground('#0d3049').setFontWeight('bold').setFontColor('#ffffff');
+  sheet.setColumnWidth(5, 220);
 }

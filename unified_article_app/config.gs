@@ -118,6 +118,13 @@ const UA_APP_TYPES = {
     wpEditorTheme: 'swell',
     promptType: 'home'
   },
+  unkan: {
+    key: 'unkan', label: '運行管理者試験対策', articleSheetName: '運管',
+    candidateSheetName: '運管_キーワード候補', theme: 'navy', swellButtonColor: 'blue',
+    inputLabel: 'メインキーワード', useVolume: true, useInternalLinks: true,
+    useExternalSources: true, useWordPress: true, useAutomation: true,
+    useCommerce: false, wpEditorTheme: 'swell', promptType: 'unkan'
+  },
   general: {
     key: 'general',
     label: '汎用記事',

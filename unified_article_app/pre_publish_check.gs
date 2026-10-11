@@ -703,7 +703,7 @@ function uaGetPrePublishInternalLinkUrls_(rowData, appConfig) {
   }
 }
 
-function uaBuildPrePublishPatchPrompt_(rowData, checkReport, externalSourcesPrompt, internalLinksPrompt) {
+function uaBuildPrePublishPatchPrompt_UnkanBase_(rowData, checkReport, externalSourcesPrompt, internalLinksPrompt) {
   // 2026-09-27: 差分修正のプロンプトにはテーマの説明が1つも無く、その結果
   // 「Cocoon専用ブロックをSWELL形式へ置換」という提案が繰り返し出ていた。
   // DRIVE BASEの全137記事で wp:cocoon-blocks は0件なので、これは純粋な誤提案で、
@@ -914,6 +914,10 @@ function uaBuildPrePublishRuleCheck_(rowData) {
       hasWpPost: wpPostId > 0
     }
   };
+
+  if (rowData && rowData.appType === '運行管理者試験対策') {
+    result.critical = result.critical.concat(uaUnkanContentIssues_(rowData));
+  }
 
   if (!body.trim()) {
     result.critical.push('本文が空です。本文生成後にチェックしてください。');
@@ -1459,6 +1463,7 @@ function uaFindAffiliateDetourIssue_(rowData, body) {
 }
 
 function uaAssertWpDraftHardQualityGates_(rowData, options) {
+  // Drafts remain unpublished. Human evidence review is enforced by the published-update gate.
   const check = uaBuildPrePublishRuleCheck_(rowData || {});
   const allowUnverifiedMarketFreshnessDraft = !!(options && options.allowUnverifiedMarketFreshnessDraft);
   const blockers = check.critical.filter(function(item) {
@@ -1472,7 +1477,7 @@ function uaAssertWpDraftHardQualityGates_(rowData, options) {
   }
 }
 
-function uaBuildPrePublishEditorPrompt_(rowData, ruleCheck) {
+function uaBuildPrePublishEditorPrompt_UnkanBase_(rowData, ruleCheck) {
   const body = String(rowData && rowData.body || '');
   const compactBody = body.length > 18000
     ? body.slice(0, 15000) + '\n\n【本文後半抜粋】\n' + body.slice(-3000)
@@ -2082,4 +2087,16 @@ function uaFindPrePublishStrongClaims_(body) {
   });
 
   return hits;
+}
+
+function uaBuildPrePublishEditorPrompt_(rowData, ruleCheck) {
+  if ((rowData && (rowData.key === 'unkan' || rowData.appType === '運行管理者試験対策'))) rowData = Object.assign({}, rowData, { affiliateNotes: uaUnkanPublicNotes_(rowData.affiliateNotes) });
+  const prompt = uaBuildPrePublishEditorPrompt_UnkanBase_(rowData, ruleCheck);
+  return (rowData && (rowData.key === 'unkan' || rowData.appType === '運行管理者試験対策')) ? uaUnkanPolicy_() + "\n" + prompt + "\n" + uaUnkanPolicy_() : prompt;
+}
+
+function uaBuildPrePublishPatchPrompt_(rowData, checkReport, externalSourcesPrompt, internalLinksPrompt) {
+  if ((rowData && (rowData.key === 'unkan' || rowData.appType === '運行管理者試験対策'))) rowData = Object.assign({}, rowData, { affiliateNotes: uaUnkanPublicNotes_(rowData.affiliateNotes) });
+  const prompt = uaBuildPrePublishPatchPrompt_UnkanBase_(rowData, checkReport, externalSourcesPrompt, internalLinksPrompt);
+  return (rowData && (rowData.key === 'unkan' || rowData.appType === '運行管理者試験対策')) ? uaUnkanPolicy_() + "\n" + prompt + "\n" + uaUnkanPolicy_() : prompt;
 }

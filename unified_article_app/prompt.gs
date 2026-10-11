@@ -1,4 +1,5 @@
 function uaBuildArticlePrompt_(rowData, appConfig) {
+  if ((appConfig && (appConfig.key === 'unkan' || appConfig.appType === '運行管理者試験対策'))) return uaBuildUnkanArticlePrompt_(rowData);
   const internalLinksPrompt = appConfig && appConfig.useInternalLinks
     ? uaBuildInternalLinksPrompt_(rowData.mainInput, appConfig, rowData)
     : '';
@@ -47,7 +48,7 @@ function uaBuildAffiliatePrompt_(rowData) {
   const noAffiliateSelected = uaIsNoAffiliateName_(rowData.affiliateName);
   const name = uaNormalizeAffiliateName_(rowData.affiliateName);
   const url = noAffiliateSelected ? '' : String(rowData.affiliateUrl || '').trim();
-  const notes = String(rowData.affiliateNotes || '').trim();
+  const notes = /ユーキャン/.test(name) ? uaUnkanPublicNotes_(rowData.affiliateNotes) : String(rowData.affiliateNotes || '').trim();
   const managedCta = uaGetManagedAffiliateCtaSpec_(rowData);
   const ctaPhrase = uaSelectCtaPhraseTemplate_(rowData && rowData.mainInput);
 

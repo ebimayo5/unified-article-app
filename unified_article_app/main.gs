@@ -1555,7 +1555,7 @@ function uaBuildRowData_(sheet, row) {
     volume: values[UA_COLUMNS.volume - 1] || '',
     affiliateName: uaNormalizeAffiliateName_(values[UA_COLUMNS.affiliateName - 1]),
     affiliateUrl: values[UA_COLUMNS.affiliateUrl - 1] || '',
-    affiliateNotes: values[UA_COLUMNS.affiliateNotes - 1] || '',
+    affiliateNotes: appType === '運行管理者試験対策' ? uaUnkanPublicNotes_(values[UA_COLUMNS.affiliateNotes - 1]) : (values[UA_COLUMNS.affiliateNotes - 1] || ''),
     competitorUrl1: values[UA_COLUMNS.competitorUrl1 - 1] || '',
     competitorUrl2: values[UA_COLUMNS.competitorUrl2 - 1] || '',
     competitorUrl3: values[UA_COLUMNS.competitorUrl3 - 1] || '',

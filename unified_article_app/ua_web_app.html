@@ -260,6 +260,8 @@
         .action-groups { grid-template-columns: 1fr; }
         .main-grid, .url-grid { grid-template-columns: 1fr; }
       }
+.theme-navy { --bg:#edf2f7; --panel:#ffffff; --line:#bccbd9; --text:#162c3e; --brand:#0d3049; --brand-dark:#071e30; --soft:#e4edf5; --soft-strong:#c9dae9; --ink:#0d3049; --chrome:#0d3049; --chrome-end:#174a6b; --chrome-border:#38627f; --sidebar-card:#123c59; --sidebar-card-border:#426985; --sidebar-heading-line:#557b98; --sidebar-muted:#e0eaf3; --accent-start:#0d3049; --accent-end:#386986; --primary-top:#174866; --primary-bottom:#0d3049; --primary-border:#071e30; --page-top:#e6eef5; }
+      .theme-navy .header,.theme-navy .topbar,.theme-navy .sidebar { background:linear-gradient(135deg,#0d3049,#174a6b); color:white; }
     </style>
   </head>
   <body>
@@ -307,6 +309,7 @@
               <select id="imageStylePreset">
                 <option value="latestAnime">最新アニメ風</option>
                 <option value="softFree">柔らかいフリー素材風</option>
+                <option value="unkanFlat">運管フラット(濃紺×オレンジ)</option>
                 <option value="custom">手入力の指定</option>
               </select>
             </div>
@@ -337,6 +340,7 @@
             <div><label for="autoPostingDailyLimit">1日の記事数（1〜5）</label><input id="autoPostingDailyLimit" type="number" min="1" max="5" step="1" value="1"></div>
           </div>
           <label for="autoPostingPublishMode">WordPress到達点</label>
+          <p id="unkanAutomationNote" class="muted hidden">運管は下書きまで自動作成します。法令の根拠・広告を確認してから手動で公開してください。</p>
           <select id="autoPostingPublishMode">
             <option value="下書きまで">下書きまで</option>
             <option value="公開まで">投稿まで（公開）</option>
@@ -380,6 +384,18 @@
         </div>
 
         <div id="dashboardView">
+<section id="unkanDashboard" class="card hidden" style="margin-bottom:16px">
+<h2>運管の記事管理</h2><p>記事を選んでリライトできます。公開前に根拠と広告表現を確認します。</p>
+<p id="unkanDashboardStatus" role="status">記事を読み込み中…</p>
+<button type="button" class="secondary" onclick="loadUnkanDashboard()">一覧を更新</button>
+<button type="button" class="secondary" onclick="showMainView('keywords')">お宝キーワードを探す</button>
+<ul id="unkanArticleList" class="dashboard-article-list"></ul>
+<details id="unkanPanel" style="margin-top:20px"><summary>接続設定・公開記事の取り込み</summary>
+<p>接続済みなら再入力は不要です。取り込みは既存記事を変更しません。</p><label>WordPressユーザー名<input id="unkanUser" autocomplete="off"></label>
+<label>専用アプリケーションパスワード<input id="unkanPass" type="password" autocomplete="new-password"></label>
+<button type="button" onclick="unkanSetup()">接続・専用シートを準備</button>
+<button type="button" onclick="unkanImport()">公開記事を取り込む</button>
+</details></section>
           <div class="card dashboard-hero">
             <div class="dashboard-hero-head">
               <div id="dashboardStatusChip" class="dashboard-chip stopped">状態を読み込み中...</div>
@@ -429,6 +445,13 @@
         </div>
 
         <div id="editorView" class="hidden">
+<section id="unkanReviewPanel" class="card hidden"><h2>公開前の根拠・広告確認</h2><p>資料本文と適用時点を人が確認して記録します。URLだけで事実確認済みとは扱いません。</p>
+<button type="button" onclick="unkanReviewLoad()">現在の記事から確認項目を作成</button>
+<textarea id="unkanReviewJson" rows="12" aria-label="根拠確認JSON"></textarea>
+<label><input id="unkanExperience" type="checkbox">実体験・資格の記載を原本と照合した</label>
+<label><input id="unkanAd" type="checkbox">広告表記・リンク・紹介制限を確認した</label>
+<button type="button" onclick="unkanReviewSave()">確認記録を保存</button>
+</section>
         <div class="main-grid">
           <div class="card">
             <h2>基本情報</h2>
@@ -549,7 +572,7 @@
         <div id="keywordsView" class="hidden">
           <div class="card">
             <h2 style="margin:0 0 6px;">新規発掘</h2>
-            <div class="muted">AIに新しいキーワード案を考えさせ、商品・案件ひも付き＋SERP構成＋既存記事とのカニバリを自動チェックして、通過分だけ「AI提案」として候補シートへ追加します。「書く」へは追加されません。</div>
+            <div id="kwDiscoveryDescription" class="muted">AIに新しいキーワード案を考えさせ、商品・案件ひも付き＋SERP構成＋既存記事とのカニバリを自動チェックして、通過分だけ「AI提案」として候補シートへ追加します。「書く」へは追加されません。</div>
             <div style="margin-top:10px;"><button id="kwDiscoverButton" class="primary" type="button" onclick="runTreasureKeywordDiscovery(this)">AIに新しいキーワードを考えてもらう</button></div>
             <div id="kwDiscoverResult"></div>
           </div>
@@ -652,6 +675,8 @@
         </div>
       </div>
     </div>
+
+<p id="unkanNotice" role="status" style="margin:16px"></p>
 <script>
       window.name = 'ArticleCompassApp';
       const fields = ['row','mainInput','volume','affiliateName','affiliateUrl','affiliateNotes','competitorUrl1','competitorUrl2','competitorUrl3','readerMindMemo','status','generationModel','body','titleIdeas','tags','metaDescription','permalink','factCheckPoints','structureMemo','wpPostId','wpEditUrl','wpDraftedAt'];
@@ -975,7 +1000,7 @@
         const appType = document.getElementById('appType').value;
         const panel = document.getElementById('automaticPostingPanel');
         const config = appConfigs.find(function(item) { return item.label === appType; });
-        const unsupported = !config || config.useWordPress === false;
+        const unsupported = !config || config.useWordPress === false || config.useAutomation === false;
         if (panel) panel.classList.toggle('hidden', unsupported);
         const dashboardHero = document.querySelector('#dashboardView .dashboard-hero');
         if (dashboardHero) dashboardHero.classList.toggle('hidden', unsupported);
@@ -1008,9 +1033,14 @@
         if (settings.appType && settings.appType !== document.getElementById('appType').value) return;
         const heading = document.getElementById('automaticPostingHeading');
         if (heading) heading.textContent = (settings.siteLabel || document.getElementById('appType').value) + ' 自動投稿設定';
+        if (settings.unkanDashboard) renderUnkanDashboard(settings.unkanDashboard);
         document.getElementById('autoPostingEnabled').value = settings.enabled ? 'ON' : 'OFF';
         document.getElementById('autoPostingImages').value = settings.includeImages === false ? 'なし' : 'あり';
-        document.getElementById('autoPostingPublishMode').value = settings.publishMode === '公開まで' ? '公開まで' : '下書きまで';
+        const unkanAutomation = document.getElementById('appType').value === '運行管理者試験対策';
+        document.getElementById('unkanAutomationNote').classList.toggle('hidden', !unkanAutomation);
+        const publishSelect = document.getElementById('autoPostingPublishMode');
+        Array.from(publishSelect.options).forEach(function(option) { if (option.value === '公開まで') option.disabled = unkanAutomation; });
+        publishSelect.value = !unkanAutomation && settings.publishMode === '公開まで' ? '公開まで' : '下書きまで';
         document.getElementById('autoPostingHour').value = Number(settings.hour) >= 0 ? Number(settings.hour) : 4;
         document.getElementById('autoPostingDailyLimit').value = Number(settings.dailyLimit) || 1;
         const immediateCount = document.getElementById('autoPostingImmediateCount');
@@ -1609,7 +1639,7 @@
         const appTypeEl = document.getElementById('appType');
         const preset = document.getElementById('imageStylePreset');
         if (!appTypeEl || !preset) return;
-        preset.value = appTypeEl.value === 'DRIVE BASE' ? 'latestAnime' : 'softFree';
+        preset.value = appTypeEl.value === 'DRIVE BASE' ? 'latestAnime' : (appTypeEl.value === '運行管理者試験対策' ? 'unkanFlat' : 'softFree');
       }
 
       function clearLoadedArticleForm() {
@@ -1836,9 +1866,19 @@
 
       function applyTheme() {
         const config = currentConfig();
+        const unkanPanel = document.getElementById('unkanPanel');
+        ['unkanDashboard','unkanReviewPanel'].forEach(function(id) { const node=document.getElementById(id); if(node) node.classList.toggle('hidden', !config || config.key !== 'unkan'); });
+        const automaticPanel = document.getElementById('automaticPostingPanel');
+        if (automaticPanel) automaticPanel.classList.toggle('hidden', !!config && config.useAutomation === false);
+        const keywordTab = document.getElementById('mainViewKeywordsTab');
+        if (keywordTab) keywordTab.classList.remove('hidden');
+        document.getElementById('kwDiscoveryDescription').textContent = config && config.key === 'unkan' ? '運行管理者試験の受験者向けキーワードを提案し、検索結果の競合と既存記事の内容重複を確認します。通過分を「AI提案」に追加します。検索数は別途確認し、記事にする候補は自分で「書く」に変更してください。' : 'AIに新しいキーワード案を考えさせ、商品・案件ひも付き＋SERP構成＋既存記事とのカニバリを自動チェックして、通過分だけ「AI提案」として候補シートへ追加します。「書く」へは追加されません。';
+        const commerceButton = document.getElementById('addCommerceLinkButton');
+        if (commerceButton) commerceButton.classList.toggle('hidden', !!config && config.useCommerce === false);
         const app = document.getElementById('app');
         [app, document.body].forEach(function(target) {
-          target.classList.remove('theme-brown', 'theme-blue');
+          target.classList.remove('theme-brown', 'theme-blue', 'theme-navy');
+          if (config && config.theme === 'navy') target.classList.add('theme-navy');
           if (config && config.theme === 'brown') target.classList.add('theme-brown');
           if (config && config.theme === 'blue') target.classList.add('theme-blue');
         });
@@ -1865,7 +1905,7 @@
       }
 
       function updateRakutenVisibility(config) {
-        const isDisabled = config && config.key === 'general';
+        const isDisabled = config && (config.key === 'general' || config.useCommerce === false);
         const mode = document.getElementById('rakutenBannerMode');
         const keyword = document.getElementById('rakutenProductKeyword');
         if (mode) mode.disabled = isDisabled;
@@ -2055,6 +2095,7 @@
           if (tab) tab.classList.toggle('active', isActive);
         });
         if (name === 'keywords') refreshTreasureKeywordTabIfNeeded();
+        if (name === 'dashboard' && currentConfig() && currentConfig().key === 'unkan') loadUnkanDashboard();
       }
 
       function setStoppedArticleUi(stopped) {
@@ -2667,6 +2708,7 @@
       function getSelectedImageStylePromptLine() {
         const preset = document.getElementById('imageStylePreset').value;
         const custom = document.getElementById('imageStylePrompt').value.trim();
+        if (preset === 'unkanFlat') return 'フラットなベクターイラスト風。濃紺(#0d3049)背景、オレンジ(#f5a623)アクセント、白の太いゴシック文字。陰影や奥行き、写真風の質感は付けない。装飾は最小限で、信頼感のあるシンプルな構図。';
         if (preset === 'softFree') return '柔らかいフリー素材風。淡い色、やさしい形、ブログ素材として使いやすい清潔なイラスト。';
         if (preset === 'custom') return custom || '手入力の指定。画像スタイル指定欄に書いた内容を優先する。';
         return '最新アニメ風。現代的で高品質なアニメ調、清潔で表情のある線画、自然な光と陰影、奥行き、洗練された配色。平面的な企業向けベクター素材、汎用フリー素材、クリップアート風にはしない。';
@@ -3641,6 +3683,66 @@
       }
 
       init();
+
+      function loadUnkanDashboard() {
+        if(!currentConfig() || currentConfig().key !== 'unkan') return;
+        document.getElementById('unkanDashboardStatus').textContent='記事を読み込み中…';
+        google.script.run.withSuccessHandler(renderAutomaticPostingSettings)
+          .withFailureHandler(function(error){document.getElementById('unkanDashboardStatus').textContent='記事一覧を取得できません: '+error.message;})
+          .uaGetAutomaticPostingSettingsForPanel('運行管理者試験対策');
+      }
+      function renderUnkanDashboard(result) {
+        if(!currentConfig() || currentConfig().key !== 'unkan') return;
+        document.getElementById('unkanDashboardStatus').textContent='登録記事 '+result.articles.length+'件 ／ キーワード候補 '+result.candidateCount+'件';
+        const list=document.getElementById('unkanArticleList'); list.textContent='';
+        result.articles.forEach(function(article) {
+          const li=document.createElement('li'),button=document.createElement('button');
+          button.type='button';button.className='secondary';
+          button.textContent=article.title+'（'+article.status+'）';
+          button.onclick=function(){document.getElementById('sourceType').value='article';document.getElementById('sourceRow').value=article.row;loadFromSourceRow(button);};
+          li.appendChild(button);list.appendChild(li);
+        });
+        if(!result.articles.length) list.textContent='公開記事を取り込むと、ここから選べます。';
+      }
+      let unkanReviewDigest = '';
+      let unkanBusy = false;
+      function unkanRun(method, args, done) {
+        if (unkanBusy) return;
+        unkanBusy = true;
+        document.getElementById('unkanNotice').textContent = '処理中…';
+        const runner = google.script.run.withSuccessHandler(function(result) {
+          unkanBusy = false;
+          document.getElementById('unkanNotice').textContent = result.message || '完了しました。';
+          if (done) done(result);
+        }).withFailureHandler(function(error) {
+          unkanBusy = false;
+          document.getElementById('unkanPass').value = '';
+          document.getElementById('unkanNotice').textContent = error.message || String(error);
+        });
+        runner[method].apply(runner, args);
+      }
+      function unkanSetup() {
+        const settings = {username:document.getElementById('unkanUser').value, appPassword:document.getElementById('unkanPass').value};
+        document.getElementById('unkanPass').value = '';
+        unkanRun('uaSetupUnkanFromWeb', [settings]);
+      }
+      function unkanImport() { unkanRun('uaImportUnkanPublishedFromWeb', [], loadUnkanDashboard); }
+      function unkanReviewLoad() {
+        unkanRun('uaGetUnkanReviewFromWeb', [readForm()], function(result) {
+          fillForm(result.data);
+          unkanReviewDigest = result.digest;
+          document.getElementById('unkanExperience').checked = false;
+          document.getElementById('unkanAd').checked = false;
+          document.getElementById('unkanReviewJson').value = JSON.stringify(result.claims.map(function(text) { return {claim:text,url:'',quote:'',checkedOn:'',experience:false}; }), null, 2);
+        });
+      }
+      function unkanReviewSave() {
+        let entries;
+        try { entries = JSON.parse(document.getElementById('unkanReviewJson').value); }
+        catch(error) { document.getElementById('unkanNotice').textContent = 'JSONの形式を確認してください。'; return; }
+        unkanRun('uaSaveUnkanReviewFromWeb', [readForm(), {digest:unkanReviewDigest,entries:entries,experienceReviewed:document.getElementById('unkanExperience').checked,advertisingReviewed:document.getElementById('unkanAd').checked}]);
+      }
+
     </script>
   </body>
 </html>

@@ -105,7 +105,7 @@ function uaBuildReaderMindSearchQuery_(mainInput, appConfig) {
   return text.slice(0, 80);
 }
 
-function uaBuildReaderMindMemoPrompt_(mainInput, appConfig, sources, paaQuestions) {
+function uaBuildReaderMindMemoPrompt_UnkanBase_(mainInput, appConfig, sources, paaQuestions) {
   const sourceText = sources.length === 0
     ? '今回はQ&Aサイト等の元データを取得できませんでした。入力内容、記事タイプ、一般的な検索意図から推定してください。ただし、本文で事実として使える具体情報は増やさず、推定であることを前提に安全側で整理してください。'
     : sources.map(function(source, index) {
@@ -378,4 +378,9 @@ function uaFetchReaderMindHtml_(url) {
   }
 
   return response.getContentText('UTF-8');
+}
+
+function uaBuildReaderMindMemoPrompt_(mainInput, appConfig, sources, paaQuestions) {
+  const prompt = uaBuildReaderMindMemoPrompt_UnkanBase_(mainInput, appConfig, sources, paaQuestions);
+  return (appConfig && (appConfig.key === 'unkan' || appConfig.appType === '運行管理者試験対策')) ? uaUnkanPolicy_() + "\n" + prompt + "\n" + uaUnkanPolicy_() : prompt;
 }

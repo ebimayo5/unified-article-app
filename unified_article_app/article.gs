@@ -1394,6 +1394,7 @@ function uaBuildManagedAffiliateCtaBlock_(spec, ctaText, appConfig) {
     }
 
     const buttonColor = uaGetSwellButtonColor_(appConfig);
+    if ((appConfig && (appConfig.key === 'unkan' || appConfig.appType === '運行管理者試験対策'))) tagContent = tagContent.replace(/<a\b/i, '<a style="background-color:#0d3049;color:#ffffff"');
 
     return [
       '<!-- UA_MAIN_AFFILIATE_CTA_START -->',
@@ -2429,7 +2430,7 @@ function uaEnsureAutomaticProductLinksForData_(data) {
   const sheet = uaGetSheetForData_(data || {});
   const row = Number(data && data.row) || sheet.getActiveCell().getRow();
   const context = uaGetRakutenRowContext_(sheet, row);
-  if (!context.appConfig || context.appConfig.key === 'general' || !context.body) {
+  if (!context.appConfig || context.appConfig.useCommerce === false || context.appConfig.key === 'general' || !context.body) {
     return uaBuildRowData_(sheet, row);
   }
 
@@ -3342,6 +3343,7 @@ function uaHasManagedUsedCarAffiliate_(rowData) {
 }
 
 function uaApplyRakutenAffiliateBanner_(body, rowData, appConfig) {
+  if ((appConfig && (appConfig.key === 'unkan' || appConfig.appType === '運行管理者試験対策'))) return body;
   UA_LAST_RAKUTEN_STATUS = '';
   UA_LAST_RINKER_FAILURE_REASON = '';
   UA_LAST_RAKUTEN_ITEMS = [];

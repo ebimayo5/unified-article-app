@@ -439,6 +439,7 @@ function uaGetInternalLinkCandidates_(mainInput, appConfig, rowData) {
 }
 
 function uaIsSameInternalLinkSite_(item, appConfig) {
+  if (appConfig && appConfig.key === 'unkan') return /^https:\/\/unkan-genba\.com\//i.test(String(item && item.url || ''));
   const site = uaNormalizeForScore_(item && item.site);
   const label = uaNormalizeForScore_(appConfig && appConfig.label);
   const key = uaNormalizeForScore_(appConfig && appConfig.key);

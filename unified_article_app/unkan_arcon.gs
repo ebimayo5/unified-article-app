@@ -328,5 +328,49 @@ function uaGetUnkanDashboardFromWeb() {
   }
   let candidateCount=0;
   if(candidates && candidates.getLastRow()>1) candidateCount=candidates.getRange(2,UA_CANDIDATE_COLUMNS.keyword,candidates.getLastRow()-1,1).getValues().filter(function(row){return String(row[0]||'').trim();}).length;
-  return {articles:articles,candidateCount:candidateCount};
+  let freshness=[];
+  try { freshness=uaUnkanFreshnessReport_(new Date()); } catch(error) { freshness=[]; }
+  return {articles:articles,candidateCount:candidateCount,freshness:freshness};
+}
+
+// ---- 鮮度チェック(運管): 共通の核(freshness.gs)に、運管の話題語とデータの読み先だけを渡す。読み取りのみ。 ----
+const UA_UNKAN_FRESHNESS_TOPICS = [
+  { re: /改善基準告示|拘束時間|休息期間|法改正|改正|告示|施行|法令|法定/, w: 2, label: '法令・基準の記載あり' },
+  { re: /合格率|受験料|受験手数料|試験日|試験日程|受験資格|申込|受験者数|合格基準/, w: 2, label: '試験情報(日程・費用・合格率など)の記載あり' },
+  { re: /[0-9０-９,，]+\s*円|費用|料金|価格/, w: 1, label: '費用・価格の記載あり' },
+  { re: /基礎講習|一般講習|通信講座|講座/, w: 1, label: '講習・講座の記載あり' }
+];
+
+function uaUnkanFreshnessReport_(now) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(UA_APP_TYPES.unkan.articleSheetName);
+  const originals = ss.getSheetByName(UA_UNKAN_ORIGINALS);
+  if (!sheet || sheet.getLastRow() < 2) return [];
+  const origById = {};
+  if (originals && originals.getLastRow() > 1) {
+    originals.getRange(2, 1, originals.getLastRow() - 1, 4).getValues().forEach(function(r) {
+      try { origById[Number(r[0])] = JSON.parse(String(r[3])); } catch (e) {}
+    });
+  }
+  const out = [];
+  sheet.getRange(2, 1, sheet.getLastRow() - 1, UA_HEADERS.length).getValues().forEach(function(row, index) {
+    const id = Number(row[UA_COLUMNS.wpPostId - 1] || 0);
+    if (!id) return;
+    const post = origById[id] || null;
+    const postModified = post && (post.modified_gmt ? post.modified_gmt + 'Z' : post.modified) || post && post.date || '';
+    const sheetUpdated = row[UA_COLUMNS.wpDraftedAt - 1];
+    const sheetUpdatedMs = sheetUpdated && typeof sheetUpdated.getTime === 'function' ? sheetUpdated.getTime() : 0;
+    const postModifiedMs = postModified ? new Date(postModified).getTime() : 0;
+    // 取込後にパネルから公開更新していれば、そのときの本文(シート)を新しい状態として扱う。
+    const useSheet = sheetUpdatedMs > postModifiedMs;
+    const raw = useSheet ? String(row[UA_COLUMNS.body - 1] || '') : (post ? uaGetWpPostRawContent_(post) : String(row[UA_COLUMNS.body - 1] || ''));
+    const touched = useSheet ? sheetUpdated : (postModifiedMs ? new Date(postModifiedMs) : null);
+    const r = uaFreshnessScore_({ raw: raw, touched: touched }, now, { topicGroups: UA_UNKAN_FRESHNESS_TOPICS });
+    out.push({
+      row: index + 2, postId: id,
+      title: String(row[UA_COLUMNS.titleIdeas - 1] || row[UA_COLUMNS.mainInput - 1] || '').replace(/^案\d+：/, '').trim(),
+      score: r.score, level: r.level, reasons: r.reasons, ageDays: r.ageDays
+    });
+  });
+  return uaFreshnessSort_(out);
 }

@@ -390,6 +390,9 @@
 <button type="button" class="secondary" onclick="loadUnkanDashboard()">一覧を更新</button>
 <button type="button" class="secondary" onclick="showMainView('keywords')">お宝キーワードを探す</button>
 <ul id="unkanArticleList" class="dashboard-article-list"></ul>
+<details id="unkanFreshnessBox" style="margin-top:12px"><summary id="unkanFreshnessSummary">鮮度チェック(書き直しの優先度)</summary>
+<p style="font-size:13px">取り込み済みの本文と更新日から、機械的に優先度を付けた目安です。内容の正誤を判定するものではありません。書き直すときは、必ず根拠確認を行います。</p>
+<ul id="unkanFreshnessList" class="dashboard-article-list"></ul></details>
 <details id="unkanPanel" style="margin-top:20px"><summary>接続設定・公開記事の取り込み</summary>
 <p>接続済みなら再入力は不要です。取り込みは既存記事を変更しません。</p><label>WordPressユーザー名<input id="unkanUser" autocomplete="off"></label>
 <label>専用アプリケーションパスワード<input id="unkanPass" type="password" autocomplete="new-password"></label>
@@ -3703,6 +3706,23 @@
           li.appendChild(button);list.appendChild(li);
         });
         if(!result.articles.length) list.textContent='公開記事を取り込むと、ここから選べます。';
+        renderUnkanFreshness(result.freshness || []);
+      }
+      function renderUnkanFreshness(items) {
+        const list=document.getElementById('unkanFreshnessList'),summary=document.getElementById('unkanFreshnessSummary');
+        if(!list||!summary) return;
+        list.textContent='';
+        const high=items.filter(function(x){return x.level==='高';}).length;
+        summary.textContent='鮮度チェック(書き直しの優先度) 高 '+high+'件 / 全 '+items.length+'件';
+        items.forEach(function(item) {
+          const li=document.createElement('li'),button=document.createElement('button');
+          button.type='button';button.className='secondary';
+          button.textContent='【優先度'+item.level+'】'+item.title+(item.ageDays!==null&&item.ageDays!==undefined?'(最終更新から'+item.ageDays+'日)':'');
+          button.onclick=function(){document.getElementById('sourceType').value='article';document.getElementById('sourceRow').value=item.row;loadFromSourceRow(button);};
+          const why=document.createElement('div');why.style.fontSize='12px';why.style.margin='2px 0 8px';why.textContent=(item.reasons||[]).join('、');
+          li.appendChild(button);li.appendChild(why);list.appendChild(li);
+        });
+        if(!items.length) list.textContent='取り込み済みの公開記事がありません。';
       }
       let unkanReviewDigest = '';
       let unkanBusy = false;

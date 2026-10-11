@@ -265,6 +265,7 @@ function uaCommonOutputRules_() {
 【共通出力ルール】
 ・WordPressのコードエディターに直接貼れるHTML本文を書く。
 ・本文はいきなり <p> から始める。<h1> は使わない。
+・記事上部のSWELL共通PR表記で広告表示は完了している。本文内に「ここからはPRを含みます。」「PR：」「アフィリエイト広告を含みます。」などの広告表記を追加しない。
 ・使用タグは <p>、<h2>、<h3>、<h4>、<ul>、<li>、<strong>、<span>、<a>、<div>、<figure>、<table>、<thead>、<tbody>、<tr>、<th>、<td> を基本にします。Cocoonのブログカード・ボタンブロックに必要なWordPressコメントは使ってよいです。
 ・HTML属性は原則シングルクォートを使う。
 ・比較表は必要に応じて1つ入れる。表は <!-- wp:table --><figure class='wp-block-table'><table>...</table></figure><!-- /wp:table --> の形式。

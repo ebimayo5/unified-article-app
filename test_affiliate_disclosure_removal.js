@@ -22,6 +22,12 @@ assert.strictEqual(
 assert.strictEqual(strip('<p>PR：本記事にはアフィリエイト広告を含みます。</p>\n<p>本文</p>'), '<p>本文</p>', '定型文の段落は段落ごと消す');
 assert.strictEqual(strip('<p>PR：この記事にはプロモーションが含まれます。</p>\n<p>本文</p>'), '<p>本文</p>', '言い換えた表記も段落ごと消す');
 assert.strictEqual(strip('<p><strong>PR：ここからは案件のご案内です。</strong></p>\n<p>本文</p>'), '<p>本文</p>', 'strongで囲まれていても消す');
+assert.strictEqual(strip('<p>ここからはPRを含みます。</p>\n<p>本文</p>'), '<p>本文</p>', '本文中のPR開始表記も段落ごと消す');
+assert.strictEqual(
+  strip('<p>ここからはPRを含みます。積水ハウスが候補に残り、これから相談へ進むなら条件を確認できます。</p>'),
+  '<p>積水ハウスが候補に残り、これから相談へ進むなら条件を確認できます。</p>',
+  '本文が続くPR開始表記は先頭文だけ消す'
+);
 
 // 従来の挙動（PR接頭辞なしの定型文）は変えない。
 assert.strictEqual(strip('<p>本記事にはアフィリエイト広告を含みます。</p>\n<p>本文</p>'), '<p>本文</p>', '既存の定型文は従来どおり消す');

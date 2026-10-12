@@ -1,7 +1,7 @@
 # kurashi-ie.com post 561 2倍巻きトイレットペーパーのデメリット(P2・AI表示23)
 
-- URL: https://kurashi-ie.com/
-- 更新: 2026-10-12 23:55 JST(WP REST で content のみ。URL・タイトル・公開状態・アイキャッチ・画像・既存リンク・Rinkerショートコードは保持)
+- URL: https://kurashi-ie.com/double-roll-toilet-paper-demerits/
+- 更新: 2026-10-12 23:34 JST(WP REST で content のみ。URL・タイトル・公開状態・アイキャッチ・画像・既存リンク・Rinkerショートコードは保持)
 - **復元方法**: 投稿 561 のリビジョン **TBD**(更新前の本文)。
 
 ## 本文の評価(実読)

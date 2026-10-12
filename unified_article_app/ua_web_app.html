@@ -384,21 +384,6 @@
         </div>
 
         <div id="dashboardView">
-<section id="unkanDashboard" class="card hidden" style="margin-bottom:16px">
-<h2>運管の記事管理</h2><p>記事を選んでリライトできます。公開前に根拠と広告表現を確認します。</p>
-<p id="unkanDashboardStatus" role="status">記事を読み込み中…</p>
-<button type="button" class="secondary" onclick="loadUnkanDashboard()">一覧を更新</button>
-<button type="button" class="secondary" onclick="showMainView('keywords')">お宝キーワードを探す</button>
-<ul id="unkanArticleList" class="dashboard-article-list"></ul>
-<details id="unkanFreshnessBox" style="margin-top:12px"><summary id="unkanFreshnessSummary">鮮度チェック(書き直しの優先度)</summary>
-<p style="font-size:13px">取り込み済みの本文と更新日から、機械的に優先度を付けた目安です。内容の正誤を判定するものではありません。書き直すときは、必ず根拠確認を行います。</p>
-<ul id="unkanFreshnessList" class="dashboard-article-list"></ul></details>
-<details id="unkanPanel" style="margin-top:20px"><summary>接続設定・公開記事の取り込み</summary>
-<p>接続済みなら再入力は不要です。取り込みは既存記事を変更しません。</p><label>WordPressユーザー名<input id="unkanUser" autocomplete="off"></label>
-<label>専用アプリケーションパスワード<input id="unkanPass" type="password" autocomplete="new-password"></label>
-<button type="button" onclick="unkanSetup()">接続・専用シートを準備</button>
-<button type="button" onclick="unkanImport()">公開記事を取り込む</button>
-</details></section>
           <div class="card dashboard-hero">
             <div class="dashboard-hero-head">
               <div id="dashboardStatusChip" class="dashboard-chip stopped">状態を読み込み中...</div>
@@ -445,6 +430,22 @@
               </div>
             </div>
           </div>
+<section id="unkanDashboard" class="card hidden" style="margin-top:12px;">
+<h2 style="margin:0 0 12px;">運管の記事管理</h2>
+<div class="muted" style="margin-bottom:8px;">記事を選んでリライトできます。公開前に根拠と広告表現を確認します。</div>
+<div id="unkanDashboardStatus" class="dashboard-stat-label" role="status" style="margin-bottom:8px;">記事を読み込み中…</div>
+<button type="button" class="secondary" onclick="loadUnkanDashboard()">一覧を更新</button>
+<button type="button" class="secondary" onclick="showMainView('keywords')">お宝キーワードを探す</button>
+<ul id="unkanArticleList" class="dashboard-article-list"></ul>
+<details id="unkanFreshnessBox" style="margin-top:12px"><summary id="unkanFreshnessSummary">鮮度チェック(書き直しの優先度)</summary>
+<p style="font-size:13px">取り込み済みの本文と更新日から、機械的に優先度を付けた目安です。内容の正誤を判定するものではありません。書き直すときは、必ず根拠確認を行います。</p>
+<ul id="unkanFreshnessList" class="dashboard-article-list"></ul></details>
+<details id="unkanPanel" style="margin-top:20px"><summary>接続設定・公開記事の取り込み</summary>
+<p>接続済みなら再入力は不要です。取り込みは既存記事を変更しません。</p><label>WordPressユーザー名<input id="unkanUser" autocomplete="off"></label>
+<label>専用アプリケーションパスワード<input id="unkanPass" type="password" autocomplete="new-password"></label>
+<button type="button" onclick="unkanSetup()">接続・専用シートを準備</button>
+<button type="button" onclick="unkanImport()">公開記事を取り込む</button>
+</details></section>
         </div>
 
         <div id="editorView" class="hidden">
@@ -3827,6 +3828,8 @@
         const runner = google.script.run.withSuccessHandler(function(result) {
           unkanBusy = false;
           document.getElementById('unkanNotice').textContent = result.message || '完了しました。';
+          // 他のサイトと同じ、画面上部の通知にも表示する。
+          setNotice(result.message || '完了しました。', false);
           if (isReview) {
             restoreReviewControls();
             unkanReviewStatus('✓ ' + (result.message || '完了しました。') + (/Save/.test(method) ? ' 次は「WPへ更新」を押してください。' : ''), 'ok');
@@ -3836,6 +3839,7 @@
           unkanBusy = false;
           document.getElementById('unkanPass').value = '';
           document.getElementById('unkanNotice').textContent = error.message || String(error);
+          setNotice(error.message || String(error), true);
           if (isReview) {
             restoreReviewControls();
             if (isLoad && jsonBox) jsonBox.value = '';

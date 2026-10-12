@@ -91,3 +91,12 @@ const drivingCovered = context.uaCheckCurrentOfficialSourceRequirement_(base, '<
 assert.strictEqual(drivingCovered.critical, false, 'vehicle and safety evidence must pass only when both are present');
 
 console.log('reliable evidence source guard: OK');
+
+// Regression: the Unkan vehicle-law rewrite stopped on legal compliance wording.
+const vehicleLaw = '道路運送車両法関係のポイントまとめ【運行管理者試験(貨物)】';
+const lawBody = '<p>検査制度は、車両が求められる基準に適合しているかを確認する仕組みです。</p><p>灯火類、制動装置、タイヤの個別適合性は要約だけで判断できません。</p><a href="https://laws.e-gov.go.jp/law/326AC0000000185">道路運送車両法</a>';
+assert.deepStrictEqual(Array.from(context.uaGetRequiredEvidenceSourceCategories_(vehicleLaw, lawBody)), [], 'legal compliance must not require car-terminal manufacturer evidence');
+const lawIssue = context.uaCheckCurrentOfficialSourceRequirement_({mainInput:vehicleLaw}, lawBody);
+assert.ok(!lawIssue || lawIssue.critical === false, 'the actual legal-compliance wording and e-Gov source must pass');
+assert.ok(context.uaGetRequiredEvidenceSourceCategories_(vehicleLaw, lawBody + '<p>USB端子の仕様を説明します。</p>').includes('vehicle_spec'), 'a law topic must not exempt actual device specifications');
+assert.ok(context.uaGetRequiredEvidenceSourceCategories_('ハリアー 適合', '<p>製品の適合を確認します。</p>').includes('vehicle_spec'), 'ordinary model compatibility must still require manufacturer evidence');

@@ -945,7 +945,11 @@ function uaGetRequiredEvidenceSourceCategories_(mainInput, contextText) {
   // 車名・カーナビ等の車両文脈と、仕様を確認する語が両方ある場合に限る。
   const isVehicleTopic = /(?:車種|車両|自動車|カーナビ|ディスプレイオーディオ|後席モニター|テレビキャンセラー|RAV4|ハリアー|ヴェルファイア|アルファード|アクア|ヤリスクロス|ノア|ヴォクシー|シエンタ|カローラ|レクサス|RX|NX|ES|IS|ヴェゼル|オデッセイ|N-BOX|ステップワゴン|セレナ|デイズ|フォレスター|ソリオ|ハスラー|フロンクス|スイフト|デリカ|タフト|CX-5|GR86)/i.test(input);
 
-  if (isVehicleTopic && /(HDMI|USB(?:\s*Type-?[AC])?|CarPlay|Android\s*Auto|端子|ナビ|ディスプレイオーディオ|後席モニター|対応可否|適合)/i.test(text)) {
+  // 法令上の『保安基準への適合』は機器・車種仕様の根拠要求とは別。
+  // 法令記事でもHDMI等の具体的な機器仕様を述べる場合は従来どおり確認する。
+  const isVehicleLawTopic = /(道路運送車両法|保安基準)/.test(input);
+  const hasDeviceSpecClaim = /(HDMI|USB(?:\s*Type-?[AC])?|CarPlay|Android\s*Auto|端子|ナビ|ディスプレイオーディオ|後席モニター|対応可否|適合表|(?:機器|機種|製品|年式|グレード)[^。]{0,30}適合)/i.test(text);
+  if (isVehicleTopic && (hasDeviceSpecClaim || (!isVehicleLawTopic && /適合/.test(text)))) {
     categories.push('vehicle_spec');
   }
   // 単に「運転中」「走行中」とあるだけでは対象にしない。画面・映像・スマホの

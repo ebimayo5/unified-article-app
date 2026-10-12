@@ -2107,13 +2107,15 @@ function uaFindPrePublishStrongClaims_(body) {
 function uaBuildPrePublishEditorPrompt_(rowData, ruleCheck) {
   if ((rowData && (rowData.key === 'unkan' || rowData.appType === '運行管理者試験対策'))) rowData = Object.assign({}, rowData, { affiliateNotes: uaUnkanPublicNotes_(rowData.affiliateNotes) });
   const prompt = uaBuildPrePublishEditorPrompt_UnkanBase_(rowData, ruleCheck);
-  return (rowData && (rowData.key === 'unkan' || rowData.appType === '運行管理者試験対策')) ? uaUnkanPolicy_() + "\n" + prompt + "\n" + uaUnkanPolicy_() : prompt;
+  const appConfig = uaGetAppConfigByLabel_(rowData && rowData.appType);
+  return ((rowData && (rowData.key === 'unkan' || rowData.appType === '運行管理者試験対策')) ? uaUnkanPolicy_() + "\n" + prompt + "\n" + uaUnkanPolicy_() : prompt) + '\n\n' + uaBuildCitationReadinessPrompt_(appConfig, 'review');
 }
 
 function uaBuildPrePublishPatchPrompt_(rowData, checkReport, externalSourcesPrompt, internalLinksPrompt) {
   if ((rowData && (rowData.key === 'unkan' || rowData.appType === '運行管理者試験対策'))) rowData = Object.assign({}, rowData, { affiliateNotes: uaUnkanPublicNotes_(rowData.affiliateNotes) });
   const prompt = uaBuildPrePublishPatchPrompt_UnkanBase_(rowData, checkReport, externalSourcesPrompt, internalLinksPrompt);
-  return (rowData && (rowData.key === 'unkan' || rowData.appType === '運行管理者試験対策')) ? uaUnkanPolicy_() + "\n" + prompt + "\n" + uaUnkanPolicy_() : prompt;
+  const appConfig = uaGetAppConfigByLabel_(rowData && rowData.appType);
+  return ((rowData && (rowData.key === 'unkan' || rowData.appType === '運行管理者試験対策')) ? uaUnkanPolicy_() + "\n" + prompt + "\n" + uaUnkanPolicy_() : prompt) + '\n\n' + uaBuildCitationReadinessPrompt_(appConfig, 'patch');
 }
 
 // 「この記事のポイント」が手作りのwp:htmlブロック(SWELL標準の article-compass-point-box ではない)のとき、

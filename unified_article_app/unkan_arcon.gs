@@ -177,6 +177,7 @@ function uaBuildUnkanArticlePrompt_(data) {
   return [
     'あなたは運行管理者試験（貨物）教材の編集者です。文章を読みやすく整え、正確性を優先してください。',
     uaCommonOutputRules_(), uaBuildWpEditorThemePrompt_(UA_APP_TYPES.unkan), uaUnkanPolicy_(),
+    uaBuildCitationReadinessPrompt_(UA_APP_TYPES.unkan, 'write'),
     '主題：' + clean.mainInput,
     '読者心理：' + (clean.readerMindMemo || ''),
     '構成メモ：' + (clean.structureMemo || ''),

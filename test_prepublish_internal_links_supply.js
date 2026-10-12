@@ -5,6 +5,7 @@ const assert = require('assert');
 const fs = require('fs');
 
 const prePublish = fs.readFileSync('unified_article_app/pre_publish_check.gs', 'utf8');
+const articlePrompt = fs.readFileSync('unified_article_app/prompt.gs', 'utf8');
 const box = { exports: {} };
 const harness = `
 // links.gs / config.gs の代わりに最小限のスタブを置く
@@ -27,7 +28,7 @@ module.exports = {
   applyEdits: uaApplyPrePublishPatchEdits_
 };
 `;
-new Function('module', prePublish + harness)(box);
+new Function('module', articlePrompt + prePublish + harness)(box);
 const { buildPrompt, linksPrompt, linkUrls, applyEdits } = box.exports;
 
 const rowData = { appType: 'DRIVE BASE', mainInput: 'アクア HDMI どこ', body: '<p>本文</p>' };

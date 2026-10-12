@@ -1,0 +1,26 @@
+[
+  {
+    "site": "drive",
+    "owner": "Codex",
+    "status": "inventory_complete_manual_review_pending",
+    "expected": 151,
+    "actual": 151,
+    "fetched_at": "2026-10-12T11:22:46.897Z"
+  },
+  {
+    "site": "home",
+    "owner": "Claude",
+    "status": "inventory_complete_manual_review_pending",
+    "expected": 105,
+    "actual": 105,
+    "fetched_at": "2026-10-12T11:22:46.271Z"
+  },
+  {
+    "site": "unkan",
+    "owner": "Claude",
+    "status": "inventory_complete_manual_review_pending",
+    "expected": 8,
+    "actual": 8,
+    "fetched_at": "2026-10-12T11:22:43.608Z"
+  }
+]

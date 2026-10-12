@@ -879,5 +879,6 @@ function uaFormatStructureReferenceUrls_(competitorPages) {
 function uaBuildArticleStructurePrompt_(rowData, appConfig, competitorPages) {
   if ((rowData && (rowData.key === 'unkan' || rowData.appType === '運行管理者試験対策'))) rowData = Object.assign({}, rowData, { affiliateNotes: uaUnkanPublicNotes_(rowData.affiliateNotes) });
   const prompt = uaBuildArticleStructurePrompt_UnkanBase_(rowData, appConfig, competitorPages);
-  return (rowData && (rowData.key === 'unkan' || rowData.appType === '運行管理者試験対策')) ? uaUnkanPolicy_() + "\n" + prompt + "\n" + uaUnkanPolicy_() : prompt;
+  const citationPrompt = uaBuildCitationReadinessPrompt_(appConfig, 'outline');
+  return ((rowData && (rowData.key === 'unkan' || rowData.appType === '運行管理者試験対策')) ? uaUnkanPolicy_() + "\n" + prompt + "\n" + uaUnkanPolicy_() : prompt) + '\n\n' + citationPrompt;
 }

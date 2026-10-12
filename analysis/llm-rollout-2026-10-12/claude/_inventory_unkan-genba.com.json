@@ -1,0 +1,87 @@
+{
+ "site": "unkan-genba.com",
+ "total": 8,
+ "fetched": 8,
+ "rows": [
+  {
+   "id": 86,
+   "url": "https://unkan-genba.com/koshu/",
+   "title": "運行管理者の基礎講習・一般講習とは？違い・費用・オンライン受講まで解説",
+   "modified": "2026-10-12T11:23:32",
+   "date": "2026-09-20T13:52:13",
+   "len": 4712,
+   "ai": 27,
+   "imgs": 3
+  },
+  {
+   "id": 69,
+   "url": "https://unkan-genba.com/benkyoho/",
+   "title": "運行管理者試験の勉強方法｜独学の進め方とテキスト・通信講座の選び方",
+   "modified": "2026-10-12T00:37:11",
+   "date": "2026-09-20T12:28:32",
+   "len": 4320,
+   "ai": 0,
+   "imgs": 3
+  },
+  {
+   "id": 52,
+   "url": "https://unkan-genba.com/goukakuritsu/",
+   "title": "運行管理者試験（貨物）の合格率は41.1％｜難易度と対策の優先順位",
+   "modified": "2026-10-12T08:56:21",
+   "date": "2026-09-20T11:00:30",
+   "len": 4613,
+   "ai": 3,
+   "imgs": 3
+  },
+  {
+   "id": 43,
+   "url": "https://unkan-genba.com/jitsumuchishiki/",
+   "title": "実務上の知識及び能力は何を覚える？運行管理者試験（貨物）の整理法",
+   "modified": "2026-10-12T11:25:35",
+   "date": "2026-09-12T13:31:11",
+   "len": 6810,
+   "ai": 2,
+   "imgs": 5
+  },
+  {
+   "id": 41,
+   "url": "https://unkan-genba.com/roudokijunho/",
+   "title": "運行管理者試験（貨物）の労働基準法、36協定と改善基準告示はどう見分ける？",
+   "modified": "2026-10-12T11:27:36",
+   "date": "2026-09-12T13:22:36",
+   "len": 6798,
+   "ai": 0,
+   "imgs": 4
+  },
+  {
+   "id": 38,
+   "url": "https://unkan-genba.com/koutsuho/",
+   "title": "運行管理者試験（貨物）の道路交通法対策｜条件別に迷わない復習法",
+   "modified": "2026-10-12T11:29:38",
+   "date": "2026-09-12T13:10:15",
+   "len": 6215,
+   "ai": 0,
+   "imgs": 4
+  },
+  {
+   "id": 34,
+   "url": "https://unkan-genba.com/sharyoho/",
+   "title": "道路運送車両法の試験対策｜車検・点検整備の違いと主語・条件の読み方",
+   "modified": "2026-10-12T11:31:30",
+   "date": "2026-09-12T12:51:00",
+   "len": 5685,
+   "ai": 0,
+   "imgs": 5
+  },
+  {
+   "id": 24,
+   "url": "https://unkan-genba.com/kamotsu-jigyoho/",
+   "title": "運行管理者試験（貨物）の貨物自動車運送事業法｜手続・点呼・選任人数の整理",
+   "modified": "2026-10-12T10:37:44",
+   "date": "2026-09-12T12:35:20",
+   "len": 5871,
+   "ai": 1,
+   "imgs": 4
+  }
+ ]
+}

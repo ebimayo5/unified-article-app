@@ -1,0 +1,66 @@
+{
+  "post_id": 1876,
+  "status": "verified_ready_to_publish",
+  "changes": [
+    {
+      "before": "<p>フィットのナビは名称が似ていても、注文時にしか選べない装備と、納車後に選び直せる装備があります。Googleマップを使いたい一方で、バックカメラやETC、車両連携が使えなくなるのは避けたい人も多いはずです。フィット用と書かれたナビや取付キットでも、年式・グレード・現在の装備が違えば、そのまま判断できません。</p>",
+      "after": "<p><strong>フィットのナビは、残したいカメラ・ETC・通信機能と、装着できる機器を照合して選びます。</strong>新車では工場装着オプションを注文前に確認し、交換する車では現ナビの品番と車両側パッケージを控えてください。Googleマップが目的でも、対応する純正機器を含めて比較できます。</p>"
+    },
+    {
+      "before": "<p>Honda CONNECTディスプレー＋ETC2.0車載器のようなメーカーオプションは、工場で装着される前提です。新車注文後に受け付けられない装備があるため、全周囲確認や通信機能、純正連携を重視するなら、商談中に優先して確認する必要があります。</p>",
+      "after": "<p><a href=\"https://www.honda.co.jp/navi/fit/\" target=\"_blank\" rel=\"noopener\">Honda公式フィットのナビ案内</a>は、工場装着のメーカーオプションと販売店装着のナビを分けています。メーカーオプションは車両注文後に受け付けられないと案内されているため、希望グレードでの設定と注文内容を商談中に確認してください。現在の掲載内容を旧型フィットへ一律に適用しないことも大切です。</p>"
+    },
+    {
+      "before": "<p>Honda CONNECT for Gathers＋ナビ装着用スペシャルパッケージでは、リアワイドカメラ、ナビ・オーディオリモートコントロールスイッチ、USBジャック、車載通信機などが組み合わされる仕様があります。標準装備かメーカーオプションか、対象グレードかは年式・仕様で変わるため、<a href='https://www.honda.co.jp/auto/' target='_blank' rel=\"noopener\">Honda公式サイトの車種・装備情報</a>と販売店の見積書を照合してください。</p>",
+      "after": "<p>Honda CONNECT for Gathers＋ナビ装着用スペシャルパッケージの内容と、標準装備・オプションの区分は上記フィット専用案内で確認します。<a href=\"https://www.honda.co.jp/auto/\" target=\"_blank\" rel=\"noopener\">Honda公式の車種情報</a>と自車の装備表・見積書を照合し、似た装備名だけで同じ配線や連携が使えると判断しないでください。</p>"
+    },
+    {
+      "before": "<p>社外ナビやディスプレイオーディオは、Apple CarPlayやAndroid Autoを中心に使いたい人にとって有力です。目的地検索や地図更新をスマートフォン側で行いたい場合、普段のアプリ環境を車内へ持ち込みやすくなります。</p>",
+      "after": "<p>Googleマップ等を車載画面で使う場合、社外品に限らず、対応するGathersや工場装着ディスプレーも比較できます。CarPlay・Android Autoの接続方式と対応スマホを品番ごとに確認し、地図をスマホ中心にするか、内蔵ナビも使いたいかで選びます。</p>"
+    },
+    {
+      "before": "<p>一方で、社外品が物理的に付くことと、純正機能が同じように使えることは別問題です。メーカーが対応機器以外の装着では動作保証できないとしている機能もあるため、交換前に連携の可否を機能単位で確認してください。</p>",
+      "after": "<p>フィット専用公式案内は、Honda CONNECT対応のGathersナビ・オーディオ以外を装着した場合、車両連携機能の動作を保証できないと注意しています。社外機へ交換する場合は、カメラ、スイッチ、ETC、メーター表示、通信を個別に照合します。単にパネルへ収まることと、連携を維持できることは別です。</p>"
+    },
+    {
+      "before": "<p>運転者が走行中に映像を注視する使い方は避けてください。カーナビ画面やスマートフォンの操作・注視は安全運転を損なうおそれがあり、<a href='https://www.npa.go.jp/bureau/traffic/keitai/info.html' target='_blank' rel=\"noopener\">警察庁の運転中の携帯電話等使用に関する案内</a>も確認しておくと安心です。</p>",
+      "after": "<p>運転者が走行中にカーナビ等の画像を注視することは禁止されています。<a href=\"https://www.npa.go.jp/bureau/traffic/keitai/info.html\" target=\"_blank\" rel=\"noopener\">警察庁の案内</a>に沿い、接続や目的地設定は安全な場所に停車して行ってください。</p>"
+    },
+    {
+      "before": "<p>純正機能で足りない部分を後付けで補いたい場合は、車内エンタメの施工を扱う<a href=\"https://px.a8.net/svt/ejp?a8mat=44Z0VG+70FT9U+4YGQ+BW0YB&amp;a8ejpredirect=https%3A%2F%2Fnaviokun.ocnk.net%2F\" target=\"_blank\" rel=\"nofollow sponsored noopener\">ナビ男くん</a>で、対応車種や施工内容を確認できます。</p>",
+      "after": "<p>後付けも検討する場合は、<a href=\"https://px.a8.net/svt/ejp?a8mat=44Z0VG+70FT9U+4YGQ+BW0YB&amp;a8ejpredirect=https%3A%2F%2Fnaviokun.ocnk.net%2F\" target=\"_blank\" rel=\"nofollow sponsored noopener\">ナビ男くん</a>へ、フィットの年式・ナビ品番・希望機能に対する施工受付の有無を問い合わせてください。車名だけで対応施工があるとは判断せず、販売店や電装店とも条件を比較します。</p>"
+    },
+    {
+      "before": "<p>純正画面を活かした改善や、CarPlay活用時の考え方は、関連する注意点を純正ナビを活かす改善策の記事でも整理しています。</p>",
+      "after": "<p>純正画面を活用したい場合も、CarPlay対応、外部入力、純正機能への影響を現ナビの説明書で確認します。機器を交換する場合と追加部品で補う場合の、実現できる機能と総額を比較してください。</p>"
+    },
+    {
+      "before": "<p>純正ナビの改善や後付け施工を検討する場合は、<a href=\"https://px.a8.net/svt/ejp?a8mat=44Z0VG+70FT9U+4YGQ+BW0YB&amp;a8ejpredirect=https%3A%2F%2Fnaviokun.ocnk.net%2F\" target=\"_blank\" rel=\"nofollow sponsored noopener\">ナビ男くん</a>で対応車種、施工内容、純正機能との兼ね合いを確認できます。ナビ本体を替える前に、画面を活かせる施工があるかを確認したい人に向く選択肢です。仕様や希望機能に合わなければ、無理に施工を選ぶ必要はありません。</p>",
+      "after": "<p>純正画面を活かす施工も候補にする場合は、<a href=\"https://px.a8.net/svt/ejp?a8mat=44Z0VG+70FT9U+4YGQ+BW0YB&amp;a8ejpredirect=https%3A%2F%2Fnaviokun.ocnk.net%2F\" target=\"_blank\" rel=\"nofollow sponsored noopener\">ナビ男くん</a>へ、対象品番の施工可否、必要部品、保持できる純正機能、保証窓口から確認します。追加施工だけで希望機能がすべて得られるとは限りません。</p>"
+    },
+    {
+      "before": "<p>施工前には、販売店と施工店へ対象ナビ型番、配線変更の内容、点検・入庫時の扱い、保証条件を確認してください。保証、保険、リコール対応に影響し得る加工を行う場合は、必要に応じて保険会社にも確認しましょう。</p>",
+      "after": "<p>施工前に販売店と施工店へ、配線変更の内容、ナビ・カメラ等への影響、保証窓口を確認します。製品保証・施工保証と車両保証を分け、加工しただけで全保証が失効する、または必ず保証されるとは判断しないでください。</p>"
+    },
+    {
+      "before": "<p>純正ナビを使い続けるか、画面そのものを変えるか。どちらを選ぶにしても、工賃を含んだ総額で比べると判断しやすくなります。</p>",
+      "after": "<p>ナビ交換とTVキャンセラーは別の施工です。比較に必要な価格例として、Honda公式フィット専用案内のナビ本体・取付部品の掲載合計を示します（2026年10月13日確認）。金額は取付費を含まないため、施工総額とは分けて見てください。</p>"
+    },
+    {
+      "before": "<p>ナビ本体を社外品へ載せ替えると、純正側の機能を一部失うことがあります。純正を活かす方法から先に検討したほうが失敗しにくいです。</p>",
+      "after": "<p>掲載合計のほか、取付費、追加アンテナ、ETCやカメラとの連携部品、必要なサービス契約を見積もります。旧型や既存ナビからの交換では追加作業が変わるため、この価格だけで載せ替えが完了するとは判断できません。</p>"
+    },
+    {
+      "before": "<p>A. 対象ナビ型番と施工内容によって異なります。運転者の画面注視を助長する使い方は避け、施工前に販売店・施工店へ保証、点検、入庫時の扱いを確認してください。</p>",
+      "after": "<p>A. ナビ品番と施工内容ごとに確認します。TVキャンセラーはCarPlayやHDMI入力、全周囲カメラを追加する機器ではありません。運転者の走行中画像注視は禁止されており、施工可否と保証・点検時の扱いは販売店・施工店へ個別に確認してください。</p>"
+    },
+    {
+      "before": "<figure class=\"wp-block-table is-style-stripes\"><table><thead><tr><th>施工メニュー</th><th>工賃コミ価格（税込）</th></tr></thead><tbody><tr><td>TVキャンセラー施工（ホンダ純正ナビ・ギャザズ）</td><td>12,000円</td></tr><tr><td>TVキャンセラー施工（ホンダコネクト）</td><td>19,000円</td></tr></tbody></table><figcaption class=\"wp-element-caption\">ナビ男くん公式サイトの表示価格（税込・工賃コミ）。2026年9月27日時点。車種・ナビの種類・オプションにより変動します。</figcaption></figure>",
+      "after": "<figure class=\"wp-block-table is-style-stripes\"><table><thead><tr><th>掲載機種</th><th>本体・取付部品の税込合計</th><th>含まれる掲載部品</th></tr></thead><tbody><tr><td>9インチ LXM-262ZFNi</td><td>239,800円（取付費別）</td><td>本体224,400円＋取付アタッチメント4,400円＋パネルキット11,000円</td></tr><tr><td>8インチ VXM-264ZFEi</td><td>178,200円（取付費別）</td><td>本体162,800円＋取付アタッチメント4,400円＋フェイスパネルキット11,000円</td></tr></tbody></table><figcaption class=\"wp-element-caption\">Honda公式フィット専用ページ掲載例。自車への適合、追加部品、別途取付費を販売店で確認してください。</figcaption></figure>"
+    },
+    {
+      "before": "<a href=\"https://px.a8.net/svt/ejp?a8mat=44Z0VG+70FT9U+4YGQ+BW0YB&a8ejpredirect=https%3A%2F%2Fnaviokun.ocnk.net%2F\" target=\"_blank\" rel=\"noopener\" rel=\"nofollow sponsored noopener\">ナビ男くんでフィットの対応車種と施工条件を確認する</a>",
+      "after": "<a href=\"https://px.a8.net/svt/ejp?a8mat=44Z0VG+70FT9U+4YGQ+BW0YB&a8ejpredirect=https%3A%2F%2Fnaviokun.ocnk.net%2F\" target=\"_blank\" rel=\"nofollow sponsored noopener\">ナビ男くんでフィットの対応車種と施工条件を確認する</a>"
+    }
+  ]
+}

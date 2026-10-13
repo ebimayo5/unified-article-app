@@ -1,0 +1,25 @@
+{
+ "post_id": 2278,
+ "url": "https://ebimayo5.com/archives/subaru-xv-used-car-cautions/",
+ "status": "publish",
+ "modified": "2026-10-13T23:23:28",
+ "imgs_before": 4,
+ "imgs_after": 4,
+ "hrefs_before": 1,
+ "hrefs_after": 3,
+ "shortcode_unrendered": false,
+ "checks": [
+  {
+   "phrase": "「XV」は旧車名のモデルを指します",
+   "ok": true
+  },
+  {
+   "phrase": "スバルXVは壊れやすい？中古で後悔しない見極め方",
+   "ok": true
+  },
+  {
+   "phrase": "認定中古車はやめとけ？割高でも後悔しない購入判断のポイント",
+   "ok": true
+  }
+ ]
+}

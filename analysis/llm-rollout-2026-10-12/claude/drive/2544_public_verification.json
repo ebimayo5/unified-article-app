@@ -1,0 +1,29 @@
+{
+ "post_id": 2544,
+ "url": "https://ebimayo5.com/archives/tv-canceller-complete-guide/",
+ "status": "publish",
+ "modified": "2026-10-13T23:13:08",
+ "imgs_before": 3,
+ "imgs_after": 3,
+ "hrefs_before": 19,
+ "hrefs_after": 19,
+ "shortcode_unrendered": false,
+ "checks": [
+  {
+   "phrase": "走行中に画面を注視するのは法律で禁じられている",
+   "ok": true
+  },
+  {
+   "phrase": "道路交通法で禁止されており、違反すると罰則の対象になります",
+   "ok": true
+  },
+  {
+   "phrase": "!法律上グレー",
+   "ok": true
+  },
+  {
+   "phrase": "24,000〜30,000円",
+   "ok": true
+  }
+ ]
+}

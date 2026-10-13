@@ -1,0 +1,25 @@
+{
+ "post_id": 2522,
+ "url": "https://ebimayo5.com/archives/serena-rear-seat-monitor-retrofit/",
+ "status": "publish",
+ "modified": "2026-10-13T23:20:25",
+ "imgs_before": 3,
+ "imgs_after": 3,
+ "hrefs_before": 1,
+ "hrefs_after": 3,
+ "shortcode_unrendered": false,
+ "checks": [
+  {
+   "phrase": "ディスプレイオーディオ ミラーリング入門",
+   "ok": true
+  },
+  {
+   "phrase": "社外ナビ・後付けナビでテレビが映らない原因と対処法",
+   "ok": true
+  },
+  {
+   "phrase": "!srsltid",
+   "ok": true
+  }
+ ]
+}

@@ -1,0 +1,25 @@
+{
+ "post_id": 1146,
+ "url": "https://ebimayo5.com/archives/clean-car-personality-2/",
+ "status": "publish",
+ "modified": "2026-10-13T23:18:54",
+ "imgs_before": 7,
+ "imgs_after": 7,
+ "hrefs_before": 4,
+ "hrefs_after": 4,
+ "shortcode_unrendered": false,
+ "checks": [
+  {
+   "phrase": "筆者自身、大型トラック",
+   "ok": true
+  },
+  {
+   "phrase": "!ケイ自身",
+   "ok": true
+  },
+  {
+   "phrase": "令和元年12月施行の改正道路交通法で引き上げられている",
+   "ok": true
+  }
+ ]
+}

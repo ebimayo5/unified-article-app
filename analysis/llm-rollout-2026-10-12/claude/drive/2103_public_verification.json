@@ -1,0 +1,25 @@
+{
+ "post_id": 2103,
+ "url": "https://ebimayo5.com/archives/car-bulk-appraisal-danger/",
+ "status": "publish",
+ "modified": "2026-10-13T23:41:10",
+ "imgs_before": 5,
+ "imgs_after": 5,
+ "hrefs_before": 1,
+ "hrefs_after": 2,
+ "shortcode_unrendered": false,
+ "checks": [
+  {
+   "phrase": "中古自動車の売却トラブルに関する注意喚起",
+   "ok": true
+  },
+  {
+   "phrase": "クーリング・オフはできない",
+   "ok": true
+  },
+  {
+   "phrase": "消費者ホットライン「188」",
+   "ok": true
+  }
+ ]
+}

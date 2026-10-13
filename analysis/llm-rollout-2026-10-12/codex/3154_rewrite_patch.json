@@ -1,0 +1,38 @@
+{
+  "post_id": 3154,
+  "status": "verified_ready_to_publish",
+  "changes": [
+    {
+      "before": "<p>レクサスUXのHDMI端子の場所は、全車共通の位置として案内できません。端子探しの前に、HDMI入力端子が自車に付いているかを確認すれば、合わないケーブルや変換アダプターを先に買う失敗を避けられます。</p>",
+      "after": "<p>レクサスUXのHDMI端子は全車標準ではありません。<strong>現行のレクサス純正ディーラーオプションを装着したUX300hでは、フロントセンターコンソールボックス内</strong>に設置する案内です。<a href=\"https://lexus.jp/models/ux/pdf/dealer_option.pdf\" target=\"_blank\" rel=\"noopener\">UXの純正オプション資料</a>を確認し、旧年式やUX300eではその年式・車種向け資料と現車を照合してください。</p>"
+    },
+    {
+      "before": "<p>UXの公式取扱説明書には、HDMI端子へ接続した外部機器の音楽・映像を再生する機能が案内されています。ただし、一部の説明書では販売店オプションのHDMI入力端子を装着した車両が対象です。したがって、「UXならHDMIが標準である」「コンソールのここに必ずある」とは判断できません。</p>",
+      "after": "<p>UX300hの<a href=\"https://manual.lexus.jp/ux/2512/hev/ja_JP/contents/egx1751267943074.php\" target=\"_blank\" rel=\"noopener\">2025年12月以降の公式取扱説明書</a>は「販売店オプションのHDMI入力端子装着車」を対象に再生方法を説明しています。したがって再生メニューの説明があるだけで標準装備とは判断できません。自車の装着履歴とフロントセンターコンソールボックス内の端子表示を確認してください。</p>"
+    },
+    {
+      "before": "<p>現行モデルのパッケージやディーラーオプションを確認する場合は、<a href='https://lexus.jp/models/ux/features/option/' target='_blank' rel=\"noopener\">レクサス公式のUXディーラーオプション案内</a>も確認材料になります。ただし、現在の掲載内容を過去の年式へそのまま当てはめず、該当する生産年月の資料と販売店照会を優先してください。</p>",
+      "after": "<p>現行UX300hのディーラーオプションなら、<a href=\"https://lexus.jp/models/ux/features/option/\" target=\"_blank\" rel=\"noopener\">レクサス公式のUXオプション案内</a>にHDMI入力端子の税込6,050円が掲載されています。<a href=\"https://lexus.jp/models/ux/pdf/dealer_option.pdf\" target=\"_blank\" rel=\"noopener\">専用PDF</a>は設置位置をフロントセンターコンソールボックス内、標準取付時間を1.5時間と記載します。掲載価格だけを総額と考えず、適合、部品、取付費、ケーブル代を販売店へ確認してください。過去年式へ一律に適用できる価格ではありません。</p>"
+    },
+    {
+      "before": "<p>説明書にHDMI入力端子の記載がある場合は、説明書上の名称・図・注意事項と現車を照合して探します。今回確認できた情報だけでは全UX共通の正確な設置位置を裏付けられないため、収納内やコンソール周辺などを断定する案内は避けます。</p>",
+      "after": "<p>現行UX300hの純正オプション装着車なら、まずフロントセンターコンソールボックス内のHDMI表示を探します。<a href=\"https://lexus.jp/models/ux/pdf/dealer_option.pdf\" target=\"_blank\" rel=\"noopener\">レクサスの装着位置図</a>が根拠です。UX200・UX250h・UX300eなど旧年式や車種区分では装備・位置が異なり得るため、その車両の説明書と販売店の装着履歴を優先してください。</p>"
+    },
+    {
+      "before": "<p>https://ebimayo5.com/archives/display-audio-mirroring-hdmi-not-working/</p>",
+      "after": "<p><a href=\"https://ebimayo5.com/archives/display-audio-mirroring-hdmi-not-working/\">ディスプレイオーディオのHDMIミラーリングが映らないときの確認手順</a></p>"
+    },
+    {
+      "before": "<p>施工を依頼するなら、<a href=\"https://px.a8.net/svt/ejp?a8mat=44Z0VG+70FT9U+4YGQ+BW0YB&amp;a8ejpredirect=https%3A%2F%2Fnaviokun.ocnk.net%2F\" target=\"_blank\" rel=\"nofollow sponsored noopener\">ナビ男くん</a>では純正ナビ・ディスプレイの機能拡張、HDMI接続や車載AV機器の取付について、対応車種・施工内容・総額の条件を確認できます。工賃だけを切り出して比較するサービスではありませんが、商品代と取付工賃を含む総額を事前に把握したい人には判断しやすい窓口です。</p>",
+      "after": "<p>レクサス純正の装着履歴と取付費は販売店へ確認します。純正以外の施工も比べるなら、<a href=\"https://px.a8.net/svt/ejp?a8mat=44Z0VG+70FT9U+4YGQ+BW0YB&amp;a8ejpredirect=https%3A%2F%2Fnaviokun.ocnk.net%2F\" target=\"_blank\" rel=\"nofollow sponsored noopener\">ナビ男くん</a>などの施工店へUXの年式・ディスプレイ品番を伝え、HDMI入力の対応商品があるか先に確認してください。別車種向け商品の価格や施工条件をUXへ流用してはいけません。</p>"
+    },
+    {
+      "before": "<p>なお、<a href=\"https://px.a8.net/svt/ejp?a8mat=44Z0VG+70FT9U+4YGQ+BW0YB&amp;a8ejpredirect=https%3A%2F%2Fnaviokun.ocnk.net%2F\" target=\"_blank\" rel=\"nofollow sponsored noopener\">ナビ男くん</a>の公開価格では、レクサス向けTVキャンセラーは税込40,000円です。これはHDMI入力新設の価格ではないため、UXでHDMI後付けを希望する場合は別途、対象ディスプレイへの施工可否と総額を確認してください。<strong>2026年9月27日時点。車種・ナビの種類・オプションにより変動します。</strong></p>",
+      "after": "<p>費用の比較では、<a href=\"https://lexus.jp/models/ux/features/option/\" target=\"_blank\" rel=\"noopener\">レクサス公式の現行UX用HDMI入力端子</a>の表示価格<strong>税込6,050円</strong>と、実際の取付総額を分けてください。<a href=\"https://lexus.jp/models/ux/pdf/dealer_option.pdf\" target=\"_blank\" rel=\"noopener\">オプション資料</a>は標準取付時間1.5時間を示します。販売店の工賃、必要なHDMIケーブル、適合条件は別途確認します。TVキャンセラーの価格はHDMI入力を追加する費用ではありません。</p>"
+    },
+    {
+      "before": "<p>レクサスUXのHDMI端子は、車名だけで場所や標準装備を断定できません。最初に生産年月・車種区分・ディスプレイ仕様を特定し、対象の取扱説明書で「HDMI」「外部入力」「販売店オプション」を確認してください。</p>",
+      "after": "<p>現行UX300hの純正ディーラーオプションHDMI入力端子は、フロントセンターコンソールボックス内に設置する案内です。ただし全車標準ではありません。生産年月・UX200/250h/300h/300eの区分と装着履歴を特定し、対象の取扱説明書と現車を照合してください。</p>"
+    }
+  ]
+}

@@ -1,7 +1,8 @@
 # HANDOVER_STATUS
 
 ## 現在作業中（ライブ状況）
-- 状態: 作業中 Codex（2026-10-13 23:17 JST）: DRIVE BASE担当記事2446の15差分案と一次資料証跡を保存。認証済みChromeが応答しないためWP公開更新は未実施、queuedのまま。次のCodex担当3154を実読照合中。対象 analysis/llm-rollout-2026-10-12/codex/{2446*,3154*} と snapshots/drive/{backups,drafts}/{2446,3154}*。本番影響は現時点でなし。clasp/自動投稿/生成API操作なし。Claude担当59記事には触れない。
+- 状態: 空き（Codex区切り 2026-10-13 23:24 JST）。クロは別記事を作業中。Codex次は2446・3154のWordPress公開と検証（認証済みChromeの接続回復後）、その後872。2件とも原稿案は準備済みだがWP未公開。クロ担当には触れない。
+- 状態: 完了（区切り・goal継続）Codex（2026-10-13 23:24 JST）: Drive3154レクサスUX HDMIを純正オプションPDF/取説に照合し8差分案を作成（現行UX300hの設置位置はフロントセンターコンソール内、掲載6,050円は総額と区別）。2446の15差分案とともにWP未公開のため `reviewed_pending_publish`。クロの13件を原文バックアップ・公開RESTで再照合し10件公開検証・3件実読変更不要として共有台帳へ反映、Drive完了46、改稿案待ち2、未実読103、全体台帳159/264。1751重複枠削除で固有画像/リンク保持、1115 HTML分割語句は表示確認、2522はsrsltidのみ除去。Home4原典/タイトル参照品質照合は未了。main 8a2efeeから成果をcommit/push予定。Arcon Driveハリアー8/10記事生成停止・下書き3175保持、今回再開/停止なし。clasp/生成API操作なし。認証済みChrome接続タイムアウト、IABはWPログイン/CAPTCHAのため代替認証なし。プレビュー停止済み。
 - 状態: 作業区切り Codex（2026-10-13 23:17 JST）: Drive2446アルファードHDMIをToyota公式FAQ/取説と施工店対象年式に照合。15差分案を作成し原文4画像タグ・全既存リンク保持、旧断定除去を機械確認。WordPress公開版は9/27のまま、公開更新/検証は未実施。IABはWPログイン/CAPTCHA、認証済みChromeは接続タイムアウトのため再認証や迂回はしない。DRIVE完了33・未実読118の集計は変更なし。自動投稿はハリアーHDMIが8/10「記事生成停止」で、監視時に再開/停止なし。共通本番@416維持。次は3154を実読し、Chrome復旧後2446の公開更新から再開。
 - 状態: 作業中 Claude Code（2026-10-13 JST 開始）: DRIVE BASE担当表のクロ分59件を2151から上順に全読・一次資料照合・WP本文(content)のみ公開更新。対象は担当表のClaude行のみ(Codexの1706等には触れない)。証跡 analysis/llm-rollout-2026-10-12/claude/drive/。本番影響=既存WP記事のcontent更新のみ(clasp/自動投稿/生成API操作なし)。
 - 状態: 空き（Codex区切り 2026-10-13 23:02 JST）。DRIVE残118件はCodex59/クロ59に記事IDで分割済み。次はCodex2446、クロ2151。担当表 `analysis/llm-rollout-2026-10-12/drive_remaining_assignment.csv`、手順 `DRIVE_PARALLEL_ASSIGNMENT.md`。

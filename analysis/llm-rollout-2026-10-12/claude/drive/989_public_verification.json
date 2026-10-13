@@ -1,0 +1,33 @@
+{
+ "post_id": 989,
+ "url": "https://ebimayo5.com/archives/harrier-navi-fullscreen-dealer/",
+ "status": "publish",
+ "modified": "2026-10-13T23:57:52",
+ "imgs_before": 10,
+ "imgs_after": 10,
+ "hrefs_before": 3,
+ "hrefs_after": 3,
+ "shortcode_unrendered": false,
+ "checks": [
+  {
+   "phrase": "アンドロイダーLite",
+   "ok": true
+  },
+  {
+   "phrase": "地図やナビ画面を常時全画面にするものではなく",
+   "ok": true
+  },
+  {
+   "phrase": "12.3インチの大型ディスプレイを搭載できるグレード",
+   "ok": true
+  },
+  {
+   "phrase": "!Zグレード以上には",
+   "ok": true
+  },
+  {
+   "phrase": "!純正ディスプレイの全画面表示",
+   "ok": true
+  }
+ ]
+}

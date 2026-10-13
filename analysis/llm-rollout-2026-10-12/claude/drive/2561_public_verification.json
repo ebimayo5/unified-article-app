@@ -1,0 +1,33 @@
+{
+ "post_id": 2561,
+ "url": "https://ebimayo5.com/archives/car-hdmi-terminal-complete-guide/",
+ "status": "publish",
+ "modified": "2026-10-13T23:16:42",
+ "imgs_before": 2,
+ "imgs_after": 2,
+ "hrefs_before": 20,
+ "hrefs_after": 20,
+ "shortcode_unrendered": false,
+ "checks": [
+  {
+   "phrase": "ディーラーオプションのギャザズでナビ裏側にHDMI入力端子がある機種が対象",
+   "ok": true
+  },
+  {
+   "phrase": "車種やナビによっては入力を新設できる場合があります",
+   "ok": true
+  },
+  {
+   "phrase": "!ホンダ系なら",
+   "ok": true
+  },
+  {
+   "phrase": "!多く見られます",
+   "ok": true
+  },
+  {
+   "phrase": "108,000円（税込）",
+   "ok": true
+  }
+ ]
+}

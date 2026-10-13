@@ -1,0 +1,43 @@
+const fs=require('fs'),path=require('path');const base=path.resolve(__dirname,'../snapshots/drive');
+const original=fs.readFileSync(path.join(base,'backups/1439_before.raw.html'),'utf8');const ps=[...original.matchAll(/<p[^>]*>[\s\S]*?<\/p>/g)].map(m=>m[0]);let raw=original;const changes=[];
+function c(before,after){if(raw.split(before).length!==2)throw Error('nonunique');raw=raw.replace(before,after);changes.push({before,after});}
+function p(i,t){c(ps[i],'<p>'+t+'</p>');}
+p(0,"<strong>ステップワゴンのHDMI端子は、Hondaの現行ギャザズ向け接続コード資料ではセンターロアーカバー部に取り付けます。</strong>専門店がグローブボックスへ引き出す施工例とは位置が違います。まず装着ナビの品番とHDMI接続コードの有無を確認しましょう。旧型や別ナビに、この位置を一律に当てはめないでください。");
+p(4,"<a href=\"https://www.honda.co.jp/navi/pdf/cable/cord_stepwgn_2603.pdf\" target=\"_blank\" rel=\"noopener\">Honda公式のステップワゴン用接続コード資料</a>では、HDMI接続コード08A40-PL0-900Aの取付位置はセンターロアーカバー部（ホルダー付）です。掲載ナビはLXM-264ZFLiとLXM-262ZFNi。自車のナビ品番が違う場合は、その機種の資料と装着明細で確認します。");
+p(5,"純正資料の位置と、後付け施工の位置を分けて探します。次は確認候補であり、すべてのステップワゴンでこの順に見つかるという意味ではありません。");
+p(7,"まず装着明細・説明書・ナビ品番・実際の端子を照合します。個別車両のHDMI装着状態は、車種名だけでは分かりません。端子を見つける前に機器を買い足さず、次の情報をそろえて販売店へ相談しましょう。");
+p(10,"ナビの情報画面・説明書・装着明細で品番を確認し、分からなければ車台番号とともに販売店へ照会します。起動ロゴだけで仕様を確定せず、HDMI入力と接続コードが自車に装着されているかまで確認してください。");
+p(14,"後付け前は、ナビ側入力の有無と、対応する接続コード・端子規格を確認します。入力のないナビに、ケーブルを引き出すだけで入力機能を追加することはできません。");
+p(17,"見積もりではコネクターの固定、配線の保護、ケーブルが引っ張られない取り回し、施工後の動作確認を含むか確認します。映像の途切れを施工品質だけの問題と決めず、給電・信号形式・機器の適合も分けて点検してください。");
+p(19,"動画を表示する方式は、スマホのHDMI出力、HDMI出力端末、USBの有線CarPlay接続を使うAI Boxなどに分かれます。どれも同じHDMI接続ではありません。対象車両・ナビと接続先、使いたいアプリを決めてから比較します。");
+p(20,"スマホが有線映像出力に対応する場合、対応アダプターとHDMIケーブルでナビの入力へつなぐ方式があります。必要な変換器・給電・ケーブルによって費用は変わるため、必ず最小コストになるとは限りません。");
+p(22,"HDMI出力のストリーミング端末では、車載入力の対応に加えて、その端末が指定する電源と通信条件を確認します。家庭用テレビで動くことだけでは車内の動作保証になりません。");
+p(23,"<strong>炎天下の車内は、グローブボックス内でも安全な保管場所とは限りません。</strong>端末や電源機器の動作・保管温度を説明書で確認し、使用後は高温になる車内に放置しないでください。収納へ移すだけで故障や熱の問題を防げるとは判断しないようにします。");
+p(24,"AI Boxは製品によって接続方式が違います。USBの有線CarPlay接続を使う製品では、HDMI入力の増設とは別に、指定USBポートと車両のCarPlay対応・給電条件を照合します。HDMI出力を備えるか、後席へ出力できるかも製品ごとに確認してください。");
+p(26,"方式を比較する際は、HDMIを使うかUSBのCarPlay接続を使うかを先に分けます。手間や家族の使いやすさは実際の構成で変わるので、次の表は購入前の確認メモとして使ってください。");
+p(27,"長距離で使うなら、停車中に入力選択・電源・通信・音量調整を試して、同乗者が操作できる構成か確認します。普段使う通信方法と接続機器で、入力を切り替えても映像・音声を戻せるか試しておくことが大切です。");
+p(29,"運転者が走行中にカーナビ等の画像を注視することは禁止されています。接続方式や施工の有無は、このルールを変えません。接続・設定・動作確認は安全な場所に停車して行ってください。<a href=\"https://www.npa.go.jp/bureau/traffic/keitai/info.html\" target=\"_blank\" rel=\"noopener\">警察庁の案内</a>と<a href=\"https://www.gov-online.go.jp/article/201707/entry-10870.html\" target=\"_blank\" rel=\"noopener\">政府広報オンライン</a>でも確認できます。");
+p(31,"まず後席モニターの品番と接続経路を確認します。ナビ経由で表示できる構成なら、分配器の追加が不要な場合もあります。別方式への変換は画質・遅延・HDCP等の制約があるため、HDMIをRCAへ変換すれば必ず映るとは考えないでください。");
+p(38,"ホーム画面は映るのに動画だけ黒くなる場合は、アプリの外部出力対応やHDCPなどの条件を確認します。<a href=\"https://support.apple.com/ja-jp/108399\" target=\"_blank\" rel=\"noopener\">AppleのDigital AVアダプタ案内</a>にも、アプリ非対応やコンテンツ保護の確認事項があります。別機器で映っても、元の機器との信号・給電・ソフトウェア条件を切り分ける必要があります。");
+p(40,"後付け費用は、純正接続コードの部品代と、専門店の施工込みプランを分けます。次は2026年10月13日確認の例です。既に対応する端子が装着されているなら、入力追加工事は不要な場合があります。");
+const fee=[...original.matchAll(/<figure[\s\S]*?<\/figure>/g)].find(m=>m[0].includes('59,000円'));if(!fee)throw Error('fee');c(fee[0],"<figure class=\"wp-block-table is-style-stripes\"><table><thead><tr><th>掲載例</th><th>税込価格</th><th>取付位置・条件</th></tr></thead><tbody><tr><td>Honda純正HDMI接続コード 08A40-PL0-900A</td><td>6,600円（工賃別）</td><td>車種別資料の位置はセンターロアーカバー部。掲載ナビへの適合を確認し、取付費は販売店へ。</td></tr><tr><td>ナビ男くんのGathers向けHDMI引き出し施工</td><td>16,000円（基本掲載価格）</td><td>HDMIと給電USBをグローブボックスに設置する例。オプションで変動、メーカーオプションナビやHDMI入力のない機種は対象外。</td></tr></tbody></table><figcaption class=\"wp-element-caption\">純正価格はHonda車種別資料、施工例はナビ男くん商品227の掲載。端末・変換器・通信や後席用の追加作業は別途確認してください。</figcaption></figure>");
+p(41,"端子を増設しても、接続端末・アプリ・映像規格の条件がそろわなければ再生できません。テレビキャンセラーはHDMI入力を追加する部品ではなく、後席モニターの新設も別の施工です。必要な作業だけに絞って税込総額を見積もります。");
+p(45,"A. 入力選択、後席モニターの対応、ナビから後席への出力、端末の給電・映像形式・HDCPやアプリ条件を確認します。原因の頻度や順位は断定できません。品番ごとの説明書で、分配や変換がそもそも必要かから確認してください。");
+p(47,"USBの有線CarPlay接続型を検討する場合は、<a href=\"https://t.afi-b.com/visit.php?a=Z15677J-h509002S&p=J946320J\" rel=\"nofollow\">OttocastでCarPlay AI Boxの対応機種を確認する</a><img src=\"https://t.afi-b.com/lead/Z15677J/J946320J/h509002S\" width=\"1\" height=\"1\" style=\"border:none;\" />前に、自車の年式・ナビ品番・指定USBポートと製品の適合を確認してください。USB接続だけでの動作や後席表示は保証できません。一方、HDMI増設や後席モニター連携、配線施工まで必要な場合は、この後の専門店相談を選ぶと整理しやすいです。");
+p(51,"次は、装着ナビの品番、HDMI接続コードの有無と取付位置、後席モニターの品番を確認します。純正コード資料の位置と後付け施工の位置を分け、接続する機器の適合と必要な作業が分かってから購入・見積もりへ進みましょう。");
+c("最初に結論：よくある設置場所はこの順","純正コードの位置と後付け施工の位置を分ける");
+c("<h2>ステップワゴンで動画を映す方法は3つ（HDMI活用）</h2>","<h2>動画を映す方式をHDMI接続とUSB接続に分ける</h2>");
+c("どちらもOKなら相性","別々に映っても組み合わせの条件を確認");
+c("ステップワゴンのHDMI端子は「よくある位置」があるが、ナビ仕様とオプションで差が出る","純正接続コードの掲載位置はセンターロアーカバー部。専門店のグローブボックス施工とは分けて確認");
+c("（他ソースのまま、が多い）","（使用したい入力を選択）");
+c("プロ施工も選択肢に入れる：HDMI引き出しの品質差","施工範囲と点検・保証の窓口を確認する");
+const comparison=[...original.matchAll(/<figure[\s\S]*?<\/figure>/g)].find(m=>m[0].includes('家族利用の相性'));if(!comparison)throw Error('comparison');
+c(comparison[0],'<figure class="wp-block-table"><table><thead><tr><th>方式</th><th>接続先</th><th>購入前の確認</th></tr></thead><tbody><tr><td>スマホ有線映像出力</td><td>対応アダプターを介してHDMI入力</td><td>端末の映像出力、アプリ、給電、入力規格</td></tr><tr><td>HDMI出力ストリーミング端末</td><td>HDMI入力</td><td>指定電源・通信・車載入力の動作条件</td></tr><tr><td>USBのCarPlay接続型AI Box</td><td>製品が指定する有線CarPlay用USB</td><td>車両・ナビ品番・USBポート・必要電源。後席出力は別途確認</td></tr></tbody></table><figcaption class="wp-element-caption">製品で仕様が違います。特定の動画サービスや後席表示を保証する表ではありません。</figcaption></figure>');
+c('<li><strong>グローブボックス内</strong>（奥側・側面・配線と一緒にまとめられている）</li>','<li><strong>純正コードはセンターロアーカバー部</strong>（自車の品番と資料が一致する場合）</li><li><strong>グローブボックス内</strong>（専門店が引き出している施工例など）</li>');
+c('まずは<strong>グローブボックス→センター周辺→センター下部</strong>の順で「見える端子」を探す','自車の説明書と装着明細を見て、純正コードの位置か後付け施工の位置かを分けて探す');
+c('方法1：スマホの有線ミラーリング（安く始めやすいが相性注意）','方法1：対応スマホの有線映像出力');
+c('方法2：Fire TV Stick等のストリーミング端末（操作性が高く家族向き）','方法2：HDMI出力のストリーミング端末');
+const imgs=s=>s.match(/<img\b[^>]*>/g)||[];if(JSON.stringify(imgs(raw))!==JSON.stringify(imgs(original)))throw Error('image mismatch');for(const m of original.matchAll(/href=(['"])(.*?)\1/g))if(!raw.includes(m[2]))throw Error('link lost '+m[2]);
+fs.writeFileSync(path.join(base,'drafts/1439_proposed.raw.html'),raw);fs.writeFileSync(path.join(__dirname,'1439_rewrite_patch.json'),JSON.stringify({post_id:1439,status:'verified_ready_to_publish',changes},null,2)+'\n');
+function hash(s){let h=2166136261;for(const c of s.replace(/\r\n/g,'\n')){h^=c.charCodeAt(0);h=Math.imul(h,16777619)>>>0;}return h;}
+console.log(JSON.stringify({changes:changes.length,originalChars:original.length,proposedChars:raw.length,images:imgs(raw).length,originalFNV:hash(original),proposedFNV:hash(raw)}));

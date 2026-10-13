@@ -1,0 +1,58 @@
+{
+  "post_id": 3050,
+  "status": "verified_ready_to_publish",
+  "changes": [
+    {
+      "before": "<p>「HDMI入力」とナビ画面に出るのに、アクアのどこを探しても差込口が見つからない。そんなときは、端子を探し回る前にナビの型番と装備内容を確認するほうが早道です。</p>",
+      "after": "<p><strong>アクアのHDMI端子は、トヨタ公式FAQの掲載仕様ではフロントコンソール前部にあります。</strong>ただし、このFAQは2025年9月現在の説明書を案内しており、旧型・社外ナビ・後付け配線まで同じ位置とは限りません。<a href=\"https://toyota.jp/faq/show/6344.html\" target=\"_blank\" rel=\"noopener\">アクアの入出力端子に関する公式FAQ</a>と、自車の年式・装着ナビを照合して確認しましょう。</p>"
+    },
+    {
+      "before": "<p>アクアのHDMI端子は、センターコンソールなどに必ずあるわけではありません。実車で見える端子と、ナビ裏にだけ存在する入力端子は別なので、見える範囲を確認してから仕様書と照合します。</p>",
+      "after": "<p>公式FAQの掲載構成なら、先にフロントコンソール前部のHDMI Type-A端子を確認します。USB Type-Cはフロントコンソール部にありますが、用途と端子形状は別です。旧型・社外ナビ・後付けの場合は、以下を固定位置ではなく施工状況を調べる候補として使ってください。</p>"
+    },
+    {
+      "before": "<p>センターコンソールやグローブボックスを強く引っ張って探す必要はありません。内装は固定クリップや配線を傷めると、異音や浮きにつながることがあります。整備工場での研修経験からも、電装品では端子そのものより、ケーブルの固定不足や可動部との干渉が後から小さなストレスになりやすい部分です。</p>",
+      "after": "<p>センターコンソールやグローブボックスを強く引っ張って探さず、見える範囲と説明書を照合します。ナビ脱着や配線確認が必要なら、販売店や施工店へ型番と装着履歴を伝えて確認してください。見えない配線を引っ張ると、内装や接続部を傷めるおそれがあります。</p>"
+    },
+    {
+      "before": "<p>取扱説明書では「HDMI入力」「外部入力」「接続可能な機器」「別売ケーブル・オプション」「対応する映像・音声形式」を確認してください。端子の形状だけが合っても、ナビ側の入力条件に合わなければ映像は表示されません。</p>",
+      "after": "<p>説明書では入力対応・接続コードに加え、映像と音声の規格を確認します。上記アクアFAQの掲載仕様は、HDMI Type-A、映像480p・720p・1080i・VGA、音声LPCM 2chです。1080pを含むあらゆる映像信号が使えるという意味ではありません。接続機器・アプリによって再生できない場合もあります。</p>"
+    },
+    {
+      "before": "<p>https://ebimayo5.com/archives/display-audio-mirroring-hdmi-not-working/</p>",
+      "after": "<p><a href=\"https://ebimayo5.com/archives/display-audio-mirroring-hdmi-not-working/\">HDMI・ミラーリングが映らない場合の接続条件の整理</a></p>"
+    },
+    {
+      "before": "<p>起動画面すら表示されないなら、まず給電と本体の起動状態を確認します。起動画面は出るのに映像アプリだけが表示されない場合は、HDMI接続とは別の条件が関係することもあるため、機器側の案内も確認しましょう。</p>",
+      "after": "<p>Fire TV Stickなどの端末は、指定された電源と通信条件を確認します。<a href=\"https://www.aboutamazon.jp/news/devices/how-to-connect-a-fire-tv-stick-to-your-tv\" target=\"_blank\" rel=\"noopener\">Amazonの接続案内</a>は家庭用テレビへの接続と電源アダプターを説明しています。車両のUSB端子ならどれでも使えると判断せず、端末メーカーと車載入力の条件を照合してください。</p>"
+    },
+    {
+      "before": "<p>大型トラックで長距離を走った経験では、休憩時の機器接続で意外に気になるのが、足元に垂れるケーブルや抜き差しの手間です。後付けでは見栄えだけでなく、端子を使いやすい位置へ固定できるか、配線がシートレールや収納の動きを妨げないかを確認したいところです。</p>",
+      "after": "<p>後付けの見積もりでは、端子を使いやすい位置へ固定できるか、配線が足元・シートレール・収納の動きを妨げないかを確認します。見栄えだけでなく、ケーブルを抜き差しする際に接続部へ負荷がかからないかも確認してください。</p>"
+    },
+    {
+      "before": "<p>https://ebimayo5.com/archives/stepwgn-rear-seat-monitor/</p>",
+      "after": "<p><a href=\"https://ebimayo5.com/archives/stepwgn-rear-seat-monitor/\">ステップワゴンを例にした後席モニター構成の整理</a>。他車種の施工例なので、アクアへの適合は自車の装着機器で確認してください。</p>"
+    },
+    {
+      "before": "<p><a href=\"https://px.a8.net/svt/ejp?a8mat=44Z0VG+70FT9U+4YGQ+BW0YB&amp;a8ejpredirect=https%3A%2F%2Fnaviokun.ocnk.net%2F\" target=\"_blank\" rel=\"nofollow sponsored noopener\">ナビ男くん</a>が公開する工賃込み価格では、トヨタ純正ナビのHDMI入力新設・カスタマイズは<strong>55,000円（税込）</strong>です。比較用として、後席用モニターはトヨタ・レクサス系で<strong>56,000円〜（片側1枚、税込）</strong>と案内されています。</p>",
+      "after": "<p><a href=\"https://px.a8.net/svt/ejp?a8mat=44Z0VG+70FT9U+4YGQ+BW0YB&amp;a8ejpredirect=https%3A%2F%2Fnaviokun.ocnk.net%2F\" target=\"_blank\" rel=\"nofollow sponsored noopener\">ナビ男くん</a>などへ相談する際も、アクアの型式・年式とナビ品番でHDMI追加を扱えるか確認します。トヨタ純正ナビ向けの一般的なカスタマイズ料金を、アクアのHDMI増設総額としては使えません。後席モニターの新設費も、端子だけを追加する工事とは分けて比較します。</p>"
+    },
+    {
+      "before": "<figure class='wp-block-table'><table><thead><tr><th>施工内容</th><th>公開価格の目安</th><th>確認したい条件</th></tr></thead><tbody><tr><td>トヨタ純正ナビのHDMI入力新設・カスタマイズ</td><td>55,000円（税込）</td><td>ナビ型番、映像入力対応、必要な追加機器</td></tr><tr><td>トヨタ・レクサス系の後席用モニター</td><td>56,000円〜（片側1枚・税込）</td><td>画面数、映像の出力方法、車種別の施工可否</td></tr></tbody></table></figure>",
+      "after": "<figure class=\"wp-block-table\"><table><thead><tr><th>見積もりの項目</th><th>確認する条件</th></tr></thead><tbody><tr><td>HDMI入力の追加</td><td>自車とナビへの適合、接続コード・変換器の品番</td></tr><tr><td>施工</td><td>ナビ脱着・配線保護・端子固定・復元・動作確認の範囲</td></tr><tr><td>接続する端末</td><td>映像出力・指定電源・アプリ・必要な通信と別売品</td></tr><tr><td>後席用の表示</td><td>ナビからの出力対応、追加モニターや別配線の必要性</td></tr><tr><td>総額と保証</td><td>部品・工賃・出張等を含む税込額と点検窓口</td></tr></tbody></table><figcaption class=\"wp-element-caption\">自車への適合と作業範囲をそろえた見積もりで比較してください。</figcaption></figure>"
+    },
+    {
+      "before": "<p>上記は<strong>2026年9月27日時点</strong>の表示価格です。車種・ナビの種類・オプションにより変動します。安さだけで比較するのではなく、配線保護や端子の固定、保証への影響を含めて総額が事前に分かるかを確認してください。</p>",
+      "after": "<p>既に対応する純正HDMI端子が付いているなら、入力端子を新設する工事が不要な場合があります。部品を買う前に装着状況を確定し、必要な場合にだけ、部品・工賃・保証を含めた総額を依頼してください（2026年10月13日確認）。</p>"
+    },
+    {
+      "before": "<p><a href=\"https://px.a8.net/svt/ejp?a8mat=44Z0VG+70FT9U+4YGQ+BW0YB&amp;a8ejpredirect=https%3A%2F%2Fnaviokun.ocnk.net%2F\" target=\"_blank\" rel=\"nofollow sponsored noopener\">ナビ男くん</a>なら、純正ナビへのHDMI入力新設が実車とナビ仕様に対応できるか、施工内容と工賃込み総額を確認できます。工賃だけを切り出して最安値を探す人より、配線処理を含む施工条件を事前に整理したい人に向く選択肢です。</p>",
+      "after": "<p><a href=\"https://px.a8.net/svt/ejp?a8mat=44Z0VG+70FT9U+4YGQ+BW0YB&amp;a8ejpredirect=https%3A%2F%2Fnaviokun.ocnk.net%2F\" target=\"_blank\" rel=\"nofollow sponsored noopener\">ナビ男くん</a>へ専門施工を問い合わせる場合は、自車のナビ型番に対して施工を扱うか、必要部品と税込総額、施工後の点検・保証範囲を確認します。車種名だけで適合や対応を決めず、現車確認が必要かも問い合わせてください。</p>"
+    },
+    {
+      "before": "<p>A. 位置はナビ、オプション、後付け状況で変わります。センターコンソール、ナビ周辺、グローブボックス、USB・AUX端子の近くを候補として確認し、見つからなければナビ型番から仕様を確認してください。</p>",
+      "after": "<p>A. トヨタ公式FAQの掲載仕様ではフロントコンソール前部です。同FAQは2025年9月現在の説明書を案内しています。旧型、社外ナビ、後付け配線では位置と有無が異なる場合があるため、自車のナビ・装備と一致するか確認してください。</p>"
+    }
+  ]
+}

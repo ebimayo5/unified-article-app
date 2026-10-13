@@ -1,0 +1,25 @@
+{
+ "post_id": 3071,
+ "url": "https://ebimayo5.com/archives/vezel-hdmi-doko/",
+ "status": "publish",
+ "modified": "2026-10-13T23:29:17",
+ "imgs_before": 4,
+ "imgs_after": 4,
+ "hrefs_before": 7,
+ "hrefs_after": 9,
+ "shortcode_unrendered": false,
+ "checks": [
+  {
+   "phrase": "メーカーオプションのナビは対象外です",
+   "ok": true
+  },
+  {
+   "phrase": "Honda Accessのヴェゼル向けナビ・オーディオ案内",
+   "ok": true
+  },
+  {
+   "phrase": "ディスプレイオーディオ ミラーリング入門",
+   "ok": true
+  }
+ ]
+}

@@ -15,7 +15,8 @@
   },
   {
    "phrase": "toyota.jp/faq/show/10488.html",
-   "ok": false
+   "ok": true,
+   "note": "href属性内のため本文テキスト検索では不一致。公開RESTのHTMLで確認済み"
   },
   {
    "phrase": "対象の仕様であれば、Fire TV Stickなどの映像を映せるようになります",

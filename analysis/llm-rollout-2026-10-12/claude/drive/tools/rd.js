@@ -8,6 +8,6 @@ const c=j.content.rendered;
 let t=c.replace(/<(script|style)[\s\S]*?<\/\1>/g,'').replace(/<\/(p|h2|h3|li|div|tr|figcaption)>/g,'\n').replace(/<[^>]+>/g,'').replace(/&#8230;/g,'…').replace(/&amp;/g,'&').replace(/&#038;/g,'&');
 console.log('['+id+'] '+j.title.rendered+' | '+j.status+' | modified '+j.modified+' | chars '+c.length);
 console.log(t.replace(/\t+/g,'').replace(/\n\s*\n+/g,'\n'));
-console.log('LINKS:');console.log([...c.matchAll(/href="([^"]+)"/g)].map(m=>m[1].replace(/&#038;/g,'&')).filter(u=>!/ebimayo5\.com\/archives/.test(u)||true).join('\n'));
+console.log('LINKS:');console.log([...c.matchAll(/href=["']([^"']+)["']/g)].map(m=>m[1].replace(/&#038;/g,'&')).filter(u=>!/ebimayo5\.com\/archives/.test(u)||true).join('\n'));
 console.log('IMGS',(c.match(/<img/g)||[]).length);
 })();

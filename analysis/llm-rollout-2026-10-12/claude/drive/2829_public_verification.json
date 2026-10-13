@@ -1,0 +1,25 @@
+{
+ "post_id": 2829,
+ "url": "https://ebimayo5.com/archives/display-audio-installation-guide/",
+ "status": "publish",
+ "modified": "2026-10-13T23:29:49",
+ "imgs_before": 4,
+ "imgs_after": 4,
+ "hrefs_before": 5,
+ "hrefs_after": 7,
+ "shortcode_unrendered": false,
+ "checks": [
+  {
+   "phrase": "車種やナビによっては入力を新設できる場合があります",
+   "ok": true
+  },
+  {
+   "phrase": "ライズのカーナビ選びで後悔しない型番確認と比較ポイント",
+   "ok": true
+  },
+  {
+   "phrase": "!ホンダ系なら",
+   "ok": true
+  }
+ ]
+}

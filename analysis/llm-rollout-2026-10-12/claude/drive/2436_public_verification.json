@@ -1,0 +1,33 @@
+{
+ "post_id": 2436,
+ "url": "https://ebimayo5.com/archives/noah-rear-seat-monitor-retrofit/",
+ "status": "publish",
+ "modified": "2026-10-13T23:30:26",
+ "imgs_before": 6,
+ "imgs_after": 6,
+ "hrefs_before": 17,
+ "hrefs_after": 19,
+ "shortcode_unrendered": false,
+ "checks": [
+  {
+   "phrase": "専用キットやモニターを比べたい場合は",
+   "ok": true
+  },
+  {
+   "phrase": "!確認できるため。車両と映像機器の適合を",
+   "ok": true
+  },
+  {
+   "phrase": "90系 ノア/ヴォクシー専用の13.3インチ フリップダウンモニター＆取付キット",
+   "ok": true
+  },
+  {
+   "phrase": "!srsltid",
+   "ok": true
+  },
+  {
+   "phrase": "「スマモニ・ライト」の表示価格",
+   "ok": true
+  }
+ ]
+}

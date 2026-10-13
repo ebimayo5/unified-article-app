@@ -1,0 +1,29 @@
+{
+ "post_id": 1696,
+ "url": "https://ebimayo5.com/archives/honda-fit-navi-osusume/",
+ "status": "publish",
+ "modified": "2026-10-13T23:09:08",
+ "imgs_before": 4,
+ "imgs_after": 4,
+ "hrefs_before": 6,
+ "hrefs_after": 6,
+ "shortcode_unrendered": false,
+ "checks": [
+  {
+   "phrase": "現行の4代目（GR系）と、3代目",
+   "ok": true
+  },
+  {
+   "phrase": "「GR1」「GP6」",
+   "ok": true
+  },
+  {
+   "phrase": "!GS4",
+   "ok": true
+  },
+  {
+   "phrase": "TVキャンセラー施工（ホンダコネクト）",
+   "ok": true
+  }
+ ]
+}

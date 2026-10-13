@@ -1,0 +1,50 @@
+{
+  "post_id": 2387,
+  "status": "verified_ready_to_publish",
+  "changes": [
+    {
+      "before": "<p>「HDMI対応のはずなのに、N-BOXのどこを見ても差し込み口がない」と困っていませんか。N-BOXのHDMI端子は、車名だけで位置や有無を断定できません。<strong>最初に確認したいのは、N-BOXの年式よりも実際に装着されているナビの品番です。</strong></p>",
+      "after": "<p><strong>N-BOXの純正HDMI接続コードは、Hondaの車種別資料ではセンターロアーボックス内に取り付けます。</strong>ただし、旧型や社外ナビまで同じ位置ではありません。まず実際のナビ品番と接続コードの装着有無を確認し、<a href=\"https://www.honda.co.jp/navi/pdf/cable/cord_n-box_2607.pdf\" target=\"_blank\" rel=\"noopener\">Honda公式のN-BOX用接続コード資料</a>と照合してください。</p>"
+    },
+    {
+      "before": "<p>ナビ品番が分かったら、メーカーの取扱説明書で「HDMI入力」「外部入力」「接続コード」の記載を探します。Hondaの純正オプション構成では、N-BOX向けオーディオ関連用品としてHDMI接続コードが案内される場合がありますが、必要部品や装着条件はナビごとに異なります。</p>",
+      "after": "<p><a href=\"https://www.honda.co.jp/navi/nbox/\" target=\"_blank\" rel=\"noopener\">Honda公式のN-BOXナビ案内</a>から、接続コード類の車種別資料を確認できます。掲載資料は9インチHonda CONNECTナビ（LXU-272NBi）、VXM-264ZFEi、VX-240ZFEを分けています。Gathersという名称だけで判断せず、自車の品番に対応するコード・入力規格・取付条件を確認しましょう。</p>"
+    },
+    {
+      "before": "<p>車内に引き出された端子がある場合は、端子パネルや収納部、コンソール周辺などに配置されていることがあります。ただし、全N-BOXで同じ位置とは限りません。目視で確認できる範囲に絞り、内装をこじって探さないことが重要です。</p>",
+      "after": "<p>上記車種別資料の08A40-PL0-900Aは、センターロアーボックス内が取付位置です。別のナビや後付け配線の場合は、施工明細と説明書に沿って端子パネルや収納部を確認してください。内装をこじって探さず、見える範囲で確認します。</p>"
+    },
+    {
+      "before": "<p>映像の確認や接続操作は安全な場所に停車してから行ってください。<span style='color:#d93025;'><strong>走行中に運転者が画面を注視する使い方は避け、同乗者利用でも安全運転を最優先にします。</strong></span></p>",
+      "after": "<p>接続・設定・映像の確認は安全な場所に停車して行います。運転者が走行中にカーナビ等の画像を注視することは禁止されています。<a href=\"https://www.npa.go.jp/bureau/traffic/keitai/info.html\" target=\"_blank\" rel=\"noopener\">警察庁の案内</a>を確認し、同乗者利用でもケーブルや機器が運転操作を妨げないようにします。</p>"
+    },
+    {
+      "before": "<p>https://ebimayo5.com/archives/display-audio-mirroring-hdmi-not-working/</p>",
+      "after": "<p><a href=\"https://ebimayo5.com/archives/display-audio-mirroring-hdmi-not-working/\">HDMIやミラーリングが映らない場合の接続条件と確認手順</a></p>"
+    },
+    {
+      "before": "<p>純正ナビにHDMI入力が無い場合でも、端子そのものを新設する施工があります。工賃を含んだ価格が公開されているので、判断材料になります。</p>",
+      "after": "<p>HDMI入力のないナビに、端子や延長コードだけを追加しても入力機能は増えません。対応ナビへコードを追加する場合の部品代と、取付・配線・復元の工賃を分けて見積もります。次はHonda公式車種別資料の掲載例です（2026年10月13日確認）。</p>"
+    },
+    {
+      "before": "<figure class=\"wp-block-table is-style-stripes\"><table><thead><tr><th>施工メニュー</th><th>工賃コミ価格（税込）</th></tr></thead><tbody><tr><td>TVキャンセラー施工（ホンダ純正ナビ・ギャザズ）</td><td>12,000円</td></tr><tr><td>HDMI入力端子の新設（ホンダ純正ナビ・ギャザズ）</td><td>16,000円</td></tr></tbody></table><figcaption class=\"wp-element-caption\">ナビ男くん公式サイトの表示価格（税込・工賃コミ）。2026年9月27日時点。車種・ナビの種類・オプションにより変動します。</figcaption></figure>",
+      "after": "<figure class=\"wp-block-table is-style-stripes\"><table><thead><tr><th>掲載例</th><th>価格・扱い</th><th>確認する条件</th></tr></thead><tbody><tr><td>純正HDMI接続コード 08A40-PL0-900A</td><td>6,600円（税込、工賃別）</td><td>掲載取付位置はセンターロアーボックス内。自車とナビ品番への適合を確認。</td></tr><tr><td>取付工賃</td><td>Honda販売店へ確認</td><td>標準取付時間0.7H、ギャザズナビまたはディスプレイオーディオと同時装着の場合0.4H。時間を金額と混同しない。</td></tr><tr><td>接続機器と別売品</td><td>必要な構成で見積もり</td><td>HDMIケーブル、映像出力アダプター、指定電源など。後席表示は別に適合確認。</td></tr></tbody></table><figcaption class=\"wp-element-caption\">Honda車種別資料の価格例。旧型や別ナビへの一律適合・施工総額を示す表ではありません。</figcaption></figure>"
+    },
+    {
+      "before": "<p>端子を新設すればFire TV Stickやスマートフォンの映像を映せるようになります。まず今の装備を確認し、無ければこの金額と見比べてください。</p>",
+      "after": "<p>テレビキャンセラーはHDMI入力を追加する部品ではありません。また、入力端子が使えても、スマホ・アプリ・映像形式・給電の条件が合わなければ再生できません。部品名だけで購入せず、必要部品と工賃を含む総額を確認してください。</p>"
+    },
+    {
+      "before": "<p>A. ナビメーカーが公開する機種別の取扱説明書や接続端子図で、背面端子、必要な専用ケーブル、変換ケーブルの有無を確認します。現車ではすでに別の機器が接続されている可能性もあるため、施工状態は販売店や施工店にも確認しましょう。</p>",
+      "after": "<p>A. <a href=\"https://jpn.pioneer/ja/support/manual/manual_pdf.php?dl=1&amp;m_id=17342\" target=\"_blank\" rel=\"noopener\">PioneerのAVIC-RZ812-D等の取付説明書</a>では、本体側にHDMI入力Type DとHDMI出力Type Dが別々に示されています。差し間違えず、対応するケーブルと現車の既設接続を施工店へ確認してください。<a href=\"https://jpn.pioneer/ja/support/manual/navi/21raku_h/36464.php\" target=\"_blank\" rel=\"noopener\">同機種の公式ガイド</a>にはHDMI入力設定の手順もあります。別機種へこの端子仕様を流用せず、品番ごとに確認します。</p>"
+    },
+    {
+      "before": "<p>A. 映像の確認・視聴は安全な場所に停車中、または運転者が画面を見ない利用を前提にしてください。走行中の表示可否や操作制限はナビの仕様や状況によって異なるため、視聴制限を回避する改造方法は扱いません。</p>",
+      "after": "<p>A. 走行中の映像表示や操作制限はナビ仕様で異なりますが、運転者の画像注視は禁止されています。接続・設定・映像確認は安全な場所に停車して行い、機器やケーブルが安全運転を妨げないようにしてください。</p>"
+    },
+    {
+      "before": "後付けは、ナビ本体にHDMI入力がある場合だけ検討します。",
+      "after": "端子の引き出し施工は、ナビ側に対応入力があるか確認してから検討します。"
+    }
+  ]
+}

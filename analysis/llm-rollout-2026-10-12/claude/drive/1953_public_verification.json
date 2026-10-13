@@ -1,0 +1,17 @@
+{
+ "post_id": 1953,
+ "url": "https://ebimayo5.com/archives/subaru-xv-kowareyasui/",
+ "status": "publish",
+ "modified": "2026-10-13T23:47:00",
+ "imgs_before": 4,
+ "imgs_after": 4,
+ "hrefs_before": 1,
+ "hrefs_after": 1,
+ "shortcode_unrendered": false,
+ "checks": [
+  {
+   "phrase": "「XV」は旧車名のモデルを指します",
+   "ok": true
+  }
+ ]
+}

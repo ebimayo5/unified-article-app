@@ -1,0 +1,17 @@
+{
+ "post_id": 1460,
+ "url": "https://ebimayo5.com/archives/jimny-car-navigation-select/",
+ "status": "publish",
+ "modified": "2026-10-13T23:52:19",
+ "imgs_before": 9,
+ "imgs_after": 9,
+ "hrefs_before": 14,
+ "hrefs_after": 14,
+ "shortcode_unrendered": false,
+ "checks": [
+  {
+   "phrase": "!srsltid",
+   "ok": true
+  }
+ ]
+}

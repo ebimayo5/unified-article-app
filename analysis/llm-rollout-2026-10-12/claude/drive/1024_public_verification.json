@@ -1,0 +1,29 @@
+{
+ "post_id": 1024,
+ "url": "https://ebimayo5.com/archives/audi-navi-hard-to-use/",
+ "status": "publish",
+ "modified": "2026-10-13T23:38:09",
+ "imgs_before": 8,
+ "imgs_after": 8,
+ "hrefs_before": 4,
+ "hrefs_after": 4,
+ "shortcode_unrendered": false,
+ "checks": [
+  {
+   "phrase": "アウディ向けの施工店表示は108,000円",
+   "ok": true
+  },
+  {
+   "phrase": "!2〜5万円",
+   "ok": true
+  },
+  {
+   "phrase": "!10〜30万円",
+   "ok": true
+  },
+  {
+   "phrase": "ホンダ純正ナビ（ギャザズ）のHDMI新設が16,000円",
+   "ok": true
+  }
+ ]
+}

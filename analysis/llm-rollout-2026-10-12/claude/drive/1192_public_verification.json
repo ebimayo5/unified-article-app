@@ -1,0 +1,29 @@
+{
+ "post_id": 1192,
+ "url": "https://ebimayo5.com/archives/autobacs-navi-running/",
+ "status": "publish",
+ "modified": "2026-10-13T23:36:19",
+ "imgs_before": 9,
+ "imgs_after": 9,
+ "hrefs_before": 6,
+ "hrefs_after": 6,
+ "shortcode_unrendered": false,
+ "checks": [
+  {
+   "phrase": "専門店の公開価格（工賃込み・税込）でナビの種類により12,000円〜40,000円の例",
+   "ok": true
+  },
+  {
+   "phrase": "筆者が整備の現場で見てきた範囲では",
+   "ok": true
+  },
+  {
+   "phrase": "!ケイが",
+   "ok": true
+  },
+  {
+   "phrase": "!数千円台後半",
+   "ok": true
+  }
+ ]
+}

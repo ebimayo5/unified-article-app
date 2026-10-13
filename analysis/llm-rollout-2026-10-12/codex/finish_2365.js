@@ -1,0 +1,24 @@
+const fs=require('fs'),path=require('path');const base=path.resolve(__dirname,'../snapshots/drive');
+const original=fs.readFileSync(path.join(base,'backups/2365_before.raw.html'),'utf8');const ps=[...original.matchAll(/<p[^>]*>[\s\S]*?<\/p>/g)].map(m=>m[0]);let raw=original;const changes=[];
+function c(before,after){if(raw.split(before).length!==2)throw Error('nonunique');raw=raw.replace(before,after);changes.push({before,after});}
+function p(i,t){c(ps[i],'<p>'+t+'</p>');}
+p(0,"<strong>シエンタのHDMI後付けは、装着するディスプレイオーディオやナビが対応入力を持つ場合に検討できます。</strong>トヨタ公式FAQでは、工場装着DA／DA Plusに販売店オプションのHDMI入力端子を装着する構成を案内しています。全世代・全ナビ共通ではないため、部品を買う前に自車の年式と装着機器を照合してください。");
+p(6,"車検証の年式・型式とナビ品番を控え、<a href=\"https://toyota.jp/faq/show/8504.html\" target=\"_blank\" rel=\"noopener\">トヨタのシエンタ入出力端子FAQ</a>を確認します。掲載仕様ではHDMI Type Aは助手席グローブボックス内、音声LPCM 2ch、映像480p・720p・1080i・VGAです（2025年8月説明書参照を含む掲載内容、2026年10月13日確認）。<a href=\"https://toyota.jp/\" target=\"_blank\" rel=\"noopener\">トヨタ公式サイト</a>から自車の説明書も照合し、旧型や販売店装着ナビへそのまま流用しないでください。");
+p(12,"スマホは端子形状だけでは映像出力を判断できません。<a href=\"https://support.apple.com/ja-jp/105099\" target=\"_blank\" rel=\"noopener\">Apple公式USB-C接続案内</a>では、外部ディスプレイ対応モデルを限定し、例えばiPhone 16eを対象から除いています。Androidも機種の公式仕様で映像出力を確認し、対応アダプター・ケーブルと車載入力の信号形式を照合してください。");
+p(13,"Fire TV Stick等は機器指定の電源と通信条件を満たす必要があり、車載USBから必ず給電できるとは限りません。<a href=\"https://manual.toyota.jp/sienta/3074/cv/ja_JP/contents/ybg1698884499142.php\" target=\"_blank\" rel=\"noopener\">2025年8月以降のシエンタ・マルチメディア説明書</a>にも、HDMI接続機器の電源と、アクセサリーソケット使用時の雑音について注意があります。ゲーム機も給電・放熱・収納を停車中に確認してください。");
+p(17,"HDMI入力がない場合、端子増設キットだけでは機能は増えません。対応する車載器への交換や独立した後席モニターも選択肢です。AI Box等は通常のCarPlayやスマホミラーリングとは別の機器で、車載器・製品ごとの適合と通信条件が必要です。CarPlay対応だけで任意のスマホ動画が映るとは判断しないでください。");
+p(18,"変換機器を使う場合は入力方式とソース名も確認します。ミラーリングでHDMIが見つからない、接続しても映らない場合の確認手順は次の記事で整理しています。");
+p(19,"<a href=\"https://ebimayo5.com/archives/display-audio-mirroring-hdmi-not-working/\">ミラーリング・HDMIが映らない場合の入力とスマホ出力の確認手順</a>");
+p(21,"前席のHDMI入力と、任意の社外後席モニターへ出せる映像出力は別です。入出力FAQでは外部向け出力端子はないとされています。一方、<a href=\"https://toyota.jp/faq/show/8456.html\" target=\"_blank\" rel=\"noopener\">純正販売店装着後席ディスプレイの公式FAQ</a>には前後のソース組み合わせがあります。専用構成と社外出力を混同せず確認してください。");
+p(22,"<a href=\"https://ebimayo5.com/archives/display-audio-demerits/\">ディスプレイオーディオで事前に確認したい制約と使い方</a>");
+p(39,"停車中に、<a href=\"https://manual.toyota.jp/sienta/3074/cv/ja_JP/contents/eyo1737347316066.php\" target=\"_blank\" rel=\"noopener\">2025年8月以降の公式ソース選択手順</a>を照合します。この説明書ではHDMI端子に機器が接続されていないとHDMIモードのボタンを操作できません。旧型や変換器経由は別の仕様もあるため、自車の説明書と施工構成へ戻って確認します。");
+p(40,"運転者が走行中にカーナビ等の画像を注視することは禁止されています。<a href=\"https://www.npa.go.jp/bureau/traffic/keitai/info.html\" target=\"_blank\" rel=\"noopener\">警察庁の案内</a>に沿い、接続・設定・映像確認は安全な場所に停車して行います。同乗者利用でも、端末やケーブルが運転操作を妨げない状態にします。");
+p(41,"施工後の保証は、車両保証と製品・施工保証を分けて確認します。<a href=\"https://toyota.jp/faq/show/182.html\" target=\"_blank\" rel=\"noopener\">トヨタの保証案内</a>も、保証範囲・条件について車載のメンテナンスノート内の保証書の確認を案内しています。後付けしただけで保証がすべて失効する、または必ず保証されるとは判断せず、個別の加工内容と不具合時の窓口を確認してください。");
+p(44,"HDMI入力端子の追加とTVキャンセラーは別施工です。<a href=\"https://naviokun.ocnk.net/product/236\" target=\"_blank\" rel=\"noopener\">ナビ男くんの対象施工ページ</a>にはシエンタ10系（2022年8月以降）が掲載されています。2026年10月13日確認の表示例を、追加オプションと基本施工に分けて示します。純正用品の部品価格や、旧型の適合を示す表ではありません。");
+p(45,"11,000円の追加表示を、すべてのシエンタでHDMI単独施工が完了する総額とは受け取らないでください。TVキャンセラーが不要なら、その前提でHDMIのみの施工可否と見積もりを確認します。後席用画面も製品・画面数・接続で料金が変わるため、基本施工と別に見積もります。");
+c("<h2>端子にこだわらず「車内で映像を見る」なら別の手もある</h2>","<h2>HDMI追加と別施工の費用は分けて確認する</h2>");
+const fee=[...original.matchAll(/<figure[\s\S]*?<\/figure>/g)].find(m=>m[0].includes('56,000円'));if(!fee)throw Error('fee');c(fee[0],"<figure class=\"wp-block-table is-style-stripes\"><table><thead><tr><th>施工区分</th><th>税込・工賃込みの表示例</th><th>確認する条件</th></tr></thead><tbody><tr><td>HDMI入力・USB給電のグローブボックスへの新設</td><td>追加オプション11,000円</td><td>対応DA背面の入力を引き出す施工。単独施工可否と必要な総額を問い合わせる。</td></tr><tr><td>TVキャンセラー基本施工</td><td>30,000円</td><td>HDMI端子追加とは別。CarPlayナビ利用時OFF等の製品固有の注意がある。</td></tr><tr><td>後席画面や別プレーヤー</td><td>希望構成で別見積もり</td><td>画面数、製品、接続、給電、工賃を含む総額と表示可否を確認。</td></tr></tbody></table><figcaption class=\"wp-element-caption\">対象施工ページの条件付き表示例。端子の既設有無と自車への適合を先に確認してください。</figcaption></figure>");
+const imgs=s=>s.match(/<img\b[^>]*>/g)||[];if(JSON.stringify(imgs(raw))!==JSON.stringify(imgs(original)))throw Error('image mismatch');for(const m of original.matchAll(/href=(['"])(.*?)\1/g))if(!raw.includes(m[2]))throw Error('link lost '+m[2]);
+fs.writeFileSync(path.join(base,'drafts/2365_proposed.raw.html'),raw);fs.writeFileSync(path.join(__dirname,'2365_rewrite_patch.json'),JSON.stringify({post_id:2365,status:'verified_ready_to_publish',changes},null,2)+'\n');
+function hash(s){let h=2166136261;for(const c of s.replace(/\r\n/g,'\n')){h^=c.charCodeAt(0);h=Math.imul(h,16777619)>>>0;}return h;}
+console.log(JSON.stringify({changes:changes.length,originalChars:original.length,proposedChars:raw.length,images:imgs(raw).length,originalFNV:hash(original),proposedFNV:hash(raw)}));

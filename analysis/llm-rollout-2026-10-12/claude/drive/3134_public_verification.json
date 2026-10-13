@@ -1,0 +1,21 @@
+{
+ "post_id": 3134,
+ "url": "https://ebimayo5.com/archives/rav4-hdmi-doko/",
+ "status": "publish",
+ "modified": "2026-10-13T23:25:48",
+ "imgs_before": 4,
+ "imgs_after": 4,
+ "hrefs_before": 6,
+ "hrefs_after": 9,
+ "shortcode_unrendered": false,
+ "checks": [
+  {
+   "phrase": "RAV4取扱書「HDMIを再生する」",
+   "ok": true
+  },
+  {
+   "phrase": "ディスプレイオーディオ ミラーリング入門",
+   "ok": true
+  }
+ ]
+}

@@ -1,0 +1,21 @@
+{
+ "post_id": 1004,
+ "url": "https://ebimayo5.com/archives/naviokun-reputation/",
+ "status": "publish",
+ "modified": "2026-10-13T23:56:51",
+ "imgs_before": 12,
+ "imgs_after": 12,
+ "hrefs_before": 63,
+ "hrefs_after": 63,
+ "shortcode_unrendered": false,
+ "checks": [
+  {
+   "phrase": "24,000〜30,000円",
+   "ok": true
+  },
+  {
+   "phrase": "3倍以上",
+   "ok": true
+  }
+ ]
+}

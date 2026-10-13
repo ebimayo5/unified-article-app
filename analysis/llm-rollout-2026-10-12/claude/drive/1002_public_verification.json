@@ -2,7 +2,7 @@
  "post_id": 1002,
  "url": "https://ebimayo5.com/archives/yellowhat-car-navigation-installation-cost/",
  "status": "publish",
- "modified": "2026-10-13T23:38:56",
+ "modified": "2026-10-13T23:50:43",
  "imgs_before": 9,
  "imgs_after": 9,
  "hrefs_before": 5,
@@ -10,19 +10,11 @@
  "shortcode_unrendered": false,
  "checks": [
   {
-   "phrase": "基本工賃の金額は、ナビの種類（2DINなど）や車種によって異なります",
-   "ok": true
-  },
-  {
    "phrase": "!1万円台後半",
-   "ok": false
-  },
-  {
-   "phrase": "!専門スタッフが多く",
    "ok": true
   },
   {
-   "phrase": "!一般的には1〜3時間",
+   "phrase": "基本工賃の金額は、ナビの種類（2DINなど）や車種によって異なります",
    "ok": true
   }
  ]

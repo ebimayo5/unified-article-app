@@ -1,0 +1,21 @@
+{
+ "post_id": 1072,
+ "url": "https://ebimayo5.com/archives/car-air-conditioner-keep-running/",
+ "status": "publish",
+ "modified": "2026-10-13T23:37:24",
+ "imgs_before": 12,
+ "imgs_after": 12,
+ "hrefs_before": 4,
+ "hrefs_after": 5,
+ "shortcode_unrendered": false,
+ "checks": [
+  {
+   "phrase": "一酸化炭素（CO）による中毒の危険があります",
+   "ok": true
+  },
+  {
+   "phrase": "JAFの検証（雪で埋まった車）",
+   "ok": true
+  }
+ ]
+}

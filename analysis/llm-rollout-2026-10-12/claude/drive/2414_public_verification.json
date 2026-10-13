@@ -1,0 +1,29 @@
+{
+ "post_id": 2414,
+ "url": "https://ebimayo5.com/archives/corolla-cross-hdmi-retrofit/",
+ "status": "publish",
+ "modified": "2026-10-13T23:21:48",
+ "imgs_before": 4,
+ "imgs_after": 4,
+ "hrefs_before": 6,
+ "hrefs_after": 9,
+ "shortcode_unrendered": false,
+ "checks": [
+  {
+   "phrase": "HDMI端子は販売店装着オプションの装着時に使える端子",
+   "ok": true
+  },
+  {
+   "phrase": "toyota.jp/faq/show/10488.html",
+   "ok": false
+  },
+  {
+   "phrase": "対象の仕様であれば、Fire TV Stickなどの映像を映せるようになります",
+   "ok": true
+  },
+  {
+   "phrase": "!端子を新設すればFire TV Stick",
+   "ok": true
+  }
+ ]
+}

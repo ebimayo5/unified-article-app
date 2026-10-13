@@ -1,0 +1,21 @@
+{
+ "post_id": 1771,
+ "url": "https://ebimayo5.com/archives/sienta-rear-seat-monitor-retrofit/",
+ "status": "publish",
+ "modified": "2026-10-13T23:19:41",
+ "imgs_before": 6,
+ "imgs_after": 6,
+ "hrefs_before": 10,
+ "hrefs_after": 10,
+ "shortcode_unrendered": false,
+ "checks": [
+  {
+   "phrase": "スマモニ・ライト",
+   "ok": true
+  },
+  {
+   "phrase": "56,000円は、トヨタ・レクサス純正ディスプレイオーディオ",
+   "ok": true
+  }
+ ]
+}

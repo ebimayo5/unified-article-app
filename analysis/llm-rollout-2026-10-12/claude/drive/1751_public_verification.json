@@ -1,0 +1,25 @@
+{
+ "post_id": 1751,
+ "url": "https://ebimayo5.com/archives/yaris-cross-tv-canceller-guide/",
+ "status": "publish",
+ "modified": "2026-10-13T23:17:49",
+ "imgs_before": 6,
+ "imgs_after": 5,
+ "hrefs_before": 10,
+ "hrefs_after": 7,
+ "shortcode_unrendered": false,
+ "checks": [
+  {
+   "phrase": "T-Connect SDナビ）",
+   "ok": true
+  },
+  {
+   "phrase": "ディスプレイオーディオPlus）",
+   "ok": true
+  },
+  {
+   "phrase": "ナビ男くんでヤリスクロスの対応車種と施工条件を確認する",
+   "ok": true
+  }
+ ]
+}

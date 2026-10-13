@@ -1,0 +1,41 @@
+{
+ "post_id": 1115,
+ "url": "https://ebimayo5.com/archives/license-plate-hiragana-popular/",
+ "status": "publish",
+ "modified": "2026-10-13T23:16:07",
+ "imgs_before": 8,
+ "imgs_after": 8,
+ "hrefs_before": 4,
+ "hrefs_after": 4,
+ "shortcode_unrendered": false,
+ "checks": [
+  {
+   "phrase": "国土交通省がこれらの理由を公式に明示しているわけではなく",
+   "ok": true
+  },
+  {
+   "phrase": "A・C・F・H・K・L・M・P・X・Y の10文字",
+   "ok": true
+  },
+  {
+   "phrase": "!3A0",
+   "ok": true
+  },
+  {
+   "phrase": "!33P",
+   "ok": true
+  },
+  {
+   "phrase": "お：「あ」と見間違えやすい",
+   "ok": false
+  },
+  {
+   "phrase": "!設計が入っています",
+   "ok": true
+  },
+  {
+   "phrase": "ひらがなは基本的に選べない",
+   "ok": true
+  }
+ ]
+}

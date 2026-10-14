@@ -1,0 +1,15 @@
+{
+  "post_id": 1912,
+  "original_modified": "2026-08-23T15:35:12",
+  "changes": [
+    "repair_broken_commerce_intro",
+    "label_generic_harness_correctly",
+    "add_toyota_raize_carplay_era_exception",
+    "remove_unverified_workshop_training",
+    "make_era_exception_visible_in_faq"
+  ],
+  "original_images": 6,
+  "original_hrefs": 7,
+  "proposed_hrefs": 9,
+  "published": false
+}

@@ -1,6 +1,7 @@
 # HANDOVER_STATUS
 
 ## 現在作業中（ライブ状況）
+- 状態: 空き（Codex区切り 2026-10-14 15:22 JST）: DRIVE1912ライズのカーナビ選びを全文監査。トヨタFAQの2019.11～2021.02純正DAはCarPlayのみ/Android Auto非対応、現行9インチはUSB接続で両対応という時期別条件、広告の汎用配線キットとナビ本体の混同、文法崩れ、未確認の研修経験を直す5差分案。元画像6・href7保持。WP未反映 reviewed_pending_publish。codex/1912_evidence.md参照。DriveハリアーHDMI 8/10停止を維持し、本番WP/clasp/自動投稿/生成API操作なし。
 - 状態: 空き（Codex区切り 2026-10-14 15:19 JST）: DRIVE1843フリード社外ナビを全文監査。Honda純正価格は取付工賃別、ナビ男くん190,600円はビッグDAで地図内蔵ビッグXではなく、ギャザズ用TVキャンセラー12,000円は別施工と明示する3差分案。画像5・既存href11保持。WP未反映 reviewed_pending_publish。codex/1843_evidence.md参照。作業中に時刻が経過したため、ライブ欄・Gitを再照合してから保存。本番WP/clasp/自動投稿/生成API操作なし。
 - 状態: 空き（Codex区切り 2026-10-14 10:56 JST）: DRIVE2737ハリアー全画面表示を全文監査。68,000円は純正地図ではなくネット動画用Android AVアダプターの工事費込み価格であり、トヨタ2020年版Home分割表示の全画面操作・2022年版地図メニューと区別する3差分案を作成。未確認の大型トラック運転経験を削除。元画像4・href6保持。WP未反映 reviewed_pending_publish。codex/2737_evidence.md参照。DriveハリアーHDMI 8/10停止を維持し、本番WP/clasp/自動投稿/生成API操作なし。
 - 状態: 空き（Codex区切り 2026-10-14 10:53 JST）: DRIVE1529イエローハットのオイル交換記事を全文監査し、公式工賃550円～/770円～・3Lオイル2480円～・メンテパック550円の条件を補い、未確認の整備工場研修経験と根拠のないフィルター効能を外す6差分案を作成。画像4・既存href3を保持。WPログインはCAPTCHA画面で未認証、公開未反映の reviewed_pending_publish。codex/1529_evidence.md参照。アーコンDriveのハリアーHDMI 8/10停止・NG1件を確認し、再開せず。本番WP/clasp/自動投稿/生成API操作なし。

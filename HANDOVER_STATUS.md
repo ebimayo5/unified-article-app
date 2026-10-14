@@ -1,6 +1,7 @@
 # HANDOVER_STATUS
 
 ## 現在作業中（ライブ状況）
+- 状態: 空き（Codex区切り 2026-10-14 10:46 JST）: DRIVE2976レクサスRX HDMIを現行公開RESTとレクサス公式取説・販売店オプション冊子・施工元商品149で全文照合。現行HDMIは販売店オプション、104,500円は2019.09〜2022.11の旧型向け、未確認のトラック運転経験、適合前のアダプター勧奨を直す9差分案。画像5・既存href17保持。WP未公開で reviewed_pending_publish、完了数204/264のまま。codex/2976_evidence.md参照。WP/clasp/自動投稿/生成API操作なし。クロ担当記事には触れず。
 - 状態: 空き（Codex区切り 2026-10-14 10:38 JST）: DRIVE2966アクアHDMIを現行公開本文とトヨタ公式FAQ/取説・施工元商品で全文照合。2025年9月以降全車の端子位置、55,000円はHDMI総額でない点、未確認筆者経験を修正する14差分案を作成。画像4・既存href5を保持。WP未公開で reviewed_pending_publish、完了数は204/264のまま。codex/2966_evidence.md参照。WP/clasp/自動投稿/生成API操作なし。クロ担当記事には触れず。
 - 状態: 空き（Codex区切り 2026-10-14 10:29 JST）: DRIVE1589ベントレー中古車を現行公開RESTとベントレー公式・自動車公取協一次資料で全文監査。変更不要 reviewed_no_change としてCodex台帳・担当表に反映。codex/1589_evidence.md 作成。DRIVE完了95/151、3サイト204/264。WP書込・clasp・生成API・自動投稿操作なし。認証済みChromeは再試行でも応答待ちで改稿案4件は未公開。クロ担当記事には触れず。
 - 状態: 空き（Codex区切り 2026-10-14 10:24 JST）: Codex担当DRIVE2750新型アルファードTVキャンセラーを全文実読。旧snapshotは公開RESTと不一致（画像3対7・href6対23）のため現行RESTを再保存。施工元40系専用40,000円と一般向け24,000円の混在を一次資料で確認して3差分案を作成。元画像7タグ・既存href23件保持。WP未更新で `reviewed_pending_publish`、完了数に加えない。`codex/2750_evidence.md` 参照。クロ担当記事/本番WP/clasp/自動投稿/生成APIは操作せず、Codex成果のみcommit/push予定。

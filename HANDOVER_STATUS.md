@@ -1,6 +1,7 @@
 # HANDOVER_STATUS
 
 ## 現在作業中（ライブ状況）
+- 状態: 空き（Codex区切り 2026-10-14 10:24 JST）: Codex担当DRIVE2750新型アルファードTVキャンセラーを全文実読。旧snapshotは公開RESTと不一致（画像3対7・href6対23）のため現行RESTを再保存。施工元40系専用40,000円と一般向け24,000円の混在を一次資料で確認して3差分案を作成。元画像7タグ・既存href23件保持。WP未更新で `reviewed_pending_publish`、完了数に加えない。`codex/2750_evidence.md` 参照。クロ担当記事/本番WP/clasp/自動投稿/生成APIは操作せず、Codex成果のみcommit/push予定。
 - 状態: 空き（Codex区切り 2026-10-14 10:22 JST）: Codex担当DRIVE1327ルーミーを全文実読。旧snapshotが現在の公開RESTと不一致（画像7対9、リンク3対5）だったため公開RESTを再保存し、トヨタ/スズキ公式諸元と照合して4差分案作成。元画像9タグ・既存href5件保持。大型トラック運転・整備工場研修の本人経験はユーザー確認待ちで `author_attestation_pending`、WP未更新・完了数に加えない。`codex/1327_evidence.md` を参照。クロ担当記事/本番WP/clasp/自動投稿/生成APIは操作せず、Codex成果のみcommit/push予定。
 - 状態: 空き（Codex区切り 2026-10-14 10:18 JST）: `drive_remaining_assignment.csv` のクロ16件とCodex872を独立照合済みの台帳状態へ同期。記事担当ownerは変更なし。未確認本人経験13件・仕様1件は保留、公開待ち872も完了扱いしない。クロ本文・証跡・WP・clasp・自動投稿に触れず、Gitの担当表と本欄だけcommit/push予定。
 - 状態: 空き（Codex区切り 2026-10-14 10:17 JST）: クロ担当DRIVE追加16件を個別証跡・元REST・現在の公開RESTで独立照合。全件で元タイトル/URL/画像src/既存href保持。1002の残存工賃削除と1004の価格訂正の2件を完了へ反映。989は地図UI仕様の出典未確認で `source_review_pending`、ほか13件は本人経験の真偽未確認で `author_attestation_pending`。本人確認をユーザーへ問い合わせ中。DRIVE台帳完了94/151、3サイト台帳203/264。ただし既存完了行の本人経験は別途再監査。詳細 `codex/claude_drive_reconciliation_2026-10-14_1014.md`。クロ担当記事本文・証跡、WP/clasp/生成API/自動投稿は操作なし。GitはCodex台帳と記録だけcommit/push予定。

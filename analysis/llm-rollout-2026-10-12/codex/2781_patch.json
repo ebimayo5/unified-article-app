@@ -1,0 +1,13 @@
+{
+  "post_id": 2781,
+  "original_modified": "2026-09-19T23:45:16",
+  "changes": [
+    "explain_cellular_connected_navi_separately",
+    "remove_unverified_large_vehicle_experience",
+    "source_offline_navigation_limit"
+  ],
+  "original_images": 4,
+  "original_hrefs": 10,
+  "proposed_hrefs": 12,
+  "published": false
+}

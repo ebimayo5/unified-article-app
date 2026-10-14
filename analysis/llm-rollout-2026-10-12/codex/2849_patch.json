@@ -1,0 +1,17 @@
+{
+  "post_id": 2849,
+  "original_modified": "2026-09-27T21:25:50",
+  "changes": [
+    "add_manufacturer_fitment_source",
+    "remove_unverified_workshop_training",
+    "remove_unverified_truck_driving",
+    "focus_generic_notice_on_installation",
+    "correct_hdmi_product_scope_intro",
+    "label_different_product_scopes_in_table",
+    "remove_false_price_comparison"
+  ],
+  "original_images": 4,
+  "original_hrefs": 7,
+  "proposed_hrefs": 12,
+  "published": false
+}

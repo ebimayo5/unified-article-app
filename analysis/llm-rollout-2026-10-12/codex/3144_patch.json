@@ -1,0 +1,16 @@
+{
+  "post_id": 3144,
+  "original_modified": "2026-10-09T06:01:56",
+  "changes": [
+    "identify_factory_display_vs_gathers",
+    "remove_unverified_truck_experience",
+    "remove_unverified_workshop_experience",
+    "qualify_vendor_hdmi_price",
+    "explain_vendor_product_scope",
+    "qualify_cta"
+  ],
+  "original_images": 4,
+  "original_hrefs": 8,
+  "proposed_hrefs": 11,
+  "published": false
+}

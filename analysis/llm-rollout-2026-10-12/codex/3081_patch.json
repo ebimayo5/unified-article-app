@@ -8,5 +8,9 @@
   "original_images": 4,
   "original_hrefs": 7,
   "proposed_hrefs": 9,
-  "published": false
+  "published": true,
+  "editor_before_hash": 2461138336,
+  "editor_after_hash": 1686575092,
+  "public_verified_date": "2026-10-14",
+  "additional_table_scope_correction": true
 }

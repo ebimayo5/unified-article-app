@@ -1,6 +1,7 @@
 # HANDOVER_STATUS
 
 ## 現在作業中（ライブ状況）
+- 状態: 空き（Codex区切り 2026-10-14 15:41 JST）: DRIVE3124レクサスIS HDMIを全文監査。2026年IS300hの公式オプションはグローブボックス内、用品6,050円＋別途取付費・標準1.6時間、走行中動画不可・給電なし。年式限定で明記し、社外店の工賃込み表/IS施工未確認CTAを区別する4差分案。元画像3・href7保持、新公式リンク2。WP未反映 reviewed_pending_publish。codex/3124_evidence.md参照。本番WP/clasp/自動投稿/生成API操作なし。
 - 状態: 空き（Codex区切り 2026-10-14 15:37 JST）: DRIVE2849取付記事を全文監査。メーカー適合情報を追加、未確認の研修/トラック経験を削除し、HDMI価格表の異なる施工（ホンダ既存入力引出し・トヨタ多機能・輸入車Android AV）を区別する7差分案。旧画像4・href7保持、新リンク5。WP未反映 reviewed_pending_publish。codex/2849_evidence.md参照。本番WP/clasp/自動投稿/生成API操作なし。
 - 状態: 空き（Codex区切り 2026-10-14 15:34 JST）: DRIVE2317走行中ナビ制限を全文監査。警察庁の画面注視注意とHonda CONNECT向け商品250のナビ操作時に自車位置固定・案内停止する条件を補う2差分案。旧画像4・href7保持、新リンク2。WP未反映 reviewed_pending_publish。codex/2317_evidence.md参照。本番WP/clasp/自動投稿/生成API操作なし。
 - 状態: 空き（Codex区切り 2026-10-14 15:31 JST）: DRIVE2860オデッセイHDMIを全文監査。施工元公式のギャザズ対応年式・16,000円の入力施工と、RCA接続リアモニターでは追加HDMI映像が後席表示不可の条件を分離。汎用ケーブル適合未確認と未確認研修経験も直す5差分案。旧画像5・href10保持、新施工元リンク2。WP未反映 reviewed_pending_publish。codex/2860_evidence.md参照。本番WP/clasp/自動投稿/生成API操作なし。

@@ -1,0 +1,14 @@
+{
+  "post_id": 3124,
+  "original_modified": "2026-10-07T05:37:00",
+  "changes": [
+    "add_2026_is300h_official_hdmi_location",
+    "add_oem_accessory_price_separate_from_labor",
+    "separate_vendor_price_from_oem_price",
+    "avoid_unverified_vendor_is_hdmi_cta"
+  ],
+  "original_images": 3,
+  "original_hrefs": 7,
+  "proposed_hrefs": 9,
+  "published": false
+}

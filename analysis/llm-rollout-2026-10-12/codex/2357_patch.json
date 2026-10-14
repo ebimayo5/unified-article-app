@@ -1,0 +1,14 @@
+{
+  "post_id": 2357,
+  "original_modified": "2026-09-10T23:50:25",
+  "changes": [
+    "source_nissan_dayz_hdmi_option",
+    "remove_unverified_training",
+    "avoid_unverified_dayz_vendor_installation_cta",
+    "avoid_unverified_dayz_vendor_service"
+  ],
+  "original_images": 3,
+  "original_hrefs": 6,
+  "proposed_hrefs": 7,
+  "published": false
+}

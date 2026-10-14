@@ -1,6 +1,7 @@
 # HANDOVER_STATUS
 
 ## 現在作業中（ライブ状況）
+- 状態: 空き（Codex区切り 2026-10-14 15:52 JST）: DRIVE2357デイズHDMI記事を全文監査。日産の純正用品カタログを明示し、未確認のデイズ専用施工CTAと研修経歴を修正した4差分案。元画像3・href6保持。WP未反映 reviewed_pending_publish。codex/2357_evidence.md参照。本番WP/clasp/自動投稿/生成API操作なし。
 - 状態: 空き（Codex区切り 2026-10-14 15:50 JST）: DRIVE2337ディフェンダー購入記事を全文監査。2026年モデルの公式90/110/130仕様照合を追加し、未確認の長距離運転・整備士研修経歴を削除した3差分案。元画像5・href6保持。WP未反映 reviewed_pending_publish。codex/2337_evidence.md参照。本番WP/clasp/自動投稿/生成API操作なし。
 - 状態: 空き（Codex区切り 2026-10-14 15:48 JST）: DRIVE2761純正ナビ記事を全文監査。ホンダ/トヨタのTVキャンセラー、ギャザズHDMI接続、多機能インターフェースの価格適用条件を分け、未確認の研修経験を削除した5差分案。元画像4・href7保持。WP未反映 reviewed_pending_publish。codex/2761_evidence.md参照。本番WP/clasp/自動投稿/生成API操作なし。
 - 状態: 空き（Codex区切り 2026-10-14 15:48 JST）: DRIVE3144 ZR-V HDMIを全文監査。HondaのGoogle搭載ディスプレーとギャザズを区別し、HDMI16,000円はギャザズ対応施工で入力回路なしの画面への追加不可、後席59,000円は別商品と明記。未確認の筆者経歴2件も削除した6差分案。元画像4・href8保持。WP未反映 reviewed_pending_publish。codex/3144_evidence.md参照。本番WP/clasp/自動投稿/生成API操作なし。

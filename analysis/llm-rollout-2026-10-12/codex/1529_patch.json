@@ -1,0 +1,16 @@
+{
+  "post_id": 1529,
+  "original_modified": "2026-08-23T15:22:31",
+  "changes": [
+    "add_current_official_prices",
+    "correct_membership_fee_description",
+    "explain_maintenance_pack_conditions",
+    "remove_unverified_training_claim",
+    "remove_subjective_filter_effect",
+    "avoid_unsupported_filter_performance_claim"
+  ],
+  "original_images": 4,
+  "original_hrefs": 3,
+  "proposed_hrefs": 5,
+  "published": false
+}

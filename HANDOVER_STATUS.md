@@ -1,6 +1,7 @@
 # HANDOVER_STATUS
 
 ## 現在作業中（ライブ状況）
+- 状態: 空き（Codex区切り 2026-10-14 10:18 JST）: `drive_remaining_assignment.csv` のクロ16件とCodex872を独立照合済みの台帳状態へ同期。記事担当ownerは変更なし。未確認本人経験13件・仕様1件は保留、公開待ち872も完了扱いしない。クロ本文・証跡・WP・clasp・自動投稿に触れず、Gitの担当表と本欄だけcommit/push予定。
 - 状態: 空き（Codex区切り 2026-10-14 10:17 JST）: クロ担当DRIVE追加16件を個別証跡・元REST・現在の公開RESTで独立照合。全件で元タイトル/URL/画像src/既存href保持。1002の残存工賃削除と1004の価格訂正の2件を完了へ反映。989は地図UI仕様の出典未確認で `source_review_pending`、ほか13件は本人経験の真偽未確認で `author_attestation_pending`。本人確認をユーザーへ問い合わせ中。DRIVE台帳完了94/151、3サイト台帳203/264。ただし既存完了行の本人経験は別途再監査。詳細 `codex/claude_drive_reconciliation_2026-10-14_1014.md`。クロ担当記事本文・証跡、WP/clasp/生成API/自動投稿は操作なし。GitはCodex台帳と記録だけcommit/push予定。
 - 状態: 空き（Codex区切り 2026-10-14 06:04 JST）: 6時のDRIVE BASE・たくみパパ定時監査を `codex/monitor_2026-10-14_0600.md` に保存。DRIVEハリアーHDMI 8/10停止、Home自動運転OFF・当日0/1・予定「15畳 ldk」、ローカル関連プロセス0。トリガーとWP実到達は未照合で両サイト「要確認」。DRIVE下書き3175はアーコン表示のみ。再開・再生成・自動投稿設定・clasp・生成API・WP操作なし。クロ担当記事には触れない。Gitは監査記録のみcommit/pushする。
 - 状態: 空き（Codex区切り 2026-10-14 05:05 JST）: DRIVE872ステップワゴンTVキャンセラーを全文実読し、Honda適用表・施工元・警察庁で照合。Gathers限定12,000円、メーカーオプション別商品、TVチューナー有無、施工時間を明確にした10差分案を作成。元画像8タグ・既存hrefを静的検証で保持。WP更新・公開検証は未実施で `reviewed_pending_publish`、担当Codexのまま。05時DRIVE定時監査はハリアーHDMI 8/10停止、当日0/1、実プロセス0、トリガーとWP下書き3175の当日実数は未確認で「要確認」。再開・再生成・自動運転設定・clasp・生成API操作なし。クロ担当記事/証跡には触れない。GitはCodex成果のみcommit/push予定。次は872の本番反映経路を確認し公開後検証、または別Codex担当記事の実読。

@@ -1,6 +1,7 @@
 # HANDOVER_STATUS
 
 ## 現在作業中（ライブ状況）
+- 状態: 作業中（Claude Code ローカル 2026-10-14 開始）: Codex残件の引き継ぎ。ユーザーが本人経歴（整備専門学校卒・自動車工場研修約1年・長距離トラック約3年・タクシー・大型二種・運行管理者・配車実務）を事実と確認し「事実は残す」と指示。author_attestation_pending記事を公開RESTで読み、経歴に合う記述は残して誇張だけ修正する方針に変更。まず読み取りのみで分類、WP公開更新は分類後。clasp/自動投稿操作なし。
 - 状態: 空き（Claude Code クラウド 2026-10-14 JST）: ユーザー指示「コデのやってない分やって」。クラウド環境はebimayo5.comへの接続不可・WP認証なし・snapshots/drive/backups未同期のため着手せず、Windows PC上のClaude Codeで実施することに決定。対象(Codex残り): ①reviewed_pending_publish約27件(2446,3154,872,2750,2966,2976,917,1529,2737,1843,1912,2791,2464,2860,2317,2849,3124,3144,2761,2337,2357,2611,2562,2268,2781,2456,2258)=現行WP本文照合→公開→公開ページ検証、②Codex担当外の経歴再処理10件(2819,2727,2387,2224,2180,2170,1550,1477,1375,1279)=未確認の研修/大型トラック経歴を全文で探して削除→公開検証。根拠 codex/drive_audit.csv・codex/completed_author_claim_recheck_2026-10-14.json。Codexが復帰して作業中を書いたら重複させないこと。本番WP/clasp/自動投稿操作なし。
 - 状態: 空き（Claude Code 2026-10-14 JST セッション開始確認）: HANDOVER/`git status`/`git log`を確認、mainはorigin/main(2780d1f)と一致・未コミットなし。前回Claude Codeの「作業中」(2026-10-13開始)は停止済みのため中断へ変更。クロ担当DRIVE: published_verified24・reviewed_no_change11・author_attestation_pending39・reserved13(Codex照合中)・source_review_pending1。アーコンパネル未確認(本環境から認証不可)。本番WP/clasp/自動投稿/生成API操作なし。
 - 状態: 空き（Codex区切り 2026-10-14 JST）: DRIVE1858の大型車運転比喩を安全な後退判断へ公開修正。WP再読込後FNV2159699035一致、画像3・href7保持、公開URL・更新日10/14・新文表示と旧文不在を確認。codex/1858_safety_correction_evidence.md、台帳 published_verified。DRIVE完了68/151、3サイト未完87/264。本番WP操作あり。clasp/自動投稿操作なし。

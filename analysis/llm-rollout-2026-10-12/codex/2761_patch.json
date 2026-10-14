@@ -1,0 +1,15 @@
+{
+  "post_id": 2761,
+  "original_modified": "2026-09-27T21:25:51",
+  "changes": [
+    "remove_unverified_workshop_experience",
+    "scope_honda_tv",
+    "scope_honda_hdmi",
+    "scope_toyota_interface",
+    "explain_vendor_product_differences"
+  ],
+  "original_images": 4,
+  "original_hrefs": 7,
+  "proposed_hrefs": 12,
+  "published": false
+}

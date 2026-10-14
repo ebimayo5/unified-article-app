@@ -17,10 +17,13 @@ replace('<li>高速道路の合流が週1回以上ある</li>', '<li>高速道�
 replace('<p>まずは公式カタログのWLTCモード燃費を基準に見て、そこから自分の使い方ではどう変わりそうかを考えるのが現実的です。</p>', '<p>まずは<a href="https://toyota.jp/roomy/specification/" target="_blank" rel="noopener">トヨタ公式の主要諸元</a>で、検討するグレードのWLTCモード燃費を確認してください。2026年10月時点の公式掲載例は、2WDのXが18.4km/L、カスタムG-Tが16.8km/Lです。数値は試験条件での値なので、短距離走行やエアコン使用など自分の使い方を重ねて考えます。</p>');
 replace('<p>ソリオとルーミーで迷う人も多いです。</p>', '<p>ソリオとルーミーで迷う人も多いです。<a href="https://toyota.jp/roomy/specification/" target="_blank" rel="noopener">ルーミーの公式諸元</a>と<a href="https://www.suzuki.co.jp/car/solio/asset/pdf/detail/detail.pdf" target="_blank" rel="noopener">ソリオの公式諸元</a>を同じ駆動方式・グレードで見比べてください。2026年10月時点の掲載例では、ルーミーX（2WD）のWLTC燃費は18.4km/L、ソリオの2WDマイルドハイブリッド車は25.6km/Lです。実燃費は走行条件で変わり、価格や装備も異なるため、燃費だけで優劣を決めず試乗と総額で判断します。</p>');
 replace('<p>なお、この記事では購入判断の参考になるように整理していますが、車両の仕様・グレード・安全装備・法規制・保証内容は、年式や販売店、地域、用品の種類によって変わることがあります。最終判断は、トヨタ公式カタログ、販売店の見積書、整備工場、保険会社、関係機関の情報も確認したうえで行ってください。</p>', '<p>この記事は購入判断の参考情報です。車両の仕様・グレード・安全装備・保証内容は年式や用品の種類で異なります。<a href="https://toyota.jp/roomy/specification/" target="_blank" rel="noopener">トヨタ公式の主要諸元・装備一覧</a>と、検討車両の見積書・現車・取扱説明書を照合してください。法規制や後付け用品は関係機関・施工店の案内も確認します。</p>');
+replace('<p>筆者は大型トラックで長距離を走ってきました。車格はまったく違いますが、毎日乗る車ほど「一回の不満」より「何度も繰り返す小さな面倒」が疲れになります。</p>', '<p>毎日乗る車では、一度の大きな不満だけでなく、乗り降りや荷物の積み下ろしなど繰り返す小さな面倒も確認してください。</p>');
+replace('<p>配線を触る用品は、筆者が整備工場で研修した経験から見ても「見えない部分の処理」で仕上がりが分かれます。</p>', '<p>配線を触る用品は、見えない部分の固定や取り回しも施工店へ確認してください。</p>');
 const imgs = s => [...s.matchAll(/<img\b[^>]*>/g)].map(m => m[0]);
 if (JSON.stringify(imgs(raw)) !== JSON.stringify(imgs(original))) throw Error('images changed');
 for (const m of original.matchAll(/href=(['"])(.*?)\1/g)) if (!raw.includes(m[2])) throw Error('link lost ' + m[2]);
 fs.mkdirSync(path.join(base, 'drafts'), { recursive: true });
 fs.writeFileSync(path.join(base, 'drafts/1327_proposed.raw.html'), raw);
-fs.writeFileSync(path.join(__dirname, '1327_rewrite_patch.json'), JSON.stringify({post_id:1327,status:'source_and_author_review_pending',changes},null,2)+'\n');
+fs.writeFileSync(path.join(__dirname, '1327_proposed.raw.html'), raw);
+fs.writeFileSync(path.join(__dirname, '1327_rewrite_patch.json'), JSON.stringify({post_id:1327,status:'reviewed_pending_publish',changes,original_modified:'2026-08-23T15:18:27',published:false},null,2)+'\n');
 console.log(JSON.stringify({changes:changes.length,images:imgs(raw).length,chars:raw.length}));

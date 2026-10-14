@@ -1,6 +1,6 @@
 {
   "post_id": 1327,
-  "status": "source_and_author_review_pending",
+  "status": "reviewed_pending_publish",
   "changes": [
     {
       "before": "<li>高速道路の合流が週1回以上ある</li>",
@@ -17,6 +17,16 @@
     {
       "before": "<p class=\"wp-block-paragraph\">なお、この記事では購入判断の参考になるように整理していますが、車両の仕様・グレード・安全装備・法規制・保証内容は、年式や販売店、地域、用品の種類によって変わることがあります。最終判断は、トヨタ公式カタログ、販売店の見積書、整備工場、保険会社、関係機関の情報も確認したうえで行ってください。</p>",
       "after": "<p class=\"wp-block-paragraph\">この記事は購入判断の参考情報です。車両の仕様・グレード・安全装備・保証内容は年式や用品の種類で異なります。<a href=\"https://toyota.jp/roomy/specification/\" target=\"_blank\" rel=\"noopener\">トヨタ公式の主要諸元・装備一覧</a>と、検討車両の見積書・現車・取扱説明書を照合してください。法規制や後付け用品は関係機関・施工店の案内も確認します。</p>"
+    },
+    {
+      "before": "<p class=\"wp-block-paragraph\">筆者は大型トラックで長距離を走ってきました。車格はまったく違いますが、毎日乗る車ほど「一回の不満」より「何度も繰り返す小さな面倒」が疲れになります。</p>",
+      "after": "<p class=\"wp-block-paragraph\">毎日乗る車では、一度の大きな不満だけでなく、乗り降りや荷物の積み下ろしなど繰り返す小さな面倒も確認してください。</p>"
+    },
+    {
+      "before": "<p class=\"wp-block-paragraph\">配線を触る用品は、筆者が整備工場で研修した経験から見ても「見えない部分の処理」で仕上がりが分かれます。</p>",
+      "after": "<p class=\"wp-block-paragraph\">配線を触る用品は、見えない部分の固定や取り回しも施工店へ確認してください。</p>"
     }
-  ]
+  ],
+  "original_modified": "2026-08-23T15:18:27",
+  "published": false
 }

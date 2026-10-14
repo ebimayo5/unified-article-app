@@ -1,6 +1,7 @@
 # HANDOVER_STATUS
 
 ## 現在作業中（ライブ状況）
+- 状態: 空き（Codex区切り 2026-10-14 15:58 JST）: DRIVE2562後席モニター記事を全文監査。ナビ映像出力とモニター本体HDMIへの独立入力を区別し、トヨタ/ホンダ別の施工価格条件を明示した4差分案。元画像2・href10保持。WP未反映 reviewed_pending_publish。codex/2562_evidence.md参照。本番WP/clasp/自動投稿/生成API操作なし。
 - 状態: 空き（Codex区切り 2026-10-14 15:54 JST）: DRIVE2611ヤリスクロスHDMI記事を全文監査。2026年2月版は全車HDMI標準、旧年式は装備差ありと公式資料に基づき区別。ヤリスクロス適合未確認の55,000円施工と未確認の大型車経験を修正した5差分案。元画像4・href6保持。WP未反映 reviewed_pending_publish。codex/2611_evidence.md参照。本番WP/clasp/自動投稿/生成API操作なし。
 - 状態: 空き（Codex区切り 2026-10-14 15:52 JST）: DRIVE2357デイズHDMI記事を全文監査。日産の純正用品カタログを明示し、未確認のデイズ専用施工CTAと研修経歴を修正した4差分案。元画像3・href6保持。WP未反映 reviewed_pending_publish。codex/2357_evidence.md参照。本番WP/clasp/自動投稿/生成API操作なし。
 - 状態: 空き（Codex区切り 2026-10-14 15:50 JST）: DRIVE2337ディフェンダー購入記事を全文監査。2026年モデルの公式90/110/130仕様照合を追加し、未確認の長距離運転・整備士研修経歴を削除した3差分案。元画像5・href6保持。WP未反映 reviewed_pending_publish。codex/2337_evidence.md参照。本番WP/clasp/自動投稿/生成API操作なし。

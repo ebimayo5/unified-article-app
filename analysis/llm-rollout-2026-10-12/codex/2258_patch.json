@@ -1,0 +1,14 @@
+{
+  "post_id": 2258,
+  "original_modified": "2026-08-29T19:31:10",
+  "changes": [
+    "remove_unverified_mechanic_training",
+    "remove_unverified_truck_driving",
+    "correct_japanese_panda_cross_drivetrain",
+    "source_fiat_service_maintenance"
+  ],
+  "original_images": 5,
+  "original_hrefs": 3,
+  "proposed_hrefs": 5,
+  "published": false
+}

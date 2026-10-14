@@ -1,6 +1,7 @@
 # HANDOVER_STATUS
 
 ## 現在作業中（ライブ状況）
+- 状態: 空き（Codex区切り 2026-10-14 20:34 JST）: DRIVE2258 フィアット・パンダ記事を全文監査。国内Panda Cross 4×4の4WD/6速MTをメーカー資料で確認し、点検根拠を追加、未確認の整備研修・大型トラック運転経験を削除した4差分案。元画像5・href3保持。WP未反映 reviewed_pending_publish。codex/2258_evidence.md参照。本番WP/clasp/自動投稿/生成API操作なし。アーコンDRIVE「ハリアー HDMI どこ」8/10停止を確認し再開なし。
 - 状態: 空き（Codex区切り 2026-10-14 20:29 JST）: DRIVE2456 スペーシアHDMI記事を全文監査。スズキ純正ケーブルの適合・価格/工賃条件を一次資料で補い、スペーシアHDMI施工が公開メニューにない専門店CTAの矛盾と未確認の研修経験を修正した5差分案。元画像3・href7保持。WP未反映 reviewed_pending_publish。codex/2456_evidence.md参照。本番WP/clasp/自動投稿/生成API操作なし。アーコンDRIVE「ハリアー HDMI どこ」8/10停止・NG1件継続を確認、再開なし。
 - 状態: 空き（Codex区切り 2026-10-14 16:06 JST）: DRIVE2781ディスプレイオーディオWi-Fi記事を全文監査。無線CarPlay・テザリング・車載DCMを分け、Google地図オフライン制限と未確認の大型車経験を修正した3差分案。元画像4・href10保持。WP未反映 reviewed_pending_publish。codex/2781_evidence.md参照。本番WP/clasp/自動投稿/生成API操作なし。
 - 状態: 空き（Codex区切り 2026-10-14 16:03 JST）: DRIVE2268ディスプレイオーディオ後悔記事を全文監査。車載地図付き仕様とスマホ依存仕様を区別しGoogleオフライン案内条件を補足、未確認の運転/研修経歴を削除した4差分案。元画像4・href3保持。WP未反映 reviewed_pending_publish。codex/2268_evidence.md参照。本番WP/clasp/自動投稿/生成API操作なし。
@@ -1701,8 +1702,6 @@ DRIVE BASE: `UA_WP_DRIVE_SITE_URL` `UA_WP_DRIVE_USERNAME` `UA_WP_DRIVE_APP_PASSW
 
 ### 26. 現在地の短い要約
 両サイトのSWELL移行と新規SWELL本文出力は完了。内部リンクはSWELLネイティブ関連記事カードへ修正済み。ポイント枠・注意枠のGutenberg無効ブロック問題は本番@280で修正済み。直近8公開記事も安全に修復済み。メタディスクリプションはWordPressプラグイン経由でSWELLメタへ同期する。たくみパパ・DRIVE BASEとも商品導線はRinker＋楽天/Amazonフォールバックを使用し、DRIVE BASEは案件導線も併用する。自動投稿はDRIVE BASE 4時、たくみパパ5時、各最大3記事、画像あり、公開まで、稼働ON。Codex監視は5時、6時、16時。最大の注意点はトレファイ・OpenAI待機処理の重複再実行。表示だけで正常扱いしない。次の重点は、数日間の実運転を観察し、投稿数・メタ・内部リンク・商品一致・API消費を根拠付きで確認すること。
-
-
 
 
 

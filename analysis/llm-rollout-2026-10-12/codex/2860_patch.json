@@ -1,0 +1,15 @@
+{
+  "post_id": 2860,
+  "original_modified": "2026-09-27T21:25:49",
+  "changes": [
+    "scope_generic_hdmi_cable",
+    "remove_unverified_training",
+    "state_vendor_rear_monitor_exception",
+    "clarify_hdmi_price_is_not_rear_output_fix",
+    "clarify_front_vs_rear_result"
+  ],
+  "original_images": 5,
+  "original_hrefs": 10,
+  "proposed_hrefs": 12,
+  "published": false
+}

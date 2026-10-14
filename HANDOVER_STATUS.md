@@ -1,6 +1,7 @@
 # HANDOVER_STATUS
 
 ## 現在作業中（ライブ状況）
+- 状態: 空き（Codex区切り 2026-10-14 15:31 JST）: DRIVE2860オデッセイHDMIを全文監査。施工元公式のギャザズ対応年式・16,000円の入力施工と、RCA接続リアモニターでは追加HDMI映像が後席表示不可の条件を分離。汎用ケーブル適合未確認と未確認研修経験も直す5差分案。旧画像5・href10保持、新施工元リンク2。WP未反映 reviewed_pending_publish。codex/2860_evidence.md参照。本番WP/clasp/自動投稿/生成API操作なし。
 - 状態: 空き（Codex区切り 2026-10-14 15:29 JST）: DRIVE2464ソリオHDMIを全文監査。スズキ2025年5月公式カタログの対象ケーブル取出位置・9,900円参考価格と、本文のナビ男くんHDMI施工CTAと公開メニューの矛盾を直す3差分案。元画像4・href9保持、新公式リンク1。WP未反映 reviewed_pending_publish。codex/2464_evidence.md参照。本番WP/clasp/自動投稿/生成API操作なし。
 - 状態: 空き（Codex区切り 2026-10-14 15:26 JST）: DRIVE2791 Googleマップ接続を公開REST全文・Apple/Google公式で監査。オフライン案内の条件と未確認の大型トラック経験を直す2差分案。旧画像4・href7保持、新公式リンク1。WP未反映 reviewed_pending_publish。codex/2791_evidence.md参照。本番WP/clasp/自動投稿/生成API操作なし。
 - 状態: 空き（Codex区切り 2026-10-14 15:22 JST）: DRIVE1912ライズのカーナビ選びを全文監査。トヨタFAQの2019.11～2021.02純正DAはCarPlayのみ/Android Auto非対応、現行9インチはUSB接続で両対応という時期別条件、広告の汎用配線キットとナビ本体の混同、文法崩れ、未確認の研修経験を直す5差分案。元画像6・href7保持。WP未反映 reviewed_pending_publish。codex/1912_evidence.md参照。DriveハリアーHDMI 8/10停止を維持し、本番WP/clasp/自動投稿/生成API操作なし。

@@ -1,0 +1,146 @@
+{
+  "id": 2456,
+  "date": "2026-09-04T05:45:47",
+  "date_gmt": "2026-09-03T20:45:47",
+  "guid": {
+    "rendered": "https://ebimayo5.com/?p=2456"
+  },
+  "modified": "2026-09-27T21:26:01",
+  "modified_gmt": "2026-09-27T12:26:01",
+  "slug": "spacia-hdmi-doko",
+  "status": "publish",
+  "type": "post",
+  "link": "https://ebimayo5.com/archives/spacia-hdmi-doko/",
+  "title": {
+    "rendered": "スペーシアのHDMI端子はどこ？見つからない原因と後付け工賃"
+  },
+  "content": {
+    "rendered": "<p>「HDMI対応ナビのはずなのに、スペーシアのどこを探しても差し込み口がない」と困っていませんか。スペーシアのHDMI端子は、車名だけでは位置も有無も決められません。年式・型式より先に、装着ナビの品番とオプション配線を確認すると、不要なケーブル購入や分解作業を避けやすくなります。</p>\n<p>車種を問わないHDMI端子の基礎知識は<a href=\"https://ebimayo5.com/archives/car-hdmi-terminal-complete-guide/\">車のHDMI端子はどこ？場所の探し方と後付けの選び方まとめ</a>でも整理しています。</p>\n\n\n\n<div class=\"wp-block-group is-style-big_icon_point article-compass-point-box\"><div class=\"wp-block-group__inner-container is-layout-constrained wp-block-group-is-layout-constrained\">\n\n<p class=\"wp-block-paragraph\"><strong>この記事のポイント</strong></p>\n\n\n<ul class='wp-block-list'>\n<li>スペーシアのHDMI端子は、ナビとオプション配線の仕様で位置が変わる</li>\n<li>ナビ周辺、センターコンソール、USBソケット周辺、グローブボックス周辺を確認する</li>\n<li>HDMI対応ナビでも、背面用中継ケーブルや車両側ソケットが未装着のことがある</li>\n<li>後付け前は、ナビ品番・接続機器の映像出力・給電条件を照合する</li>\n<li>ナビ脱着や電源配線が必要なら、販売店や施工店へ情報をそろえて相談する</li>\n</ul>\n\n</div></div>\n\n\n<h2>スペーシアのHDMI端子はどこ？</h2>\n\n\n<figure class=\"wp-block-image size-large\"><img decoding=\"async\" width=\"1536\" height=\"1024\" src=\"https://ebimayo5.com/wp-content/uploads/2026/09/article-image-20260904-052329-2.png\" alt=\"スペーシアのHDMI端子はどこ？\" class=\"wp-image-2459\" srcset=\"https://ebimayo5.com/wp-content/uploads/2026/09/article-image-20260904-052329-2.png 1536w, https://ebimayo5.com/wp-content/uploads/2026/09/article-image-20260904-052329-2-300x200.png 300w, https://ebimayo5.com/wp-content/uploads/2026/09/article-image-20260904-052329-2-1024x683.png 1024w, https://ebimayo5.com/wp-content/uploads/2026/09/article-image-20260904-052329-2-768x512.png 768w\" sizes=\"(max-width: 1536px) 100vw, 1536px\" /></figure>\n\n\n<p>スペーシアのHDMI端子は一律の場所にあるわけではなく、<strong>装着ナビとUSB／HDMIソケットのオプション設定</strong>で変わります。見える場所に端子がない車両でも、ナビ背面に入力端子だけを持つ仕様や、追加配線で使える仕様があります。</p>\n\n<h3>まず確認したい4つの候補位置</h3>\n<p>現車で探すなら、いきなりナビ周辺を分解せず、運転席・助手席から見える範囲を確認します。HDMI端子は、USB端子と並んだ小さなソケットや、キャップ付きの入力端子として配置される場合があります。</p>\n<ul>\n<li>ナビ画面下側やナビ周辺のパネル</li>\n<li>センターコンソールや前席足元付近</li>\n<li>USBソケットの周辺</li>\n<li>助手席側グローブボックス周辺</li>\n</ul>\n<p>ただし、上記はあくまで確認候補です。スペーシア共通の端子位置ではありません。USB端子だけが装着されている場合もあるため、端子の形だけでHDMI入力対応と判断しないでください。</p>\n\n<h3>HDMI対応ナビでも端子が見当たらない理由</h3>\n<p>端子が見つからないからといって、故障とは限りません。主な理由は、ナビがHDMI入力に非対応であること、ナビ背面に専用入力コネクターだけがあること、専用中継ケーブルが未装着であること、車内に出すUSB／HDMIソケットが付いていないことです。</p>\n<p><span style='background:linear-gradient(transparent 60%, #fff3a3 60%);'><strong>「HDMI対応ナビ」と「車内にHDMI端子が出ている」は別の条件です。</strong></span>端子探しを続ける前に、ナビ本体の仕様を確認するほうが確実です。</p>\n\n<h2>端子を探す前の4項目チェック</h2>\n<p>スペーシアでHDMI入力を使えるかは、年式・型式・ナビ品番・装着オプションをそろえて初めて判定しやすくなります。グレード名だけ、あるいは「純正ナビ付き」という情報だけでは部品適合を決められません。</p>\n\n<h3>車検証と注文時資料で車両情報をそろえる</h3>\n<p>最初に車検証で型式と初度登録年月を確認し、グレード名も控えます。次に、注文書やアクセサリーカタログ、販売店から受け取った装備明細が残っていれば、メーカーオプションとディーラーオプションを確認します。</p>\n<p>純正ナビに見えても、車両注文時のメーカーオプションなのか、納車前に取り付けたディーラーオプションなのかで、説明書や必要な接続部品が異なることがあります。中古で購入したスペーシアは、前オーナーによる追加配線や社外ナビ交換の可能性も考えましょう。</p>\n\n<h3>ナビ品番からHDMI入力対応を調べる</h3>\n<p>ナビ品番は、ナビの情報画面、取扱説明書、本体側面や背面のラベルなどで確認できます。背面ラベルはナビを外さないと見えない場合があるため、無理に確認せず、まずは説明書と画面内の製品情報を探してください。</p>\n<p>品番が分かったら、ナビの取扱説明書やメーカー案内で「HDMI入力」を確認します。<strong>HDMI出力、USB再生、Apple CarPlay、Android Auto対応は、HDMI入力対応と同じ意味ではありません。</strong>映像をナビへ入れたいなら、入力機能の記載を探す必要があります。</p>\n\n\n<figure class='wp-block-table'><table><thead><tr><th>確認項目</th><th>見る場所</th><th>判断できること</th></tr></thead><tbody><tr><td>初度登録年月・型式</td><td>車検証</td><td>車両側ソケットや車種別部品の適合候補</td></tr><tr><td>ナビ品番</td><td>情報画面・説明書・本体ラベル</td><td>HDMI入力と専用中継ケーブルの要否</td></tr><tr><td>オプション装備</td><td>注文書・装備明細・販売店</td><td>USB／HDMIソケットの装着有無</td></tr><tr><td>つなぐ機器</td><td>スマホや端末の仕様書</td><td>映像出力・変換アダプター・給電の条件</td></tr></tbody></table></figure>\n\n\n<p>表の4項目がそろってから部品を探すと、端子形状だけが合わないケーブルを買う失敗を抑えられます。</p>\n\n<!-- UA_MAIN_AFFILIATE_CTA_START -->\n\n<div class=\"wp-block-group article-compass-affiliate-cta\"><div class=\"wp-block-group__inner-container\">\n\n<div class=\"swell-block-button -html green_ -size-l is-style-btn_shiny\" data-id=\"article-compass-cta\"><a href=\"https://px.a8.net/svt/ejp?a8mat=44Z0VG+70FT9U+4YGQ+BW0YB&#038;a8ejpredirect=https%3A%2F%2Fnaviokun.ocnk.net%2F\" target=\"_blank\" rel=\"nofollow sponsored noopener\">ナビ男くんでスペーシアのHDMI増設と施工対応を確認する</a></div>\n\n</div></div>\n\n<!-- UA_MAIN_AFFILIATE_CTA_END -->\n\n<h2>HDMI端子がないときの確認順</h2>\n<p>車内にHDMIソケットがない場合は、ナビ非対応と決めつけず、「ナビ背面の入力」「中継ケーブル」「車両側ソケット」の順に切り分けます。必要部品はナビ品番によって変わるため、汎用HDMIケーブルを先に購入する判断は避けたいところです。</p>\n\n<h3>ナビ背面に入力端子だけがある場合</h3>\n<p>ナビの背面には、一般的なHDMI端子ではなく専用コネクターを採用している場合があります。この場合は、ナビ側に合う中継ケーブルを接続し、その先にHDMIソケットを出す施工が必要になることがあります。</p>\n<p>ナビの脱着を伴う作業では、パネルの傷、クリップ破損、配線の挟み込みにも注意が必要です。整備工場での研修経験から見ても、電装品は「映るか」だけでなく、配線が可動部や鋭い縁に干渉せず、異音や抜けの原因にならない処理まで確認したい部分です。</p>\n\n<h3>車両側ソケットが未装着の場合</h3>\n<p>ナビがHDMI入力対応でも、使いやすい位置に端子を出すソケットが未装着なら、ソケット本体と中継ケーブル、取付作業が別に必要になります。空きパネルへの増設で見た目を整えられる場合はありますが、車種専用品でも年式やナビ構成が異なると適合しないことがあります。</p>\n<p><span style='color:#d93025;'><strong>内装パネル加工、ナビ脱着、電源取り出しを伴う増設は、初心者向けのDIY作業としては勧めにくい作業です。</strong></span>エアバッグ周辺や車両ハーネスへの配線は、販売店または電装に慣れた施工店へ相談してください。</p>\n\n<h3>ナビがHDMI入力に非対応の場合</h3>\n<p>ナビがHDMI入力に対応していなければ、端子だけを後付けしても映像入力機能は使えません。変換機器を追加すれば必ず解決するわけでもないため、まずはナビの説明書にある外部入力の仕様を確認しましょう。</p>\n<p>スマホ画面を映す目的なら、HDMI以外の連携方式が使える場合もあります。ただし、目的は「端子を増やすこと」ではなく「自分のナビ画面に希望する映像を安全に映せること」です。接続方法を選ぶ前に、対応可否を確認する順番を崩さないことが重要です。</p>\n\n<h2>接続機器別に必要なものを確認</h2>\n<p>HDMI接続では、車側が入力対応でも、接続する機器が映像を出力できなければ表示できません。スマホ、ストリーミング端末、ゲーム機では、変換アダプター・給電・通信環境という確認点が異なります。</p>\n\n<h3>スマホを映すなら映像出力対応が先</h3>\n<p>スマホはUSB-C端子やLightning端子を搭載していても、有線映像出力に対応しない機種があります。スマホ本体の公式仕様で映像出力可否を確認し、対応するHDMI変換アダプターを選びます。</p>\n<p>充電しながら使える構成が必要になる場合もあります。端子形状が合うだけのアダプターでは、映像が出ない、給電が足りない、接続が不安定になることがあります。スマホ側の機種名まで施工店へ伝えると、確認が進みやすくなります。</p>\n\n<h3>Fire TV Stickは給電と通信も必要</h3>\n<p>Fire TV Stickなどのストリーミング端末は、HDMI接続に加えて安定した給電とインターネット接続が必要です。車内のUSB端子が端末の電源条件を満たすかは、端末側の案内と車両側の仕様を照合してください。</p>\n<p>端末やケーブルをナビ裏へ押し込むと、熱がこもったり、整備時に外しにくくなったりします。長距離移動では、ケーブルが足元へ垂れる小さなストレスが積み重なりやすいため、乗り降りやシフト操作を妨げない位置へまとめる視点も欠かせません。</p>\n\n<h3>ゲーム機は電源容量と固定方法を見る</h3>\n<p>ゲーム機はHDMI出力の有無だけでなく、必要な電力と設置場所も確認します。大きな消費電力を必要とする機器では、車両側電源や電源変換器の条件が問題になることがあります。</p>\n<p>急ブレーキ時に動く場所へ本体を置く使い方は避けましょう。停車中に家族で利用するなら、機器を安全に固定できるか、ケーブルを子どもが引っ掛けないかまで見ておくと安心です。</p>\n\n<p>HDMI接続後に入力画面が出ない、スマホが映らないといった症状の切り分けは、次の記事も参考になります。</p>\n<p>https://ebimayo5.com/archives/display-audio-mirroring-hdmi-not-working/</p>\n\n<h2>後付けはDIY・施工店・販売店で選ぶ</h2>\n\n\n<figure class=\"wp-block-image size-large\"><img decoding=\"async\" width=\"1536\" height=\"1024\" src=\"https://ebimayo5.com/wp-content/uploads/2026/09/article-image-20260904-052903-3.png\" alt=\"後付けはDIY・施工店・販売店で選ぶ\" class=\"wp-image-2461\" srcset=\"https://ebimayo5.com/wp-content/uploads/2026/09/article-image-20260904-052903-3.png 1536w, https://ebimayo5.com/wp-content/uploads/2026/09/article-image-20260904-052903-3-300x200.png 300w, https://ebimayo5.com/wp-content/uploads/2026/09/article-image-20260904-052903-3-1024x683.png 1024w, https://ebimayo5.com/wp-content/uploads/2026/09/article-image-20260904-052903-3-768x512.png 768w\" sizes=\"(max-width: 1536px) 100vw, 1536px\" /></figure>\n\n\n<p>HDMI後付けは、既設端子へケーブルをつなぐ作業と、ナビ脱着・配線引き回しを伴う作業で難易度が大きく変わります。費用だけで選ぶより、施工範囲、保証、配線の見た目を基準に依頼先を分けると判断しやすくなります。</p>\n\n<h3>DIYで検討しやすい作業範囲</h3>\n<p>すでにHDMIソケットが車内へ出ており、説明書で適合確認できたケーブルや変換アダプターを接続するだけなら、自分で対応しやすい範囲です。接続後は停車中にナビのAVメニューでHDMI入力を選び、映像と音声の両方を確認します。</p>\n<p>映らない場合に、端子を強く押し込む、ケーブルを加工する、別の配線へつなぎ替えるといった対処は避けてください。入力設定、機器側の出力、給電不足を順番に見直すほうが安全です。</p>\n\n<h3>カー用品店・電装店が向くケース</h3>\n<p>ナビ背面への中継ケーブル取付、ソケット増設、配線を隠す作業、持ち込み部品の適合確認が必要なら、カー用品店や電装店への相談が現実的です。施工可否は店舗ごとに異なり、純正ナビへの対応や持ち込み部品の扱いも同じではありません。</p>\n<p>筆者なら、料金だけで即決せず、「ナビを外すか」「パネル加工があるか」「端子をどこへ出すか」「不具合時の対応範囲はどこまでか」を先に聞きます。配線を見えない場所へ通せても、整備性を損ねる施工では後の点検で手間が増えるためです。</p>\n\n<h3>純正部品と保証が気になるなら販売店へ</h3>\n<p>純正ナビ用の部品選定や保証への影響が心配なら、購入店またはスズキ販売店への確認を優先します。純正部品の設定、在庫、施工可否、非純正部品を接続した場合の扱いは、車両情報とナビ品番をもとに個別確認が必要です。</p>\n\n<p><a href=\"https://px.a8.net/svt/ejp?a8mat=44Z0VG+70FT9U+4YGQ+BW0YB&amp;a8ejpredirect=https%3A%2F%2Fnaviokun.ocnk.net%2F\" target=\"_blank\" rel=\"nofollow sponsored noopener\">ナビ男くん</a>なら、HDMI入力の増設や車内エンタメ施工について、対応車種・施工内容・純正機能との兼ね合いを事前に確認できます。ナビ脱着や配線処理まで任せたい人は、希望する端子位置と接続機器を伝えたうえで、対応範囲を確認するとよいでしょう。</p>\n\n\n<div class=\"wp-block-group is-style-big_icon_caution article-compass-notice-box article-compass-notice-danger\"><div class=\"wp-block-group__inner-container is-layout-constrained wp-block-group-is-layout-constrained\">\n\n<p class=\"wp-block-paragraph\"><strong><span style=\"background:linear-gradient(transparent 60%, #fff3a3 60%);\"><span class=\"swl-marker mark_yellow\"><a href=\"https://px.a8.net/svt/ejp?a8mat=44Z0VG+70FT9U+4YGQ+BW0YB&amp;a8ejpredirect=https%3A%2F%2Fnaviokun.ocnk.net%2F\" target=\"_blank\" rel=\"nofollow sponsored noopener\">ナビ男くん</a>とは車内エンタメのアップグレードを得意とする専門店です。</span></span></strong></p>\n\n</div></div>\n\n\n<div class=\"swell-block-postLink\">\t\t\t<div class=\"p-blogCard -external\" data-type=\"type3\" data-onclick=\"clickLink\">\n\t\t\t\t<div class=\"p-blogCard__inner\">\n\t\t\t\t\t<span class=\"p-blogCard__caption\">DRIVE　BASE</span>\n\t\t\t\t\t<div class=\"p-blogCard__thumb c-postThumb\"><figure class=\"c-postThumb__figure\"><img decoding=\"async\" src=\"https://ebimayo5.com/wp-content/uploads/2026/05/ChatGPT-Image-2026年5月16日-00_59_42-1.jpg\" alt=\"\" class=\"c-postThumb__img u-obf-cover\" width=\"320\" height=\"180\"></figure></div>\t\t\t\t\t<div class=\"p-blogCard__body\">\n\t\t\t\t\t\t<a class=\"p-blogCard__title\" href=\"https://ebimayo5.com/archives/naviokun-reputation/\" target=\"_blank\" rel=\"noopener noreferrer\">ナビ男くんは高い？評判・カー用品店との違い・申し込み前の確認点 | DRIVE　BASE</a>\n\t\t\t\t\t\t<span class=\"p-blogCard__excerpt\">ナビ男くんの評判が気になる方へ。施工品質の高さや料金、実際の口コミから、向いている人と注意点を整理しました。純正ナビの不満を解決したいけれど配線いじりに不安があ&#8230;</span>\t\t\t\t\t</div>\n\t\t\t\t</div>\n\t\t\t</div>\n\t\t</div>\n\n\n<p class=\"wp-block-paragraph\"><a data-atag-id=\"7\" data-post-id=\"2456\" href=\"https://px.a8.net/svt/ejp?a8mat=44Z0VG+70FT9U+4YGQ+BW0YB&a8ejpredirect=https%3A%2F%2Fnaviokun.ocnk.net%2F\" target=\"_blank\" rel=\"nofollow sponsored noopener\">「できない」を「できる」に変える。ナビ男くん公式</a>\r\n</p>\n\n\n<h2>施工相談で伝えるチェックリスト</h2>\n<p>施工店へ相談する際は、車両とナビの情報だけでなく、何をつなぎたいかまで伝えると見積もりや適合確認が進みます。情報が不足したまま来店すると、追加確認や部品の再手配が必要になることがあります。</p>\n<ul>\n<li>スペーシアの初度登録年月、型式、グレード</li>\n<li>ナビ品番と、ナビ前面・既設ソケットの写真</li>\n<li>USB／HDMIソケットの有無と設置したい位置</li>\n<li>接続したい機器の名称と型番、スマホなら機種名</li>\n<li>持ち込むHDMIケーブル、変換アダプター、給電機器の有無</li>\n<li>純正部品を希望するか、見た目を優先するか</li>\n</ul>\n<p>問い合わせでは、「スペーシアの型式は○○、ナビ品番は○○です。スマホまたはFire TV StickをHDMI入力したく、助手席側で使いやすい位置へのソケット増設を相談できますか」と伝えると、店舗側も判断しやすくなります。</p>\n<p>家族で映像を楽しむ環境まで考える場合は、後席モニターとの接続条件を整理した記事も役立ちます。</p>\n<p>https://ebimayo5.com/archives/stepwgn-rear-seat-monitor/</p>\n\n<h2>HDMI接続を安全に使う注意点</h2>\n<p>HDMI入力は停車中、または同乗者が利用する車内機能として考えるのが基本です。運転者が走行中に映像を注視したり、画面操作へ意識を向けたりする使い方は、安全運転を損なうおそれがあります。</p>\n\n\n<div class=\"wp-block-group is-style-big_icon_caution article-compass-notice-box article-compass-notice-danger\"><div class=\"wp-block-group__inner-container is-layout-constrained wp-block-group-is-layout-constrained\">\n\n<p class=\"wp-block-paragraph\"><strong>走行中の映像表示に関する扱いは、車両仕様や利用状況で判断が分かれます。運転者の視聴を目的にした配線変更や表示制限の解除は扱わず、必要があれば販売店・施工店へ確認してください。</strong></p>\n\n</div></div>\n\n\n<h3>保証と故障時の扱いを施工前に確認</h3>\n<p>純正ナビや車両ハーネスを加工する施工、非純正部品の接続は、保証や故障時の判断に影響する可能性があります。施工後にナビの不具合が出た場合の相談先や、部品保証と施工保証の範囲も確認しておきましょう。</p>\n<p>車両の点検・整備では、後付け配線が安全性や点検性を損なわない状態に保つことも重要です。日常点検や整備の考え方は、<a href='https://www.mlit.go.jp/jidosha/jidosha/tenkenseibi/tenken/' target='_blank' rel=\"noopener\">国土交通省の自動車点検整備に関する案内</a>も確認できます。</p>\n\n<h2>スペーシアに用意されている施工メニューは何か</h2>\n<p>専門店が車種別に用意しているメニューは、車種によって大きく違います。スペーシアの場合、公開されている車種別メニューに映像入力を増やす施工は含まれておらず、対応しているのは録画系です（2026年9月時点）。</p>\n<figure class=\"wp-block-table is-style-stripes\"><table><thead><tr><th>施工メニュー</th><th>工賃コミ価格（税込）</th></tr></thead><tbody><tr><td>デジタルミラー型ドライブレコーダー（前後録画・駐車監視）</td><td>91,300円</td></tr><tr><td>デジタルミラー（アルパイン・ミラー交換型）</td><td>109,500円</td></tr></tbody></table><figcaption class=\"wp-element-caption\">ナビ男くん公式サイトの表示価格（税込・工賃コミ）。2026年9月27日時点。車種・ナビの種類・オプションにより変動します。</figcaption></figure>\n<p>扱いが少ないこと自体が情報になります。適合部品が限られている車種では、無理に増設するより既存の装備で足りるかを先に考えたほうが失敗しにくいです。映像入力を自分で増やす場合は、ナビ側が外部入力に対応しているかを必ず確認してください。</p>\n\n<h2>よくある質問</h2>\n\n<h3>Q. HDMI端子が見当たらないのは故障ですか？</h3>\n<p>A. 故障と決めつける必要はありません。ナビが非対応、ナビ背面のみ入力対応、専用中継ケーブル未装着、車内ソケット未装着といった理由が考えられます。ナビ品番と取扱説明書を確認し、それでも不具合が疑われる場合は販売店や施工店へ相談してください。</p>\n\n<h3>Q. ナビ品番はどこで確認できますか？</h3>\n<p>A. ナビの情報画面、取扱説明書、本体ラベルが主な確認場所です。本体背面や側面のラベルはナビ脱着が必要な場合があります。安全に見えない位置を無理に探さず、説明書や販売店の記録から確認しましょう。</p>\n\n<h3>Q. 純正ケーブルがない場合、市販品で代用できますか？</h3>\n<p>A. 市販品で使える場合もありますが、端子形状がHDMIに見えるだけでは判断できません。ナビ側が専用コネクターなら専用中継ケーブルが必要です。ナビ品番の取扱説明書、適合表、販売店または施工店の案内で確認してから選んでください。</p>\n\n<h3>Q. カー用品店でHDMI増設を依頼できますか？</h3>\n<p>A. 対応する店舗はありますが、純正ナビの作業可否、持ち込み部品の取付可否、部品在庫、予約状況によって変わります。来店前に車両情報、ナビ品番、接続したい機器、希望する施工内容を伝えると確実です。</p>\n\n<h3>Q. 自分で接続してよい作業範囲はどこまでですか？</h3>\n<p>A. 基本は、すでに装着されているHDMIソケットへ、適合確認済みのケーブルや変換アダプターを接続する範囲です。ナビ脱着、内装分解、電源取り出し、パネル加工、エアバッグ周辺への配線は、専門知識が必要になるため施工店へ任せるほうが安心です。</p>\n\n<h2>まとめ｜端子の場所より先に仕様を確認</h2>\n<p>スペーシアのHDMI端子は、ナビ周辺やUSBソケット周辺などにある場合がありますが、全車共通の位置ではありません。端子が見つからないときは、ナビ品番からHDMI入力対応を確認し、背面入力・中継ケーブル・車両側ソケットの順に切り分けましょう。</p>\n<p>次に行うことは、車検証で型式と年式を控え、ナビ品番を確認し、映したい機器の型番をそろえることです。その情報を持って販売店や施工店へ相談すれば、見た目、使い勝手、保証まで含めた現実的な方法を選びやすくなります。</p>",
+    "protected": false
+  },
+  "excerpt": {
+    "rendered": "<p>「HDMI対応ナビのはずなのに、スペーシアのどこを探しても差し込み口がない」と困っていませんか。スペーシアのHDMI端子は、車名だけでは位置も有無も決められません。年式・型式より先に、装着ナビの品番とオプション配線を確認 [&hellip;]</p>\n",
+    "protected": false
+  },
+  "author": 1,
+  "featured_media": 2457,
+  "comment_status": "open",
+  "ping_status": "open",
+  "sticky": false,
+  "template": "",
+  "format": "standard",
+  "meta": {
+    "swell_btn_cv_data": "{\"article-compass-cta\":{\"pv\":32,\"imp\":20}}",
+    "footnotes": ""
+  },
+  "categories": [
+    7
+  ],
+  "tags": [
+    251,
+    253,
+    704,
+    63,
+    78,
+    719,
+    720,
+    616,
+    104,
+    509
+  ],
+  "class_list": [
+    "post-2456",
+    "post",
+    "type-post",
+    "status-publish",
+    "format-standard",
+    "has-post-thumbnail",
+    "hentry",
+    "category-shanai",
+    "tag-fire-tv-stick",
+    "tag-hdmi",
+    "tag-63",
+    "tag-78",
+    "tag-719",
+    "tag-720",
+    "tag-616",
+    "tag-104",
+    "tag-509"
+  ],
+  "_links": {
+    "self": [
+      {
+        "href": "https://ebimayo5.com/wp-json/wp/v2/posts/2456",
+        "targetHints": {
+          "allow": [
+            "GET"
+          ]
+        }
+      }
+    ],
+    "collection": [
+      {
+        "href": "https://ebimayo5.com/wp-json/wp/v2/posts"
+      }
+    ],
+    "about": [
+      {
+        "href": "https://ebimayo5.com/wp-json/wp/v2/types/post"
+      }
+    ],
+    "author": [
+      {
+        "embeddable": true,
+        "href": "https://ebimayo5.com/wp-json/wp/v2/users/1"
+      }
+    ],
+    "replies": [
+      {
+        "embeddable": true,
+        "href": "https://ebimayo5.com/wp-json/wp/v2/comments?post=2456"
+      }
+    ],
+    "version-history": [
+      {
+        "count": 12,
+        "href": "https://ebimayo5.com/wp-json/wp/v2/posts/2456/revisions"
+      }
+    ],
+    "predecessor-version": [
+      {
+        "id": 3003,
+        "href": "https://ebimayo5.com/wp-json/wp/v2/posts/2456/revisions/3003"
+      }
+    ],
+    "wp:featuredmedia": [
+      {
+        "embeddable": true,
+        "href": "https://ebimayo5.com/wp-json/wp/v2/media/2457"
+      }
+    ],
+    "wp:attachment": [
+      {
+        "href": "https://ebimayo5.com/wp-json/wp/v2/media?parent=2456"
+      }
+    ],
+    "wp:term": [
+      {
+        "taxonomy": "category",
+        "embeddable": true,
+        "href": "https://ebimayo5.com/wp-json/wp/v2/categories?post=2456"
+      },
+      {
+        "taxonomy": "post_tag",
+        "embeddable": true,
+        "href": "https://ebimayo5.com/wp-json/wp/v2/tags?post=2456"
+      }
+    ],
+    "curies": [
+      {
+        "name": "wp",
+        "href": "https://api.w.org/{rel}",
+        "templated": true
+      }
+    ]
+  }
+}

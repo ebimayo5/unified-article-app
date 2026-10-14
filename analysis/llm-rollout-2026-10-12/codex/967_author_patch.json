@@ -1,0 +1,12 @@
+{
+  "post_id": 967,
+  "original_modified": "2026-10-12T20:52:17",
+  "changes": [
+    "remove_unverified_mechanic_school",
+    "remove_unverified_truck_experience"
+  ],
+  "original_images": 8,
+  "original_hrefs": 12,
+  "proposed_hrefs": 12,
+  "published": false
+}

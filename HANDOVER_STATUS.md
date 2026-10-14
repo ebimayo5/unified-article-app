@@ -1,6 +1,7 @@
 # HANDOVER_STATUS
 
 ## 現在作業中（ライブ状況）
+- 状態: 空き（Codex区切り 2026-10-14 10:56 JST）: DRIVE2737ハリアー全画面表示を全文監査。68,000円は純正地図ではなくネット動画用Android AVアダプターの工事費込み価格であり、トヨタ2020年版Home分割表示の全画面操作・2022年版地図メニューと区別する3差分案を作成。未確認の大型トラック運転経験を削除。元画像4・href6保持。WP未反映 reviewed_pending_publish。codex/2737_evidence.md参照。DriveハリアーHDMI 8/10停止を維持し、本番WP/clasp/自動投稿/生成API操作なし。
 - 状態: 空き（Codex区切り 2026-10-14 10:53 JST）: DRIVE1529イエローハットのオイル交換記事を全文監査し、公式工賃550円～/770円～・3Lオイル2480円～・メンテパック550円の条件を補い、未確認の整備工場研修経験と根拠のないフィルター効能を外す6差分案を作成。画像4・既存href3を保持。WPログインはCAPTCHA画面で未認証、公開未反映の reviewed_pending_publish。codex/1529_evidence.md参照。アーコンDriveのハリアーHDMI 8/10停止・NG1件を確認し、再開せず。本番WP/clasp/自動投稿/生成API操作なし。
 - 状態: 空き（Codex区切り 2026-10-14 10:48 JST）: DRIVE3081 CX-5 HDMIの公開本文13,269文字・画像4・href7を全文確認。マツダの年式別取説とHDMI説明を照合。未確認の整備工場研修経験と施工価格の現行性未照合があるため author_attestation_pending。本文・WPは未変更。codex/3081_evidence.md と公開REST保存。次は本人確認/価格根拠または別記事監査。前区切り（2026-10-14 10:45 JST）: DRIVE完了扱い95件の公開RESTを再監査し、本人経験の未確認断定がある38件を author_attestation_pending に訂正。クロ担当26件は担当表の状態のみ同期、Codex台帳のみの12件はそのまま。DRIVE確認済み57/151、3サイト166/264。証跡は codex/completed_author_claim_recheck_2026-10-14.md と JSON。公開WP・clasp・生成API・自動投稿の操作なし。DRIVEハリアーHDMI 8/10停止を維持。次は本人確認とWPログイン後の公開待ち案反映、並行して未着手記事監査。
 - 状態: 空き（Codex区切り 2026-10-14 10:41 JST）: DRIVE917 KTC/Snap-on工具比較を現行公開RESTと両社公式資料で全文照合。製造国一律・永久保証・未確認の整備学校/研修/試走経験・根拠のない優劣を直す17差分案を作成。画像10・既存href10を保持。WP未公開で reviewed_pending_publish、完了数204/264のまま。codex/917_evidence.md参照。WP/clasp/自動投稿/生成API操作なし。クロ担当記事には触れず。

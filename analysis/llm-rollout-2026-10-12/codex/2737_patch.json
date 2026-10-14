@@ -1,0 +1,13 @@
+{
+  "post_id": 2737,
+  "original_modified": "2026-09-27T21:25:53",
+  "changes": [
+    "add_era_specific_toyota_map_controls",
+    "remove_unverified_truck_experience",
+    "clarify_vendor_price_is_video_adapter"
+  ],
+  "original_images": 4,
+  "original_hrefs": 6,
+  "proposed_hrefs": 9,
+  "published": false
+}

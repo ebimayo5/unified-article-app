@@ -1,0 +1,14 @@
+{
+  "post_id": 2268,
+  "original_modified": "2026-08-30T12:54:19",
+  "changes": [
+    "distinguish_built_in_connected_navigation",
+    "remove_unverified_large_vehicle_experience",
+    "source_offline_navigation_limits",
+    "remove_unverified_workshop_experience"
+  ],
+  "original_images": 4,
+  "original_hrefs": 3,
+  "proposed_hrefs": 5,
+  "published": false
+}

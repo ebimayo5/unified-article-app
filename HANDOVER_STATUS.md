@@ -1,6 +1,7 @@
 # HANDOVER_STATUS
 
 ## 現在作業中（ライブ状況）
+- 状態: 空き（Codex区切り 2026-10-14 16:03 JST）: DRIVE2268ディスプレイオーディオ後悔記事を全文監査。車載地図付き仕様とスマホ依存仕様を区別しGoogleオフライン案内条件を補足、未確認の運転/研修経歴を削除した4差分案。元画像4・href3保持。WP未反映 reviewed_pending_publish。codex/2268_evidence.md参照。本番WP/clasp/自動投稿/生成API操作なし。
 - 状態: 空き（Codex区切り 2026-10-14 16:02 JST）: 16時定時監査をcodex/monitor_2026-10-14_1600.mdに記録。DRIVEハリアーHDMI 8/10停止・NG1・下書きID3175表示、Home OFF/停止/次予定15畳 ldk、関連ローカル処理0。Apps Scriptトリガー数とWP実下書き未照合のため両サイト要確認。DRIVEダッシュボード稼働中ラベルと停止表示不一致。再開・再生成・設定変更・clasp/WP操作なし。
 - 状態: 空き（Codex区切り 2026-10-14 15:58 JST）: DRIVE2562後席モニター記事を全文監査。ナビ映像出力とモニター本体HDMIへの独立入力を区別し、トヨタ/ホンダ別の施工価格条件を明示した4差分案。元画像2・href10保持。WP未反映 reviewed_pending_publish。codex/2562_evidence.md参照。本番WP/clasp/自動投稿/生成API操作なし。
 - 状態: 空き（Codex区切り 2026-10-14 15:54 JST）: DRIVE2611ヤリスクロスHDMI記事を全文監査。2026年2月版は全車HDMI標準、旧年式は装備差ありと公式資料に基づき区別。ヤリスクロス適合未確認の55,000円施工と未確認の大型車経験を修正した5差分案。元画像4・href6保持。WP未反映 reviewed_pending_publish。codex/2611_evidence.md参照。本番WP/clasp/自動投稿/生成API操作なし。

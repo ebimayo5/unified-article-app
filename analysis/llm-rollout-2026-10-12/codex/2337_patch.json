@@ -1,0 +1,13 @@
+{
+  "post_id": 2337,
+  "original_modified": "2026-08-31T09:38:18",
+  "changes": [
+    "add_official_model_comparison",
+    "remove_unverified_long_distance_experience",
+    "remove_unverified_mechanic_training"
+  ],
+  "original_images": 5,
+  "original_hrefs": 6,
+  "proposed_hrefs": 7,
+  "published": false
+}

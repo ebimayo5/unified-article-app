@@ -5077,11 +5077,11 @@ function uaAmazonDirectProductUrl_(value) {
 function uaFindAmazonProductPages_(item) {
   const modelKey = uaRakutenItemModelKey_(item);
   const brands = uaExtractRequiredProductBrands_(item.name);
-  if (typeof uaGetSerperApiKey_ !== 'function' || !uaGetSerperApiKey_()) return [];
+  if (typeof uaFetchSearchResultUrls_ !== 'function') return [];
   try {
     const search = modelKey ? (brands.length ? brands[0].label + ' ' : '') + modelKey.replace(/^model:/, '')
       : String(item.rakutenPage.title || item.name).replace(/【[^】]*】|\[[^\]]*\]/g, '').slice(0, 100);
-    const urls = uaFetchGoogleTopUrlsViaSerper_('site:amazon.co.jp ' + search, 2);
+    const urls = uaFetchSearchResultUrls_('site:amazon.co.jp ' + search, 2);
     const pages = [];
     for (let i = 0; i < urls.length; i++) {
       const url = uaAmazonDirectProductUrl_(urls[i]);

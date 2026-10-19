@@ -28,7 +28,7 @@ function runWith(properties, fetchImpl) {
     outline + `
 module.exports = {
   fetchSearchResultUrls: uaFetchSearchResultUrls_,
-  fetchViaSerper: uaFetchGoogleTopUrlsViaSerper_,
+  fetchViaSerper: uaFetchGoogleTopUrlsViaSerpApi_,
   isUseful: uaIsUsefulCompetitorUrl_
 };
 `
@@ -37,7 +37,7 @@ module.exports = {
   return { exports: moduleBox.exports, calls };
 }
 
-// 1) APIキー未設定ならSerperを呼ばず、Bing/Yahooスクレイピングへフォールバックする
+// 1) APIキー未設定ならYahoo検索へフォールバックする
 {
   const { exports: mod, calls } = runWith({}, (url) => ({
     getResponseCode: () => 200,
@@ -45,25 +45,26 @@ module.exports = {
   }));
 
   const urls = mod.fetchSearchResultUrls('テストキーワード', 3);
-  assert(calls.every((c) => c.url.indexOf('bing.com') !== -1 || c.url.indexOf('search.yahoo.co.jp') !== -1),
-    'Without a Serper key, only Bing/Yahoo scraping URLs should be fetched');
+  assert(calls.every((c) => c.url.indexOf('search.yahoo.co.jp') !== -1),
+    'Without a SerpApi key, only Yahoo search should be fetched');
   assert(urls.indexOf('https://example.com/from-scrape') !== -1, 'Scraped fallback URL must be returned');
 }
 
-// 2) APIキー設定時はSerperへPOSTし、organicのlinkだけを返す（自サイト・検索エンジン等は除外）
+// 2) 無料枠が残る間はSerpApiを使い、organic_resultsを返す
 {
-  const { exports: mod, calls } = runWith({ UA_SERPER_API_KEY: 'test-key' }, (url, options) => {
-    assert.strictEqual(url, 'https://google.serper.dev/search', 'Must call Serper search endpoint');
-    assert.strictEqual(options.method, 'post', 'Serper call must be a POST');
-    assert.strictEqual(options.headers['X-API-KEY'], 'test-key', 'API key must be sent as X-API-KEY header');
-    const payload = JSON.parse(options.payload);
-    assert.strictEqual(payload.q, 'テストキーワード', 'Query must be forwarded as-is');
-    assert.strictEqual(payload.gl, 'jp', 'Must scope results to Japan');
-    assert.strictEqual(payload.hl, 'ja', 'Must request Japanese-language results');
+  const { exports: mod, calls } = runWith({ UA_SERPAPI_API_KEY: 'test-key' }, (url) => {
+    if (url.startsWith('https://serpapi.com/account.json?')) return {
+      getResponseCode: () => 200,
+      getContentText: () => JSON.stringify({ total_searches_left: 240, this_month_usage: 10 })
+    };
+    assert(url.startsWith('https://serpapi.com/search.json?'), 'Must call SerpApi search endpoint');
+    assert(url.includes('api_key=test-key'));
+    assert(url.includes('gl=jp&hl=ja'));
+    assert(url.includes('q=' + encodeURIComponent('テストキーワード')));
     return {
       getResponseCode: () => 200,
       getContentText: () => JSON.stringify({
-        organic: [
+        organic_results: [
           { link: 'https://example.com/one' },
           { link: 'https://www.google.com/should-be-filtered' },
           { link: 'https://example.com/one' },
@@ -75,18 +76,16 @@ module.exports = {
   });
 
   const urls = mod.fetchSearchResultUrls('テストキーワード', 2);
-  assert.strictEqual(calls.length, 1, 'Serper success must not fall back to scraping');
+  assert.strictEqual(calls.length, 2, 'Account API and search API must be called once each');
   assert.deepStrictEqual(urls, ['https://example.com/one', 'https://example.com/two'],
     'Must dedupe, filter junk domains, and respect maxCount');
 }
 
-// 3) Serperがエラーを返した場合はBing/Yahooスクレイピングへフォールバックする
+// 3) 無料枠切れなら検索APIを呼ばずYahooへフォールバックする
 {
-  let call = 0;
-  const { exports: mod, calls } = runWith({ UA_SERPER_API_KEY: 'test-key' }, (url) => {
-    call++;
-    if (url === 'https://google.serper.dev/search') {
-      return { getResponseCode: () => 500, getContentText: () => 'server error' };
+  const { exports: mod, calls } = runWith({ UA_SERPAPI_API_KEY: 'test-key' }, (url) => {
+    if (url.startsWith('https://serpapi.com/account.json?')) {
+      return { getResponseCode: () => 200, getContentText: () => JSON.stringify({ total_searches_left: 0, this_month_usage: 250 }) };
     }
     return {
       getResponseCode: () => 200,
@@ -95,9 +94,23 @@ module.exports = {
   });
 
   const urls = mod.fetchSearchResultUrls('テストキーワード', 3);
-  assert(calls.some((c) => c.url === 'https://google.serper.dev/search'), 'Must attempt Serper first');
-  assert(calls.some((c) => c.url.indexOf('bing.com') !== -1), 'Must fall back to scraping after a Serper error');
+  assert(calls.some((c) => c.url.startsWith('https://serpapi.com/account.json?')), 'Must check remaining quota first');
+  assert(!calls.some((c) => c.url.startsWith('https://serpapi.com/search.json?')), 'Must not consume paid credits');
+  assert(calls.some((c) => c.url.indexOf('search.yahoo.co.jp') !== -1), 'Must use Yahoo after quota exhaustion');
   assert(urls.indexOf('https://example.com/fallback-after-error') !== -1, 'Fallback result must still be returned');
 }
 
-console.log('Serper search integration tests passed.');
+// 4) 有料枠が残っていても、当月250回に達したら追加課金を避ける。
+{
+  const { exports: mod, calls } = runWith({ UA_SERPAPI_API_KEY: 'test-key' }, (url) => {
+    if (url.startsWith('https://serpapi.com/account.json?')) {
+      return { getResponseCode: () => 200, getContentText: () => JSON.stringify({ total_searches_left: 1000, this_month_usage: 250 }) };
+    }
+    assert(url.includes('search.yahoo.co.jp'));
+    return { getResponseCode: () => 200, getContentText: () => '<a href="https://example.com/free-fallback">link</a>' };
+  });
+  assert.deepStrictEqual(mod.fetchSearchResultUrls('テスト', 2), ['https://example.com/free-fallback']);
+  assert(!calls.some((c) => c.url.startsWith('https://serpapi.com/search.json?')));
+}
+
+console.log('SerpApi free quota and Yahoo fallback tests passed.');

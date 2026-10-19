@@ -640,20 +640,17 @@ function uaSaveAutoCompetitorUrls_(sheet, row, rowData, pages) {
 }
 
 function uaFetchSearchResultUrls_(query, maxCount) {
-  if (uaGetSerperApiKey_()) {
+  if (uaGetSerpApiKey_()) {
     try {
-      const serperUrls = uaFetchGoogleTopUrlsViaSerper_(query, maxCount);
-      if (serperUrls.length > 0) return serperUrls;
+      const serpApiUrls = uaFetchGoogleTopUrlsViaSerpApi_(query, maxCount);
+      if (serpApiUrls.length > 0) return serpApiUrls;
     } catch (e) {
-      // Serper側で取得できない場合はスクレイピングにフォールバックする
+      // 無料枠切れ・API障害時はYahoo検索に切り替える。
     }
   }
 
   const urls = [];
-  const searchUrls = [
-    'https://www.bing.com/search?q=' + encodeURIComponent(query) + '&cc=jp&mkt=ja-JP',
-    'https://search.yahoo.co.jp/search?p=' + encodeURIComponent(query)
-  ];
+  const searchUrls = ['https://search.yahoo.co.jp/search?p=' + encodeURIComponent(query)];
 
   searchUrls.forEach(function(searchUrl) {
     if (urls.length >= maxCount) return;
@@ -677,38 +674,41 @@ function uaGetSerperApiKey_() {
   return String(PropertiesService.getScriptProperties().getProperty('UA_SERPER_API_KEY') || '').trim();
 }
 
-// Serper.dev経由でGoogle検索の上位URLを取得する。
-// PC側ブリッジ（トレファイ）やHTMLスクレイピングに依存せず、GASから直接HTTPS APIを呼ぶだけで完結する。
-function uaFetchGoogleTopUrlsViaSerper_(query, maxCount) {
-  const apiKey = uaGetSerperApiKey_();
-  if (!apiKey) return [];
+function uaGetSerpApiKey_() {
+  return String(PropertiesService.getScriptProperties().getProperty('UA_SERPAPI_API_KEY') || '').trim();
+}
 
-  const response = UrlFetchApp.fetch('https://google.serper.dev/search', {
-    method: 'post',
-    contentType: 'application/json',
-    muteHttpExceptions: true,
-    headers: {
-      'X-API-KEY': apiKey
-    },
-    payload: JSON.stringify({
-      q: query,
-      gl: 'jp',
-      hl: 'ja',
-      num: Math.max(maxCount, UA_STRUCTURE_COMPETITOR_SEARCH_MAX_RESULTS)
-    })
-  });
+// Account APIは検索枠を消費しない。残数不明のときは検索せずYahooへ切り替える。
+function uaFetchSerpApiOrganicResults_(query, maxCount) {
+  const apiKey = uaGetSerpApiKey_();
+  if (!apiKey) throw new Error('SERPAPI_UNAVAILABLE: APIキー未設定');
+  const accountResponse = UrlFetchApp.fetch('https://serpapi.com/account.json?api_key=' + encodeURIComponent(apiKey), { muteHttpExceptions: true });
+  if (accountResponse.getResponseCode() !== 200) throw new Error('SERPAPI_UNAVAILABLE: 残数確認失敗');
+  const account = JSON.parse(accountResponse.getContentText('UTF-8'));
+  const remaining = Number(account.total_searches_left);
+  const monthlyUsage = Number(account.this_month_usage);
+  if (!isFinite(remaining) || !isFinite(monthlyUsage)) throw new Error('SERPAPI_UNAVAILABLE: 残数不明');
+  // 有料枠・追加クレジットを自動消費しない。無料枠250検索の範囲だけを使う。
+  if (remaining <= 0 || monthlyUsage >= 250) throw new Error('SERPAPI_QUOTA_EXHAUSTED');
 
-  if (response.getResponseCode() >= 400) {
-    throw new Error('Serper API error ' + response.getResponseCode() + ': ' + response.getContentText('UTF-8'));
-  }
-
+  const url = 'https://serpapi.com/search.json?engine=google&google_domain=google.co.jp&gl=jp&hl=ja' +
+    '&q=' + encodeURIComponent(query) + '&num=' + Math.max(10, maxCount) + '&api_key=' + encodeURIComponent(apiKey);
+  const response = UrlFetchApp.fetch(url, { muteHttpExceptions: true });
+  if (response.getResponseCode() !== 200) throw new Error('SERPAPI_UNAVAILABLE: HTTP ' + response.getResponseCode());
   const data = JSON.parse(response.getContentText('UTF-8'));
-  const organic = (data && data.organic) || [];
+  if (data.error) throw new Error('SERPAPI_UNAVAILABLE: ' + String(data.error));
+  return (data.organic_results || []).slice(0, Math.max(10, maxCount)).map(function(item) {
+    return { url: String(item.link || '').trim(), title: String(item.title || '').trim() };
+  }).filter(function(item) { return item.url; });
+}
+
+function uaFetchGoogleTopUrlsViaSerpApi_(query, maxCount) {
+  const organic = uaFetchSerpApiOrganicResults_(query, maxCount);
   const urls = [];
 
   organic.forEach(function(item) {
     if (urls.length >= maxCount) return;
-    const url = String((item && item.link) || '').trim();
+    const url = String((item && item.url) || '').trim();
     if (!uaIsUsefulCompetitorUrl_(url)) return;
     if (urls.indexOf(url) !== -1) return;
     urls.push(url);

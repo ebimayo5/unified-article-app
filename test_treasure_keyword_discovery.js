@@ -29,6 +29,12 @@ function freshContext() {
   // uaGetSerperApiKey_ lives in outline.gs, which this file doesn't load
   // (unrelated dependencies) -- stub it directly.
   context.uaGetSerperApiKey_ = function () { return 'test-serper-key'; };
+  context.uaFetchSerpApiOrganicResults_ = function (_query, maxCount) {
+    const data = JSON.parse(context.UrlFetchApp.fetch('https://serpapi.com/search.json', {payload: JSON.stringify({q: _query})}).getContentText());
+    return (data.organic_results || data.organic || []).slice(0, maxCount).map(function (item) {
+      return { url: item.link, title: item.title };
+    });
+  };
   // uaGetAppConfigByLabel_ lives in main.gs, which this file doesn't load
   // (unrelated dependencies) -- stub it directly using the real UA_APP_TYPES.
   context.uaGetAppConfigByLabel_ = function (label) {
@@ -89,7 +95,7 @@ const driveConfig = { key: 'drive', label: 'DRIVE BASE' };
     fetch: () => ({
       getResponseCode: () => 200,
       getContentText: () => JSON.stringify({
-        organic: [
+        organic_results: [
           { link: 'https://detail.chiebukuro.yahoo.co.jp/qa/question_detail/q1', title: '知恵袋の質問1' },
           { link: 'https://ameblo.jp/someuser/entry-1.html', title: '個人ブログ1' },
           { link: 'https://www.example-unknown-blog.com/post', title: '謎のブログ' },
@@ -121,7 +127,7 @@ const driveConfig = { key: 'drive', label: 'DRIVE BASE' };
     fetch: () => ({
       getResponseCode: () => 200,
       getContentText: () => JSON.stringify({
-        organic: [
+        organic_results: [
           { link: 'https://www.amazon.co.jp/dp/B1', title: 'A' },
           { link: 'https://www.rakuten.co.jp/shop/1/', title: 'B' },
           { link: 'https://kakaku.com/item/1', title: 'C' }

@@ -149,38 +149,12 @@ function uaClassifyTreasureDomain_(url, appConfig) {
   return 'other';
 }
 
-// Serperの生の検索結果を取得する（outline.gsのuaFetchGoogleTopUrlsViaSerper_は
+// Google順位採点にはSerpApiの生の検索結果だけを使う（Yahooへの切替結果では採点しない）。
+// outline.gsのuaFetchGoogleTopUrlsViaSerpApi_は
 // 記事構成づくり用に知恵袋・Q&Aサイトを最初から除外しているため、
 // お宝キーワード判定にはそのまま使えない。ここではフィルタ無しで取得する）。
-function uaFetchSerperOrganicResultsRaw_(query, maxCount) {
-  const apiKey = uaGetSerperApiKey_();
-  if (!apiKey) return [];
-
-  const response = UrlFetchApp.fetch('https://google.serper.dev/search', {
-    method: 'post',
-    contentType: 'application/json',
-    muteHttpExceptions: true,
-    headers: { 'X-API-KEY': apiKey },
-    payload: JSON.stringify({
-      q: query,
-      gl: 'jp',
-      hl: 'ja',
-      num: Math.max(10, maxCount)
-    })
-  });
-
-  if (response.getResponseCode() >= 400) {
-    throw new Error('Serper API error ' + response.getResponseCode() + ': ' + response.getContentText('UTF-8'));
-  }
-
-  const data = JSON.parse(response.getContentText('UTF-8'));
-  const organic = (data && data.organic) || [];
-  return organic.slice(0, maxCount).map(function(item) {
-    return {
-      url: String((item && item.link) || '').trim(),
-      title: String((item && item.title) || '').trim()
-    };
-  }).filter(function(item) { return item.url; });
+function uaFetchGoogleOrganicResultsRaw_(query, maxCount) {
+  return uaFetchSerpApiOrganicResults_(query, maxCount);
 }
 
 function uaRankScoreForWeakSignal_(rank, topScore, midScore, lowScore) {
@@ -195,7 +169,7 @@ function uaRankScoreForWeakSignal_(rank, topScore, midScore, lowScore) {
 // allintitle/intitle・検索ボリュームは自動取得手段が無いため対象外にしている
 // （検索ボリュームはユーザーがラッコキーワードで手動確認する運用）。
 function uaScoreTreasureKeywordSerp_(query, appConfig) {
-  const results = uaFetchSerperOrganicResultsRaw_(query, 10);
+  const results = uaFetchGoogleOrganicResultsRaw_(query, 10);
   if (results.length === 0) {
     return { score: 0, level: '取得失敗', results: [], weakUrls: [], strongCount: 0 };
   }
@@ -255,7 +229,7 @@ function uaScoreTreasureKeywordSerp_(query, appConfig) {
 }
 
 const UA_TREASURE_KEYWORD_SCORE_THRESHOLD = 40; // judge_levelの「要検討」以上のみ残す
-const UA_TREASURE_KEYWORD_BATCH_SIZE = 8; // 1回の実行で使うAI呼び出し・Serper呼び出しの上限（コスト抑制）
+const UA_TREASURE_KEYWORD_BATCH_SIZE = 8; // 1回の実行で使うAI呼び出し・検索API呼び出しの上限（コスト抑制）
 
 function uaCollectExistingCandidateKeywords_(candidateSheet) {
   const lastRow = candidateSheet.getLastRow();
@@ -495,8 +469,8 @@ function uaAppendAiSuggestedCandidates_(candidateSheet, keywords) {
 // 「書く」への昇格は絶対に行わない（人が確認して昇格させる）。この関数自体はシートへの
 // 書き込みは行わず、判定結果（kept/reason付き）の配列を返すだけ。
 // 2026-09-05: 案件欄で絞り込むと対象キーワードが数十〜百件規模になることがあり、
-// SERPスコアリングは1件ずつSerperへ同期フェッチするため、GASの実行上限（6分）に
-// タイムアウトすると全件評価が完了する前に強制終了され、それまでのSerper/Gemini
+// SERPスコアリングは1件ずつ検索APIへ同期フェッチするため、GASの実行上限（6分）に
+// タイムアウトすると全件評価が完了する前に強制終了され、それまでの検索API/Gemini
 // 呼び出し分のAPIコストが結果として1件もシートに保存されず無駄になる。
 // これを防ぐため、実行開始から一定時間が経過したら残りのキーワードはSERP採点せず
 // 「時間切れのため未評価」として打ち切り、そこまでの結果は必ず呼び出し元に返す
@@ -591,7 +565,7 @@ function uaEvaluateTreasureKeywordCandidates_(appConfig, rawCandidates, existing
     try {
       serpResult = uaScoreTreasureKeywordSerp_(keyword, appConfig);
     } catch (e) {
-      resultByKeyword[keyword] = { keyword: keyword, kept: false, reason: 'Serper取得エラー: ' + (e && e.message || e) };
+      resultByKeyword[keyword] = { keyword: keyword, kept: false, reason: '判定保留（Google検索結果を取得できません）: ' + (e && e.message || e) };
       return;
     }
 
@@ -1442,7 +1416,7 @@ function uaEvaluateUnkanTreasureKeywords_(config, keywords, existingSet, existin
     try {
       const serp=uaScoreTreasureKeywordSerp_(keyword,config),kept=serp.score>=UA_TREASURE_KEYWORD_SCORE_THRESHOLD;
       return {keyword:keyword,kept:kept,productLabel:'運行管理者試験対策',serpScore:serp.score,serpLevel:serp.level,weakUrls:serp.weakUrls,reason:kept?'試験対策に関連・SERP基準通過（検索数は別途確認）':'競合が強い（SERPスコア'+serp.score+'）'};
-    } catch(error) {return {keyword:keyword,kept:false,reason:'SERP取得エラー: '+error.message};}
+    } catch(error) {return {keyword:keyword,kept:false,reason:'判定保留（Google検索結果を取得できません）: '+error.message};}
   });
   const passed=results.filter(function(item){return item.kept;}).map(function(item){return item.keyword;});
   if(passed.length && existingArticles.length) {

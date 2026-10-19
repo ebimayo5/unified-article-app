@@ -21,7 +21,7 @@ function onOpen() {
     .addItem('外部出典シートを作る', 'uaSetupExternalSourceSheet')
     .addItem('WordPress接続テスト', 'uaTestWordPressConnections')
     .addSeparator()
-    .addItem('Serper APIキーを設定', 'uaPromptAndSaveSerperApiKey')
+    .addItem('SerpApi APIキーを設定', 'uaPromptAndSaveSerpApiKey')
     .addItem('公開前チェック記録を掃除（投稿済み分）', 'uaCleanupPublishedPrePublishState');
   const automaticPostingMenu = ui
     .createMenu('自動投稿')
@@ -58,6 +58,19 @@ function uaPromptAndSaveSerperApiKey() {
 
   PropertiesService.getScriptProperties().setProperty('UA_SERPER_API_KEY', value);
   ui.alert('Serper APIキーを保存しました（末尾' + value.slice(-4) + '）。');
+}
+
+function uaPromptAndSaveSerpApiKey() {
+  const ui = SpreadsheetApp.getUi();
+  const existing = String(PropertiesService.getScriptProperties().getProperty('UA_SERPAPI_API_KEY') || '').trim();
+  const response = ui.prompt('SerpApi APIキーを設定',
+    existing ? '現在: 設定済み・末尾' + existing.slice(-4) + '。新しいキーを入力してください。' : 'SerpApiのAPIキーを入力してください。',
+    ui.ButtonSet.OK_CANCEL);
+  if (response.getSelectedButton() !== ui.Button.OK) return;
+  const value = response.getResponseText().trim();
+  if (!value) return;
+  PropertiesService.getScriptProperties().setProperty('UA_SERPAPI_API_KEY', value);
+  ui.alert('SerpApi APIキーを保存しました（末尾' + value.slice(-4) + '）。');
 }
 
 function uaRenameSpreadsheetFileIfLegacyName_() {

@@ -107,8 +107,7 @@ for (const matched of [true, false]) {
     }], excluded: [] };
   }, '');
   let searches = 0;
-  c.uaGetSerperApiKey_ = () => 'test-only';
-  c.uaFetchGoogleTopUrlsViaSerper_ = () => { searches++; return ['https://www.amazon.co.jp/dp/B012345678']; };
+  c.uaFetchSearchResultUrls_ = () => { searches++; return ['https://www.amazon.co.jp/dp/B012345678']; };
   c.UrlFetchApp.fetch = (url, options) => {
     calls.page++;
     assert.strictEqual(options.followRedirects, false);

@@ -1,4 +1,10 @@
-function doGet() {
+function doGet(e) {
+  if (e && e.parameter && e.parameter.admin === '1') {
+    uaAssertAdminOwner_();
+    return HtmlService
+      .createHtmlOutputFromFile('ua_admin_web_app')
+      .setTitle('Article Compass System | APIキー管理');
+  }
   return HtmlService
     .createHtmlOutputFromFile('ua_web_app')
     .setTitle(UA_APP_NAME)

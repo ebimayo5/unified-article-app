@@ -640,6 +640,8 @@ function uaSaveAutoCompetitorUrls_(sheet, row, rowData, pages) {
 }
 
 function uaFetchSearchResultUrls_(query, maxCount) {
+  // Invalid decoded text must never spend search credits or reach Yahoo.
+  if (!String(query || '').trim() || /\uFFFD/.test(String(query))) return [];
   if (uaGetSerpApiKey_()) {
     try {
       const serpApiUrls = uaFetchGoogleTopUrlsViaSerpApi_(query, maxCount);
@@ -680,6 +682,7 @@ function uaGetSerpApiKey_() {
 
 // Account APIは検索枠を消費しない。残数不明のときは検索せずYahooへ切り替える。
 function uaFetchSerpApiOrganicResults_(query, maxCount) {
+  if (!String(query || '').trim() || /\uFFFD/.test(String(query))) throw new Error('SEARCH_QUERY_ENCODING_INVALID');
   const apiKey = uaGetSerpApiKey_();
   if (!apiKey) throw new Error('SERPAPI_UNAVAILABLE: APIキー未設定');
   const accountResponse = UrlFetchApp.fetch('https://serpapi.com/account.json?api_key=' + encodeURIComponent(apiKey), { muteHttpExceptions: true });

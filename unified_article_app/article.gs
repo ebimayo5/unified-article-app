@@ -4975,6 +4975,30 @@ function uaProductPageText_(value) {
     .replace(/&nbsp;/gi, ' ').replace(/\s+/g, ' ').trim();
 }
 
+// HTML charset declarations are ASCII even when the page body is EUC-JP.
+// Decode the original response again, never try to repair already lost characters.
+function uaDecodeProductPageHtml_(response) {
+  const preview = String(response.getContentText('UTF-8') || '');
+  const headers = typeof response.getAllHeaders === 'function' ? response.getAllHeaders() : {};
+  const headerKey = Object.keys(headers).find(function(key) { return key.toLowerCase() === 'content-type'; });
+  const headerCharset = String(headerKey ? headers[headerKey] : '').match(/charset\s*=\s*["']?([a-z0-9_-]+)/i);
+  const metaTags = preview.slice(0, 16384).match(/<meta\b[^>]*>/gi) || [];
+  let metaCharset = null;
+  metaTags.some(function(tag) {
+    metaCharset = tag.match(/charset\s*=\s*["']?([a-z0-9_-]+)/i);
+    return !!metaCharset;
+  });
+  const declared = headerCharset || metaCharset;
+  if (!declared) return preview.slice(0, 1500000);
+  const encodings = { 'utf-8': 'UTF-8', utf8: 'UTF-8', 'euc-jp': 'EUC-JP', eucjp: 'EUC-JP',
+    'shift_jis': 'Windows-31J', 'shift-jis': 'Windows-31J', sjis: 'Windows-31J',
+    'windows-31j': 'Windows-31J', 'windows-932': 'Windows-31J', 'x-sjis': 'Windows-31J',
+    'iso-2022-jp': 'ISO-2022-JP' };
+  const charset = encodings[declared[1].toLowerCase()];
+  if (!charset) throw new Error('PRODUCT_PAGE_ENCODING_UNSUPPORTED');
+  return String(charset === 'UTF-8' ? preview : response.getContentText(charset) || '').slice(0, 1500000);
+}
+
 // Fetch before ranking: API captions and storefront titles need not be identical.
 // Only bounded product metadata reaches the model, never a whole storefront.
 function uaFetchProductPageFacts_(url, amazon) {
@@ -4982,10 +5006,11 @@ function uaFetchProductPageFacts_(url, amazon) {
     const response = UrlFetchApp.fetch(url, { muteHttpExceptions: true, followRedirects: false });
     const status = response.getResponseCode();
     if (status !== 200) return { status: 'http_' + status };
-    const html = String(response.getContentText() || '').slice(0, 1500000);
+    const html = uaDecodeProductPageHtml_(response);
     const titleMatch = amazon ? html.match(/<[^>]+id=["']productTitle["'][^>]*>([\s\S]*?)<\/[^>]+>/i)
       : html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
     const title = uaProductPageText_(titleMatch && titleMatch[1]).slice(0, 350);
+    if (/\uFFFD/.test(title)) return { status: 'encoding_error' };
     if (!title || /Access Denied|Robot Check|Captcha|商品検索|ページが見つかりません/i.test(title)) return { status: 'no_product_metadata' };
     if (amazon && /現在お取り扱いできません|Currently unavailable/i.test(html)) return { status: 'unavailable' };
     const details = [];
@@ -5010,7 +5035,9 @@ function uaFetchProductPageFacts_(url, amazon) {
     scripts.slice(0, 10).forEach(function(script) {
       try { product(JSON.parse(script.replace(/^<script[^>]*>/i, '').replace(/<\/script>$/i, '')), 0); } catch (e) {}
     });
-    return { status: 'ok', title: title, details: details.filter(function(v, i, a) { return a.indexOf(v) === i; }).join(' | ').slice(0, 650) };
+    return { status: 'ok', title: title, details: details.filter(function(v, i, a) {
+      return !/\uFFFD/.test(v) && a.indexOf(v) === i;
+    }).join(' | ').slice(0, 650) };
   } catch (e) { return { status: 'fetch_error' }; }
 }
 
@@ -5081,6 +5108,7 @@ function uaFindAmazonProductPages_(item) {
   try {
     const search = modelKey ? (brands.length ? brands[0].label + ' ' : '') + modelKey.replace(/^model:/, '')
       : String(item.rakutenPage.title || item.name).replace(/【[^】]*】|\[[^\]]*\]/g, '').slice(0, 100);
+    if (!search.trim() || /\uFFFD/.test(search)) return [];
     const urls = uaFetchSearchResultUrls_('site:amazon.co.jp ' + search, 2);
     const pages = [];
     for (let i = 0; i < urls.length; i++) {

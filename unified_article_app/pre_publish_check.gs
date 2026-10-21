@@ -1407,6 +1407,7 @@ function uaFindMissingPrePublishEvidenceSourceCategories_(links, categories) {
       }
       if (category === 'home_construction') {
         return (typeof uaIsKnownHomeOfficialHost_ === 'function' && uaIsKnownHomeOfficialHost_(url)) ||
+          /^https:\/\/(?:[a-z0-9-]+\.)*mlit\.go\.jp(?:\/|$)/i.test(url) ||
           /(?:メーカー公式|住宅会社公式|仕様書|施工基準)/.test(text);
       }
       return true;

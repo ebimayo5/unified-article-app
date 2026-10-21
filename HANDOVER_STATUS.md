@@ -1,6 +1,7 @@
 # HANDOVER_STATUS
 
 ## 現在作業中（ライブ状況）
+- 状態: 作業中 Codex（2026-10-21 10:19 JST）: たくみパパ行116『32坪の家 狭い』の残存NGを確認し、保存済み本文を修正・再検査後、停止位置から再開する。対象=Google Sheets記事本文・pre_publish_check.gs・アーコン自動投稿。予定本番操作=本文保存、clasp push/deploy、停止位置から再開、WP反映の検証。
 - 状態: 空き（Codex完了 2026-10-20 02:22 JST）: スマホ用SerpApiキー管理を実装。公開アーコンのサイドバーから所有者限定の別Webアプリ@418へ移動でき、通常画面は@419。Google所有者ログイン＋メール確認コード（5分・5回・再送1分）でUA_SERPAPI_API_KEYのみ追加/変更、画面には末尾4桁のみ表示。匿名ブラウザーではGoogleログインへ遷移、所有者の実キー入力とメール受信・実検索は未検証。管理画面を公開設定に変えないこと。匿名/他人拒否・誤コード/期限/再利用のテストと既存ダッシュボード/運管テストPASS。公開アーコンでDRIVE行165『ハリアー HDMI どこ』は03:14:08の途中停止維持、再開・生成・WP反映なし。git main 0da9c95に機能をcommit済み、HANDOVER_STATUS.mdのみ追記未コミット、既存未追跡ファイル不変。次は所有者のスマホからキーを入力し、SerpApi残数取得を確認。
 - 状態: 空き（Codex完了 2026-10-20 JST）: ユーザーのSerpApi登録を受け、現行Apps Script HEADとデプロイ用コピー22ファイルを照合し一致を確認。検索変更4ファイルのみをコピーしてclasp push、版417を作成し、既存WebアプリIDを@416から@417へ更新。clasp deploymentsで@417を再確認し、Webアプリ再読込後もDRIVE行165「ハリアー HDMI どこ」は途中停止（03:14:08更新）のまま保持。KeywordTreasureFinder/ArticleBridge 0。自動投稿再開・再生成・WP反映なし。SerpApiキーはスマホのApps Script画面でユーザーが追加できず未登録とみられるため、実API検索は未検証。キー未設定時はYahoo検索に切り替わり、Google順位によるキーワード採点は判定保留。次担当はユーザーがPCでスプレッドシートの「初期設定・メンテナンス→SerpApi APIキーを設定」からキー登録後、Account API残数と記事検索の実動作を検証する。Git mainは開始時4570ab8、今回の変更は本HANDOVER_STATUS.mdのみ。既存未追跡ファイルは不変。
 - 状態: 空き（Codex完了 2026-10-19 JST）: ユーザー指示でSerperからSerpApi無料枠＋Yahoo検索フォールバックへコード移行。SerpApi Account APIで残数・月間使用数を毎回確認し、250検索到達時は有料枠を使わずYahooへ切替。キーワード採点はGoogle順位を取れない場合「判定保留」。記事構成・公式根拠・Amazon商品検索を共通検索へ接続。関連テスト6件PASS。Git main daeeb9eをcommit/push済み。clasp設定がこのチェックアウトに無いため、本番clasp push/deployとSerpApiキー登録は未実施。アーコン画面ではDRIVE行165「ハリアー HDMI どこ」が途中停止（03:14:08更新）を確認し、再開・再生成なし。WP更新なし。次担当はSerpApiキーを安全に登録し、clasp接続確認後に本番反映・実検索検証を行う。既存未追跡.claude/、analysis/usage-2026-10-12/、x.htmlは不変。
@@ -1727,3 +1728,4 @@ DRIVE BASE: `UA_WP_DRIVE_SITE_URL` `UA_WP_DRIVE_USERNAME` `UA_WP_DRIVE_APP_PASSW
 
 ### 26. 現在地の短い要約
 両サイトのSWELL移行と新規SWELL本文出力は完了。内部リンクはSWELLネイティブ関連記事カードへ修正済み。ポイント枠・注意枠のGutenberg無効ブロック問題は本番@280で修正済み。直近8公開記事も安全に修復済み。メタディスクリプションはWordPressプラグイン経由でSWELLメタへ同期する。たくみパパ・DRIVE BASEとも商品導線はRinker＋楽天/Amazonフォールバックを使用し、DRIVE BASEは案件導線も併用する。自動投稿はDRIVE BASE 4時、たくみパパ5時、各最大3記事、画像あり、公開まで、稼働ON。Codex監視は5時、6時、16時。最大の注意点はトレファイ・OpenAI待機処理の重複再実行。表示だけで正常扱いしない。次の重点は、数日間の実運転を観察し、投稿数・メタ・内部リンク・商品一致・API消費を根拠付きで確認すること。
+

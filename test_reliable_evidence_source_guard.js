@@ -90,6 +90,17 @@ assert.ok(drivingMissing.message.includes('警察庁'), 'missing category must n
 const drivingCovered = context.uaCheckCurrentOfficialSourceRequirement_(base, '<p>走行中は画面を注視しないでください。</p><a href="https://toyota.jp/rav4/">トヨタ公式のRAV4装備情報</a><a href="https://www.npa.go.jp/bureau/traffic/keitai/info.html">警察庁のながら運転に関する案内</a>');
 assert.strictEqual(drivingCovered.critical, false, 'vehicle and safety evidence must pass only when both are present');
 
+const homeBody = '<p>断熱・気密と構造計画は設計者に確認します。</p>' +
+  '<a href="https://www.mlit.go.jp/report/press/house04_hh_001264.html">国土交通省の住宅設計ガイド</a>' +
+  '<a href="https://www.shoenehou-online.mlit.go.jp/faq/standards/">国土交通省の建築基準法Q&A</a>';
+const homeIssue = context.uaCheckCurrentOfficialSourceRequirement_({mainInput:'32坪の家 狭い'}, homeBody);
+assert.ok(!homeIssue || homeIssue.critical === false, 'relevant MLIT housing guidance must satisfy the home-construction evidence category');
+assert.deepStrictEqual(
+  Array.from(context.uaFindMissingPrePublishEvidenceSourceCategories_(['<a href="https://not-mlit.go.jp/example">無関係の資料</a>'], ['home_construction'])),
+  ['住宅の性能・保証・施工基準に対応する公式資料'],
+  'lookalike domains must not be accepted as MLIT sources'
+);
+
 console.log('reliable evidence source guard: OK');
 
 // Regression: the Unkan vehicle-law rewrite stopped on legal compliance wording.

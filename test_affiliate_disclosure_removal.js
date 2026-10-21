@@ -23,6 +23,8 @@ assert.strictEqual(strip('<p>PR：本記事にはアフィリエイト広告を�
 assert.strictEqual(strip('<p>PR：この記事にはプロモーションが含まれます。</p>\n<p>本文</p>'), '<p>本文</p>', '言い換えた表記も段落ごと消す');
 assert.strictEqual(strip('<p><strong>PR：ここからは案件のご案内です。</strong></p>\n<p>本文</p>'), '<p>本文</p>', 'strongで囲まれていても消す');
 assert.strictEqual(strip('<p>ここからはPRを含みます。</p>\n<p>本文</p>'), '<p>本文</p>', '本文中のPR開始表記も段落ごと消す');
+assert.strictEqual(strip('<p>本記事にはPR・広告リンクを含みます。積水ハウスの紹介条件は初回接触前の相談が原則です。</p>'), '<p>積水ハウスの紹介条件は初回接触前の相談が原則です。</p>', '記事本文のPR定型文のみを消し紹介条件を残す');
+assert.strictEqual(strip('<p>この記事はPRを含みます。</p>\n<p>本文</p>'), '<p>本文</p>', '言い換えた独立PR表記も消す');
 assert.strictEqual(
   strip('<p>ここからはPRを含みます。積水ハウスが候補に残り、これから相談へ進むなら条件を確認できます。</p>'),
   '<p>積水ハウスが候補に残り、これから相談へ進むなら条件を確認できます。</p>',

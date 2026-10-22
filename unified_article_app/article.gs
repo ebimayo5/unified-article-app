@@ -6,6 +6,7 @@ let UA_RAKUTEN_CANDIDATE_POOL = null;
 let UA_LAST_PRODUCT_RANKING_REASON = '';
 const UA_PRODUCT_RANKING_CACHE = {};
 const UA_AMAZON_SEARCH_CACHE = {};
+const UA_AMAZON_PAGE_CACHE = {};
 let UA_LAST_RINKER_FAILURE_REASON = '';
 const UA_RINKER_API_ATTEMPTS = 2;
 
@@ -5110,23 +5111,42 @@ function uaFindAmazonProductPages_(item) {
     const search = modelKey ? (brands.length ? brands[0].label + ' ' : '') + modelKey.replace(/^model:/, '')
       : String(item.rakutenPage.title || item.name).replace(/【[^】]*】|\[[^\]]*\]/g, '').slice(0, 100);
     if (!search.trim() || /\uFFFD/.test(search)) return [];
-    const searchQuery = 'site:amazon.co.jp ' + search.trim().replace(/\s+/g, ' ');
+    const cleanTitle = String(item.rakutenPage.title || item.name).replace(/【[^】]*】|\[[^\]]*\]/g, '').trim().replace(/\s+/g, ' ').slice(0, 100);
+    const queries = [search, cleanTitle].map(function(value) {
+      return 'site:amazon.co.jp ' + value.trim().replace(/\s+/g, ' ');
+    }).filter(function(value, index, all) {
+      return !/\uFFFD/.test(value) && value !== 'site:amazon.co.jp ' && all.indexOf(value) === index;
+    });
     // Product lookup never spends SerpApi credits. Cache failures too so an
     // unavailable Yahoo/Amazon page cannot cause repeated requests this run.
-    if (Object.prototype.hasOwnProperty.call(UA_AMAZON_SEARCH_CACHE, searchQuery)) {
-      return UA_AMAZON_SEARCH_CACHE[searchQuery].map(function(page) { return Object.assign({}, page); });
-    }
-    UA_AMAZON_SEARCH_CACHE[searchQuery] = [];
-    const html = uaFetchSearchHtml_('https://search.yahoo.co.jp/search?p=' + encodeURIComponent(searchQuery));
-    const urls = uaExtractSearchResultUrls_(html);
     const pages = [];
-    for (let i = 0; i < urls.length; i++) {
-      const url = uaAmazonDirectProductUrl_(urls[i]);
-      if (!url || pages.some(function(p) { return p.url === url; })) continue;
-      pages.push(Object.assign({ url: url }, uaFetchProductPageFacts_(url, true)));
-      if (pages.length >= 2) break;
-    }
-    UA_AMAZON_SEARCH_CACHE[searchQuery] = pages;
+    queries.forEach(function(searchQuery) {
+      if (!Object.prototype.hasOwnProperty.call(UA_AMAZON_SEARCH_CACHE, searchQuery)) {
+        UA_AMAZON_SEARCH_CACHE[searchQuery] = [];
+        try {
+          const html = uaFetchSearchHtml_('https://search.yahoo.co.jp/search?p=' + encodeURIComponent(searchQuery));
+          const urls = uaExtractSearchResultUrls_(html);
+          for (let i = 0; i < urls.length; i++) {
+            const url = uaAmazonDirectProductUrl_(urls[i]);
+            if (!url || UA_AMAZON_SEARCH_CACHE[searchQuery].indexOf(url) !== -1) continue;
+            UA_AMAZON_SEARCH_CACHE[searchQuery].push(url);
+            if (UA_AMAZON_SEARCH_CACHE[searchQuery].length >= 2) break;
+          }
+        } catch (e) {
+          // A failed model search must not skip the full product-name search.
+        }
+      }
+      UA_AMAZON_SEARCH_CACHE[searchQuery].forEach(function(url) {
+        if (pages.some(function(page) { return page.url === url; })) return;
+        if (!Object.prototype.hasOwnProperty.call(UA_AMAZON_PAGE_CACHE, url)) {
+          UA_AMAZON_PAGE_CACHE[url] = { url: url, status: 'unavailable', title: '', details: '' };
+          try {
+            UA_AMAZON_PAGE_CACHE[url] = Object.assign({ url: url }, uaFetchProductPageFacts_(url, true));
+          } catch (e) {}
+        }
+        pages.push(Object.assign({}, UA_AMAZON_PAGE_CACHE[url]));
+      });
+    });
     return pages.map(function(page) { return Object.assign({}, page); });
   } catch (e) {
     // Unavailable/blocked Amazon pages mean unknown, not a matching product.

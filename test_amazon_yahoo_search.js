@@ -10,6 +10,7 @@ function setup(mode = 'ok') {
       assert.ok(!url.includes('serpapi.com'), 'Amazon lookup must never spend SerpApi quota');
       if (url.startsWith('https://search.yahoo.co.jp/search?p=')) {
         if (mode === 'error') throw new Error('Yahoo unavailable');
+        if (mode === 'model-error' && !decodeURIComponent(url).includes('黒')) throw new Error('Model lookup unavailable');
         return { getResponseCode: () => 200, getContentText: () => mode === 'empty' ? '' :
           '<a href="https://example.com/unrelated">other</a>' +
           '<a href="https://www.amazon.co.jp/s?k=test">search</a>' +
@@ -33,12 +34,18 @@ const item = { name: 'Example AB-12345 黒 1個', rakutenPage: { title: 'Example
   assert.strictEqual(result[0].status, 'ok');
   result[0].title = 'mutated';
   assert.strictEqual(c.uaFindAmazonProductPages_({ ...item, name: 'Example AB-12345 別販売店' })[0].title, 'Example AB-12345 黒 1個');
-  assert.strictEqual(calls.length, 2, 'Same model reuses Yahoo result and product facts');
+  assert.strictEqual(calls.length, 3, 'Two distinct queries share the same product facts and are reused');
+  assert.ok(calls.some(url => decodeURIComponent(url).includes('AB-12345 黒 1個')), 'Full name retains model punctuation and specifications');
 }
 for (const mode of ['error', 'empty']) {
   const { c, calls } = setup(mode);
   assert.strictEqual(c.uaFindAmazonProductPages_(item).length, 0);
   assert.strictEqual(c.uaFindAmazonProductPages_(item).length, 0);
-  assert.strictEqual(calls.length, 1, 'Unavailable results are not retried or sent to SerpApi');
+  assert.strictEqual(calls.length, 2, 'Each distinct unavailable query is tried once without SerpApi');
+}
+{
+  const { c, calls } = setup('model-error');
+  assert.strictEqual(c.uaFindAmazonProductPages_(item).length, 1, 'Full-name search recovers from a failed model search');
+  assert.strictEqual(calls.length, 3);
 }
 console.log('Amazon Yahoo lookup tests passed');

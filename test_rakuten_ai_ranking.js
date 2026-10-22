@@ -126,7 +126,7 @@ for (const matched of [true, false]) {
   assert.strictEqual(selected.length, 1);
   assert.strictEqual(selected[0].amazonVerifiedUrl, matched ? 'https://www.amazon.co.jp/dp/B012345678' : '');
   run(c, [candidate], { primaryProduct: '車載用品' }, '車載用品');
-  assert.strictEqual(searches, 1, '未登録メーカーも検索し、同一実行で再検索しない');
+  assert.strictEqual(searches, 2, '型番と商品名で検索し、同一実行で再検索しない');
   assert.strictEqual(calls.ai, 1, '商品適合と両市場同一性を1回で判定');
   assert.strictEqual(calls.page, 2);
 }

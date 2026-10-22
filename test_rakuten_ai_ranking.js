@@ -107,7 +107,13 @@ for (const matched of [true, false]) {
     }], excluded: [] };
   }, '');
   let searches = 0;
-  c.uaFetchSearchResultUrls_ = () => { searches++; return ['https://www.amazon.co.jp/dp/B012345678']; };
+  c.uaFetchSearchResultUrls_ = () => { throw new Error('Amazon must not use SerpApi'); };
+  c.uaFetchSearchHtml_ = (url) => {
+    assert.ok(url.startsWith('https://search.yahoo.co.jp/search?p='));
+    searches++;
+    return '<a href="https://www.amazon.co.jp/dp/B012345678">商品</a>';
+  };
+  c.uaExtractSearchResultUrls_ = () => ['https://www.amazon.co.jp/dp/B012345678'];
   c.UrlFetchApp.fetch = (url, options) => {
     calls.page++;
     assert.strictEqual(options.followRedirects, false);

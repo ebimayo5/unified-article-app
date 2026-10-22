@@ -48,7 +48,9 @@ for (const [charset, meta] of [
   let searches = 0;
   c.uaRakutenItemModelKey_ = () => '';
   c.uaExtractRequiredProductBrands_ = () => [];
-  c.uaFetchSearchResultUrls_ = () => { searches++; return []; };
+  c.uaFetchSearchResultUrls_ = () => { throw new Error('Amazon must not use SerpApi'); };
+  c.uaFetchSearchHtml_ = () => { searches++; return ''; };
+  c.uaExtractSearchResultUrls_ = () => [];
   c.uaFindAmazonProductPages_({ name: title, rakutenPage: { title: broken } });
   assert.strictEqual(searches, 0, 'Saved mojibake query must not spend credits');
   c.uaFindAmazonProductPages_({ name: title, rakutenPage: { title } });

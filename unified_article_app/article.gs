@@ -5,6 +5,7 @@ let UA_LAST_RAKUTEN_ITEMS = [];
 let UA_RAKUTEN_CANDIDATE_POOL = null;
 let UA_LAST_PRODUCT_RANKING_REASON = '';
 const UA_PRODUCT_RANKING_CACHE = {};
+const UA_AMAZON_SEARCH_CACHE = {};
 let UA_LAST_RINKER_FAILURE_REASON = '';
 const UA_RINKER_API_ATTEMPTS = 2;
 
@@ -5104,12 +5105,20 @@ function uaAmazonDirectProductUrl_(value) {
 function uaFindAmazonProductPages_(item) {
   const modelKey = uaRakutenItemModelKey_(item);
   const brands = uaExtractRequiredProductBrands_(item.name);
-  if (typeof uaFetchSearchResultUrls_ !== 'function') return [];
+  if (typeof uaFetchSearchHtml_ !== 'function' || typeof uaExtractSearchResultUrls_ !== 'function') return [];
   try {
     const search = modelKey ? (brands.length ? brands[0].label + ' ' : '') + modelKey.replace(/^model:/, '')
       : String(item.rakutenPage.title || item.name).replace(/【[^】]*】|\[[^\]]*\]/g, '').slice(0, 100);
     if (!search.trim() || /\uFFFD/.test(search)) return [];
-    const urls = uaFetchSearchResultUrls_('site:amazon.co.jp ' + search, 2);
+    const searchQuery = 'site:amazon.co.jp ' + search.trim().replace(/\s+/g, ' ');
+    // Product lookup never spends SerpApi credits. Cache failures too so an
+    // unavailable Yahoo/Amazon page cannot cause repeated requests this run.
+    if (Object.prototype.hasOwnProperty.call(UA_AMAZON_SEARCH_CACHE, searchQuery)) {
+      return UA_AMAZON_SEARCH_CACHE[searchQuery].map(function(page) { return Object.assign({}, page); });
+    }
+    UA_AMAZON_SEARCH_CACHE[searchQuery] = [];
+    const html = uaFetchSearchHtml_('https://search.yahoo.co.jp/search?p=' + encodeURIComponent(searchQuery));
+    const urls = uaExtractSearchResultUrls_(html);
     const pages = [];
     for (let i = 0; i < urls.length; i++) {
       const url = uaAmazonDirectProductUrl_(urls[i]);
@@ -5117,7 +5126,8 @@ function uaFindAmazonProductPages_(item) {
       pages.push(Object.assign({ url: url }, uaFetchProductPageFacts_(url, true)));
       if (pages.length >= 2) break;
     }
-    return pages;
+    UA_AMAZON_SEARCH_CACHE[searchQuery] = pages;
+    return pages.map(function(page) { return Object.assign({}, page); });
   } catch (e) {
     // Unavailable/blocked Amazon pages mean unknown, not a matching product.
   }

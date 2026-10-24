@@ -13,6 +13,8 @@ assert.equal(calls, 1);
 assert.equal(events[0].provider, 'SerpApi');
 assert.equal(events[0].resultCount, 1);
 assert(!JSON.stringify(events).includes('secret-key'));
+ctx.uaRecordSearchRoute_('COMPETITOR_SELECTION','検証','ACCEPTED',1,'https://maker.example/item?api_key=secret-key#secret');
+assert.equal(events.pop().sourceUrl,'https://maker.example/item');
 ctx.uaFetchSearchResultUrls_('\uFFFD', 3);
 assert.equal(calls, 1);
 assert.equal(events[1].reason, 'INVALID_QUERY');

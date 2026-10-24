@@ -104,9 +104,8 @@ function uaStartArticleStructureBackgroundForRow_(sheet, row, appConfig, provide
   }
 
   const suppliedPages = uaNormalizeTrefaiPages_(options && options.competitorPages);
-  const competitorPages = suppliedPages.length
-    ? suppliedPages
-    : uaFetchStructureCompetitorPages_(rowData, appConfig, options && options.competitorUrls);
+  const competitorPages = uaFetchStructureCompetitorPages_(rowData, appConfig,
+    options && options.competitorUrls, suppliedPages);
   uaSaveAutoCompetitorUrls_(sheet, row, rowData, competitorPages);
   rowData = uaBuildRowData_(sheet, row);
   const promptText = uaBuildArticleStructurePrompt_(rowData, appConfig, competitorPages);
@@ -584,7 +583,7 @@ function uaCallArticleStructureJson_(promptText, provider) {
   return uaCallGeminiJson_(promptText, 9000, 512);
 }
 
-function uaFetchStructureCompetitorPages_(rowData, appConfig, preferredUrls) {
+function uaFetchStructureCompetitorPages_(rowData, appConfig, preferredUrls, suppliedPages) {
   const manualUrls = [
     rowData.competitorUrl1,
     rowData.competitorUrl2,
@@ -595,22 +594,140 @@ function uaFetchStructureCompetitorPages_(rowData, appConfig, preferredUrls) {
 
   const normalizedPreferredUrls = uaNormalizeTrefaiUrls_(preferredUrls || []);
   const query = uaBuildReaderMindSearchQuery_(rowData.mainInput, appConfig);
-  const searchUrls = normalizedPreferredUrls.length
+  const supplied = Array.isArray(suppliedPages) ? suppliedPages : [];
+  const searchUrls = supplied.length || normalizedPreferredUrls.length
     ? []
     : manualUrls.length >= UA_STRUCTURE_COMPETITOR_DISPLAY_MAX_URLS
       ? []
       : uaFetchSearchResultUrls_(query, UA_STRUCTURE_COMPETITOR_SEARCH_MAX_RESULTS);
-  if (normalizedPreferredUrls.length || manualUrls.length >= UA_STRUCTURE_COMPETITOR_DISPLAY_MAX_URLS) {
-    uaRecordSearchRoute_('SKIPPED', query, normalizedPreferredUrls.length ? 'PREFERRED_URLS' : 'SAVED_COMPETITOR_URLS', 0);
+  if (supplied.length || normalizedPreferredUrls.length || manualUrls.length >= UA_STRUCTURE_COMPETITOR_DISPLAY_MAX_URLS) {
+    uaRecordSearchRoute_('SKIPPED', query, supplied.length ? 'SUPPLIED_PAGES' : normalizedPreferredUrls.length ? 'PREFERRED_URLS' : 'SAVED_COMPETITOR_URLS', 0);
   }
   const urls = [];
 
   normalizedPreferredUrls.concat(manualUrls).concat(searchUrls).forEach(function(url) {
+    if (!uaIsCompetitorArticleUrl_(url)) return;
+    url = uaCanonicalCompetitorUrl_(url);
     if (!url || urls.indexOf(url) !== -1) return;
     urls.push(url);
   });
 
-  return uaFetchCompetitorPageInfos_(urls.slice(0, UA_STRUCTURE_COMPETITOR_ANALYSIS_MAX_PAGES));
+  // 補充も最初の取得と同じ時間予算内。追加AIや無制限の検索リトライは行わない。
+  const deadline = Date.now() + UA_COMPETITOR_FETCH_TIME_BUDGET_MS;
+  const suppliedUrls = supplied.map(function(page) { return uaCanonicalCompetitorUrl_(page.url); });
+  let candidates = supplied.concat(uaFetchCompetitorPageInfos_(urls.filter(function(url) {
+    return suppliedUrls.indexOf(url) === -1;
+  }).slice(0, UA_STRUCTURE_COMPETITOR_ANALYSIS_MAX_PAGES), deadline));
+  let selected = uaSelectRelevantCompetitorPages_(candidates, query);
+  if (selected.length < UA_STRUCTURE_COMPETITOR_DISPLAY_MAX_URLS && Date.now() < deadline - 15000) {
+    const seen = suppliedUrls.concat(urls);
+    const extraUrls = uaFetchSearchResultUrls_(query + ' 解説', UA_STRUCTURE_COMPETITOR_SEARCH_MAX_RESULTS)
+      .filter(uaIsCompetitorArticleUrl_).map(uaCanonicalCompetitorUrl_)
+      .filter(function(url, index, list) { return seen.indexOf(url) === -1 && list.indexOf(url) === index; });
+    candidates = candidates.concat(uaFetchCompetitorPageInfos_(extraUrls.slice(0,
+      UA_STRUCTURE_COMPETITOR_ANALYSIS_MAX_PAGES), deadline));
+    selected = uaSelectRelevantCompetitorPages_(candidates, query);
+  }
+  if (!selected.length) {
+    throw new Error('競合記事を確認できませんでした。検索意図に合う本文取得済みの記事が0件のため、構成生成を停止しました。保存済み本文・URLは保持しています。');
+  }
+  return selected;
+}
+
+function uaCanonicalCompetitorUrl_(value) {
+  const url = String(value || '').trim().replace(/#.*$/, '');
+  const parts = url.split('?');
+  if (parts.length < 2) return url.replace(/\/$/, '');
+  const params = parts.slice(1).join('?').split('&').filter(function(param) {
+    return !/^(?:utm_[^=]*|gclid|yclid|fbclid|srsltid)=/i.test(param);
+  });
+  return parts[0].replace(/\/$/, '') + (params.length ? '?' + params.join('&') : '');
+}
+
+function uaIsCompetitorArticleUrl_(value) {
+  const url = uaCanonicalCompetitorUrl_(value);
+  if (!uaIsUsefulCompetitorUrl_(url)) return false;
+  const match = url.match(/^https?:\/\/([^\/:?#]+)([^?#]*)/i);
+  if (!match) return false;
+  const host = match[1].toLowerCase();
+  if (/(?:^|\.)(?:youtube\.com|youtu\.be|tiktok\.com|instagram\.com|facebook\.com|x\.com|twitter\.com|amazon\.co\.jp|amazon\.com|rakuten\.co\.jp|shopping\.yahoo\.co\.jp|kurashi-ie\.com)$/.test(host)) return false;
+  const path = match[2] || '/';
+  if (path === '/' || /^\/(?:search|category|categories|tag|tags|author)(?:\/|$)/i.test(path)) return false;
+  return true;
+}
+
+function uaNormalizeCompetitorText_(value) {
+  return String(value || '').normalize('NFKC').toLowerCase()
+    .replace(/ドラレコ/g, 'ドライブレコーダー').replace(/カップボード|食器棚/g, 'カップボード')
+    .replace(/テレビキャンセラー|tvキャンセラー/g, 'テレビキャンセラー')
+    .replace(/[「」『』【】（）()、。!?！？:：]/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+function uaCompetitorTermMatches_(term, text) {
+  if (/^[a-z0-9-]+$/i.test(term)) {
+    return new RegExp('(^|[^a-z0-9])' + term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?=$|[^a-z0-9])', 'i').test(text);
+  }
+  if (text.replace(/\s/g, '').indexOf(term.replace(/\s/g, '')) !== -1) return true;
+  // 分かち書きのない日本語は連続2文字の一致率で補う。英数字型番には使わない。
+  if (term.length < 6 || /[a-z0-9]/i.test(term)) return false;
+  let hits = 0;
+  for (let i = 0; i < term.length - 1; i++) if (text.indexOf(term.slice(i, i + 2)) !== -1) hits++;
+  return hits / (term.length - 1) >= 0.8;
+}
+
+function uaSelectRelevantCompetitorPages_(pages, query) {
+  const input = uaNormalizeCompetitorText_(query);
+  const intentGroups = [
+    /買って\s*は\s*いけない|選んではいけない|デメリット|後悔|失敗|壊れやすい|おすすめしない|注意点|欠点|故障|避ける|危険/,
+    /接続|つなぐ|繋ぐ|映す|映らない|hdmi|端子|ミラーリング|carplay/,
+    /価格|料金|相場|費用|値段|いくら/,
+    /足りない|狭い|広さ|サイズ|寸法|収納|大きさ/,
+    /方法|やり方|手順|対策|取り付け|取付|設置/
+  ];
+  const requiredIntents = intentGroups.filter(function(pattern) { return pattern.test(input); });
+  let topic = input;
+  intentGroups.forEach(function(pattern) { topic = topic.replace(new RegExp(pattern.source, 'g'), ' '); });
+  const terms = topic.replace(/おすすめ|ランキング|比較|口コミ|レビュー|について|どうする|できない|できる|ない|現在|最新|解説/g, ' ')
+    .split(/\s+/).filter(function(term) { return term.length >= 2 && !/^(?:する|した|です|ます|とは|こと|ため)$/.test(term); }).slice(0, 8);
+  // 接続方法の意図語とは別に、HDMI等の対象規格そのものも一致させる。
+  (input.match(/hdmi|carplay|usb(?:\s*type[- ]?[ac])?/g) || []).forEach(function(term) {
+    if (terms.indexOf(term) === -1) terms.push(term);
+  });
+  const ranked = [];
+  (pages || []).forEach(function(page, index) {
+    let reason = '';
+    const headingText = uaNormalizeCompetitorText_([page && page.title].concat(page && page.headings || []).join(' '));
+    const body = uaNormalizeCompetitorText_(page && page.bodyText);
+    const text = headingText + ' ' + body.slice(0, 6000);
+    const matches = terms.filter(function(term) { return uaCompetitorTermMatches_(term, text); });
+    const headingHits = terms.filter(function(term) { return uaCompetitorTermMatches_(term, headingText); }).length;
+    if (!page || page.fetchStatus !== 'OK') reason = 'FETCH_FAILED';
+    else if (!uaIsCompetitorArticleUrl_(page.url)) reason = 'NOT_ARTICLE_URL';
+    else if (body.replace(/\s/g, '').length < 200 || /^(?:access denied|just a moment|robot check|ページが見つかりません|404)/i.test(String(page.title || ''))) reason = 'NO_ARTICLE_BODY';
+    else if (!terms.length || !headingHits || !uaCompetitorTermMatches_(terms[0], text) || matches.length / terms.length < 0.65) reason = 'TOPIC_MISMATCH';
+    else if (requiredIntents.some(function(pattern) { return !pattern.test(text); })) reason = 'INTENT_MISMATCH';
+    if (reason) { uaRecordSearchRoute_('COMPETITOR_SELECTION', query, reason, 0, page && page.url); return; }
+    ranked.push({page: page, score: matches.length / terms.length * 10 + headingHits * 2 + requiredIntents.filter(function(pattern) { return pattern.test(headingText); }).length * 3, index: index});
+  });
+  ranked.sort(function(a, b) { return b.score - a.score || a.index - b.index; });
+  const hosts = {};
+  const urls = {};
+  const selected = [];
+  ranked.forEach(function(item) {
+    const url = uaCanonicalCompetitorUrl_(item.page.url);
+    const host = url.match(/^https?:\/\/([^\/:?#]+)/i)[1].toLowerCase();
+    const parts = host.split('.');
+    const site = parts.slice(/\.(?:co|ne|or|ac|go)\.jp$/.test(host) ? -3 : -2).join('.');
+    if (urls[url] || hosts[site]) {
+      uaRecordSearchRoute_('COMPETITOR_SELECTION', query, 'DUPLICATE_SITE_OR_URL', 0, url);
+      return;
+    }
+    urls[url] = true; hosts[site] = true;
+    selected.push(Object.assign({}, item.page, {url: url}));
+    uaRecordSearchRoute_('COMPETITOR_SELECTION', query, 'ACCEPTED', 1, url);
+  });
+  uaRecordSearchRoute_('COMPETITOR_SELECTION', query, selected.length < 3 ? 'INSUFFICIENT_VERIFIED_ARTICLES' : 'SELECTED', selected.length);
+  return selected.slice(0, UA_STRUCTURE_COMPETITOR_ANALYSIS_MAX_PAGES);
 }
 
 function uaSaveAutoCompetitorUrls_(sheet, row, rowData, pages) {
@@ -622,7 +739,16 @@ function uaSaveAutoCompetitorUrls_(sheet, row, rowData, pages) {
     return String(url || '').trim();
   });
 
-  const nextUrls = currentUrls.slice();
+  // 再検査を通過したURLだけを保存。0件時は呼出し元で停止し既存値を保持する。
+  const approved = (pages || []).map(function(page) { return uaCanonicalCompetitorUrl_(page.url); });
+  if (!approved.length) return;
+  const retained = [];
+  const nextUrls = currentUrls.map(function(url) {
+    const canonical = uaCanonicalCompetitorUrl_(url);
+    if (approved.indexOf(canonical) === -1 || retained.indexOf(canonical) !== -1) return '';
+    retained.push(canonical);
+    return canonical;
+  });
   let pageIndex = 0;
 
   for (let i = 0; i < nextUrls.length; i++) {
@@ -687,13 +813,19 @@ function uaFetchSearchResultUrls_(query, maxCount) {
 }
 
 // 検索を増やさず、通常実行の経路だけを記録する。記録失敗は生成を止めない。
-function uaRecordSearchRoute_(provider, query, reason, count) {
+function uaRecordSearchRoute_(provider, query, reason, count, sourceUrl) {
   try {
     const key = uaGetSerpApiKey_();
     let safeQuery = String(query || '');
     if (key) safeQuery = safeQuery.split(key).join('[REDACTED]');
     safeQuery = safeQuery.replace(/https?:\/\/\S+/gi, '[URL]').replace(/api_key\s*[=:]\s*[^\s&]+/gi, 'api_key=[REDACTED]').slice(0, 300);
-    console.log(JSON.stringify({time: new Date().toISOString(), event: 'SEARCH_ROUTE', provider: provider, query: safeQuery, reason: reason, resultCount: count}));
+    const entry = {time: new Date().toISOString(), event: 'SEARCH_ROUTE', provider: provider, query: safeQuery, reason: reason, resultCount: count};
+    if (sourceUrl) {
+      let safeUrl = String(sourceUrl).split(/[?#]/)[0].replace(/^(https?:\/\/)[^/@]+@/i, '$1');
+      if (key) safeUrl = safeUrl.split(key).join('[REDACTED]');
+      entry.sourceUrl = safeUrl.slice(0, 400);
+    }
+    console.log(JSON.stringify(entry));
   } catch (e) { /* 記録だけの失敗で検索・生成を再実行しない */ }
 }
 

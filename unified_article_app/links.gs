@@ -779,14 +779,15 @@ function uaFetchCompetitorPageInfosBatch_(list, deadline) {
   }
 }
 
-function uaFetchCompetitorPageInfos_(urls) {
+function uaFetchCompetitorPageInfos_(urls, sharedDeadline) {
   const list = (Array.isArray(urls) ? urls : []).map(function(url) {
     return String(url || '').trim();
   }).filter(Boolean);
 
   if (list.length === 0) return [];
 
-  const deadline = Date.now() + UA_COMPETITOR_FETCH_TIME_BUDGET_MS;
+  const deadline = Math.min(Date.now() + UA_COMPETITOR_FETCH_TIME_BUDGET_MS,
+    Number(sharedDeadline) || Infinity);
   return uaFetchCompetitorPageInfosBatch_(list, deadline);
 }
 

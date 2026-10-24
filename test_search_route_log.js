@@ -1,0 +1,28 @@
+const assert = require('assert');
+const fs = require('fs');
+const vm = require('vm');
+const events = [];
+const ctx = { console: {log: s => events.push(JSON.parse(s)), warn: () => {}},
+  PropertiesService: {getScriptProperties: () => ({getProperty: () => 'secret-key', setProperty: () => {}})} };
+vm.createContext(ctx);
+vm.runInContext(fs.readFileSync('unified_article_app/outline.gs','utf8'), ctx);
+let calls = 0;
+ctx.uaFetchGoogleTopUrlsViaSerpApi_ = () => { calls++; return ['https://maker.example/item']; };
+ctx.uaFetchSearchResultUrls_('日本語 secret-key https://example.com/?api_key=secret-key', 3);
+assert.equal(calls, 1);
+assert.equal(events[0].provider, 'SerpApi');
+assert.equal(events[0].resultCount, 1);
+assert(!JSON.stringify(events).includes('secret-key'));
+ctx.uaFetchSearchResultUrls_('\uFFFD', 3);
+assert.equal(calls, 1);
+assert.equal(events[1].reason, 'INVALID_QUERY');
+ctx.uaFetchGoogleTopUrlsViaSerpApi_ = () => { calls++; throw Error('quota'); };
+ctx.uaFetchSearchHtml_ = () => '';
+ctx.uaExtractSearchResultUrls_ = () => [];
+ctx.uaFetchSearchResultUrls_('検証', 3);
+assert.equal(events[2].provider, 'Yahoo');
+assert.equal(events[2].reason, 'NO_USABLE_RESULTS');
+ctx.console.log = () => { throw Error('log unavailable'); };
+ctx.uaFetchGoogleTopUrlsViaSerpApi_ = () => ['https://maker.example/item'];
+assert.equal(ctx.uaFetchSearchResultUrls_('検証', 3).length, 1);
+console.log('Search route logging tests PASS');

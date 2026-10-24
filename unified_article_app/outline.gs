@@ -600,6 +600,9 @@ function uaFetchStructureCompetitorPages_(rowData, appConfig, preferredUrls) {
     : manualUrls.length >= UA_STRUCTURE_COMPETITOR_DISPLAY_MAX_URLS
       ? []
       : uaFetchSearchResultUrls_(query, UA_STRUCTURE_COMPETITOR_SEARCH_MAX_RESULTS);
+  if (normalizedPreferredUrls.length || manualUrls.length >= UA_STRUCTURE_COMPETITOR_DISPLAY_MAX_URLS) {
+    uaRecordSearchRoute_('SKIPPED', query, normalizedPreferredUrls.length ? 'PREFERRED_URLS' : 'SAVED_COMPETITOR_URLS', 0);
+  }
   const urls = [];
 
   normalizedPreferredUrls.concat(manualUrls).concat(searchUrls).forEach(function(url) {
@@ -641,14 +644,24 @@ function uaSaveAutoCompetitorUrls_(sheet, row, rowData, pages) {
 
 function uaFetchSearchResultUrls_(query, maxCount) {
   // Invalid decoded text must never spend search credits or reach Yahoo.
-  if (!String(query || '').trim() || /\uFFFD/.test(String(query))) return [];
+  if (!String(query || '').trim() || /\uFFFD/.test(String(query))) {
+    uaRecordSearchRoute_('SKIPPED', '', 'INVALID_QUERY', 0);
+    return [];
+  }
   if (uaGetSerpApiKey_()) {
     try {
       const serpApiUrls = uaFetchGoogleTopUrlsViaSerpApi_(query, maxCount);
-      if (serpApiUrls.length > 0) return serpApiUrls;
+      if (serpApiUrls.length > 0) {
+        uaRecordSearchRoute_('SerpApi', query, 'SUCCESS', serpApiUrls.length);
+        return serpApiUrls;
+      }
+      uaRecordSerpApiFallback_(query, 'NO_USABLE_RESULTS');
     } catch (e) {
       // 無料枠切れ・API障害時はYahoo検索に切り替える。
+      uaRecordSerpApiFallback_(query, e && e.message ? e.message : 'UNKNOWN_ERROR');
     }
+  } else {
+    uaRecordSerpApiFallback_(query, 'API_KEY_NOT_CONFIGURED');
   }
 
   const urls = [];
@@ -669,7 +682,38 @@ function uaFetchSearchResultUrls_(query, maxCount) {
     }
   });
 
+  uaRecordSearchRoute_('Yahoo', query, urls.length ? 'SUCCESS' : 'NO_USABLE_RESULTS', urls.length);
   return urls.slice(0, maxCount);
+}
+
+// 検索を増やさず、通常実行の経路だけを記録する。記録失敗は生成を止めない。
+function uaRecordSearchRoute_(provider, query, reason, count) {
+  try {
+    const key = uaGetSerpApiKey_();
+    let safeQuery = String(query || '');
+    if (key) safeQuery = safeQuery.split(key).join('[REDACTED]');
+    safeQuery = safeQuery.replace(/https?:\/\/\S+/gi, '[URL]').replace(/api_key\s*[=:]\s*[^\s&]+/gi, 'api_key=[REDACTED]').slice(0, 300);
+    console.log(JSON.stringify({time: new Date().toISOString(), event: 'SEARCH_ROUTE', provider: provider, query: safeQuery, reason: reason, resultCount: count}));
+  } catch (e) { /* 記録だけの失敗で検索・生成を再実行しない */ }
+}
+
+// Record before Yahoo is called. Never retain API keys or request URLs from exceptions.
+function uaRecordSerpApiFallback_(query, reason) {
+  try {
+    const key = uaGetSerpApiKey_();
+    const redact = function(value) {
+      let text = String(value || '');
+      if (key) text = text.split(key).join('[REDACTED]');
+      return text.replace(/https?:\/\/\S+/gi, '[URL]').replace(/api_key\s*[=:]\s*[^\s&]+/gi, 'api_key=[REDACTED]').slice(0, 300);
+    };
+    const entry = { time: new Date().toISOString(), event: 'SERPAPI_FALLBACK', fallback: 'Yahoo', query: redact(query), reason: redact(reason) };
+    const json = JSON.stringify(entry);
+    console.warn(json);
+    PropertiesService.getScriptProperties().setProperty('UA_SERPAPI_LAST_FALLBACK', json);
+  } catch (logError) {
+    // Logging failures must not prevent the existing Yahoo fallback.
+    console.warn('SERPAPI_FALLBACK_LOG_WRITE_FAILED');
+  }
 }
 
 function uaGetSerperApiKey_() {

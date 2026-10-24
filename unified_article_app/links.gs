@@ -1038,7 +1038,8 @@ function uaIsFinanceFreshnessTopic_(value) {
 function uaDiscoverCurrentOfficialSources_(mainInput, appConfig, contextText) {
   const input = String(mainInput || '').trim();
   const context = String(contextText || '');
-  const topicText = [input, context].join(' ');
+  // CTAや競合本文の補足語で検索分野を広げない。追加検索の分野は主題で決める。
+  const topicText = input;
   const requiresFreshSearch = uaRequiresFreshOfficialSourceSearch_(input) ||
     uaRequiresFreshOfficialSourceSearchFromContext_(context);
   const evidenceCategories = uaGetRequiredEvidenceSourceCategories_(input, context);
@@ -1046,18 +1047,18 @@ function uaDiscoverCurrentOfficialSources_(mainInput, appConfig, contextText) {
   if (!input || (!requiresFreshSearch && !requiresEvidenceSearch)) return [];
   if (typeof uaFetchSearchResultUrls_ !== 'function' || typeof uaFetchCompetitorPageInfos_ !== 'function') return [];
 
-  const queries = [input + ' 最新 公式'];
-  if (requiresEvidenceSearch && !requiresFreshSearch) {
-    queries[0] = input + ' 公式';
-  }
+  const isRecorderTopic = /(ドライブレコーダー|ドラレコ)/.test(input);
+  const queries = isRecorderTopic
+    ? [input.replace(/買って\s*は\s*いけない|おすすめ|ランキング/g, '').trim() + ' メーカー 取扱説明書 録画 microSD']
+    : [input + (requiresFreshSearch ? ' 最新 公式' : ' メーカー 公式資料')];
   if (evidenceCategories.indexOf('vehicle_spec') !== -1) {
     queries.unshift(input + ' 取扱説明書 公式');
   }
   if (evidenceCategories.indexOf('driving_safety') !== -1) {
-    queries.unshift('走行中 画面 注視 警察庁');
+    queries.unshift('site:npa.go.jp 走行中 画面 注視');
   }
   if (evidenceCategories.indexOf('home_construction') !== -1) {
-    queries.unshift(input + ' 施工 公式');
+    queries.unshift(input + ' メーカー 施工説明書');
   }
   if (uaIsMarketFreshnessTopic_(topicText)) queries.unshift(input + ' 現在 価格 公式');
   if (uaIsUsedVehicleMarketTopic_(topicText)) {
@@ -1108,7 +1109,8 @@ function uaIsLikelyOfficialSourcePage_(page) {
   if (/(wikipedia|youtube|facebook|instagram|x\.com|twitter|note\.com|ameblo|価格\.com|kakaku|yahoo|goo\.ne\.jp|allabout|carview|minkara)/i.test(url)) return false;
   if (uaIsKnownOfficialEvidenceHost_(url)) return true;
   if (/\.(?:go|lg)\.jp(?:\/|$)/i.test(url)) return true;
-  return /(公式|official|企業サイト|コーポレート|IR情報|投資家情報|株主・投資家|決算|有価証券報告書|取扱説明書|リコール|改善対策)/i.test(text);
+  // 「公式」と名乗る販売店・比較記事だけでは一次資料と判定しない。
+  return /(企業サイト|コーポレート|IR情報|投資家情報|株主・投資家|有価証券報告書|取扱説明書|施工説明書|リコール|改善対策)/i.test(text);
 }
 
 function uaIsKnownOfficialEvidenceHost_(url) {
